@@ -185,7 +185,9 @@ def main():
         return 2
 
     theater_path = sys.argv[1]
-    maps_dir = sys.argv[2] if len(sys.argv) > 2 else None
+    # An empty second argument is `make check-maps` without MAPS=, not a request
+    # to check an empty path.
+    maps_dir = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2].strip() else None
     repo_root = os.path.dirname(os.path.abspath(theater_path))
 
     theater = load_theater(theater_path)

@@ -125,6 +125,8 @@ def check_stage_kinds(root):
 
 
 def check_vpc(root):
+    checked = 0
+
     for vpc in (CLIENT_VPC, SERVER_VPC):
         text = read(root, vpc)
         if not text:
@@ -133,7 +135,8 @@ def check_vpc(root):
         vpc_dir = os.path.dirname(os.path.join(root, vpc))
         srcdir = os.path.join(root, "src")
 
-        for raw in re.findall(r'\$File\s+"([^"]*greyline[^"]*)"', text):
+        for m in re.finditer(r'\$File\s+"([^"]*greyline[^"]*)"', text):
+            raw = m.group(1)
             rel = raw.replace("\\", "/")
             if rel.startswith("$SRCDIR/"):
                 path = os.path.join(srcdir, rel[len("$SRCDIR/"):])
@@ -141,6 +144,7 @@ def check_vpc(root):
                 path = os.path.join(vpc_dir, rel)
             if not os.path.exists(path):
                 fail(f"{vpc} lists {raw}, which does not exist")
+                continue
 
             if "greyline_legacy" in rel:
                 fail(
@@ -148,7 +152,46 @@ def check_vpc(root):
                     f"{LEGACY_DIR} is meant to be compiled"
                 )
 
-    notes.append("both vpc files list only greyline sources that exist")
+            if rel.endswith(".cpp"):
+                checked += 1
+                check_pch(vpc, raw, path, text, m.end())
+
+    notes.append(f"both vpc files list only greyline sources that exist ({checked} .cpp)")
+
+
+def check_pch(vpc, raw, path, vpc_text, after):
+    """A source file that skips cbase.h must opt out of the precompiled header.
+
+    The game DLLs compile with /Yu through cbase.h, so a .cpp that does not
+    include it first fails on MSVC with C1010 — 'unexpected end of file while
+    looking for precompiled header'. gcc ignores the whole thing, so a Linux
+    build and every test here would pass while the Windows build broke.
+    """
+    with open(path, encoding="utf-8", errors="replace") as f:
+        source = f.read()
+
+    includes = re.findall(r'^\s*#include\s+[<"]([^>"]+)[>"]', source, re.M)
+    uses_pch = bool(includes) and includes[0] == "cbase.h"
+    if uses_pch:
+        return
+
+    # Whatever follows this $File up to the next one is its own configuration.
+    tail = vpc_text[after:]
+    nxt = re.search(r"\$File|\$Folder|\$DynamicFile", tail)
+    block = tail[: nxt.start()] if nxt else tail
+
+    if "Not Using Precompiled Headers" not in block:
+        first = includes[0] if includes else "nothing"
+        fail(
+            f"{vpc} compiles {raw} with the project's precompiled header, but the "
+            f"file includes {first} rather than cbase.h — MSVC would fail with "
+            f"C1010. Either include cbase.h first or give the $File a "
+            f'$Configuration with $Create/UsePrecompiledHeader "Not Using '
+            f'Precompiled Headers"'
+        )
+        return
+
+    notes.append(f"{os.path.basename(raw)} correctly opts out of the precompiled header")
 
 
 # --- 4. live code does not reach into the retired directory ------------------

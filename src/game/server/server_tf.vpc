@@ -982,6 +982,19 @@ $Project "Server (TF)"
 
 				$File	"$SRCDIR\game\shared\greyline\greyline_briefing_logic.h"
 				$File	"$SRCDIR\game\shared\greyline\greyline_briefing_logic.cpp"
+				{
+					// This one deliberately includes nothing from Source, which
+					// is what lets src/game/shared/greyline/tests build it with a
+					// plain g++. That also means it cannot go through cbase.h,
+					// and the project's PCH is /Yu on exactly that header.
+					$Configuration
+					{
+						$Compiler
+						{
+							$Create/UsePrecompiledHeader	"Not Using Precompiled Headers"
+						}
+					}
+				}
 				$File	"greyline\greyline_briefing.cpp"
 				$File	"$SRCDIR\game\shared\tf\tf_match_description.cpp"
 				$File	"$SRCDIR\game\shared\tf\tf_match_description.h"

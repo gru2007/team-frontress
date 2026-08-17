@@ -32,7 +32,7 @@ game-test:
 # Every battlefield is playable, and — given a maps directory — actually
 # installed:  make check-maps MAPS=~/.steam/steam/steamapps/common/tf2/tf/maps
 check-maps:
-	python3 tools/greyline_check_maps.py theater.industrial.json $(MAPS)
+	python3 tools/greyline_check_maps.py theater.industrial.json "$(MAPS)"
 
 # The convar names the agent types exist in the game, and the stage kinds the
 # war invents are ones the game can name.
