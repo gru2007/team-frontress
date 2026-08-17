@@ -534,10 +534,12 @@ const UI = {
 
     let why = match.reason || "";
     if (match.side && match.team && match.side !== match.team) {
-      // The thing a player would otherwise think is a bug: this map is built
-      // for BLU to attack, so their side is fighting it in the other colours.
-      why += " — you fight for " + match.side + " here, in " + match.team +
-             " colours: the scoreboard will say " + match.team + ".";
+      // The thing a player would otherwise think is a bug. Payload and
+      // attack/defend maps are built for BLU to attack and cannot be changed,
+      // so the attacking side wears BLU in every battle — a rule, not a
+      // surprise. The war still counts the result for the side they fight for.
+      why += " — you fight for " + match.side + ", in " + match.team +
+             " colours: the attacking side always wears " + match.team + ".";
     }
     if (match.contract) why += " (mercenary contract)";
     this.el("battleWhy").innerHTML = this.escape(why);
@@ -706,6 +708,18 @@ const Loop = {
     }
   },
 
+  // Everything this player is in the middle of, in one call. The event stream
+  // is not replayed on reconnect — a page that reloads mid-battle would
+  // otherwise forget it is in one.
+  async refreshSelf() {
+    const self = await GC.get("/api/v1/client/self", true);
+    State.seq = self.seq || State.seq;
+    State.queue = self.queue;
+    State.match = self.match || null;
+    UI.renderQueue(State.queue);
+    UI.renderMatch(State.match);
+  },
+
   async refreshTimeline() {
     try {
       const reply = await GC.get("/api/v1/world/timeline?since=" + State.timelineSeq + "&limit=50");
@@ -750,13 +764,19 @@ const Loop = {
         break;
 
       case "match_state":
+        // Having a battle ends the queue; leaving the DEPLOY panel saying
+        // "waiting for one more" would be describing a queue that is over.
+        State.queue = null;
         State.match = ev.match;
+        UI.renderQueue(null);
         UI.renderMatch(ev.match);
         UI.status(ev.message || "battle forming");
         break;
 
       case "match_ready":
+        State.queue = null;
         State.match = ev.match;
+        UI.renderQueue(null);
         UI.renderMatch(ev.match);
         UI.status("battle ready at " + ev.match.connect);
         if (State.settings.autoJoin) Actions.join();

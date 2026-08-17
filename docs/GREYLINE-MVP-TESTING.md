@@ -174,18 +174,41 @@ log `battle recorded`.
 
 ## Level 3 — real players
 
-Four people, one server, one coordinator. There is no war map UI yet, so the
-client half is done by hand — which is fine, because what is being tested here
-is the *battle*, not the menu.
+Four people, one server, one coordinator.
 
-**1.** Everyone runs the game with the briefing enabled (it is on by default).
-**2.** Deploy them with the simulator using their real SteamID64s:
+**1.** Everyone runs the game. The main menu now *is* the test UI: a war map,
+the active fronts, and a DEPLOY button. It is a plain page —
+`game/tc2/loose/resource/html/greyline.html` — and the menu loads it because of
+`greyline_menu_page`. Set that convar to `ui/index.html` to get the stock menu
+back.
+
+**2.** In the menu: point **Coordinator** at the machine running it, put in a
+SteamID64 (dev auth trusts whatever is claimed — the RANDOM ID button makes a
+throwaway one), pick a side, press **CONNECT**, then **DEPLOY**.
+
+With **auto-join** ticked, the page runs `password` and `connect` for you the
+moment the battle server is up. Untick it to press JOIN BATTLE yourself.
+
+The same page opens in an ordinary browser during development:
+
+```bash
+cd game/tc2/loose/resource/html && python3 -m http.server 8765
+# then open http://localhost:8765/greyline.html
+```
+
+There it cannot drive the console, so it prints the `password` / `connect` line
+to copy instead. Everything else — map, DEPLOY, queue, result — is identical.
+
+### Without the menu
+
+If you would rather not start the game at all, deploy real accounts with the
+simulator using their SteamID64s:
 
 ```bash
 ./tools/greyline_sim.py --players 4 --battles 1 --winner attacker
 ```
 
-…or press DEPLOY properly with curl, one per player:
+…or by hand with curl, one per player:
 
 ```bash
 TOKEN=$(curl -s localhost:27100/api/v1/client/hello \
@@ -238,6 +261,8 @@ BLU-coloured RED team and confirming the post-match headline says RED.
 
 ### What to check
 
+- The war map in the menu shows the same owners as `GET /api/v1/world`, and the
+  front redraws within a few seconds of somebody else's battle finishing.
 - Players end up on the team the coordinator assigned, and switching team puts
   them back within a second.
 - Somebody without the password cannot get in.
@@ -258,6 +283,9 @@ BLU-coloured RED team and confirming the post-match headline says RED.
 | Battle runs forever, no result | the mode's win conditions did not end it; check `mp_winlimit` / `mp_maxrounds` after the changelevel |
 | Result reported but the war does not move | coordinator logs `battle did not advance the war` with a reason — usually a front that was already decided |
 | Briefing shows raw `#Greyline_...` tokens | `resource/greyline_%language%.txt` is not being loaded on the client |
+| Menu is blank or shows the stock TC2 menu | `greyline_menu_page` — it must be `ui/greyline.html`, and the file must be in `tc2/loose/resource/html/` |
+| Menu says "could not reach the coordinator" | the address in its settings, and that the coordinator is listening on something the game can route to |
+| Menu works in the game but not in a browser | that is CORS; the coordinator sends `Access-Control-Allow-Origin: *`, so check you are not on an old build |
 | Every battle is arena at any population | the front's profile has no battlefield whose envelope fits; widen `min_players` in the theater |
 
 Two logs answer most questions:

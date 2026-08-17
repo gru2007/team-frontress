@@ -14,7 +14,8 @@
     "max_fronts": 4,
     "mobilization_deficit": 2,
     "intermission": "15m0s",
-    "campaign_name": "THE SECOND GRAVEL WAR"
+    "campaign_name": "THE SECOND GRAVEL WAR",
+    "attacker_team": "blu"
   },
   "auth": {
     "mode": "dev",

@@ -142,7 +142,64 @@ func TestDirectionalMapsSwapTeams(t *testing.T) {
 	}
 	sym := BattlePlan{Attacker: SideRed, Defender: SideBlu}
 	if sym.GameTeam(SideRed) != SideRed || sym.GameTeam(SideBlu) != SideBlu {
-		t.Error("a symmetric map must not swap anybody")
+		t.Error("a plan with no attacker team must not swap anybody")
+	}
+}
+
+// The uniform has to mean something. Payload and attack/defend maps force the
+// attacker to be BLU and cannot be changed, so rather than a player's colours
+// flipping depending on which map came up, the attacking side wears BLU in
+// every battle — and their uniform tells them which half of the fight they are
+// in.
+func TestTheAttackingSideAlwaysWearsTheSameColours(t *testing.T) {
+	e := newTestEngine(t)
+	f := e.ActiveFronts()[0]
+
+	// A small queue gets a symmetric skirmish map, a big one gets 5CP: neither
+	// states an attacker team, and both must still follow the rule.
+	for _, players := range []int{6, 12} {
+		plan, err := e.PlanBattle(f.ID, players)
+		if err != nil {
+			t.Fatalf("plan at %d: %v", players, err)
+		}
+		if plan.AttackerTeam != "blu" {
+			t.Fatalf("at %d players the attacker plays as %q, want blu", players, plan.AttackerTeam)
+		}
+		if got := plan.GameTeam(plan.Attacker); got != SideBlu {
+			t.Errorf("at %d players the attacker wears %s", players, got)
+		}
+		if got := plan.GameTeam(plan.Defender); got != SideRed {
+			t.Errorf("at %d players the defender wears %s", players, got)
+		}
+		// And the result still comes back in war sides.
+		outcome, red, blu := plan.TranslateResult(OutcomeBluWin, 1, 3)
+		if outcome.Winner() != plan.Attacker {
+			t.Errorf("a BLU-team win read as %s, want the attacker %s", outcome, plan.Attacker)
+		}
+		if plan.Attacker == SideRed && (red != 3 || blu != 1) {
+			t.Errorf("scores translated to RED %d BLU %d, want 3 and 1", red, blu)
+		}
+	}
+}
+
+// An operator who prefers the old behaviour can have it back.
+func TestAttackerTeamRuleCanBeSwitchedOff(t *testing.T) {
+	rules := DefaultRules()
+	rules.AttackerTeam = ""
+	e, err := NewEngine(testTheater(t), MemoryLog(), rules)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := e.PlanBattle(e.ActiveFronts()[0].ID, 6)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A skirmish map states no attacker team, so each side plays its own colour.
+	if plan.AttackerTeam != "" {
+		t.Fatalf("with the rule off a symmetric map still forced %q", plan.AttackerTeam)
+	}
+	if plan.GameTeam(SideRed) != SideRed {
+		t.Error("RED did not play as RED with the rule off")
 	}
 }
 

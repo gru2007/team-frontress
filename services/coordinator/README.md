@@ -75,9 +75,10 @@ What it does with a battle:
 5. drops the password and returns to its idle map.
 
 The agent reports the scoreline **in in-game teams**, exactly as the scoreboard
-said it. The coordinator translates that back into war sides, because on a
-payload or attack/defend map the attacking side plays as BLU whichever side it
-is in the war.
+said it. The coordinator translates that back into war sides, because the
+attacking side plays as BLU in every battle — see
+[the war doc](../../docs/GREYLINE-WAR.md#the-attacking-side-always-wears-blu)
+for why that is a rule rather than a per-map accident.
 
 ## HTTP API
 
@@ -127,6 +128,19 @@ that move the war.
 
 `GET /state`, `/world`, `/timeline`, `/servers`, `/players`, `/battles`;
 `POST /servers/drain`. Set `pool.admin_key` if it is not on loopback.
+
+## The client
+
+There is no finished menu yet, and the MVP does not need one. The game's main
+menu web panel loads a plain test page instead — the war map, the active fronts,
+DEPLOY, and the jump into the battle — which lives in the game tree at
+`game/tc2/loose/resource/html/greyline.html` and speaks only the public API
+above. `greyline_menu_page` switches back to the stock menu.
+
+The same file opens in a browser during development, which is why the API sends
+`Access-Control-Allow-Origin: *`: the endpoints that need no token are the war
+map, which is public on purpose, and everything else needs a bearer token the
+page was handed explicitly.
 
 ## Testing it
 

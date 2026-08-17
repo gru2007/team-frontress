@@ -87,6 +87,7 @@ func main() {
 		MobilizationDeficit: cfg.War.MobilizationDeficit,
 		Intermission:        cfg.War.Intermission.D(),
 		CampaignName:        cfg.War.CampaignName,
+		AttackerTeam:        cfg.War.AttackerTeam,
 	})
 	if err != nil {
 		fail(err)

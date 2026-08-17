@@ -390,11 +390,16 @@ void CGreylineBriefing::AnnounceToPlayer( CBasePlayer *pPlayer, bool bIncludeHUD
 
 	// Line 3, the one that stops a player thinking the game is broken.
 	//
-	// Payload and attack/defend maps are built for BLU to attack, so a RED
-	// offensive on one of them is fought in BLU uniforms: the spawn, the
-	// scoreboard and the end-of-round banner will all say BLU while the war
-	// says RED. Nothing can repaint the map, so the game says it out loud
-	// instead. On a symmetric map the two agree and this line is skipped.
+	// Payload and attack/defend maps are built for BLU to attack: the cart, the
+	// spawn rooms and the respawn visualizers are the map's own geometry, and no
+	// amount of code repaints them. Repainting the players instead would be
+	// worse than the problem — team colour is how everyone tells friend from
+	// foe, and a mercenary in the wrong uniform gets shot by his own side.
+	//
+	// So the coordinator makes it a rule rather than an accident: the attacking
+	// side wears BLU in every battle. The uniform then means something — it says
+	// which half of the fight you are in — and this line says it out loud the
+	// one time it needs saying.
 	if ( pEntry && pEntry->m_iWarSide != TEAM_UNASSIGNED && pEntry->m_iTeam != pEntry->m_iWarSide )
 	{
 		ClientPrint( pPlayer, HUD_PRINTTALK, "#Greyline_Chat_Colours",

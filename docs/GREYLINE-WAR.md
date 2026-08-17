@@ -141,13 +141,32 @@ queue, and falls back to the profile's skirmish list when nothing at that stage
 fits. Players see `BREAKTHROUGH`; the map underneath is whatever runs well with
 the people who are actually there.
 
-### Directional maps
+### The attacking side always wears BLU
 
-Payload and attack/defend maps are built for BLU attacking. When RED is on the
-offensive its mercenaries play as the BLU team for that battle, and the
-coordinator does the translation both ways: it assigns in-game teams in the
+Payload and attack/defend maps are built for BLU to attack. The cart, the spawn
+rooms and the respawn visualizers are the map's own geometry, so no amount of
+code makes RED the attacker on `pl_badwater`, and stock TF2 has no map where
+RED attacks. Repainting the players instead would be worse than the problem:
+team colour is how everyone tells friend from foe, and a mercenary in the wrong
+uniform gets shot by his own side.
+
+So the coordinator makes it a rule rather than an accident: **the attacking side
+wears BLU in every battle**, on every map, symmetric or not. A player's uniform
+then means something — it says which half of the fight they are in — and it
+never flips for a reason they cannot see.
+
+The coordinator does the translation both ways: it assigns in-game teams in the
 roster, and reads the reported scoreline back into war sides. The war never sees
-the swap; the players are told which side they fight for in the briefing.
+the swap, and the game says the rule out loud in the briefing:
+
+```
+▌ You fight for RED. In GREYLINE the attacking side always wears BLU, so this
+  battle you are the BLU team — the scoreboard will say BLU. The war still
+  counts it for RED.
+```
+
+`war.attacker_team` turns the rule off (`""`), which puts the surprise back:
+colours would then follow the map rather than the player's role.
 
 ## Defensive mobilization
 

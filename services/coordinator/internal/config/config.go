@@ -108,6 +108,12 @@ type WarConfig struct {
 	Intermission Duration `json:"intermission"`
 	// CampaignName is what campaigns are numbered under.
 	CampaignName string `json:"campaign_name"`
+	// AttackerTeam is the in-game team the attacking side plays as in every
+	// battle. "blu" matches every attack/defend and payload map ever built, so
+	// a player's uniform always tells them whether they are attacking. Set it to
+	// "" to let each battlefield decide instead, which means a player's colours
+	// change with the map rather than with their role.
+	AttackerTeam string `json:"attacker_team"`
 }
 
 type TimingConfig struct {
@@ -240,6 +246,7 @@ func Default() *Config {
 			MobilizationDeficit: 2,
 			Intermission:        Duration(15 * time.Minute),
 			CampaignName:        "THE SECOND GRAVEL WAR",
+			AttackerTeam:        "blu",
 		},
 		Auth: AuthConfig{
 			Mode:             AuthDev,

@@ -286,6 +286,23 @@ func TestOneBattleMovesTheWar(t *testing.T) {
 	}
 
 	server.state(as.MatchID, "live")
+
+	// The scoreboard said the RED team won. Which side of the war that is
+	// depends on the roster, because the attacking side plays as BLU: reading
+	// "RED_WIN" as "the war's RED side won" is exactly the mistake the
+	// translation exists to prevent, so the test works it out the same way the
+	// coordinator does.
+	winner := war.SideNone
+	for _, e := range as.Roster {
+		if e.Team == "RED" {
+			winner, _ = war.ParseSide(e.Side)
+			break
+		}
+	}
+	if winner == war.SideNone {
+		t.Fatal("no roster entry plays as the in-game RED team")
+	}
+
 	out := server.result(as.MatchID, "RED_WIN", 3, 1)
 	if out["war_update"] == nil {
 		t.Fatalf("the result did not move the war: %v", out)
@@ -293,11 +310,16 @@ func TestOneBattleMovesTheWar(t *testing.T) {
 
 	// The front is where the war continues, and it moved.
 	after, stillOpen := h.engine.Front(front.ID)
-	if stillOpen && after.Stage == stageBefore && after.Attacker == war.SideRed {
-		t.Fatalf("RED won but the front is still at stage %d", after.Stage)
+	if stillOpen && after.Stage == stageBefore && after.Attacker == winner {
+		t.Fatalf("%s won but the front is still at stage %d", winner, after.Stage)
 	}
 
 	// And the players are told, on the same screen they will press DEPLOY from.
+	rosterSide := map[uint64]war.Side{}
+	for _, e := range as.Roster {
+		side, _ := war.ParseSide(e.Side)
+		rosterSide[e.SteamID] = side
+	}
 	for _, c := range clients {
 		ev := c.waitFor(mm.EventMatchOver)
 		if ev.Over == nil || !ev.Over.Counted {
@@ -306,8 +328,9 @@ func TestOneBattleMovesTheWar(t *testing.T) {
 		if ev.Over.Update == nil || ev.Over.Update.Headline == "" {
 			t.Fatalf("client %d got no war headline: %+v", c.steamID, ev.Over)
 		}
-		if want := c.steamID <= 2; ev.Over.Won != want {
-			t.Errorf("client %d Won=%v, want %v", c.steamID, ev.Over.Won, want)
+		if want := rosterSide[c.steamID] == winner; ev.Over.Won != want {
+			t.Errorf("client %d fights for %s, winner was %s: Won=%v, want %v",
+				c.steamID, rosterSide[c.steamID], winner, ev.Over.Won, want)
 		}
 	}
 

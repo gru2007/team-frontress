@@ -43,6 +43,20 @@ type Rules struct {
 	Intermission time.Duration
 	// CampaignName is the name campaigns are numbered under.
 	CampaignName string
+	// AttackerTeam is the in-game team the attacking side plays as, in every
+	// battle, whatever the map.
+	//
+	// This exists because payload and attack/defend maps are built for BLU to
+	// attack and nothing can change that: the cart, the spawn doors and the
+	// respawn rooms are the map's own geometry. So a RED offensive on one of
+	// them is fought in BLU uniforms no matter what the coordinator does.
+	//
+	// Given that, the honest choice is to make it a rule rather than an
+	// exception: the attacking side always wears BLU, so a player's uniform
+	// tells them which half of the battle they are in, and it never flips for a
+	// reason they cannot see. Set it empty to let each battlefield decide, which
+	// puts the surprise back.
+	AttackerTeam string
 }
 
 // DefaultRules match the MVP: one front until sixteen people are online, a soft
@@ -54,6 +68,7 @@ func DefaultRules() Rules {
 		MobilizationDeficit: 2,
 		Intermission:        15 * time.Minute,
 		CampaignName:        "THE SECOND GRAVEL WAR",
+		AttackerTeam:        "blu",
 	}
 }
 
@@ -70,6 +85,16 @@ func (r *Rules) fill() {
 	if r.CampaignName == "" {
 		r.CampaignName = "THE SECOND GRAVEL WAR"
 	}
+}
+
+// attackerTeamFor decides which in-game team the attacking side plays as. A
+// battlefield that states one wins — it is the map's own constraint — and
+// otherwise the rule applies to every battle alike.
+func (r Rules) attackerTeamFor(m MapEntry) string {
+	if m.AttackerTeam != "" {
+		return m.AttackerTeam
+	}
+	return r.AttackerTeam
 }
 
 // Engine owns the war. Every mutation goes through emit, so the log and the
@@ -235,7 +260,7 @@ func (e *Engine) PlanBattle(frontID string, players int) (BattlePlan, error) {
 		Mode:         entry.Mode,
 		MinPlayers:   entry.MinPlayers,
 		MaxPlayers:   entry.MaxPlayers,
-		AttackerTeam: entry.AttackerTeam,
+		AttackerTeam: e.rules.attackerTeamFor(entry),
 		Headline: fmt.Sprintf("%s — %s %d/%d AT %s",
 			strings.ToUpper(kind.Label()), f.Attacker, f.Stage+1, len(f.Plan), nodeName(node, f.TargetNode)),
 	}, nil
