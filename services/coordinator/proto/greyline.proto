@@ -282,23 +282,23 @@ message CMsgAssignHost {
   optional bytes match_secret = 9;
   optional bool is_migration = 10;
   optional CMsgMatchSnapshot restore = 11; // set when is_migration
-  // Non-zero on migration: the battle keeps its Steam lobby, so the new host
-  // takes that one over instead of creating a second one. Everyone else is
-  // already sitting in it and gets the new server through LobbyGameCreated_t
-  // without moving.
-  optional uint64 lobby_id = 12;
+  // 12 was lobby_id, from when a battle was assembled inside a Steam lobby.
+  // A host now just runs "map" and reports where it ended up.
 }
 
-// The host has created the Steam lobby and its listen server is published to
-// it. There is no transport detail here on purpose: the engine's own Steam
-// Networking carries the match, and Steam's SetLobbyGameServer carries the
-// endpoint. The coordinator only needs to know which lobby the battle lives in
-// so it can point the rest of the roster at it.
+// The host's listen server is up. This is the one message that carries a
+// transport detail, and it carries the least that works: the address the engine
+// itself advertises for this server, which under Steam Networking is a FakeIP
+// standing in for a Steam P2P/SDR route rather than a real internet address.
+// The coordinator forwards it and never interprets it.
 message CMsgHostReady {
   optional string match_id = 1;
-  optional uint64 lobby_id = 2;             // Steam lobby id
   optional uint64 game_server_steam_id = 3; // from IVEngineServer::GetGameServerSteamID
+  // Engine-advertised address, "a.b.c.d:port". Empty when the server has no
+  // address of its own yet, in which case the SteamID above is all there is.
+  optional string connect_address = 4;
   optional string map_name = 6;
+  // 2 was lobby_id.
 }
 
 message CMsgHostFailed {
@@ -306,15 +306,19 @@ message CMsgHostFailed {
   optional string reason = 2;
 }
 
-// Go join this battle. The client searches for the lobby by battle id, or joins
-// lobby_id directly, then Steam hands it the game server.
+// Go join this battle. Everything the client needs to issue one "connect" is
+// here; there is no room to find and nothing to negotiate.
 message CMsgJoinBattle {
-  optional string match_id = 1;   // also the battle id in lobby metadata
-  optional uint64 lobby_id = 2;
+  optional string match_id = 1;
   optional string front_id = 3;
   optional string map_name = 6;
   optional ESide side = 7;
   optional uint32 join_deadline_s = 11;
+  // Straight from the host's CMsgHostReady.
+  optional string connect_address = 12;
+  optional uint64 game_server_steam_id = 13;
+  optional uint64 host_steam_id = 14;
+  // 2 was lobby_id.
 }
 
 message CMsgClientJoinState {

@@ -1,7 +1,7 @@
 # GREYLINE FRONTRESS — how to test it
 
-Everything below runs the real thing end to end: coordinator, Steam lobby,
-listen server, migration, war state. No mocks.
+Everything below runs the real thing end to end: coordinator, listen server,
+migration, war state. No mocks.
 
 ## What it does
 
@@ -11,16 +11,26 @@ player presses DEPLOY
       ▼
 coordinator ── picks the front, forms the roster, elects a host
       │
-      ├── host  ──► CreateLobby ──► map ──► SetLobbyGameServer
-      │                                          │
-      └── others ──► JoinLobby ──► LobbyGameCreated_t ──► connect
-                                                 │
-                                                 ▼
-                                     battle over ──► result ──► the front moves
+      ├── host  ──► map ──► engine allocates an address ──► "ready, I am at X"
+      │                                                          │
+      └── others ◄── "the battle is at X" ──────────────────────┘
+                       │
+                       ▼
+                    connect X
+                       │
+                       ▼
+           battle over ──► result ──► the front moves
 ```
 
-The engine carries the traffic over its own Steam Networking. Nothing in
-Greyline touches gameplay packets.
+X is a Steam **FakeIP** — an address-shaped handle for a Steam P2P/SDR route,
+not a real internet address. The engine carries the traffic over its own Steam
+Networking; nothing in Greyline touches gameplay packets, and no Steam lobby is
+involved anywhere.
+
+**The host must be launched with `-enablefakeip`.** The engine only requests a
+FakeIP when that is on the command line. `game/tc2.sh` and `game/tc2.bat` pass
+it; if you launch the binary some other way, pass it yourself, or the host will
+have no address to advertise and will say so in the console.
 
 ## What is already covered by automated tests
 
@@ -31,12 +41,13 @@ cd services/coordinator && go test -race ./...
 Covers the coordinator half against a real listener: two clients deploy, a
 battle forms, a host is elected, a result is corroborated and the front
 advances; plus disputed results, forged signatures, a host contradicting its own
-scoreline, host migration keeping the lobby and the snapshot, migration hold
-times, a fatal client cheat convar, host-election scoring, the convar policy
-digest and the token/signature primitives.
+scoreline, host migration carrying the snapshot and sending the survivors to the
+new host's address, migration hold times, a fatal client cheat convar,
+host-election scoring, the convar policy digest and the token/signature
+primitives.
 
 The C++ half has no automated tests — Source has no test harness here, and it
-needs Steam, a real lobby and two accounts. That is what the manual runs below
+needs Steam, a running game and two accounts. That is what the manual runs below
 are for.
 
 ## 1. Build
@@ -147,10 +158,16 @@ greyline_host_status
 
 | check | expected |
 |---|---|
-| `greyline_status` | `hosting, battle live`, a non-zero lobby id |
+| `greyline_status` | `hosting, battle live`, and an `address` line that is not empty |
 | `greyline_host_status` | every contract convar `want` = `have` |
 | — | `sv_friends_only` is `0`, not `1` |
-| console | `battle '…' published, game server <id>` |
+| console | `battle server address 169.254.x.y:port (Steam Networking)` |
+| console | `battle '…' is up at …` |
+
+If instead you get *"this server advertises no address"*, the engine did not get
+a FakeIP: check the game was launched with `-enablefakeip`, that
+`sv_use_steam_networking` is `1`, and raise `sdr_spew_level 6` to watch the
+allocation. Everything after this point depends on that address existing.
 
 `sv_friends_only` is forced to 0 for you, per battle, by the hosting contract —
 you do not need to configure it. It is listed here only as a diagnostic: if it is
@@ -189,7 +206,9 @@ Restart Steam afterwards and launch **Campus Fortress** from the library.
 **If a Linux host cannot be reached by remote players, try this first.**
 `game/tc2.sh` passes `+ip 127.0.0.1`, which binds the game socket to loopback.
 Steam Networking should carry the traffic regardless, but that flag is the first
-thing to remove when testing hosting from a Linux box.
+thing to remove when testing hosting from a Linux box. The same script also
+passes `-enablefakeip`, which is required rather than optional — if you replace
+the launcher, keep it.
 
 **Enabling SSH on the test box.** If the machine answers ARP but refuses port 22,
 sshd is not running or is firewalled. From the machine's own keyboard:
@@ -229,7 +248,7 @@ Nobody types anything else. From here it is automatic.
 1. Coordinator: `match formed` with a map and `1v1`, then `host elected` with
    the full scoring breakdown.
 2. One client prints `you are hosting battle …` and loads the map.
-3. That client prints `battle '…' published, game server <id>`.
+3. That client prints `battle server address …` and then `battle '…' is up at …`.
 4. Coordinator: `host ready`.
 5. The other client prints `deploying to battle …` and connects **without any
    address being typed**.
@@ -270,16 +289,19 @@ While the battle is live, note the score, then **kill the host's game process**
 |---|---|
 | the battle continues | nobody returned to the main menu |
 | score | the same round score as before the host died, not 0-0 |
-| lobby | same lobby id throughout (`greyline_status`) |
+| address | the survivors connect to a **new** address, the promoted player's |
 | the round in progress | restarts — this is by design, see the limits below |
+
+The survivors do not have to find anything: the new host reports its address the
+same way the first one did, and the coordinator sends everyone a fresh join.
 
 To rehearse the takeover without killing anyone, do it by hand:
 
 ```
-greyline_takeover_battle <lobby_id> arena_badlands 2 1 3
+greyline_takeover_battle arena_badlands 2 1 3
 ```
 
-That takes over the lobby and resumes at RED 2 – BLU 1 after 3 rounds.
+That stands the battle back up here and resumes at RED 2 – BLU 1 after 3 rounds.
 
 ## 6. When something does not work
 
@@ -293,14 +315,17 @@ That takes over the lobby and resumes at RED 2 – BLU 1 after 3 rounds.
 | `host election found no eligible candidate` | nobody has `greyline_can_host 1`; everything else relaxes automatically |
 | coordinator warns `host elected below the preferred floors` | it formed the battle anyway on a weak host — expected at low population, a steady stream of these means the queue is pairing distant players |
 | `this game mode cannot be resumed on another host` | the map is marked `"migratable": false`, or the game detected MvM/tournament rules — the battle is abandoned rather than resumed wrongly |
-| guest never connects | check the host's `sv_friends_only` is 0 and that its `greyline_status` reached `hosting, battle live` |
+| guest never connects | check the host's `sv_friends_only` is 0, that its `greyline_status` reached `hosting, battle live`, and that the address in the guest's `connecting to battle …` line is the host's FakeIP and not a `192.168.*` / `127.0.0.1` one |
+| host reports ready with no address | launched without `-enablefakeip`, or `sv_use_steam_networking 0` |
+| `host reported ready without an address or a game server identity` | the host's engine never produced either; the coordinator re-elects someone else |
+| the link reconnects every ~45 seconds | fixed: an idle client now pings inside the coordinator's `session_timeout`. If it comes back, the two `session_timeout` and `heartbeat_interval` settings have been configured so that the second is not comfortably below the first |
 | migrated battle resumes 0-0 | the host died before ever sending a heartbeat with a snapshot, or `greyline_restore_score` fired before the teams existed — the coordinator log shows which |
 
 Useful spew:
 
 ```
 greyline_gc_debug 1
-greyline_lobby_debug 1
+greyline_battle_debug 1
 greyline_host_debug 1
 sdr_spew_level 6
 ```

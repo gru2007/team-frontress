@@ -5,7 +5,7 @@
 // Framed protobuf over TCP. The socket is non-blocking and polled from the
 // main thread: the link carries a handful of messages per match plus a
 // heartbeat, so a worker thread would buy nothing and cost every race it could
-// have with the lobby module, which also lives on the main thread.
+// have with the battle module, which also lives on the main thread.
 //
 //=========================================================================//
 
@@ -34,7 +34,7 @@ enum GreylineGCState_t
 };
 
 //-----------------------------------------------------------------------------
-// Purpose: talks to the coordinator and drives the lobby module from what it
+// Purpose: talks to the coordinator and drives the battle module from what it
 //			says. Nothing here touches game traffic.
 //-----------------------------------------------------------------------------
 class CGreylineGC : public CAutoGameSystemPerFrame, public CGameEventListener
@@ -54,8 +54,8 @@ public:
 	void CancelDeploy();
 	void RequestWorldState();
 
-	// --- driven by the lobby module ---
-	void OnBattleHosted( uint64 ulLobbyID, uint64 ulGameServerID, const char *pszMap );
+	// --- driven by the battle module ---
+	void OnBattleHosted( const char *pszConnectAddress, uint64 ulGameServerID, const char *pszMap );
 	void OnHostFailed( const char *pszReason );
 	void OnJoinedBattle( bool bConnected, uint32 unRTTMs, const char *pszFailure );
 

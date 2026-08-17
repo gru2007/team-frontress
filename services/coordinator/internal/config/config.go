@@ -69,11 +69,17 @@ type TimingConfig struct {
 	HeartbeatInterval Duration `json:"heartbeat_interval"`
 	// SessionTimeout after which a silent link is considered dead.
 	SessionTimeout Duration `json:"session_timeout"`
-	// HostBootDeadline is how long an assigned host has to report ready.
+	// HostBootDeadline is how long an assigned host has to report ready. It has
+	// to cover a map load, the game server's Steam logon and its FakeIP
+	// allocation, none of which the host controls — so it is deliberately
+	// generous. The client runs the same number, taken from the assignment.
 	HostBootDeadline Duration `json:"host_boot_deadline"`
 	// ClientConnectDeadline is how long a client has to reach the host.
 	ClientConnectDeadline Duration `json:"client_connect_deadline"`
-	// MigrationHold is how long clients hold while a new host boots.
+	// MigrationHold is how long clients hold while a new host boots. It must be
+	// at least HostBootDeadline: the replacement host is given that long to come
+	// up, and giving up on it sooner sends everyone away from a battle that is
+	// still on its way back.
 	MigrationHold Duration `json:"migration_hold"`
 	// ReconnectGrace is how long a slot is kept for a player who dropped out
 	// of a live match.
@@ -186,9 +192,9 @@ func Default() *Config {
 		Timing: TimingConfig{
 			HeartbeatInterval:     Duration(10 * time.Second),
 			SessionTimeout:        Duration(45 * time.Second),
-			HostBootDeadline:      Duration(60 * time.Second),
+			HostBootDeadline:      Duration(90 * time.Second),
 			ClientConnectDeadline: Duration(90 * time.Second),
-			MigrationHold:         Duration(75 * time.Second),
+			MigrationHold:         Duration(105 * time.Second),
 			ReconnectGrace:        Duration(120 * time.Second),
 			TickInterval:          Duration(time.Second),
 		},
@@ -301,6 +307,16 @@ func (c *Config) Validate() error {
 	}
 	if c.Timing.TickInterval <= 0 {
 		return errors.New("timing.tick_interval must be positive")
+	}
+	if c.Timing.MigrationHold < c.Timing.HostBootDeadline {
+		return fmt.Errorf("timing.migration_hold (%s) is shorter than timing.host_boot_deadline (%s): "+
+			"players would be sent away from a battle whose new host is still booting",
+			c.Timing.MigrationHold.D(), c.Timing.HostBootDeadline.D())
+	}
+	if c.Timing.HeartbeatInterval*2 > c.Timing.SessionTimeout {
+		return fmt.Errorf("timing.session_timeout (%s) leaves no room for a missed heartbeat at %s: "+
+			"links would be dropped and rebuilt in a loop",
+			c.Timing.SessionTimeout.D(), c.Timing.HeartbeatInterval.D())
 	}
 	return nil
 }

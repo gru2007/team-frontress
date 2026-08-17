@@ -166,7 +166,7 @@ func (s *Server) onAuthResult(sess *Session, h *pb.CMsgHello, req *pb.CMsgEnvelo
 
 	// A player who dropped mid-match gets their connect details back so the
 	// client can rejoin without going through the queue again.
-	if m := s.matchOf(ident.SteamID); m != nil && m.live() && m.LobbyID != 0 {
+	if m := s.matchOf(ident.SteamID); m != nil && m.live() && m.hosted() {
 		if slot, ok := m.Roster[ident.SteamID]; ok {
 			slot.Present = true
 			slot.LeftAt = time.Time{}
@@ -321,13 +321,15 @@ func (s *Server) onHostReady(sess *Session, r *pb.CMsgHostReady) {
 	if !m.in(pb.EMatchState_MATCH_HOST_ASSIGNED) {
 		return
 	}
-	if r.GetLobbyId() == 0 {
-		s.log.Warn("host_ready without a lobby", "match", m.ID, "host", sess.steamID)
-		s.hostFailed(m, sess.steamID, "host reported ready without a Steam lobby")
+	// Everything downstream is one "connect" on somebody else's machine, so a
+	// host that reports ready with nothing to connect to has not delivered.
+	if r.GetConnectAddress() == "" && r.GetGameServerSteamId() == 0 {
+		s.log.Warn("host_ready without an endpoint", "match", m.ID, "host", sess.steamID)
+		s.hostFailed(m, sess.steamID, "host reported ready without an address or a game server identity")
 		return
 	}
 
-	m.LobbyID = r.GetLobbyId()
+	m.ConnectAddress = r.GetConnectAddress()
 	m.GameServerSteamID = r.GetGameServerSteamId()
 	if r.GetMapName() != "" && r.GetMapName() != m.Map {
 		// The host booted a different map than it was told to. That breaks the
@@ -337,7 +339,7 @@ func (s *Server) onHostReady(sess *Session, r *pb.CMsgHostReady) {
 	}
 	m.setState(pb.EMatchState_MATCH_LOADING)
 	s.log.Info("host ready", "match", m.ID, "host", sess.steamID,
-		"lobby", m.LobbyID, "game_server", m.GameServerSteamID, "map", m.Map)
+		"address", m.ConnectAddress, "game_server", m.GameServerSteamID, "map", m.Map)
 
 	for _, slot := range m.slots() {
 		if slot.SteamID == m.HostID {
@@ -348,17 +350,20 @@ func (s *Server) onHostReady(sess *Session, r *pb.CMsgHostReady) {
 	}
 }
 
-// joinMsg tells one player which battle to go to. Admission is lobby
-// membership, so there is no token and no address here: the client finds the
-// lobby by match id, or joins lobby_id directly, and Steam hands it the server.
+// joinMsg tells one player where the battle is. It is deliberately the whole
+// story: the client issues one connect against what is in here and nothing
+// else. Admission is not enforced by this message — a Greyline host takes
+// whoever reaches it, and the roster is what the coordinator counts.
 func (s *Server) joinMsg(m *Match, slot *RosterSlot) *pb.CMsgJoinBattle {
 	return &pb.CMsgJoinBattle{
-		MatchId:       proto.String(m.ID),
-		LobbyId:       proto.Uint64(m.LobbyID),
-		FrontId:       proto.String(m.FrontID),
-		MapName:       proto.String(m.Map),
-		Side:          pbSide(slot.Side).Enum(),
-		JoinDeadlineS: proto.Uint32(uint32(s.cfg.Timing.ClientConnectDeadline.D().Seconds())),
+		MatchId:           proto.String(m.ID),
+		FrontId:           proto.String(m.FrontID),
+		MapName:           proto.String(m.Map),
+		Side:              pbSide(slot.Side).Enum(),
+		JoinDeadlineS:     proto.Uint32(uint32(s.cfg.Timing.ClientConnectDeadline.D().Seconds())),
+		ConnectAddress:    proto.String(m.ConnectAddress),
+		GameServerSteamId: proto.Uint64(m.GameServerSteamID),
+		HostSteamId:       proto.Uint64(m.HostID),
 	}
 }
 

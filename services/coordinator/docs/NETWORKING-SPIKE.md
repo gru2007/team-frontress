@@ -174,6 +174,50 @@ account or set `sv_friends_only 0`, or the engine refuses the join with
 
 This is now a confirmation run, not research.
 
+## Outcome: lobbies were tried, and are now out of the match path
+
+**Status of everything below this line: superseded.** The lobby plan was
+implemented, run, and withdrawn. Keep reading it for the transport findings —
+those still hold and are what the current design rests on — but the rendezvous
+half is no longer what the game does.
+
+What happened on the first real run:
+
+```
+[greyline] CreateLobby failed (result 15)
+```
+
+`EResult 15` is `k_EResultAccessDenied`. For `CreateLobby`, Valve documents it as
+the app not being configured for lobbies, or the user lacking access to it —
+a **Steamworks setting on the AppID**, not a bug in the caller. This mod runs
+under an AppID it does not own (`gameinfo.txt` still declares 243750), so that
+setting is not ours to change, and every match died in the same place:
+
+```
+match formed → host elected → CreateLobby → AccessDenied → host never reports
+ready → 60s boot deadline → next candidate → same → match dissolved
+```
+
+The lobby was never carrying anything a match needed. It carried a room, and a
+`SetLobbyGameServer` call whose *payload* was the endpoint — and the endpoint is
+the only part that matters. So the endpoint now travels over the coordinator
+link, which every player is already authenticated on, and the room is gone:
+
+```
+AssignHost → map → engine allocates an address → HostReady(address)
+                                                       ↓
+                                    JoinBattle(address) → connect
+```
+
+Nothing about the transport findings changes. The `connect <FakeIP>:<port>` step
+at the end is byte for byte the one the lobby plan ended with; unknown #4 above
+is still the unknown, and still the thing the two-machine test answers.
+
+What is deliberately lost with the lobby: Steam invites and "join my party"
+(`+connect_lobby`, `GameLobbyJoinRequested_t`). Those are worth having back —
+under GREYLINE's own AppID, as a *party* layer that hands a roster to the
+coordinator, never as a step a match cannot start without.
+
 ## If the spike passes: lobbies carry the session
 
 Steam Lobbies are the natural fit for "find the right room and join it", and the

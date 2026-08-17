@@ -4,8 +4,9 @@
 //
 // Three jobs, all small:
 //   1. Apply the hosting contract before players can arrive.
-//   2. Publish the game server's SteamID so the host's own client can hand it
-//      to the Steam lobby.
+//   2. Publish where this server is — the address the engine advertises, plus
+//      its Steam identity — so the host's own client can hand that to the
+//      coordinator and everyone else can simply connect to it.
 //   3. Keep the battle's round score visible to the client, and put it back
 //      after a migration.
 //
@@ -18,6 +19,7 @@
 #include "greyline/greyline_shared.h"
 #include "igamesystem.h"
 #include "eiface.h"
+#include "iserver.h"
 #include "team.h"
 #include "tf_shareddefs.h"
 #include "tf_gamerules.h"
@@ -26,7 +28,7 @@
 #include "tier0/memdbgon.h"
 
 ConVar greyline_host_debug( "greyline_host_debug", "0", FCVAR_NONE,
-	"Spew Greyline hosting contract and game server identity progress." );
+	"Spew Greyline hosting contract and battle server endpoint progress." );
 
 //-----------------------------------------------------------------------------
 // Purpose: applies the hosting contract and waits for the game server identity.
@@ -74,7 +76,10 @@ public:
 	bool ApplyHostContract();
 
 private:
-	void TryPublishIdentity();
+	// Returns false while the address is still being allocated, which is the one
+	// thing worth waiting for before declaring this server reachable.
+	bool TryPublishAddress();
+	void TryPublishEndpoint();
 
 	bool	m_bContractApplied;
 	bool	m_bIdentityPublished;
@@ -159,6 +164,7 @@ void CGreylineHost::LevelInitPostEntity()
 	m_flNextIdentityCheck = 0.0f;
 	m_flNextScorePublish = 0.0f;
 	greyline_server_id.SetValue( "0" );
+	greyline_server_addr.SetValue( "" );
 
 	// A fresh level starts at zero. A migration overwrites this moments later
 	// through greyline_restore_score; leaving the previous battle's numbers
@@ -168,8 +174,8 @@ void CGreylineHost::LevelInitPostEntity()
 	greyline_rounds_played.SetValue( 0 );
 
 	// A dedicated server is configured by its own cfg files; only a listen
-	// server needs the contract forced on it, and only there is the local
-	// player also the lobby owner.
+	// server needs the contract forced on it, and only there does the host's
+	// own client share this process.
 	if ( engine->IsDedicatedServer() )
 	{
 		return;
@@ -183,11 +189,13 @@ void CGreylineHost::LevelShutdownPostEntity()
 {
 	m_bIdentityPublished = false;
 	greyline_server_id.SetValue( "0" );
+	greyline_server_addr.SetValue( "" );
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: the game server logs on to Steam asynchronously, so its SteamID is
-//			not available at level init. Poll until it is.
+// Purpose: the game server logs on to Steam and allocates its address
+//			asynchronously, so neither is available at level init. Poll until
+//			they are.
 //-----------------------------------------------------------------------------
 void CGreylineHost::FrameUpdatePostEntityThink()
 {
@@ -225,7 +233,7 @@ void CGreylineHost::FrameUpdatePostEntityThink()
 	}
 	m_flNextIdentityCheck = gpGlobals->curtime + 0.5f;
 
-	TryPublishIdentity();
+	TryPublishEndpoint();
 }
 
 //-----------------------------------------------------------------------------
@@ -335,10 +343,76 @@ bool CGreylineHost::RestoreScore( int nRed, int nBlu, int nRounds )
 }
 
 //-----------------------------------------------------------------------------
-void CGreylineHost::TryPublishIdentity()
+// Purpose: write the address guests should connect to, if there is one.
+//
+// Returns false while the answer is still coming — a FakeIP allocation is
+// asynchronous, and publishing before it lands would hand out an invalid
+// address. This mirrors what TF2's own server does before it tells the GC it is
+// ready to host a match.
+//
+// Which addresses are worth publishing:
+//
+//   FakeIP           always. It is the Steam P2P/SDR route, which is the whole
+//                    reason a player-hosted battle is reachable at all.
+//   public IP        yes. A host with a real routable address does not need a
+//                    relay, and saying so costs nothing.
+//   LAN / loopback   only with sv_lan, where that is exactly what testers want.
+//                    Otherwise it is worse than no address: it looks usable and
+//                    reaches nobody, and it would beat the SteamID fallback.
+//-----------------------------------------------------------------------------
+bool CGreylineHost::TryPublishAddress()
+{
+	IServer *pServer = engine->GetIServer();
+	if ( !pServer )
+	{
+		return true; // nothing to wait for; the SteamID is all this build has
+	}
+
+	const bool bFakeIP = pServer->IsUsingFakeIP();
+	const netadr_t adr = pServer->GetPublicAddress();
+
+	if ( !adr.IsValid() )
+	{
+		// A FakeIP that has not arrived yet is worth waiting for. Anything else
+		// invalid is simply not going to appear.
+		return !bFakeIP;
+	}
+
+	static ConVarRef sv_lan( "sv_lan" );
+	const bool bUsable = bFakeIP || !adr.IsReservedAdr() ||
+		( sv_lan.IsValid() && sv_lan.GetBool() );
+
+	if ( !bUsable )
+	{
+		if ( greyline_host_debug.GetBool() )
+		{
+			Msg( "[greyline] not advertising %s: a private address reaches nobody outside this network\n",
+				adr.ToString() );
+		}
+		return true;
+	}
+
+	char szAddress[64];
+	adr.ToString_safe( szAddress );
+	greyline_server_addr.SetValue( szAddress );
+
+	Msg( "[greyline] battle server address %s%s\n", szAddress,
+		bFakeIP ? " (Steam Networking)" : "" );
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+void CGreylineHost::TryPublishEndpoint()
 {
 	const CSteamID *pSteamID = engine->GetGameServerSteamID();
 	if ( !pSteamID || !pSteamID->IsValid() || pSteamID->GetAccountID() == 0 )
+	{
+		return;
+	}
+
+	// The address is the half guests actually use, so do not report an endpoint
+	// until it has either arrived or been ruled out.
+	if ( !TryPublishAddress() )
 	{
 		return;
 	}
@@ -347,6 +421,15 @@ void CGreylineHost::TryPublishIdentity()
 	V_snprintf( szID, sizeof( szID ), "%llu", pSteamID->ConvertToUint64() );
 	greyline_server_id.SetValue( szID );
 	m_bIdentityPublished = true;
+
+	// Said once per level, and worth saying loudly: without an address the only
+	// thing to hand out is a Steam identity, and reaching a server by identity
+	// alone is not a path this build has ever been proven to have.
+	if ( !greyline_server_addr.GetString()[0] )
+	{
+		Warning( "[greyline] this server advertises no address; remote players may not be able to reach it.\n" );
+		Warning( "[greyline] the engine only requests a Steam FakeIP when the game is launched with -enablefakeip.\n" );
+	}
 
 	Msg( "[greyline] game server identity %s ready%s\n", szID,
 		m_bContractApplied ? "" : " (WARNING: hosting contract was not fully applied)" );
@@ -402,6 +485,8 @@ CON_COMMAND_F( greyline_host_status, "Show the Greyline hosting contract state o
 			setting.pszValue[0] ? setting.pszValue : "\"\"",
 			pVar ? ( pVar->GetString()[0] ? pVar->GetString() : "\"\"" ) : "<missing>" );
 	}
+	Msg( "  server address: %s\n",
+		greyline_server_addr.GetString()[0] ? greyline_server_addr.GetString() : "<none advertised>" );
 	Msg( "  game server id: %s\n", greyline_server_id.GetString() );
 	Msg( "  score         : RED %s - BLU %s, %s round(s) played\n",
 		greyline_score_red.GetString(), greyline_score_blu.GetString(),

@@ -53,10 +53,11 @@ type Match struct {
 	Policy  *security.Policy
 	Ranking []hostelect.Scored
 
-	// Where the battle lives once the host has it up. The coordinator never
-	// handles an address: Steam's lobby carries the game server, and the
-	// engine's own Steam Networking carries the traffic.
-	LobbyID           uint64
+	// Where the battle lives once the host has it up, exactly as the host
+	// reported it. The coordinator forwards these two and interprets neither:
+	// under Steam Networking the address is a FakeIP standing in for a P2P/SDR
+	// route, so it means nothing outside the engine that produced it.
+	ConnectAddress    string
 	GameServerSteamID uint64
 
 	Snapshot   *pb.CMsgMatchSnapshot
@@ -121,6 +122,13 @@ func (m *Match) setState(s pb.EMatchState) {
 }
 
 func (m *Match) in(s pb.EMatchState) bool { return m.State == s }
+
+// hosted reports whether there is a live server to send anyone to. False
+// between the host being elected and it reporting ready, and again for the
+// length of a migration.
+func (m *Match) hosted() bool {
+	return m.ConnectAddress != "" || m.GameServerSteamID != 0
+}
 
 // live reports whether the match is in a state where players expect to be
 // playing, which is what decides whether leaving counts as an abandon.

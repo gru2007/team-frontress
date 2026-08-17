@@ -5,8 +5,8 @@
 // Transport is not our problem. Since the February 2025 Steam Networking
 // change, a plain listen server started with "map" is reachable from outside
 // without port forwarding, so Greyline only has to orchestrate: pick a host,
-// put a Steam lobby around the battle, and point everyone at the server the
-// engine already stood up.
+// let it stand a server up, and tell everyone else the address that server
+// ended up advertising.
 //
 //=========================================================================//
 
@@ -19,25 +19,6 @@
 #include "convar.h"
 
 //-----------------------------------------------------------------------------
-// Lobby metadata. These are the keys clients filter on in RequestLobbyList, so
-// they are part of the wire contract between builds: adding a key is safe,
-// changing the meaning of one is not.
-//-----------------------------------------------------------------------------
-#define GREYLINE_KEY_GAME		"greyline"		// always "1", so a filter can find only our lobbies
-#define GREYLINE_KEY_PROTOCOL	"protocol"
-#define GREYLINE_KEY_BUILD		"build"
-#define GREYLINE_KEY_FRONT		"front"
-#define GREYLINE_KEY_BATTLE		"battle"
-#define GREYLINE_KEY_MAP		"map"
-#define GREYLINE_KEY_STATE		"state"
-
-#define GREYLINE_STATE_FORMING	"forming"	// lobby exists, the host has not loaded the map yet
-#define GREYLINE_STATE_PLAYING	"playing"	// game server is published, joinable
-
-// Bumped whenever the lobby contract changes in a way older clients cannot read.
-#define GREYLINE_PROTOCOL_VERSION	"1"
-
-//-----------------------------------------------------------------------------
 // The hosting contract.
 //
 // A Greyline host is matched with strangers, so the two defaults TF2 and
@@ -48,9 +29,9 @@
 //                       The engine refuses them with "STEAM UserID ... is not
 //                       friends with the host!" before anything else is tried.
 //
-//   sv_allow_server_adverisement_to_master_server 0 stays 0 on purpose: the
-//                       battle is entered through its lobby, not through the
-//                       public server browser.
+//   sv_allow_server_adverisement_to_master_server 0 stays 0 on purpose: a
+//                       battle is entered through the coordinator, not by being
+//                       found in the public server browser.
 //
 // So: Steam Networking on, friends-only off, browser advertising off.
 //-----------------------------------------------------------------------------
@@ -67,13 +48,18 @@ extern const int g_nGreylineHostContractCount;
 //-----------------------------------------------------------------------------
 // Replicated channel from the listen server to its own client.
 //
-// Only the lobby owner may call SetLobbyGameServer, and the owner is the host
-// *player* — client-side code. But the game server's SteamID is only readable
-// through IVEngineServer::GetGameServerSteamID(), which is server-side. A
+// The coordinator link lives on the client, but where the server is only exists
+// on the server: the address through IServer::GetPublicAddress() and the
+// identity through IVEngineServer::GetGameServerSteamID(), both server-side. A
 // replicated convar is the cheapest honest way across that boundary; it also
 // happens to tell every connected client which server they are on, which is
 // useful for reporting results later.
+//
+// greyline_server_addr is what guests actually connect to. Under Steam
+// Networking it is a FakeIP — an address-shaped handle for a Steam P2P/SDR
+// route, not a real internet address, so publishing it exposes nobody's IP.
 //-----------------------------------------------------------------------------
+extern ConVar greyline_server_addr;
 extern ConVar greyline_server_id;
 
 //-----------------------------------------------------------------------------

@@ -26,6 +26,8 @@ fi
 #trap 'echo "Received SIGTERM, shutting down gracefully..." && kill -TERM $!' SIGTERM
 #trap 'echo "Received SIGPIPE, shutting down gracefully..." && continue' SIGPIPE
 
-${SLR_SNIPER_PATH} --devel -- ./tc2_linux64 -steam -gathermod -particles 1 -nobreakpad -nominidump "$@" +ip 127.0.0.1
+# -enablefakeip: the engine only asks Steam for a FakeIP when this is set, and a
+# Greyline host is unreachable from outside without one. Harmless otherwise.
+${SLR_SNIPER_PATH} --devel -- ./tc2_linux64 -steam -gathermod -particles 1 -nobreakpad -nominidump -enablefakeip "$@" +ip 127.0.0.1
 
 popd > /dev/null

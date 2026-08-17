@@ -2,10 +2,21 @@
 
 > **Transport is not this service's problem.** Since the February 2025 Steam
 > Networking change, a listen server started with `map` is reachable from
-> outside without port forwarding. Steam lobbies carry the rendezvous. The
-> coordinator never sees an address — it hands out a battle, and the game side
+> outside without port forwarding. The coordinator's whole part in getting
+> players together is to carry one string — the address the host's own engine
+> advertises — from the host to everyone else. It never opens a socket to a
+> game, never routes a packet, and never interprets that string. The game side
 > ([src/game/client/greyline](../../src/game/client/greyline),
-> [src/game/server/greyline](../../src/game/server/greyline)) does the rest.
+> [src/game/server/greyline](../../src/game/server/greyline)) does the rest with
+> a single `connect`.
+>
+> There is **no Steam lobby anywhere in this path**, on purpose. A battle used to
+> be assembled inside one; `CreateLobby` returned `k_EResultAccessDenied` on the
+> AppID this mod runs under, which is a Steamworks setting the project does not
+> own, and no amount of code fixes that. Lobbies are worth having back for
+> parties and invites once GREYLINE has its own AppID. A match must never depend
+> on one again.
+>
 > Host migration and the HMAC/policy layer remain implemented but **out of MVP
 > scope**. Background: [docs/NETWORKING-SPIKE.md](docs/NETWORKING-SPIKE.md).
 
@@ -16,25 +27,32 @@ recording. It does **not** own the war simulation — that lives behind
 back finished outcomes.
 
 ```
-   coordinator                    Steam                      engine
-   ───────────                    ─────                      ──────
-   fronts, roster,      "battle 381    lobby list,        listen server,
-   who hosts,            at Foundry"   SetLobbyGameServer  Steam Networking
+   coordinator                         host client                  guest client
+   ───────────                         ───────────                  ────────────
+   fronts, roster, who hosts,
    results, the war
-        │                              │                        │
-        ├── AssignHost ────────────────┤                        │
-        │      host: CreateLobby ──────┤                        │
-        │             map cp_process ──┼────────────────────────┤
-        │             SetLobbyGameServer ◄── game server id ────┤
-        ├── JoinBattle ────────────────┤                        │
-        │      guests: JoinLobby ──────┤                        │
-        │              LobbyGameCreated_t ─► connect ───────────┤
-        ◄── MatchResult ───────────────┴────────────────────────┘
+        │
+        ├── AssignHost ───────────────────►│
+        │                                  ├── map cp_process
+        │                                  ├── engine allocates an address
+        │◄── HostReady "169.254.4.12:27015"┤
+        │                                                          │
+        ├── JoinBattle "169.254.4.12:27015" ──────────────────────►│
+        │                                                          ├── connect
+        │                                  │◄─── Steam Networking ─┤
+        │◄── MatchResult ──────────────────┤                       │
 ```
 
-Steam lobbies answer *where a battle physically exists*. The coordinator answers
-*what that battle means for the war*. War progress never lives in lobby data —
-the lobby owner is an ordinary player.
+The address is a Steam **FakeIP**: an address-shaped handle for a Steam P2P/SDR
+route, not a real internet address. It reveals nobody's IP, needs no port
+forwarding, and is meaningless outside the Steam client that resolves it — which
+is exactly why the coordinator can pass it around as an opaque string.
+
+The engine only asks Steam for one when the game is launched with
+`-enablefakeip`; `game/tc2.sh` and `game/tc2.bat` pass it. A host without an
+address still reports its game server SteamID, and the coordinator still forwards
+that, but reaching a server by identity alone is unproven on this engine build —
+treat a missing address as a broken host, not a working fallback.
 
 ## Running it
 
@@ -94,7 +112,7 @@ client                          coordinator                      host client
   │── DeployRequest ──────────────►│
   │◄───────────────── QueueStatus ─│   (repeats while queued)
   │                                │── AssignHost ─────────────────►│
-  │                                │◄─── HostReady (lobby id) ──────│
+  │                                │◄─── HostReady (address) ───────│
   │◄──────────────────── JoinBattle│
   │── ClientJoinState ────────────►│
   │                                │◄──────────── HostHeartbeat ────│  (snapshot)

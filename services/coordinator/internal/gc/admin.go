@@ -66,7 +66,8 @@ type adminMatch struct {
 	State      string      `json:"state"`
 	Age        string      `json:"age"`
 	Host       uint64      `json:"host"`
-	LobbyID    uint64      `json:"lobby_id,omitempty"`
+	Address    string      `json:"connect_address,omitempty"`
+	GameServer uint64      `json:"game_server,omitempty"`
 	Migrations int         `json:"migrations"`
 	Flags      int         `json:"flags"`
 	Roster     []adminSlot `json:"roster"`
@@ -109,7 +110,8 @@ func (s *Server) snapshotState() adminState {
 			State:      m.State.String(),
 			Age:        time.Since(m.CreatedAt).Round(time.Second).String(),
 			Host:       m.HostID,
-			LobbyID:    m.LobbyID,
+			Address:    m.ConnectAddress,
+			GameServer: m.GameServerSteamID,
 			Migrations: m.Migrations,
 			Flags:      m.Flags,
 		}

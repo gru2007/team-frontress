@@ -2129,14 +2129,9 @@ type CMsgAssignHost struct {
 	BootDeadlineS *uint32                `protobuf:"varint,8,opt,name=boot_deadline_s,json=bootDeadlineS" json:"boot_deadline_s,omitempty"`
 	// Per-match secret. Host derives per-player join tokens from it and signs
 	// its result report with it. Never leaves the GC except to the host.
-	MatchSecret []byte             `protobuf:"bytes,9,opt,name=match_secret,json=matchSecret" json:"match_secret,omitempty"`
-	IsMigration *bool              `protobuf:"varint,10,opt,name=is_migration,json=isMigration" json:"is_migration,omitempty"`
-	Restore     *CMsgMatchSnapshot `protobuf:"bytes,11,opt,name=restore" json:"restore,omitempty"` // set when is_migration
-	// Non-zero on migration: the battle keeps its Steam lobby, so the new host
-	// takes that one over instead of creating a second one. Everyone else is
-	// already sitting in it and gets the new server through LobbyGameCreated_t
-	// without moving.
-	LobbyId       *uint64 `protobuf:"varint,12,opt,name=lobby_id,json=lobbyId" json:"lobby_id,omitempty"`
+	MatchSecret   []byte             `protobuf:"bytes,9,opt,name=match_secret,json=matchSecret" json:"match_secret,omitempty"`
+	IsMigration   *bool              `protobuf:"varint,10,opt,name=is_migration,json=isMigration" json:"is_migration,omitempty"`
+	Restore       *CMsgMatchSnapshot `protobuf:"bytes,11,opt,name=restore" json:"restore,omitempty"` // set when is_migration
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2248,26 +2243,21 @@ func (x *CMsgAssignHost) GetRestore() *CMsgMatchSnapshot {
 	return nil
 }
 
-func (x *CMsgAssignHost) GetLobbyId() uint64 {
-	if x != nil && x.LobbyId != nil {
-		return *x.LobbyId
-	}
-	return 0
-}
-
-// The host has created the Steam lobby and its listen server is published to
-// it. There is no transport detail here on purpose: the engine's own Steam
-// Networking carries the match, and Steam's SetLobbyGameServer carries the
-// endpoint. The coordinator only needs to know which lobby the battle lives in
-// so it can point the rest of the roster at it.
+// The host's listen server is up. This is the one message that carries a
+// transport detail, and it carries the least that works: the address the engine
+// itself advertises for this server, which under Steam Networking is a FakeIP
+// standing in for a Steam P2P/SDR route rather than a real internet address.
+// The coordinator forwards it and never interprets it.
 type CMsgHostReady struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	MatchId           *string                `protobuf:"bytes,1,opt,name=match_id,json=matchId" json:"match_id,omitempty"`
-	LobbyId           *uint64                `protobuf:"varint,2,opt,name=lobby_id,json=lobbyId" json:"lobby_id,omitempty"`                                   // Steam lobby id
 	GameServerSteamId *uint64                `protobuf:"varint,3,opt,name=game_server_steam_id,json=gameServerSteamId" json:"game_server_steam_id,omitempty"` // from IVEngineServer::GetGameServerSteamID
-	MapName           *string                `protobuf:"bytes,6,opt,name=map_name,json=mapName" json:"map_name,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// Engine-advertised address, "a.b.c.d:port". Empty when the server has no
+	// address of its own yet, in which case the SteamID above is all there is.
+	ConnectAddress *string `protobuf:"bytes,4,opt,name=connect_address,json=connectAddress" json:"connect_address,omitempty"`
+	MapName        *string `protobuf:"bytes,6,opt,name=map_name,json=mapName" json:"map_name,omitempty"` // 2 was lobby_id.
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *CMsgHostReady) Reset() {
@@ -2307,18 +2297,18 @@ func (x *CMsgHostReady) GetMatchId() string {
 	return ""
 }
 
-func (x *CMsgHostReady) GetLobbyId() uint64 {
-	if x != nil && x.LobbyId != nil {
-		return *x.LobbyId
-	}
-	return 0
-}
-
 func (x *CMsgHostReady) GetGameServerSteamId() uint64 {
 	if x != nil && x.GameServerSteamId != nil {
 		return *x.GameServerSteamId
 	}
 	return 0
+}
+
+func (x *CMsgHostReady) GetConnectAddress() string {
+	if x != nil && x.ConnectAddress != nil {
+		return *x.ConnectAddress
+	}
+	return ""
 }
 
 func (x *CMsgHostReady) GetMapName() string {
@@ -2380,18 +2370,21 @@ func (x *CMsgHostFailed) GetReason() string {
 	return ""
 }
 
-// Go join this battle. The client searches for the lobby by battle id, or joins
-// lobby_id directly, then Steam hands it the game server.
+// Go join this battle. Everything the client needs to issue one "connect" is
+// here; there is no room to find and nothing to negotiate.
 type CMsgJoinBattle struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	MatchId       *string                `protobuf:"bytes,1,opt,name=match_id,json=matchId" json:"match_id,omitempty"` // also the battle id in lobby metadata
-	LobbyId       *uint64                `protobuf:"varint,2,opt,name=lobby_id,json=lobbyId" json:"lobby_id,omitempty"`
+	MatchId       *string                `protobuf:"bytes,1,opt,name=match_id,json=matchId" json:"match_id,omitempty"`
 	FrontId       *string                `protobuf:"bytes,3,opt,name=front_id,json=frontId" json:"front_id,omitempty"`
 	MapName       *string                `protobuf:"bytes,6,opt,name=map_name,json=mapName" json:"map_name,omitempty"`
 	Side          *ESide                 `protobuf:"varint,7,opt,name=side,enum=greyline.ESide" json:"side,omitempty"`
 	JoinDeadlineS *uint32                `protobuf:"varint,11,opt,name=join_deadline_s,json=joinDeadlineS" json:"join_deadline_s,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// Straight from the host's CMsgHostReady.
+	ConnectAddress    *string `protobuf:"bytes,12,opt,name=connect_address,json=connectAddress" json:"connect_address,omitempty"`
+	GameServerSteamId *uint64 `protobuf:"varint,13,opt,name=game_server_steam_id,json=gameServerSteamId" json:"game_server_steam_id,omitempty"`
+	HostSteamId       *uint64 `protobuf:"varint,14,opt,name=host_steam_id,json=hostSteamId" json:"host_steam_id,omitempty"` // 2 was lobby_id.
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *CMsgJoinBattle) Reset() {
@@ -2431,13 +2424,6 @@ func (x *CMsgJoinBattle) GetMatchId() string {
 	return ""
 }
 
-func (x *CMsgJoinBattle) GetLobbyId() uint64 {
-	if x != nil && x.LobbyId != nil {
-		return *x.LobbyId
-	}
-	return 0
-}
-
 func (x *CMsgJoinBattle) GetFrontId() string {
 	if x != nil && x.FrontId != nil {
 		return *x.FrontId
@@ -2462,6 +2448,27 @@ func (x *CMsgJoinBattle) GetSide() ESide {
 func (x *CMsgJoinBattle) GetJoinDeadlineS() uint32 {
 	if x != nil && x.JoinDeadlineS != nil {
 		return *x.JoinDeadlineS
+	}
+	return 0
+}
+
+func (x *CMsgJoinBattle) GetConnectAddress() string {
+	if x != nil && x.ConnectAddress != nil {
+		return *x.ConnectAddress
+	}
+	return ""
+}
+
+func (x *CMsgJoinBattle) GetGameServerSteamId() uint64 {
+	if x != nil && x.GameServerSteamId != nil {
+		return *x.GameServerSteamId
+	}
+	return 0
+}
+
+func (x *CMsgJoinBattle) GetHostSteamId() uint64 {
+	if x != nil && x.HostSteamId != nil {
+		return *x.HostSteamId
 	}
 	return 0
 }
@@ -3985,7 +3992,7 @@ const file_greyline_proto_rawDesc = "" +
 	"\x04side\x18\x02 \x01(\x0e2\x0f.greyline.ESideR\x04side\x12#\n" +
 	"\rping_location\x18\x03 \x01(\tR\fpingLocation\x12\x1c\n" +
 	"\tconnected\x18\x04 \x01(\bR\tconnected\x12\x17\n" +
-	"\ais_host\x18\x05 \x01(\bR\x06isHost\"\xc8\x03\n" +
+	"\ais_host\x18\x05 \x01(\bR\x06isHost\"\xad\x03\n" +
 	"\x0eCMsgAssignHost\x12\x19\n" +
 	"\bmatch_id\x18\x01 \x01(\tR\amatchId\x12\x19\n" +
 	"\bfront_id\x18\x02 \x01(\tR\afrontId\x12\x19\n" +
@@ -3999,23 +4006,24 @@ const file_greyline_proto_rawDesc = "" +
 	"\fmatch_secret\x18\t \x01(\fR\vmatchSecret\x12!\n" +
 	"\fis_migration\x18\n" +
 	" \x01(\bR\visMigration\x125\n" +
-	"\arestore\x18\v \x01(\v2\x1b.greyline.CMsgMatchSnapshotR\arestore\x12\x19\n" +
-	"\blobby_id\x18\f \x01(\x04R\alobbyId\"\x91\x01\n" +
+	"\arestore\x18\v \x01(\v2\x1b.greyline.CMsgMatchSnapshotR\arestore\"\x9f\x01\n" +
 	"\rCMsgHostReady\x12\x19\n" +
-	"\bmatch_id\x18\x01 \x01(\tR\amatchId\x12\x19\n" +
-	"\blobby_id\x18\x02 \x01(\x04R\alobbyId\x12/\n" +
-	"\x14game_server_steam_id\x18\x03 \x01(\x04R\x11gameServerSteamId\x12\x19\n" +
+	"\bmatch_id\x18\x01 \x01(\tR\amatchId\x12/\n" +
+	"\x14game_server_steam_id\x18\x03 \x01(\x04R\x11gameServerSteamId\x12'\n" +
+	"\x0fconnect_address\x18\x04 \x01(\tR\x0econnectAddress\x12\x19\n" +
 	"\bmap_name\x18\x06 \x01(\tR\amapName\"C\n" +
 	"\x0eCMsgHostFailed\x12\x19\n" +
 	"\bmatch_id\x18\x01 \x01(\tR\amatchId\x12\x16\n" +
-	"\x06reason\x18\x02 \x01(\tR\x06reason\"\xc9\x01\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\"\xac\x02\n" +
 	"\x0eCMsgJoinBattle\x12\x19\n" +
 	"\bmatch_id\x18\x01 \x01(\tR\amatchId\x12\x19\n" +
-	"\blobby_id\x18\x02 \x01(\x04R\alobbyId\x12\x19\n" +
 	"\bfront_id\x18\x03 \x01(\tR\afrontId\x12\x19\n" +
 	"\bmap_name\x18\x06 \x01(\tR\amapName\x12#\n" +
 	"\x04side\x18\a \x01(\x0e2\x0f.greyline.ESideR\x04side\x12&\n" +
-	"\x0fjoin_deadline_s\x18\v \x01(\rR\rjoinDeadlineS\"\x7f\n" +
+	"\x0fjoin_deadline_s\x18\v \x01(\rR\rjoinDeadlineS\x12'\n" +
+	"\x0fconnect_address\x18\f \x01(\tR\x0econnectAddress\x12/\n" +
+	"\x14game_server_steam_id\x18\r \x01(\x04R\x11gameServerSteamId\x12\"\n" +
+	"\rhost_steam_id\x18\x0e \x01(\x04R\vhostSteamId\"\x7f\n" +
 	"\x13CMsgClientJoinState\x12\x19\n" +
 	"\bmatch_id\x18\x01 \x01(\tR\amatchId\x12\x1c\n" +
 	"\tconnected\x18\x02 \x01(\bR\tconnected\x12\x18\n" +

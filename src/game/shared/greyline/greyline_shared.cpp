@@ -10,9 +10,13 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
+ConVar greyline_server_addr( "greyline_server_addr", "",
+	FCVAR_REPLICATED | FCVAR_HIDDEN,
+	"Address this battle's server advertises, as the engine reports it. Set by the server, read by the host's own client and handed to the coordinator for everyone else to connect to." );
+
 ConVar greyline_server_id( "greyline_server_id", "0",
 	FCVAR_REPLICATED | FCVAR_HIDDEN,
-	"SteamID of the game server hosting this battle. Set by the server, read by the host's own client to publish the lobby's game server." );
+	"SteamID of the game server hosting this battle. Set by the server; the fallback for a build that advertises no address." );
 
 ConVar greyline_score_red( "greyline_score_red", "0",
 	FCVAR_REPLICATED | FCVAR_HIDDEN,
@@ -41,8 +45,8 @@ const GreylineConVarSetting_t g_GreylineHostContract[] =
 	// default of 1 rejects them at the door.
 	{ "sv_friends_only",								"0", true },
 
-	// A battle is entered through its lobby. Nothing about it belongs in the
-	// public server browser.
+	// A battle is entered through the coordinator. Nothing about it belongs in
+	// the public server browser.
 	{ "sv_allow_server_adverisement_to_master_server",	"0", false },
 
 	// Admission is decided by the coordinator, not by a shared secret.

@@ -6,11 +6,12 @@
 
 #include "cbase.h"
 #include "greyline_gc.h"
-#include "greyline_lobby.h"
+#include "greyline_battle.h"
 #include "greyline/greyline_shared.h"
 #include "cdll_client_int.h"
 #include "inetchannelinfo.h"
 #include "c_playerresource.h"
+#include "tier1/fmtstr.h"
 #include "greyline.pb.h"
 
 #ifdef _WIN32
@@ -620,8 +621,11 @@ void CGreylineGC::HandleAssignHost( const greyline::CMsgEnvelope &env )
 
 	GreylineBattleAssignment_t battle;
 	battle.bBeHost = true;
-	battle.ulLobbyID = assign.lobby_id();
 	battle.nMaxPlayers = assign.has_max_players() ? assign.max_players() : 12;
+	// Run the coordinator's clock, not our own: a host that gives up later than
+	// the coordinator does keeps loading a battle that has already been
+	// reassigned to somebody else.
+	battle.flDeadlineSeconds = (float)assign.boot_deadline_s();
 	V_strncpy( battle.szMap, assign.map_name().c_str(), sizeof( battle.szMap ) );
 	V_strncpy( battle.szBattle, assign.match_id().c_str(), sizeof( battle.szBattle ) );
 	V_strncpy( battle.szFront, assign.front_id().c_str(), sizeof( battle.szFront ) );
@@ -637,7 +641,7 @@ void CGreylineGC::HandleAssignHost( const greyline::CMsgEnvelope &env )
 	Msg( "[greyline] you are hosting battle %s on %s%s\n",
 		battle.szBattle, battle.szMap, assign.is_migration() ? " (taking over)" : "" );
 
-	GreylineLobby()->Deploy( battle );
+	GreylineBattle()->Deploy( battle );
 }
 
 //-----------------------------------------------------------------------------
@@ -653,23 +657,16 @@ void CGreylineGC::HandleJoinBattle( const greyline::CMsgEnvelope &env )
 
 	GreylineBattleAssignment_t battle;
 	battle.bBeHost = false;
-	battle.ulLobbyID = join.lobby_id();
+	battle.ulGameServerSteamID = join.game_server_steam_id();
+	battle.flDeadlineSeconds = (float)join.join_deadline_s();
+	V_strncpy( battle.szConnectAddress, join.connect_address().c_str(), sizeof( battle.szConnectAddress ) );
 	V_strncpy( battle.szMap, join.map_name().c_str(), sizeof( battle.szMap ) );
 	V_strncpy( battle.szBattle, join.match_id().c_str(), sizeof( battle.szBattle ) );
 	V_strncpy( battle.szFront, join.front_id().c_str(), sizeof( battle.szFront ) );
 
 	Msg( "[greyline] deploying to battle %s\n", battle.szBattle );
 
-	// Joining by lobby id is exact; a search is the fallback for a coordinator
-	// that knew the battle but not yet its room.
-	if ( battle.ulLobbyID != 0 )
-	{
-		GreylineLobby()->JoinLobbyByID( CSteamID( battle.ulLobbyID ) );
-	}
-	else
-	{
-		GreylineLobby()->Deploy( battle );
-	}
+	GreylineBattle()->Deploy( battle );
 }
 
 //-----------------------------------------------------------------------------
@@ -679,13 +676,10 @@ void CGreylineGC::HandleMigrateHost( const greyline::CMsgEnvelope &env )
 {
 	const greyline::CMsgMigrateHost &migrate = env.migrate_host();
 
-	Msg( "[greyline] %s (holding up to %us)\n",
-		migrate.message().c_str(), migrate.hold_seconds() );
-
-	// Steam promotes an arbitrary member when a lobby's owner leaves, and only
-	// the owner can publish the replacement server. If that happens to be us,
-	// hand the room to the player the coordinator actually chose.
-	GreylineLobby()->YieldLobbyOwnership( CSteamID( migrate.new_host_steam_id() ) );
+	// Nothing to do but wait: the replacement host is booting its own server,
+	// and the coordinator sends everyone its address when it comes up.
+	GreylineBattle()->Hold( (float)migrate.hold_seconds(),
+		CFmtStr( "%s (holding up to %us)", migrate.message().c_str(), migrate.hold_seconds() ) );
 }
 
 //-----------------------------------------------------------------------------
@@ -702,7 +696,7 @@ void CGreylineGC::HandleMatchOver( const greyline::CMsgEnvelope &env )
 	m_szMatchID[0] = '\0';
 	m_bIsHost = false;
 	m_bResultReported = false;
-	GreylineLobby()->Abort( "battle over" );
+	GreylineBattle()->Abort( "battle over" );
 }
 
 //-----------------------------------------------------------------------------
@@ -714,15 +708,16 @@ void CGreylineGC::HandleSecurityVerdict( const greyline::CMsgEnvelope &env )
 
 	if ( verdict.action() == "kick" || verdict.action() == "abort" )
 	{
-		GreylineLobby()->Abort( verdict.reason().c_str() );
+		GreylineBattle()->Abort( verdict.reason().c_str() );
 		engine->ClientCmd_Unrestricted( "disconnect\n" );
 	}
 }
 
 //-----------------------------------------------------------------------------
-// Called by the lobby module once its listen server is published.
+// Called by the battle module once its listen server is up. This is the only
+// place an address ever leaves the game.
 //-----------------------------------------------------------------------------
-void CGreylineGC::OnBattleHosted( uint64 ulLobbyID, uint64 ulGameServerID, const char *pszMap )
+void CGreylineGC::OnBattleHosted( const char *pszConnectAddress, uint64 ulGameServerID, const char *pszMap )
 {
 	if ( !IsReady() || !m_szMatchID[0] )
 	{
@@ -732,7 +727,7 @@ void CGreylineGC::OnBattleHosted( uint64 ulLobbyID, uint64 ulGameServerID, const
 	greyline::CMsgEnvelope env;
 	greyline::CMsgHostReady *pReady = env.mutable_host_ready();
 	pReady->set_match_id( m_szMatchID );
-	pReady->set_lobby_id( ulLobbyID );
+	pReady->set_connect_address( pszConnectAddress ? pszConnectAddress : "" );
 	pReady->set_game_server_steam_id( ulGameServerID );
 	pReady->set_map_name( pszMap ? pszMap : "" );
 	Send( env );
@@ -836,12 +831,18 @@ void CGreylineGC::PumpHeartbeat()
 	}
 	m_flNextHeartbeat = gpGlobals->realtime + m_flHeartbeatInterval;
 
+	greyline::CMsgEnvelope env;
+
+	// Out of a battle there is nothing to report, but the link still has to be
+	// heard from: the coordinator drops a session it has not seen inside its
+	// session timeout, and a client sitting in the menu would otherwise be
+	// disconnected and reconnected forever.
 	if ( !m_szMatchID[0] )
 	{
+		env.mutable_ping()->set_nonce( m_ulJobID++ );
+		Send( env );
 		return;
 	}
-
-	greyline::CMsgEnvelope env;
 
 	if ( m_bIsHost )
 	{
@@ -850,7 +851,7 @@ void CGreylineGC::PumpHeartbeat()
 		pBeat->set_state( engine->IsInGame() ? greyline::MATCH_LIVE : greyline::MATCH_LOADING );
 
 		int nRed = 0, nBlu = 0, nRounds = 0;
-		GreylineLobby()->ReadScore( nRed, nBlu, nRounds );
+		GreylineBattle()->ReadScore( nRed, nBlu, nRounds );
 
 		greyline::CMsgMatchSnapshot *pSnap = pBeat->mutable_snapshot();
 		pSnap->set_red_score( nRed );
@@ -890,7 +891,7 @@ void CGreylineGC::ReportMatchResult()
 	m_bResultReported = true;
 
 	int nRed = 0, nBlu = 0, nRounds = 0;
-	GreylineLobby()->ReadScore( nRed, nBlu, nRounds );
+	GreylineBattle()->ReadScore( nRed, nBlu, nRounds );
 
 	greyline::EMatchOutcome eOutcome = greyline::OUTCOME_STALEMATE;
 	if ( nRed > nBlu )

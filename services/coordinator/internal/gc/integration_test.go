@@ -217,8 +217,10 @@ func (c *client) deploy(side pb.ESide) {
 	}}})
 }
 
-// testLobbyID stands in for the Steam lobby the host would have created.
-const testLobbyID = 109775240000000001
+// testConnectAddress stands in for the address the host's engine advertises —
+// a Steam FakeIP, which is what a real listen server reports under Steam
+// Networking.
+const testConnectAddress = "169.254.13.37:27015"
 
 func hasAssign(e *pb.CMsgEnvelope) bool { return e.GetAssignHost() != nil }
 func hasJoin(e *pb.CMsgEnvelope) bool   { return e.GetJoinBattle() != nil }
@@ -272,11 +274,10 @@ func bringUpMatchN(t *testing.T, h *harness, clients ...*client) (host *client, 
 		t.Fatal("host was not given a match secret")
 	}
 
-	// The host has created its Steam lobby and published its listen server to
-	// it; the coordinator only ever learns the lobby id.
+	// The host's listen server is up and it reports where the engine put it.
 	host.send(&pb.CMsgEnvelope{Body: &pb.CMsgEnvelope_HostReady{HostReady: &pb.CMsgHostReady{
 		MatchId:           proto.String(matchID),
-		LobbyId:           proto.Uint64(testLobbyID),
+		ConnectAddress:    proto.String(testConnectAddress),
 		GameServerSteamId: proto.Uint64(host.steamID),
 		MapName:           proto.String(assign.GetMapName()),
 	}}})
@@ -286,8 +287,13 @@ func bringUpMatchN(t *testing.T, h *harness, clients ...*client) (host *client, 
 		if join.GetMatchId() != matchID {
 			t.Fatalf("join points at match %s, expected %s", join.GetMatchId(), matchID)
 		}
-		if join.GetLobbyId() != testLobbyID {
-			t.Fatalf("guest was sent to lobby %d, host published %d", join.GetLobbyId(), testLobbyID)
+		if join.GetConnectAddress() != testConnectAddress {
+			t.Fatalf("guest was sent to %q, host published %q",
+				join.GetConnectAddress(), testConnectAddress)
+		}
+		if join.GetHostSteamId() != host.steamID {
+			t.Fatalf("join names host %d, the elected host is %d",
+				join.GetHostSteamId(), host.steamID)
 		}
 		if join.GetMapName() != assign.GetMapName() {
 			t.Fatalf("guest was told map %q, host loaded %q", join.GetMapName(), assign.GetMapName())
@@ -472,12 +478,66 @@ func TestHostMigrationOnHostDisconnect(t *testing.T) {
 	if assign.GetMapName() != "arena_badlands" {
 		t.Fatalf("migration changed the map to %q", assign.GetMapName())
 	}
-	// The battle must keep its lobby. Without this the surviving players are
-	// stranded in a room the coordinator has forgotten, and would have to be
-	// sent to a new one instead of simply being handed the new server.
-	if assign.GetLobbyId() != testLobbyID {
-		t.Fatalf("new host was told to use lobby %d, the battle lives in %d",
-			assign.GetLobbyId(), testLobbyID)
+}
+
+// A migrated battle has a new server at a new address, and the survivors are
+// only useful to it if they are actually sent there. The dead host's address
+// must be gone from the coordinator by then, so nobody reconnecting mid-
+// migration is pointed at a corpse.
+func TestMigrationSendsSurvivorsToTheNewHostAddress(t *testing.T) {
+	h := newHarness(t, func(c *config.Config) {
+		c.Match.TeamSizes = []int{2}
+		c.Match.MinTeamSize = 2
+	})
+	var clients []*client
+	for i := 0; i < 4; i++ {
+		clients = append(clients, h.connect(uint64(76561198000000131+i)))
+	}
+	host, guests, matchID, _ := bringUpMatchN(t, h, clients...)
+
+	time.Sleep(100 * time.Millisecond)
+	_ = host.conn.Close()
+
+	// Find the promoted survivor and stand its server up somewhere else.
+	var newHost *client
+	for _, g := range guests {
+		if env := g.tryExpect(hasAssign, 3*time.Second); env != nil {
+			newHost = g
+			break
+		}
+	}
+	if newHost == nil {
+		t.Fatal("no survivor was promoted to host")
+	}
+
+	const movedTo = "169.254.99.1:27015"
+	h.srv.Inspect(func(s *Server) {
+		if m := s.matches[matchID]; m != nil && m.hosted() {
+			t.Errorf("the dead host's endpoint survived the migration: %q / %d",
+				m.ConnectAddress, m.GameServerSteamID)
+		}
+	})
+
+	newHost.send(&pb.CMsgEnvelope{Body: &pb.CMsgEnvelope_HostReady{HostReady: &pb.CMsgHostReady{
+		MatchId:           proto.String(matchID),
+		ConnectAddress:    proto.String(movedTo),
+		GameServerSteamId: proto.Uint64(newHost.steamID),
+		MapName:           proto.String("arena_badlands"),
+	}}})
+
+	for _, g := range guests {
+		if g == newHost {
+			continue
+		}
+		join := g.expect(hasJoin, 5*time.Second).GetJoinBattle()
+		if join.GetConnectAddress() != movedTo {
+			t.Fatalf("survivor was sent to %q, the new host is at %q",
+				join.GetConnectAddress(), movedTo)
+		}
+		if join.GetHostSteamId() != newHost.steamID {
+			t.Fatalf("join names host %d, the new host is %d",
+				join.GetHostSteamId(), newHost.steamID)
+		}
 	}
 }
 

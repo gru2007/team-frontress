@@ -14,9 +14,9 @@
   "timing": {
     "heartbeat_interval": "10s",
     "session_timeout": "45s",
-    "host_boot_deadline": "1m0s",
+    "host_boot_deadline": "1m30s",
     "client_connect_deadline": "1m30s",
-    "migration_hold": "1m15s",
+    "migration_hold": "1m45s",
     "reconnect_grace": "2m0s",
     "tick_interval": "1s"
   },

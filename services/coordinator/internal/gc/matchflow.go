@@ -187,10 +187,11 @@ func (s *Server) assignHost(m *Match, isMigration bool) bool {
 			slot.Connected = false
 		}
 	}
-	// The game server is gone, but the lobby is not: Steam keeps it alive and
-	// hands ownership to a surviving member. Clearing LobbyID here would strand
-	// every player in a room the coordinator no longer knows about.
+	// The old server is gone. Clearing both stops a client that reconnects
+	// mid-migration from being pointed at a corpse; the replacement host reports
+	// its own address, and everyone is sent there in a fresh join.
 	m.GameServerSteamID = 0
+	m.ConnectAddress = ""
 	m.setState(pb.EMatchState_MATCH_HOST_ASSIGNED)
 
 	if winner.Degraded {
@@ -216,7 +217,6 @@ func (s *Server) assignHost(m *Match, isMigration bool) bool {
 		BootDeadlineS: proto.Uint32(uint32(s.cfg.Timing.HostBootDeadline.D().Seconds())),
 		MatchSecret:   m.Secret,
 		IsMigration:   proto.Bool(isMigration),
-		LobbyId:       proto.Uint64(m.LobbyID),
 	}
 	for _, slot := range m.slots() {
 		assign.Roster = append(assign.Roster, &pb.CMsgRosterEntry{

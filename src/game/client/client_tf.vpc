@@ -953,8 +953,8 @@ $Project "Client (TF)"
 
 				$File	"$SRCDIR\game\shared\greyline\greyline_shared.h"
 				$File	"$SRCDIR\game\shared\greyline\greyline_shared.cpp"
-				$File	"greyline\greyline_lobby.h"
-				$File	"greyline\greyline_lobby.cpp"
+				$File	"greyline\greyline_battle.h"
+				$File	"greyline\greyline_battle.cpp"
 				$File	"greyline\greyline_gc.h"
 				$File	"greyline\greyline_gc.cpp"
 
