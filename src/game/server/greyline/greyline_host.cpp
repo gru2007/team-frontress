@@ -229,41 +229,6 @@ void CGreylineHost::FrameUpdatePostEntityThink()
 }
 
 //-----------------------------------------------------------------------------
-void CGreylineHost::PublishScore()
-{
-	CTeam *pRed = GetGlobalTeam( TF_TEAM_RED );
-	CTeam *pBlu = GetGlobalTeam( TF_TEAM_BLUE );
-	if ( !pRed || !pBlu )
-	{
-		return;
-	}
-
-	// Publishing a scoreline for a mode whose state is not the scoreline would
-	// hand the coordinator a snapshot that looks usable and is not.
-	const char *pszWhyNot = "";
-	if ( !BattleStateIsTeamScore( pszWhyNot ) )
-	{
-		return;
-	}
-
-	// Do not publish while a restore is still queued, or the client would
-	// briefly report 0-0 for a battle that is mid-migration and the coordinator
-	// would record that as the snapshot.
-	if ( m_bRestorePending )
-	{
-		return;
-	}
-
-	greyline_score_red.SetValue( pRed->GetScore() );
-	greyline_score_blu.SetValue( pBlu->GetScore() );
-
-	if ( TFGameRules() )
-	{
-		greyline_rounds_played.SetValue( TFGameRules()->GetRoundsPlayed() );
-	}
-}
-
-//-----------------------------------------------------------------------------
 // Purpose: is this mode's state actually the team scoreline?
 //
 // CTeamplayRoundBasedRules::SetWinningTeam adds to the team score once per
@@ -297,6 +262,41 @@ static bool BattleStateIsTeamScore( const char *&pszWhyNot )
 		return false;
 	}
 	return true;
+}
+
+//-----------------------------------------------------------------------------
+void CGreylineHost::PublishScore()
+{
+	CTeam *pRed = GetGlobalTeam( TF_TEAM_RED );
+	CTeam *pBlu = GetGlobalTeam( TF_TEAM_BLUE );
+	if ( !pRed || !pBlu )
+	{
+		return;
+	}
+
+	// Publishing a scoreline for a mode whose state is not the scoreline would
+	// hand the coordinator a snapshot that looks usable and is not.
+	const char *pszWhyNot = "";
+	if ( !BattleStateIsTeamScore( pszWhyNot ) )
+	{
+		return;
+	}
+
+	// Do not publish while a restore is still queued, or the client would
+	// briefly report 0-0 for a battle that is mid-migration and the coordinator
+	// would record that as the snapshot.
+	if ( m_bRestorePending )
+	{
+		return;
+	}
+
+	greyline_score_red.SetValue( pRed->GetScore() );
+	greyline_score_blu.SetValue( pBlu->GetScore() );
+
+	if ( TFGameRules() )
+	{
+		greyline_rounds_played.SetValue( TFGameRules()->GetRoundsPlayed() );
+	}
 }
 
 //-----------------------------------------------------------------------------

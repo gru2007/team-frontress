@@ -159,6 +159,48 @@ with *"STEAM UserID … is not friends with the host!"*. It is deliberately not
 turned off globally, because a player hosting a private game outside Greyline
 should keep it on.
 
+### Setting up a Linux test box
+
+`tools/setup-linux-testbed.sh` does the whole machine in one command, and is safe
+to re-run:
+
+```bash
+./tools/setup-linux-testbed.sh          # deps, game build, coordinator, Steam entry
+./tools/setup-linux-testbed.sh deps     # or one step at a time
+```
+
+What it handles:
+
+- **prerequisites** — podman (the Linux game build runs inside the SteamRT sniper
+  SDK container, see `src/sdk_container`), git, ccache, python3, Go, and it
+  checks for Steam Linux Runtime sniper, which the launcher needs;
+- **the build** — `src/buildallprojects release` then `game_clean/copy.sh`;
+- **the coordinator** — built, plus a `systemd --user` service with a secret
+  generated once and kept, and `loginctl enable-linger` so it survives logout;
+- **the Steam library entry** — a non-Steam shortcut pointing at `game/tc2.sh`.
+
+The library entry is written by `tools/steam_shortcut.py` directly into
+`userdata/<id>/config/shortcuts.vdf`, the binary VDF Steam keeps shortcuts in.
+It refuses to run while Steam is up, because Steam rewrites that file on exit and
+would discard the change; it backs the file up before every write; and re-running
+updates the existing entry instead of filling your library with duplicates.
+Restart Steam afterwards and launch **Campus Fortress** from the library.
+
+**If a Linux host cannot be reached by remote players, try this first.**
+`game/tc2.sh` passes `+ip 127.0.0.1`, which binds the game socket to loopback.
+Steam Networking should carry the traffic regardless, but that flag is the first
+thing to remove when testing hosting from a Linux box.
+
+**Enabling SSH on the test box.** If the machine answers ARP but refuses port 22,
+sshd is not running or is firewalled. From the machine's own keyboard:
+
+```bash
+sudo apt-get install -y openssh-server
+sudo systemctl enable --now ssh
+sudo ufw allow 22/tcp        # only if ufw is active
+ip -4 addr show scope global | grep inet
+```
+
 ## 4. Test B — two machines, the real thing
 
 Two Steam accounts, two different internet connections, no port forwarding. The

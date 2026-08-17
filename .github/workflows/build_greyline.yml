@@ -96,13 +96,18 @@ jobs:
       # exact version here catches a schema the game cannot build without paying
       # for a full game build to find out.
       #
-      # The game's VPC rule invokes the linux32 binary; this uses the linux64
-      # one of the same version, which parses identically and needs no i386
-      # runtime on the runner.
+      # Use the linux32 binary, the same one the VPC rule invokes. It is the
+      # statically linked build; the linux64 one in the tree is dynamically
+      # linked against a libprotoc.so.9 that is not shipped, so it cannot run at
+      # all. That costs an i386 runtime on the runner.
       - name: Compile the schema with the tree's protoc 2.6.1
         run: |
           set -euo pipefail
-          PROTOC=src/thirdparty/protobuf-2.6.1/bin/linux64/protoc
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y libc6:i386 libstdc++6:i386
+
+          PROTOC=src/thirdparty/protobuf-2.6.1/bin/linux32/protoc
           chmod +x "$PROTOC"
           "$PROTOC" --version
 

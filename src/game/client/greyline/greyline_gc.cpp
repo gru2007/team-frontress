@@ -9,6 +9,7 @@
 #include "greyline_lobby.h"
 #include "greyline/greyline_shared.h"
 #include "cdll_client_int.h"
+#include "inetchannelinfo.h"
 #include "c_playerresource.h"
 #include "greyline.pb.h"
 

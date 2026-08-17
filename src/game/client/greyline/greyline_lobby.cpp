@@ -28,6 +28,7 @@
 #include "greyline_gc.h"
 #include "greyline/greyline_shared.h"
 #include "cdll_client_int.h"
+#include "inetchannelinfo.h"
 #include "ienginevgui.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
