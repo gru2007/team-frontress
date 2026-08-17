@@ -1,0 +1,62 @@
+{
+  "listen": "0.0.0.0:27100",
+  "admin_listen": "127.0.0.1:27101",
+  "auth": {
+    "mode": "dev",
+    "app_id": 0,
+    "web_api_key": "",
+    "reject_vac_banned": true,
+    "require_ownership": true,
+    "ticket_cache_ttl": "10m0s"
+  },
+  "protocol_version": 1,
+  "accepted_client_versions": null,
+  "timing": {
+    "heartbeat_interval": "10s",
+    "session_timeout": "45s",
+    "host_boot_deadline": "1m0s",
+    "client_connect_deadline": "1m30s",
+    "migration_hold": "1m15s",
+    "reconnect_grace": "2m0s",
+    "tick_interval": "1s"
+  },
+  "match": {
+    "team_sizes": [
+      1,
+      2,
+      4,
+      6
+    ],
+    "min_team_size": 1,
+    "form_wait": "5s",
+    "max_concurrent_per_front": 2,
+    "abandon_ban_duration": "10m0s",
+    "max_migrations": 3,
+    "result_quorum": 0.5
+  },
+  "election": {
+    "weight_upload": 0.3,
+    "weight_latency": 0.35,
+    "weight_cpu": 0.15,
+    "weight_stability": 0.2,
+    "dedicated_bonus": 0.5,
+    "public_ip_bonus": 0.1,
+    "abandon_penalty": 0.35,
+    "min_upload_kbps": 1500,
+    "min_cpu_score": 40,
+    "min_memory_mb": 2048,
+    "max_acceptable_rtt_ms": 180,
+    "require_can_host_bit": true
+  },
+  "security": {
+    "policy_path": "",
+    "integrity_report_interval": "30s",
+    "integrity_grace": 3,
+    "flags_before_abort": 3,
+    "kick_on_client_violation": true,
+    "violation_ban": "30m0s",
+    "require_signed_results": false,
+    "secret": "test-only-not-a-real-secret"
+  },
+  "state_path": "greyline-test-players.json"
+}

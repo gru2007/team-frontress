@@ -1,0 +1,319 @@
+// Package config holds the coordinator's runtime configuration.
+package config
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"time"
+)
+
+// AuthMode selects how a client's claimed SteamID is verified.
+type AuthMode string
+
+const (
+	// AuthDev trusts the SteamID asserted in the hello. LAN and local testing
+	// only — anyone can claim to be anyone.
+	AuthDev AuthMode = "dev"
+	// AuthWebAPI validates the Steam auth session ticket through
+	// ISteamUserAuth/AuthenticateUserTicket. Requires a publisher Web API key
+	// for the AppID the game ships under.
+	AuthWebAPI AuthMode = "webapi"
+)
+
+// Config is the whole coordinator configuration. Loaded from JSON, with
+// environment overrides for the secrets.
+type Config struct {
+	// Listen is the address the game client link listens on (framed protobuf
+	// over TCP).
+	Listen string `json:"listen"`
+	// AdminListen serves /healthz and the read-only state endpoints.
+	AdminListen string `json:"admin_listen"`
+
+	Auth AuthConfig `json:"auth"`
+
+	// ProtocolVersion clients must present in their hello.
+	ProtocolVersion uint32 `json:"protocol_version"`
+	// AcceptedClientVersions, when non-empty, restricts which game builds may
+	// connect. Keeps a stale build from corrupting war state.
+	AcceptedClientVersions []string `json:"accepted_client_versions"`
+
+	Timing   TimingConfig   `json:"timing"`
+	Match    MatchConfig    `json:"match"`
+	Election ElectionConfig `json:"election"`
+	Security SecurityConfig `json:"security"`
+
+	// StatePath is where world/war state is persisted between restarts.
+	StatePath string `json:"state_path"`
+}
+
+type AuthConfig struct {
+	Mode AuthMode `json:"mode"`
+	// AppID the auth tickets are issued for.
+	AppID uint32 `json:"app_id"`
+	// WebAPIKey is a publisher key. Prefer the GREYLINE_STEAM_WEBAPI_KEY env
+	// var over putting it in the config file.
+	WebAPIKey string `json:"web_api_key"`
+	// RejectVACBanned drops players with a VAC or game ban on the AppID.
+	RejectVACBanned bool `json:"reject_vac_banned"`
+	// RequireOwnership rejects players whose ticket resolves to a different
+	// AppID than the configured one.
+	RequireOwnership bool `json:"require_ownership"`
+	// TicketCacheTTL avoids re-validating the same ticket on reconnect storms.
+	TicketCacheTTL Duration `json:"ticket_cache_ttl"`
+}
+
+type TimingConfig struct {
+	// HeartbeatInterval the client is told to use.
+	HeartbeatInterval Duration `json:"heartbeat_interval"`
+	// SessionTimeout after which a silent link is considered dead.
+	SessionTimeout Duration `json:"session_timeout"`
+	// HostBootDeadline is how long an assigned host has to report ready.
+	HostBootDeadline Duration `json:"host_boot_deadline"`
+	// ClientConnectDeadline is how long a client has to reach the host.
+	ClientConnectDeadline Duration `json:"client_connect_deadline"`
+	// MigrationHold is how long clients hold while a new host boots.
+	MigrationHold Duration `json:"migration_hold"`
+	// ReconnectGrace is how long a slot is kept for a player who dropped out
+	// of a live match.
+	ReconnectGrace Duration `json:"reconnect_grace"`
+	// TickInterval is the coordinator's own scheduling tick.
+	TickInterval Duration `json:"tick_interval"`
+}
+
+type MatchConfig struct {
+	// Sizes the coordinator is willing to form, smallest first. Each entry is
+	// players per team.
+	TeamSizes []int `json:"team_sizes"`
+	// MinTeamSize below which no match is formed at all.
+	MinTeamSize int `json:"min_team_size"`
+	// FormWait is how long the queue waits for a bigger match before settling
+	// for the smallest viable size.
+	FormWait Duration `json:"form_wait"`
+	// MaxConcurrentPerFront caps parallel battles on one front.
+	MaxConcurrentPerFront int `json:"max_concurrent_per_front"`
+	// AbandonBanDuration applied to a player who leaves a live match.
+	AbandonBanDuration Duration `json:"abandon_ban_duration"`
+	// MaxMigrations before the match is abandoned instead of migrated again.
+	MaxMigrations int `json:"max_migrations"`
+	// ResultQuorum is the fraction of non-host players that must corroborate
+	// the host's reported result for it to count towards the war.
+	ResultQuorum float64 `json:"result_quorum"`
+}
+
+type ElectionConfig struct {
+	WeightUpload      float64 `json:"weight_upload"`
+	WeightLatency     float64 `json:"weight_latency"`
+	WeightCPU         float64 `json:"weight_cpu"`
+	WeightStability   float64 `json:"weight_stability"`
+	DedicatedBonus    float64 `json:"dedicated_bonus"`
+	PublicIPBonus     float64 `json:"public_ip_bonus"`
+	AbandonPenalty    float64 `json:"abandon_penalty"`
+	MinUploadKbps     uint32  `json:"min_upload_kbps"`
+	MinCPUScore       uint32  `json:"min_cpu_score"`
+	MinMemoryMB       uint32  `json:"min_memory_mb"`
+	MaxAcceptableRTT  int     `json:"max_acceptable_rtt_ms"`
+	RequireCanHostBit bool    `json:"require_can_host_bit"`
+}
+
+type SecurityConfig struct {
+	// PolicyPath optionally overrides the built-in convar policy.
+	PolicyPath string `json:"policy_path"`
+	// IntegrityReportInterval expected from hosts. Missing reports are treated
+	// as suspicious after IntegrityGrace consecutive misses.
+	IntegrityReportInterval Duration `json:"integrity_report_interval"`
+	IntegrityGrace          int      `json:"integrity_grace"`
+	// FlagsBeforeAbort is how many non-fatal violations a match tolerates.
+	FlagsBeforeAbort int `json:"flags_before_abort"`
+	// KickOnClientViolation kicks the offending player rather than flagging.
+	KickOnClientViolation bool `json:"kick_on_client_violation"`
+	// ViolationBan applied to a player kicked for a policy violation.
+	ViolationBan Duration `json:"violation_ban"`
+	// RequireSignedResults rejects match results and integrity reports that are
+	// not signed with the match secret. The signing half lives in the deferred
+	// security layer, so this is off until that ships; with it off a host can
+	// lie about a scoreline and only the clients' corroboration catches it.
+	RequireSignedResults bool `json:"require_signed_results"`
+	// Secret is the coordinator's own HMAC key, used to derive per-match
+	// secrets. Prefer the GREYLINE_GC_SECRET env var.
+	Secret string `json:"secret"`
+}
+
+// Duration is a time.Duration that (de)serializes as a Go duration string.
+type Duration time.Duration
+
+func (d Duration) D() time.Duration { return time.Duration(d) }
+
+func (d Duration) MarshalJSON() ([]byte, error) {
+	return json.Marshal(time.Duration(d).String())
+}
+
+func (d *Duration) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		var n int64
+		if err2 := json.Unmarshal(b, &n); err2 == nil {
+			*d = Duration(time.Duration(n) * time.Second)
+			return nil
+		}
+		return err
+	}
+	parsed, err := time.ParseDuration(s)
+	if err != nil {
+		return fmt.Errorf("bad duration %q: %w", s, err)
+	}
+	*d = Duration(parsed)
+	return nil
+}
+
+// Default returns a configuration tuned for the MVP: one front, small
+// population, listen-server hosts. The secret is deliberately left empty so
+// Validate forces the operator to supply one.
+func Default() *Config {
+	return &Config{
+		Listen:          "0.0.0.0:27100",
+		AdminListen:     "127.0.0.1:27101",
+		ProtocolVersion: 1,
+		StatePath:       "greyline-state.json",
+		Auth: AuthConfig{
+			Mode:             AuthDev,
+			AppID:            0,
+			RejectVACBanned:  true,
+			RequireOwnership: true,
+			TicketCacheTTL:   Duration(10 * time.Minute),
+		},
+		Timing: TimingConfig{
+			HeartbeatInterval:     Duration(10 * time.Second),
+			SessionTimeout:        Duration(45 * time.Second),
+			HostBootDeadline:      Duration(60 * time.Second),
+			ClientConnectDeadline: Duration(90 * time.Second),
+			MigrationHold:         Duration(75 * time.Second),
+			ReconnectGrace:        Duration(120 * time.Second),
+			TickInterval:          Duration(time.Second),
+		},
+		Match: MatchConfig{
+			TeamSizes:             []int{2, 3, 4, 6},
+			MinTeamSize:           2,
+			FormWait:              Duration(30 * time.Second),
+			MaxConcurrentPerFront: 2,
+			AbandonBanDuration:    Duration(10 * time.Minute),
+			MaxMigrations:         3,
+			ResultQuorum:          0.5,
+		},
+		Election: ElectionConfig{
+			WeightUpload:      0.30,
+			WeightLatency:     0.35,
+			WeightCPU:         0.15,
+			WeightStability:   0.20,
+			DedicatedBonus:    0.50,
+			PublicIPBonus:     0.10,
+			AbandonPenalty:    0.35,
+			MinUploadKbps:     1500,
+			MinCPUScore:       40,
+			MinMemoryMB:       2048,
+			MaxAcceptableRTT:  180,
+			RequireCanHostBit: true,
+		},
+		Security: SecurityConfig{
+			IntegrityReportInterval: Duration(30 * time.Second),
+			IntegrityGrace:          3,
+			FlagsBeforeAbort:        3,
+			KickOnClientViolation:   true,
+			ViolationBan:            Duration(30 * time.Minute),
+		},
+	}
+}
+
+// Load reads a JSON config from path (empty path = built-in defaults only),
+// fills unset fields from the defaults, then applies environment overrides.
+func Load(path string) (*Config, error) {
+	cfg := Default()
+	if path != "" {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("read config: %w", err)
+		}
+		if err := json.Unmarshal(raw, cfg); err != nil {
+			return nil, fmt.Errorf("parse config: %w", err)
+		}
+	}
+	if v := os.Getenv("GREYLINE_LISTEN"); v != "" {
+		cfg.Listen = v
+	}
+	if v := os.Getenv("GREYLINE_ADMIN_LISTEN"); v != "" {
+		cfg.AdminListen = v
+	}
+	if v := os.Getenv("GREYLINE_STEAM_WEBAPI_KEY"); v != "" {
+		cfg.Auth.WebAPIKey = v
+	}
+	if v := os.Getenv("GREYLINE_GC_SECRET"); v != "" {
+		cfg.Security.Secret = v
+	}
+	if v := os.Getenv("GREYLINE_STATE_PATH"); v != "" {
+		cfg.StatePath = v
+	}
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+var ErrNoSecret = errors.New("security.secret is empty: set GREYLINE_GC_SECRET or security.secret in the config")
+
+// Validate rejects configurations that would silently produce an insecure or
+// non-functional coordinator.
+func (c *Config) Validate() error {
+	if c.Listen == "" {
+		return errors.New("listen address is empty")
+	}
+	if len(c.Match.TeamSizes) == 0 {
+		return errors.New("match.team_sizes is empty")
+	}
+	for _, s := range c.Match.TeamSizes {
+		if s <= 0 {
+			return fmt.Errorf("match.team_sizes contains non-positive size %d", s)
+		}
+	}
+	if c.Match.MinTeamSize <= 0 {
+		return errors.New("match.min_team_size must be positive")
+	}
+	if c.Match.ResultQuorum < 0 || c.Match.ResultQuorum > 1 {
+		return errors.New("match.result_quorum must be within [0,1]")
+	}
+	if c.Match.MaxMigrations < 0 {
+		return errors.New("match.max_migrations must not be negative")
+	}
+	switch c.Auth.Mode {
+	case AuthDev:
+	case AuthWebAPI:
+		if c.Auth.WebAPIKey == "" {
+			return errors.New("auth.mode=webapi requires a publisher Web API key")
+		}
+		if c.Auth.AppID == 0 {
+			return errors.New("auth.mode=webapi requires auth.app_id")
+		}
+	default:
+		return fmt.Errorf("unknown auth.mode %q", c.Auth.Mode)
+	}
+	if c.Security.Secret == "" {
+		return ErrNoSecret
+	}
+	if c.Timing.TickInterval <= 0 {
+		return errors.New("timing.tick_interval must be positive")
+	}
+	return nil
+}
+
+// SortedTeamSizes returns the configured team sizes in ascending order without
+// mutating the config.
+func (c *Config) SortedTeamSizes() []int {
+	out := make([]int, len(c.Match.TeamSizes))
+	copy(out, c.Match.TeamSizes)
+	for i := 1; i < len(out); i++ {
+		for j := i; j > 0 && out[j] < out[j-1]; j-- {
+			out[j], out[j-1] = out[j-1], out[j]
+		}
+	}
+	return out
+}

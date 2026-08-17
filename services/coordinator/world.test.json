@@ -1,0 +1,23 @@
+{
+  "_comment": "Two-player test world: one active front, maps whose envelope starts at 2 so a 1v1 can form.",
+  "revision": 1,
+  "nodes": [
+    { "id": "hub", "name": "GREYLINE HUB", "owner": 0, "state": "CONTESTED", "adjacent": [] }
+  ],
+  "fronts": [
+    {
+      "id": "test_front",
+      "node_id": "hub",
+      "name": "GREYLINE HUB",
+      "attacker": 1,
+      "red_points": 0,
+      "blu_points": 0,
+      "points_to_win": 2,
+      "active": true,
+      "map_pool": [
+        { "map": "arena_badlands", "mode": "arena", "min_players": 2, "ideal_players": 4, "max_players": 8 },
+        { "map": "arena_granary", "mode": "arena", "min_players": 2, "ideal_players": 4, "max_players": 8 }
+      ]
+    }
+  ]
+}

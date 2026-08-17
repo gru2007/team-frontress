@@ -950,6 +950,29 @@ $Project "Client (TF)"
 				$File	"$SRCDIR\game\shared\tf\tf_matchmaking_shared.cpp"
 				$File	"$SRCDIR\game\shared\tf\tf_gc_shared.h"
 				$File	"$SRCDIR\game\shared\tf\tf_gc_shared.cpp"
+
+				$File	"$SRCDIR\game\shared\greyline\greyline_shared.h"
+				$File	"$SRCDIR\game\shared\greyline\greyline_shared.cpp"
+				$File	"greyline\greyline_lobby.h"
+				$File	"greyline\greyline_lobby.cpp"
+				$File	"greyline\greyline_gc.h"
+				$File	"greyline\greyline_gc.cpp"
+
+				// One schema for both halves: the Go coordinator generates from
+				// this same file. protoc 2.6.1 is bundled in the tree and is
+				// what the $DynamicFile rule below runs.
+				$File	"$SRCDIR\..\services\coordinator\proto\greyline.proto"
+				$DynamicFile "$GENERATED_PROTO_DIR\greyline.pb.h"
+				$DynamicFile "$GENERATED_PROTO_DIR\greyline.pb.cc" [!$OSXALL]
+				{
+					$Configuration
+					{
+						$Compiler
+						{
+							$Create/UsePrecompiledHeader	"Not Using Precompiled Headers"
+						}
+					}
+				}
 				$File	"$SRCDIR\game\shared\tf\tf_match_description.cpp"
 				$File	"$SRCDIR\game\shared\tf\tf_match_description.h"
 				$File	"$SRCDIR\game\shared\tf\tf_match_description_shared.cpp"

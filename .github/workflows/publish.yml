@@ -7,24 +7,24 @@ on:
 jobs:
   publish_permalink:
     name: Publish Permalink Release
-    if: ${{ github.repository_owner == 'mastercomfig' && !github.event.release.prerelease }}
+    if: ${{ github.repository_owner == 'gru2007' && !github.event.release.prerelease }}
     runs-on: ubuntu-latest
     steps:
       - name: Download release assets
         run: |
-          gh release download "${{ github.event.release.tag_name }}" --repo mastercomfig/tc2 --pattern "game-*.zip"
+          gh release download "${{ github.event.release.tag_name }}" --repo gru2007/campus-fortress --pattern "game-*.zip"
         env:
           GH_TOKEN: ${{ secrets.REPO_TOKEN }}
 
       - name: Upload permalink release assets
         run: |
-          gh release upload rel game-win.zip game-linux.zip --repo mastercomfig/tc2 --clobber
+          gh release upload rel game-win.zip game-linux.zip --repo gru2007/campus-fortress --clobber
         env:
           GH_TOKEN: ${{ secrets.REPO_TOKEN }}
 
   publish_itch:
     name: Publish to Itch
-    if: ${{ github.repository_owner == 'mastercomfig' && !github.event.release.prerelease }}
+    if: ${{ github.repository_owner == 'gru2007' && !github.event.release.prerelease }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -44,7 +44,7 @@ jobs:
 
       - name: Download release assets
         run: |
-          gh release download "${{ github.event.release.tag_name }}" --repo mastercomfig/tc2 --pattern "game-*.zip"
+          gh release download "${{ github.event.release.tag_name }}" --repo gru2007/campus-fortress --pattern "game-*.zip"
         env:
           GH_TOKEN: ${{ secrets.REPO_TOKEN }}
 

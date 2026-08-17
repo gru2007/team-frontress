@@ -5,6 +5,16 @@ on:
     branches:
       - "*"
       - "release/*"
+    paths-ignore:
+      - "services/**"
+      - "docs/**"
+      - "**.md"
+  pull_request:
+    paths-ignore:
+      - "services/**"
+      - "docs/**"
+      - "**.md"
+  workflow_dispatch:
 # https://github.com/SoopMod/source-sdk-tf-soop/commit/d244e93b5888074e53e1f2f6daba3f14383b575e
 jobs:
   build_win:
@@ -19,7 +29,7 @@ jobs:
         with:
           sparse-checkout: |
             .github
-          token: ${{ secrets.REPO_TOKEN }}
+          token: ${{ secrets.REPO_TOKEN || github.token }}
 
       # Support incremental builds by caching (almost) the entire workspace.
       #
@@ -54,14 +64,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-mscache-${{ github.ref_name }}-
             ${{ runner.os }}-mscache-${{ github.base_ref }}-
-            ${{ runner.os }}-mscache-tc2-mod-
+            ${{ runner.os }}-mscache-campus-fortress-
 
       # Replace changed files with those from the current ref.
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
           clean: false
-          token: ${{ secrets.REPO_TOKEN }}
+          token: ${{ secrets.REPO_TOKEN || github.token }}
           submodules: recursive
 
       - name: Add msbuild
@@ -111,14 +121,14 @@ jobs:
 
       - name: Package Release
         id: package-rel
-        if: ${{ (github.repository_owner == 'mastercomfig' || github.repository_owner == 'mastercoms') && github.event_name == 'push' && (github.ref == 'refs/heads/tc2-mod' || startsWith(github.ref, 'refs/heads/release/')) }}
+        if: ${{ github.repository_owner == 'gru2007' && github.event_name == 'push' && (github.ref == 'refs/heads/campus-fortress' || startsWith(github.ref, 'refs/heads/release/')) }}
         run: |
           Remove-Item -Recurse -Force .\game_dist_debug
           Compress-Archive -Path .\game_dist\* -DestinationPath game-win.zip
 
       - name: Setup Butler
         id: setup-butler
-        if: ${{ (github.repository_owner == 'mastercomfig' || github.repository_owner == 'mastercoms') && github.event_name == 'push' && (github.ref == 'refs/heads/tc2-mod' || startsWith(github.ref, 'refs/heads/release/')) }}
+        if: ${{ github.repository_owner == 'gru2007' && github.event_name == 'push' && (github.ref == 'refs/heads/campus-fortress' || startsWith(github.ref, 'refs/heads/release/')) }}
         run: |
           mkdir -p ~/.local/bin
           curl -sSL --fail --retry 2 --max-time 10 "https://broth.itch.zone/butler/windows-amd64/LATEST/archive/default" -o cibin/butler/windows/butler.zip || true
@@ -130,7 +140,7 @@ jobs:
 
       - name: Push to Itch (prerelease)
         id: itch-prerelease
-        if: ${{ (github.repository_owner == 'mastercomfig' || github.repository_owner == 'mastercoms') && github.event_name == 'push' && (github.ref == 'refs/heads/tc2-mod' || startsWith(github.ref, 'refs/heads/release/')) }}
+        if: ${{ github.repository_owner == 'gru2007' && github.event_name == 'push' && (github.ref == 'refs/heads/campus-fortress' || startsWith(github.ref, 'refs/heads/release/')) }}
         run: |
           BRANCH_STR=prerelease ./game_clean/push.sh game_dist
         shell: bash
@@ -139,10 +149,10 @@ jobs:
 
       - name: Push Release
         id: create-rel
-        if: ${{ (github.repository_owner == 'mastercomfig' || github.repository_owner == 'mastercoms') && github.event_name == 'push' && (github.ref == 'refs/heads/tc2-mod' || startsWith(github.ref, 'refs/heads/release/')) }}
+        if: ${{ github.repository_owner == 'gru2007' && github.event_name == 'push' && (github.ref == 'refs/heads/campus-fortress' || startsWith(github.ref, 'refs/heads/release/')) }}
         run: |
           ./game_clean/tag.sh
           rm game-win.zip
         shell: bash
         env:
-          GH_TOKEN: ${{secrets.REPO_TOKEN}}
+          GH_TOKEN: ${{ secrets.REPO_TOKEN || github.token }}

@@ -1,0 +1,118 @@
+name: Build - Greyline
+
+# The coordinator, and the schema both halves share.
+#
+# This runs in a couple of minutes, unlike the game build, so it is the job that
+# should catch a broken protocol before anyone waits on a full compile.
+
+on:
+  push:
+    branches:
+      - "*"
+      - "release/*"
+    paths:
+      - "services/**"
+      - ".github/workflows/build_greyline.yml"
+  pull_request:
+    paths:
+      - "services/**"
+      - ".github/workflows/build_greyline.yml"
+  workflow_dispatch:
+
+jobs:
+  coordinator:
+    name: Coordinator
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/coordinator
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.REPO_TOKEN || github.token }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: services/coordinator/go.mod
+          cache-dependency-path: services/coordinator/go.sum
+
+      - name: Verify formatting
+        run: |
+          unformatted="$(gofmt -l . | grep -v '/pb/' || true)"
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt'd:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race -count=2 ./...
+
+      - name: Build
+        run: go build -o bin/coordinator ./cmd/coordinator
+
+      # A config that will not load is a broken release, and it costs seconds to
+      # find out here rather than on a server.
+      - name: Smoke test the shipped configs
+        run: |
+          set -euo pipefail
+          export GREYLINE_GC_SECRET=ci-smoke-test-secret
+          export GREYLINE_STATE_PATH="$(mktemp -d)/players.json"
+
+          for world in world.example.json world.test.json; do
+            echo "--- $world"
+            GREYLINE_LISTEN=127.0.0.1:0 \
+              timeout 5s ./bin/coordinator -world "$world" > out.log 2>&1 || true
+            grep -q "coordinator listening" out.log || { cat out.log; exit 1; }
+          done
+
+          echo "--- gc.test.json"
+          GREYLINE_LISTEN=127.0.0.1:0 \
+            timeout 5s ./bin/coordinator -config gc.test.json -world world.test.json > out.log 2>&1 || true
+          grep -q "coordinator listening" out.log || { cat out.log; exit 1; }
+
+      - name: Archive coordinator
+        uses: actions/upload-artifact@v7
+        with:
+          name: greyline-coordinator-linux
+          path: services/coordinator/bin/coordinator
+
+  schema:
+    name: Shared schema
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.REPO_TOKEN || github.token }}
+
+      # The game compiles greyline.proto with the protoc bundled in the tree —
+      # 2.6.1, not whatever a runner happens to have installed. Running that
+      # exact version here catches a schema the game cannot build without paying
+      # for a full game build to find out.
+      #
+      # The game's VPC rule invokes the linux32 binary; this uses the linux64
+      # one of the same version, which parses identically and needs no i386
+      # runtime on the runner.
+      - name: Compile the schema with the tree's protoc 2.6.1
+        run: |
+          set -euo pipefail
+          PROTOC=src/thirdparty/protobuf-2.6.1/bin/linux64/protoc
+          chmod +x "$PROTOC"
+          "$PROTOC" --version
+
+          mkdir -p /tmp/greyline_pb
+          "$PROTOC" \
+            --proto_path=src/thirdparty/protobuf-2.6.1/src \
+            --proto_path=services/coordinator/proto \
+            --cpp_out=/tmp/greyline_pb \
+            services/coordinator/proto/greyline.proto
+
+          test -s /tmp/greyline_pb/greyline.pb.cc
+          test -s /tmp/greyline_pb/greyline.pb.h
+          echo "schema builds for the game side"

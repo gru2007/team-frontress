@@ -5,6 +5,16 @@ on:
     branches:
       - "*"
       - "release/*"
+    paths-ignore:
+      - "services/**"
+      - "docs/**"
+      - "**.md"
+  pull_request:
+    paths-ignore:
+      - "services/**"
+      - "docs/**"
+      - "**.md"
+  workflow_dispatch:
 
 jobs:
   build_linux:
@@ -13,7 +23,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          token: ${{ secrets.REPO_TOKEN }}
+          token: ${{ secrets.REPO_TOKEN || github.token }}
           submodules: recursive
 
       - name: Setup ccache
@@ -25,7 +35,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-ccache-${{ github.ref_name }}-
             ${{ runner.os }}-ccache-${{ github.base_ref }}-
-            ${{ runner.os }}-ccache-tc2-mod-
+            ${{ runner.os }}-ccache-campus-fortress-
 
       - name: Build dist
         id: build-dist
@@ -53,7 +63,7 @@ jobs:
 
       - name: Package Release
         id: package-rel
-        if: ${{ (github.repository_owner == 'mastercomfig' || github.repository_owner == 'mastercoms') && github.event_name == 'push' && (github.ref == 'refs/heads/tc2-mod' || startsWith(github.ref, 'refs/heads/release/')) }}
+        if: ${{ github.repository_owner == 'gru2007' && github.event_name == 'push' && (github.ref == 'refs/heads/campus-fortress' || startsWith(github.ref, 'refs/heads/release/')) }}
         run: |
           rm -rf game_dist_debug
           (cd game_dist && 7z a -r ../game-linux.zip '*')
@@ -61,7 +71,7 @@ jobs:
 
       - name: Setup Butler
         id: setup-butler
-        if: ${{ (github.repository_owner == 'mastercomfig' || github.repository_owner == 'mastercoms') && github.event_name == 'push' && (github.ref == 'refs/heads/tc2-mod' || startsWith(github.ref, 'refs/heads/release/')) }}
+        if: ${{ github.repository_owner == 'gru2007' && github.event_name == 'push' && (github.ref == 'refs/heads/campus-fortress' || startsWith(github.ref, 'refs/heads/release/')) }}
         run: |
           sudo apt-get update
           sudo apt-get install -y 7zip curl
@@ -75,7 +85,7 @@ jobs:
 
       - name: Push to Itch (prerelease)
         id: itch-prerelease
-        if: ${{ (github.repository_owner == 'mastercomfig' || github.repository_owner == 'mastercoms') && github.event_name == 'push' && (github.ref == 'refs/heads/tc2-mod' || startsWith(github.ref, 'refs/heads/release/')) }}
+        if: ${{ github.repository_owner == 'gru2007' && github.event_name == 'push' && (github.ref == 'refs/heads/campus-fortress' || startsWith(github.ref, 'refs/heads/release/')) }}
         run: |
           BRANCH_STR=prerelease ./game_clean/push.sh game_dist
         shell: bash
@@ -84,13 +94,13 @@ jobs:
 
       - name: Push Release
         id: create-rel
-        if: ${{ (github.repository_owner == 'mastercomfig' || github.repository_owner == 'mastercoms') && github.event_name == 'push' && (github.ref == 'refs/heads/tc2-mod' || startsWith(github.ref, 'refs/heads/release/')) }}
+        if: ${{ github.repository_owner == 'gru2007' && github.event_name == 'push' && (github.ref == 'refs/heads/campus-fortress' || startsWith(github.ref, 'refs/heads/release/')) }}
         run: |
           ./game_clean/tag.sh
           rm game-linux.zip
         shell: bash
         env:
-          GH_TOKEN: ${{secrets.REPO_TOKEN}}
+          GH_TOKEN: ${{ secrets.REPO_TOKEN || github.token }}
 
       - name: Cleanup
         id: cleanup

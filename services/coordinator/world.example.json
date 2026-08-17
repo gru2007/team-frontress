@@ -1,0 +1,99 @@
+{
+  "_comment": [
+    "Example Greyline Network world. The coordinator reads this file; it does not",
+    "generate topology of its own. The node graph below is the seven-node MVP",
+    "layout from the design document. Map pools use maps that ship with TC2 (see",
+    "game/tc2/cfg/mapcycle_*.txt); arena maps cover the smallest player counts,",
+    "koth the middle, cp/pl the full-size battles."
+  ],
+  "revision": 1,
+  "nodes": [
+    {
+      "id": "north_terminal",
+      "name": "NORTH TERMINAL",
+      "owner": 1,
+      "state": "RED_CONTROL",
+      "adjacent": ["greyline_hub"]
+    },
+    {
+      "id": "greyline_hub",
+      "name": "GREYLINE HUB",
+      "owner": 0,
+      "state": "CONTESTED",
+      "adjacent": ["north_terminal", "foundry", "quarry"]
+    },
+    {
+      "id": "foundry",
+      "name": "FOUNDRY",
+      "owner": 1,
+      "state": "RED_CONTROL",
+      "adjacent": ["greyline_hub", "rail_yard"]
+    },
+    {
+      "id": "quarry",
+      "name": "QUARRY",
+      "owner": 2,
+      "state": "BLU_CONTROL",
+      "adjacent": ["greyline_hub", "reservoir"]
+    },
+    {
+      "id": "rail_yard",
+      "name": "RAIL YARD",
+      "owner": 1,
+      "state": "RED_CONTROL",
+      "adjacent": ["foundry", "reservoir"]
+    },
+    {
+      "id": "reservoir",
+      "name": "RESERVOIR",
+      "owner": 2,
+      "state": "BLU_CONTROL",
+      "adjacent": ["quarry", "rail_yard"]
+    },
+    {
+      "id": "greyline_depot",
+      "name": "GREYLINE DEPOT",
+      "owner": 0,
+      "state": "LOCKED",
+      "adjacent": ["rail_yard", "reservoir"]
+    }
+  ],
+  "fronts": [
+    {
+      "id": "front_greyline_hub",
+      "node_id": "greyline_hub",
+      "name": "GREYLINE HUB",
+      "attacker": 1,
+      "red_points": 0,
+      "blu_points": 0,
+      "points_to_win": 5,
+      "active": true,
+      "map_pool": [
+        { "map": "arena_badlands", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 8 },
+        { "map": "arena_granary", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 8 },
+        { "map": "arena_watchtower", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 8 },
+        { "map": "koth_viaduct", "mode": "koth", "min_players": 6, "ideal_players": 12, "max_players": 16 },
+        { "map": "koth_cascade", "mode": "koth", "min_players": 6, "ideal_players": 12, "max_players": 16 },
+        { "map": "koth_lakeside_final", "mode": "koth", "min_players": 6, "ideal_players": 12, "max_players": 16 },
+        { "map": "cp_process_final", "mode": "cp", "min_players": 10, "ideal_players": 12, "max_players": 18 },
+        { "map": "cp_metalworks", "mode": "cp", "min_players": 10, "ideal_players": 12, "max_players": 18 }
+      ]
+    },
+    {
+      "id": "front_rail_yard",
+      "node_id": "rail_yard",
+      "name": "RAIL YARD",
+      "attacker": 2,
+      "red_points": 0,
+      "blu_points": 0,
+      "points_to_win": 5,
+      "active": false,
+      "map_pool": [
+        { "map": "arena_sawmill", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 8 },
+        { "map": "koth_sawmill", "mode": "koth", "min_players": 6, "ideal_players": 12, "max_players": 16 },
+        { "map": "pl_badwater", "mode": "payload", "min_players": 10, "ideal_players": 16, "max_players": 24 },
+        { "map": "pl_upward", "mode": "payload", "min_players": 10, "ideal_players": 16, "max_players": 24 }
+      ]
+    }
+  ]
+}

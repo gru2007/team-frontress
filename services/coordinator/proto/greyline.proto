@@ -1,0 +1,490 @@
+// GREYLINE FRONTRESS — Game Coordinator wire protocol.
+//
+// proto2 on purpose: the game side compiles against the in-tree
+// src/thirdparty/protobuf-2.6.1 that TC2 already links for gcsdk/tf_gcmessages,
+// so no new dependency is introduced in the engine build.
+//
+// Framing on the wire (TCP, little-endian):
+//     uint32 payload_len   // length of the serialized Envelope, <= 1 MiB
+//     bytes  payload       // serialized CMsgEnvelope
+//
+// Every message travels inside CMsgEnvelope. Requests that expect a reply set
+// job_id; the reply echoes it back in job_id_target.
+
+syntax = "proto2";
+
+package greyline;
+
+option go_package = "github.com/greyline-frontress/coordinator/internal/wire/pb";
+
+// ---------------------------------------------------------------------------
+// Shared enums
+// ---------------------------------------------------------------------------
+
+enum ESide {
+  SIDE_UNASSIGNED = 0;
+  SIDE_RED = 1;
+  SIDE_BLU = 2;
+}
+
+enum EResult {
+  RESULT_OK = 0;
+  RESULT_FAIL = 1;
+  RESULT_INVALID_PROTOCOL = 2;
+  RESULT_AUTH_FAILED = 3;
+  RESULT_BANNED = 4;
+  RESULT_RATE_LIMITED = 5;
+  RESULT_NOT_FOUND = 6;
+  RESULT_BUSY = 7;
+  RESULT_TIMEOUT = 8;
+}
+
+enum EMatchState {
+  MATCH_FORMING = 0;       // roster assembled, electing a host
+  MATCH_HOST_ASSIGNED = 1; // host told to boot the map
+  MATCH_LOADING = 2;       // host is up, clients are connecting
+  MATCH_LIVE = 3;          // gameplay
+  MATCH_MIGRATING = 4;     // host lost, new host booting, clients holding
+  MATCH_FINISHED = 5;
+  MATCH_ABORTED = 6;
+}
+
+enum EMatchOutcome {
+  OUTCOME_UNKNOWN = 0;
+  OUTCOME_RED_WIN = 1;
+  OUTCOME_BLU_WIN = 2;
+  OUTCOME_STALEMATE = 3;
+  OUTCOME_ABANDONED = 4;
+}
+
+enum ELeaveReason {
+  LEAVE_UNKNOWN = 0;
+  LEAVE_DISCONNECT = 1;
+  LEAVE_TIMEOUT = 2;
+  LEAVE_KICKED = 3;
+  LEAVE_ABANDON = 4; // left a live match without it ending
+}
+
+// ---------------------------------------------------------------------------
+// Envelope
+// ---------------------------------------------------------------------------
+
+message CMsgEnvelope {
+  optional uint64 job_id = 1;        // set by the sender when a reply is wanted
+  optional uint64 job_id_target = 2; // echo of the peer's job_id on a reply
+  optional uint64 sent_at_ms = 3;    // sender clock, for RTT/skew observation
+
+  oneof body {
+    // session
+    CMsgHello hello = 10;
+    CMsgWelcome welcome = 11;
+    CMsgPing ping = 12;
+    CMsgPong pong = 13;
+    CMsgGoodbye goodbye = 14;
+
+    // world / war layer (read-only from the GC's perspective)
+    CMsgWorldStateRequest world_state_request = 20;
+    CMsgWorldState world_state = 21;
+    CMsgWarUpdate war_update = 22;
+
+    // queueing
+    CMsgHostCapabilities host_capabilities = 30;
+    CMsgDeployRequest deploy_request = 31;
+    CMsgDeployCancel deploy_cancel = 32;
+    CMsgQueueStatus queue_status = 33;
+
+    // match setup
+    CMsgAssignHost assign_host = 40;
+    CMsgHostReady host_ready = 41;
+    CMsgHostFailed host_failed = 42;
+    CMsgJoinBattle join_battle = 43;
+    CMsgClientJoinState client_join_state = 44;
+
+    // live match
+    CMsgHostHeartbeat host_heartbeat = 50;
+    CMsgClientHeartbeat client_heartbeat = 51;
+    CMsgPlayerLeft player_left = 52;
+
+    // security
+    CMsgSecurityPolicy security_policy = 60;
+    CMsgIntegrityReport integrity_report = 61;
+    CMsgSecurityVerdict security_verdict = 62;
+
+    // migration
+    CMsgHostLost host_lost = 70;
+    CMsgMigrateHost migrate_host = 71;
+
+    // results
+    CMsgMatchResult match_result = 80;
+    CMsgResultAttestation result_attestation = 81;
+    CMsgMatchOver match_over = 82;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Session
+// ---------------------------------------------------------------------------
+
+message CMsgHello {
+  optional uint32 protocol_version = 1;
+  optional uint64 steam_id = 2;
+  // ISteamUser::GetAuthSessionTicket blob. Validated against the Steam Web API
+  // when the coordinator runs with auth_mode=webapi.
+  optional bytes auth_ticket = 3;
+  optional string client_version = 4;  // build id of the game binary
+  optional string platform = 5;        // "windows" | "linux"
+  optional CMsgHostCapabilities capabilities = 6;
+  // Opaque SteamNetworkingUtils ping location, used to estimate peer RTT
+  // without probing. Result of ISteamNetworkingUtils::GetLocalPingLocation.
+  optional string ping_location = 7;
+  optional bool is_dedicated = 8; // process is srcds, not a listen client
+}
+
+message CMsgWelcome {
+  optional EResult result = 1;
+  optional string message = 2;         // human-readable reason on failure
+  optional uint64 session_id = 3;
+  optional uint64 server_time_ms = 4;
+  optional uint32 heartbeat_interval_s = 5;
+  optional uint32 protocol_version = 6;
+  // Currently active reconnect target, if this SteamID dropped out of a live
+  // match and the coordinator is still holding a slot for them.
+  optional CMsgJoinBattle rejoin = 7;
+}
+
+message CMsgPing { optional uint64 nonce = 1; }
+message CMsgPong { optional uint64 nonce = 1; }
+
+message CMsgGoodbye {
+  optional string reason = 1;
+  optional uint32 reconnect_after_s = 2;
+}
+
+// ---------------------------------------------------------------------------
+// World / war layer
+//
+// The coordinator does not own the war simulation. It reads a snapshot from
+// whatever implements the war provider and forwards match outcomes to it.
+// ---------------------------------------------------------------------------
+
+message CMsgWorldStateRequest {}
+
+message CMsgWorldNode {
+  optional string id = 1;
+  optional string display_name = 2;
+  optional ESide owner = 3;
+  optional string state = 4;           // RED_CONTROL / CONTESTED / ...
+  repeated string adjacent = 5;
+}
+
+message CMsgBattleFront {
+  optional string id = 1;
+  optional string node_id = 2;
+  optional string display_name = 3;
+  optional uint32 red_points = 4;
+  optional uint32 blu_points = 5;
+  optional uint32 points_to_win = 6;
+  optional ESide attacker = 7;
+  optional uint32 queued_players = 8;
+  repeated CMsgLiveBattle live = 9;
+}
+
+message CMsgLiveBattle {
+  optional string match_id = 1;
+  optional string map_name = 2;
+  optional EMatchState state = 3;
+  optional uint32 players = 4;
+  optional uint32 max_players = 5;
+  optional uint32 red_score = 6;
+  optional uint32 blu_score = 7;
+  optional uint32 elapsed_s = 8;
+}
+
+message CMsgWorldState {
+  optional uint64 revision = 1;
+  repeated CMsgWorldNode nodes = 2;
+  repeated CMsgBattleFront fronts = 3;
+  optional uint32 online_players = 4;
+  // Side the coordinator would like more mercenaries on, for the
+  // "BLU NEEDS MERCENARIES" prompt.
+  optional ESide understrength_side = 5;
+}
+
+message CMsgWarUpdate {
+  optional string front_id = 1;
+  optional uint32 red_points = 2;
+  optional uint32 blu_points = 3;
+  optional uint32 points_to_win = 4;
+  optional bool node_captured = 5;
+  optional ESide new_owner = 6;
+  optional string headline = 7; // "RED OFFENSIVE: 3/5 -> 4/5"
+}
+
+// ---------------------------------------------------------------------------
+// Queueing and host election inputs
+// ---------------------------------------------------------------------------
+
+message CMsgHostCapabilities {
+  optional bool can_host = 1;
+  optional uint32 upload_kbps = 2;
+  optional uint32 cpu_score = 3;      // relative, higher is better
+  optional uint32 memory_mb = 4;
+  optional uint32 sdr_pop_id = 5;     // nearest Steam relay POP
+  optional bool has_public_ip = 6;
+  optional bool is_dedicated = 7;
+  optional uint32 max_players_supported = 8;
+}
+
+message CMsgDeployRequest {
+  optional ESide preferred_side = 1;
+  optional string front_id = 2;       // empty => coordinator picks
+  repeated uint64 party_members = 3;  // leader's SteamID included
+  optional bool accept_any_side = 4;  // willing to fill the understrength side
+  optional string ping_location = 5;
+}
+
+message CMsgDeployCancel {}
+
+message CMsgQueueStatus {
+  optional bool queued = 1;
+  optional string front_id = 2;
+  optional ESide side = 3;
+  optional uint32 position = 4;
+  optional uint32 players_in_queue = 5;
+  optional uint32 players_needed = 6;
+  optional uint32 estimated_wait_s = 7;
+  optional string message = 8;
+}
+
+// ---------------------------------------------------------------------------
+// Match setup
+// ---------------------------------------------------------------------------
+
+message CMsgRosterEntry {
+  optional uint64 steam_id = 1;
+  optional ESide side = 2;
+  optional string ping_location = 3;
+  optional bool connected = 4;
+  optional bool is_host = 5;
+}
+
+message CMsgAssignHost {
+  optional string match_id = 1;
+  optional string front_id = 2;
+  optional string map_name = 3;
+  optional string game_mode = 4;
+  optional uint32 max_players = 5;
+  repeated CMsgRosterEntry roster = 6;
+  optional CMsgSecurityPolicy policy = 7;
+  optional uint32 boot_deadline_s = 8;
+  // Per-match secret. Host derives per-player join tokens from it and signs
+  // its result report with it. Never leaves the GC except to the host.
+  optional bytes match_secret = 9;
+  optional bool is_migration = 10;
+  optional CMsgMatchSnapshot restore = 11; // set when is_migration
+  // Non-zero on migration: the battle keeps its Steam lobby, so the new host
+  // takes that one over instead of creating a second one. Everyone else is
+  // already sitting in it and gets the new server through LobbyGameCreated_t
+  // without moving.
+  optional uint64 lobby_id = 12;
+}
+
+// The host has created the Steam lobby and its listen server is published to
+// it. There is no transport detail here on purpose: the engine's own Steam
+// Networking carries the match, and Steam's SetLobbyGameServer carries the
+// endpoint. The coordinator only needs to know which lobby the battle lives in
+// so it can point the rest of the roster at it.
+message CMsgHostReady {
+  optional string match_id = 1;
+  optional uint64 lobby_id = 2;             // Steam lobby id
+  optional uint64 game_server_steam_id = 3; // from IVEngineServer::GetGameServerSteamID
+  optional string map_name = 6;
+}
+
+message CMsgHostFailed {
+  optional string match_id = 1;
+  optional string reason = 2;
+}
+
+// Go join this battle. The client searches for the lobby by battle id, or joins
+// lobby_id directly, then Steam hands it the game server.
+message CMsgJoinBattle {
+  optional string match_id = 1;   // also the battle id in lobby metadata
+  optional uint64 lobby_id = 2;
+  optional string front_id = 3;
+  optional string map_name = 6;
+  optional ESide side = 7;
+  optional uint32 join_deadline_s = 11;
+}
+
+message CMsgClientJoinState {
+  optional string match_id = 1;
+  optional bool connected = 2;
+  optional string failure = 3;      // set when the connect attempt failed
+  optional uint32 rtt_ms = 4;
+}
+
+// ---------------------------------------------------------------------------
+// Live match
+// ---------------------------------------------------------------------------
+
+// What survives a change of host.
+//
+// Migration granularity is one round, not one tick. A new host runs "map",
+// which stands up a brand new listen server: team scores can be written back
+// before players connect, but mid-round state — cart position, point ownership,
+// the round timer, who is alive, uber charge — lives across hundreds of
+// entities and cannot be moved without engine-level save/restore, which a mod
+// does not have. So a migrated battle resumes at the score it had and replays
+// the round that was interrupted. Players lose a round, not the battle.
+message CMsgMatchSnapshot {
+  optional uint32 red_score = 1;   // rounds won
+  optional uint32 blu_score = 2;
+  optional uint32 round = 3;
+  optional string map_name = 5;
+  optional uint64 taken_at_ms = 7;
+}
+
+message CMsgHostHeartbeat {
+  optional string match_id = 1;
+  optional EMatchState state = 2;
+  repeated CMsgRosterEntry roster = 3;
+  optional CMsgMatchSnapshot snapshot = 4;
+  optional uint32 tickrate = 5;
+  optional uint32 server_fps = 6;
+}
+
+message CMsgClientHeartbeat {
+  optional string match_id = 1;
+  optional bool in_match = 2;
+  optional uint32 rtt_to_host_ms = 3;
+  optional uint32 packet_loss_pct = 4;
+}
+
+message CMsgPlayerLeft {
+  optional string match_id = 1;
+  optional uint64 steam_id = 2;
+  optional ELeaveReason reason = 3;
+}
+
+// ---------------------------------------------------------------------------
+// Security
+// ---------------------------------------------------------------------------
+
+message CMsgConVarRule {
+  optional string name = 1;
+  optional string value = 2;       // required value when min/max are unset
+  optional double min_value = 3;
+  optional double max_value = 4;
+  optional bool enforce_on_host = 5;   // host must set and lock it
+  optional bool query_on_clients = 6;  // host queries each client for it
+  optional bool fatal = 7;             // violation aborts instead of flags
+}
+
+message CMsgSecurityPolicy {
+  optional uint32 version = 1;
+  repeated CMsgConVarRule convars = 2;
+  repeated string blocked_commands = 3; // client concommands refused in-match
+  optional bool block_cheat_cvars = 4;  // refuse all FCVAR_CHEAT changes
+  optional bool require_pure_server = 5;
+  optional uint32 pure_level = 6;
+  optional bool allow_plugins = 7;
+  optional bool allow_bots = 8;
+  optional bool allow_rcon = 9;
+  optional uint32 client_query_interval_s = 10;
+  // SHA-256 over the canonical encoding of this policy. The host echoes it
+  // back in every integrity report so tampering shows up.
+  optional bytes digest = 11;
+}
+
+message CMsgConVarObservation {
+  optional uint64 steam_id = 1; // 0 => the server's own value
+  optional string name = 2;
+  optional string value = 3;
+  optional string query_status = 4; // ok / not_found / protected / timeout
+}
+
+message CMsgIntegrityViolation {
+  optional uint64 steam_id = 1;
+  optional string rule = 2;
+  optional string observed = 3;
+  optional string expected = 4;
+  optional bool fatal = 5;
+}
+
+message CMsgIntegrityReport {
+  optional string match_id = 1;
+  optional bytes policy_digest = 2;
+  repeated CMsgConVarObservation observations = 3;
+  repeated CMsgIntegrityViolation violations = 4;
+  repeated string loaded_plugins = 5;
+  optional bool rcon_enabled = 6;
+  optional uint32 bot_count = 7;
+  optional bytes signature = 8; // HMAC(match_secret, report bytes)
+}
+
+message CMsgSecurityVerdict {
+  optional string match_id = 1;
+  optional uint64 steam_id = 2;   // 0 => applies to the whole match
+  optional string action = 3;     // "kick" | "abort" | "flag" | "clear"
+  optional string reason = 4;
+  optional uint32 ban_seconds = 5;
+}
+
+// ---------------------------------------------------------------------------
+// Host migration
+// ---------------------------------------------------------------------------
+
+message CMsgHostLost {
+  optional string match_id = 1;
+  optional uint64 host_steam_id = 2;
+  optional string detail = 3;
+}
+
+message CMsgMigrateHost {
+  optional string match_id = 1;
+  optional uint64 new_host_steam_id = 2;
+  optional uint32 hold_seconds = 3;   // how long clients should wait
+  optional string message = 4;
+}
+
+// ---------------------------------------------------------------------------
+// Results
+// ---------------------------------------------------------------------------
+
+message CMsgPlayerScore {
+  optional uint64 steam_id = 1;
+  optional ESide side = 2;
+  optional uint32 kills = 3;
+  optional uint32 deaths = 4;
+  optional uint32 score = 5;
+  optional uint32 time_played_s = 6;
+  optional bool abandoned = 7;
+}
+
+message CMsgMatchResult {
+  optional string match_id = 1;
+  optional EMatchOutcome outcome = 2;
+  optional uint32 red_score = 3;
+  optional uint32 blu_score = 4;
+  optional uint32 duration_s = 5;
+  repeated CMsgPlayerScore players = 6;
+  optional bytes signature = 7; // HMAC(match_secret, canonical result bytes)
+}
+
+// What a non-host client believes happened. Used to corroborate the host.
+message CMsgResultAttestation {
+  optional string match_id = 1;
+  optional EMatchOutcome outcome = 2;
+  optional uint32 red_score = 3;
+  optional uint32 blu_score = 4;
+}
+
+message CMsgMatchOver {
+  optional string match_id = 1;
+  optional EMatchOutcome outcome = 2;
+  optional bool disputed = 3;
+  optional bool counted_towards_war = 4;
+  optional CMsgWarUpdate war_update = 5;
+  optional string message = 6;
+}
