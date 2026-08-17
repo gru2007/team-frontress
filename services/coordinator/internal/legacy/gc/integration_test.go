@@ -80,7 +80,6 @@ func newHarnessWithWorld(t *testing.T, worldJSON string, tune func(*config.Confi
 	cfg.Election.MinUploadKbps = 0
 	cfg.Election.MinCPUScore = 0
 	cfg.Election.MinMemoryMB = 0
-	cfg.StatePath = filepath.Join(dir, "players.json")
 	if tune != nil {
 		tune(cfg)
 	}
@@ -88,7 +87,9 @@ func newHarnessWithWorld(t *testing.T, worldJSON string, tune func(*config.Confi
 		t.Fatal(err)
 	}
 
-	store, err := LoadPlayerStore(cfg.StatePath)
+	// The live coordinator has no state file — the war log is its persistence.
+	// This retired package still keeps a player store, so the test names one.
+	store, err := LoadPlayerStore(filepath.Join(dir, "players.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

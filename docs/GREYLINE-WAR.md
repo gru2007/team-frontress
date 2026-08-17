@@ -136,10 +136,27 @@ front says:  BREAKTHROUGH at Foundry
 20 online →  cp_badlands, 10v10
 ```
 
-The coordinator picks the battlefield whose ideal population is closest to the
-queue, and falls back to the profile's skirmish list when nothing at that stage
-fits. Players see `BREAKTHROUGH`; the map underneath is whatever runs well with
-the people who are actually there.
+Each battlefield declares a min/max envelope and an ideal. The **envelope
+decides what is playable** and the ideal is only a preference, so the choice is
+weighted rather than a lookup: a map built for this many players comes up
+several times as often as one built for twice as many, and still not always. A
+front also refuses to replay the last two maps it was fought on.
+
+That distinction matters more than it sounds. A strict closest-to-ideal rule is
+a lookup, and a lookup returns the same answer every time: four players on a
+logistics front drew `arena_lumberyard` for thirty consecutive battles, because
+its ideal of 6 beat `koth_lakeside_final`'s 8 and always would. The war moved
+and the map never did — which is the evening this entire layer exists to
+prevent, since the map is the only part of a battle a player watches change.
+The same thirty battles now draw six different maps.
+
+When nothing at the current stage fits the queue, the profile's skirmish list is
+the fallback. Players see `BREAKTHROUGH`; the map underneath is whatever runs
+well with the people who are actually there.
+
+The rotation is part of the world, not a runtime cache: `recent_maps` lives on
+the front and is rebuilt from the event log, so a restart does not hand a small
+server the same map it just played.
 
 ### The attacking side always wears BLU
 

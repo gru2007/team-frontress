@@ -231,12 +231,12 @@ func (e *Engine) PlanBattle(frontID string, players int) (BattlePlan, error) {
 	}
 
 	kind := f.CurrentStage()
-	entry, ok := e.pickMap(prof, kind, players)
+	entry, ok := e.pickMap(prof, kind, players, f)
 	if !ok {
 		// Nothing at this stage fits the queue. A skirmish is the honest answer:
 		// the offensive is still at the same stage, it is simply being fought by
 		// six people instead of twenty-four.
-		entry, ok = e.pickMap(prof, StageSkirmish, players)
+		entry, ok = e.pickMap(prof, StageSkirmish, players, f)
 	}
 	if !ok {
 		entry, ok = e.smallestMap(prof)
@@ -266,9 +266,20 @@ func (e *Engine) PlanBattle(frontID string, players int) (BattlePlan, error) {
 	}, nil
 }
 
-// pickMap chooses the battlefield whose ideal population is closest to what is
-// queued, keeping some rotation between equally good ones.
-func (e *Engine) pickMap(prof *BattleProfile, kind StageKind, players int) (MapEntry, bool) {
+// pickMap chooses a battlefield for this stage at this population.
+//
+// The envelope decides what is playable: a map whose min/max bracket the queue
+// runs fine with it. Ideal population is a preference on top of that, not a
+// filter — so the choice is weighted rather than a lookup, and a pool of three
+// stays a pool of three instead of collapsing onto whichever entry happens to
+// sit closest to the queue size.
+//
+// That collapse is not hypothetical. With a strict closest-to-ideal rule, four
+// players on a logistics front drew arena_lumberyard (ideal 6) over
+// koth_lakeside (ideal 8) every single time, for as many battles as they cared
+// to play. The war was moving and the map never did, which is exactly the
+// evening this whole layer exists to avoid.
+func (e *Engine) pickMap(prof *BattleProfile, kind StageKind, players int, f *Front) (MapEntry, bool) {
 	var fits []MapEntry
 	for _, m := range prof.Battlefields[kind] {
 		if players >= m.MinPlayers && players <= m.MaxPlayers {
@@ -278,19 +289,61 @@ func (e *Engine) pickMap(prof *BattleProfile, kind StageKind, players int) (MapE
 	if len(fits) == 0 {
 		return MapEntry{}, false
 	}
-	sort.Slice(fits, func(i, j int) bool {
-		di, dj := absInt(idealOf(fits[i])-players), absInt(idealOf(fits[j])-players)
-		if di != dj {
-			return di < dj
+
+	// Sorted so the same log replays the same way: the rng is seeded per
+	// process, but the candidate order must not depend on map iteration.
+	sort.Slice(fits, func(i, j int) bool { return fits[i].Map < fits[j].Map })
+
+	// Skip what this front has just played, unless that leaves nothing. A pool
+	// of one is a pool of one and pretending otherwise would only fail the
+	// battle.
+	candidates := fits
+	if f != nil {
+		var fresh []MapEntry
+		for _, m := range fits {
+			if !f.PlayedRecently(m.Map) {
+				fresh = append(fresh, m)
+			}
 		}
-		return fits[i].Map < fits[j].Map
-	})
-	best := absInt(idealOf(fits[0]) - players)
-	n := 0
-	for n < len(fits) && absInt(idealOf(fits[n])-players) == best {
-		n++
+		if len(fresh) > 0 {
+			candidates = fresh
+		}
 	}
-	return fits[e.rng.Intn(n)], true
+
+	return weightedPick(candidates, players, e.rng), true
+}
+
+// weightedPick favours the battlefield sized closest to the queue without ever
+// excluding the others. Weight falls off with the square of the distance from
+// ideal, so a map built for this many players comes up several times as often
+// as one built for twice as many — and still not always.
+func weightedPick(fits []MapEntry, players int, rng *mrand.Rand) MapEntry {
+	if len(fits) == 1 {
+		return fits[0]
+	}
+
+	weights := make([]int, len(fits))
+	total := 0
+	for i, m := range fits {
+		d := absInt(idealOf(m) - players)
+		// Integer weights keep this reproducible; 144 is 12*12, which gives a
+		// perfectly sized map twelve times the pull of one eleven players out.
+		w := 144 / ((d + 1) * (d + 1))
+		if w < 1 {
+			w = 1
+		}
+		weights[i] = w
+		total += w
+	}
+
+	roll := rng.Intn(total)
+	for i, w := range weights {
+		if roll < w {
+			return fits[i]
+		}
+		roll -= w
+	}
+	return fits[len(fits)-1]
 }
 
 // smallestMap is the last resort for a queue below every declared envelope.

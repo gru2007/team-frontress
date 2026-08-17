@@ -30,13 +30,12 @@
     "tick_interval": "1s"
   },
   "match": {
-    "team_sizes": [1, 2, 3, 4, 6],
-    "min_team_size": 1,
+    "team_sizes": [2, 3, 4, 6],
+    "min_team_size": 2,
     "form_wait": "10s",
     "max_concurrent_per_front": 2
   },
   "security": {
     "secret": "testbed-secret-change-me"
-  },
-  "state_path": "greyline-state.json"
+  }
 }

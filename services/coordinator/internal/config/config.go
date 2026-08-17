@@ -59,8 +59,10 @@ type Config struct {
 	Election ElectionConfig `json:"election"`
 	Security SecurityConfig `json:"security"`
 
-	// StatePath is where world/war state is persisted between restarts.
-	StatePath string `json:"state_path"`
+	// There is no separate state file. The war event log at WarLogPath is the
+	// world: a restart replays it and gets the identical campaign back. An
+	// earlier state_path setting suggested otherwise, wrote nothing, and only
+	// gave an operator a file to look for when a war seemed lost.
 }
 
 type AuthConfig struct {
@@ -235,7 +237,6 @@ func Default() *Config {
 		TheaterPath:     "theater.industrial.json",
 		WarLogPath:      "war-events.jsonl",
 		ProtocolVersion: 2,
-		StatePath:       "greyline-state.json",
 		Pool: PoolConfig{
 			OfflineAfter: Duration(45 * time.Second),
 			PollWait:     Duration(25 * time.Second),
@@ -333,9 +334,6 @@ func Load(path string) (*Config, error) {
 	}
 	if v := os.Getenv("GREYLINE_GC_SECRET"); v != "" {
 		cfg.Security.Secret = v
-	}
-	if v := os.Getenv("GREYLINE_STATE_PATH"); v != "" {
-		cfg.StatePath = v
 	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err

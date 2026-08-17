@@ -10,6 +10,13 @@
 > It is kept because the FakeIP and Steam Networking findings below are still
 > the accurate account of how a Source listen server becomes reachable, which is
 > the thing to reread if community-hosted nodes ever come back.
+>
+> The game code it describes is no longer compiled. It now sits in
+> [`src/game/greyline_legacy/`](../src/game/greyline_legacy/README.md), along
+> with `greyline.cfg` and the `greyline_gc_*` / `greyline_deploy` console
+> commands this document uses — none of which exist in a current build. For
+> testing the game as it is today, use
+> [`GREYLINE-MVP-TESTING.md`](GREYLINE-MVP-TESTING.md).
 
 Everything below runs the real thing end to end: coordinator, listen server,
 migration, war state. No mocks.

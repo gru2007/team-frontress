@@ -12,10 +12,18 @@ on:
       - "release/*"
     paths:
       - "services/**"
+      - "src/game/shared/greyline/**"
+      - "src/game/server/greyline/**"
+      - "src/game/client/greyline/**"
+      - "game/tc2/loose/resource/greyline_*.txt"
       - ".github/workflows/build_greyline.yml"
   pull_request:
     paths:
       - "services/**"
+      - "src/game/shared/greyline/**"
+      - "src/game/server/greyline/**"
+      - "src/game/client/greyline/**"
+      - "game/tc2/loose/resource/greyline_*.txt"
       - ".github/workflows/build_greyline.yml"
   workflow_dispatch:
 
@@ -66,7 +74,6 @@ jobs:
           set -euo pipefail
           export GREYLINE_GC_SECRET=ci-smoke-test-secret
           export GREYLINE_POOL_KEY=ci-smoke-test-pool-key
-          export GREYLINE_STATE_PATH="$(mktemp -d)/players.json"
 
           echo "--- defaults with the shipped theater"
           GREYLINE_WAR_LOG="$(mktemp -d)/war.jsonl" GREYLINE_LISTEN=127.0.0.1:0 \
@@ -91,6 +98,9 @@ jobs:
           grep -q '"kind":"campaign_started"' "$LOG"
           test "$(grep -c '"kind":"campaign_started"' "$LOG")" = "1"
 
+      - name: The theater is playable
+        run: python3 tools/greyline_check_maps.py theater.industrial.json
+
       - name: Archive coordinator and agent
         uses: actions/upload-artifact@v7
         with:
@@ -98,6 +108,36 @@ jobs:
           path: |
             services/coordinator/bin/coordinator
             services/coordinator/bin/greyline-agent
+
+  game:
+    name: Game logic
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.REPO_TOKEN || github.token }}
+
+      # greyline_briefing_logic.cpp includes nothing from Source on purpose, so
+      # the half of the game code worth testing builds here in about a second —
+      # rather than only inside a full Windows/Linux game build, which is far too
+      # slow to be the thing that tells you the briefing is broken.
+      - name: Build and run the game-side tests
+        working-directory: src/game/shared/greyline/tests
+        run: make test
+
+      # Same tests with the sanitizers on. The logic layer indexes fixed-size
+      # arrays with data a coordinator sent, so this is the run that would catch
+      # a roster overrun before a server does.
+      - name: Run them again under AddressSanitizer
+        working-directory: src/game/shared/greyline/tests
+        run: make asan
+
+      # The agent types convar names into a console and the game declares them
+      # in C++. Nothing else checks the two still agree; a rename would only show
+      # up as a silent, blank briefing during a live battle.
+      - name: The coordinator, the agent and the game agree
+        run: python3 services/coordinator/tools/greyline_integration_check.py .
 
   schema:
     name: Shared schema

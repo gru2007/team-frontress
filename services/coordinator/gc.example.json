@@ -73,6 +73,5 @@
     "violation_ban": "30m0s",
     "require_signed_results": false,
     "secret": "REPLACE-ME-WITH-A-32-BYTE-RANDOM-SECRET"
-  },
-  "state_path": "greyline-state.json"
+  }
 }

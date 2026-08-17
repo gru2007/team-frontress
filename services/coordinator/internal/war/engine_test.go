@@ -602,3 +602,168 @@ func TestResultsAreTranslatedBackIntoWarSides(t *testing.T) {
 		t.Errorf("stalemate became %s", got)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Map rotation
+//
+// The war moves whether or not the map does, so a repeated map is invisible to
+// every other test here — and is the thing a player notices first. These are
+// the tests that failed before the weighted pick landed: at four players a
+// logistics front drew the same arena thirty times running.
+// ---------------------------------------------------------------------------
+
+// planMap is the map the engine would choose for the next battle on a front.
+func planMap(t *testing.T, e *Engine, frontID string, players int) string {
+	t.Helper()
+	plan, err := e.PlanBattle(frontID, players)
+	if err != nil {
+		t.Fatalf("plan battle on %s: %v", frontID, err)
+	}
+	return plan.Map
+}
+
+// playMap records a finished battle on a front, so the front remembers the map.
+func playMap(t *testing.T, e *Engine, frontID, mapName string, winner Side) {
+	t.Helper()
+	outcome := OutcomeRedWin
+	if winner == SideBlu {
+		outcome = OutcomeBluWin
+	}
+	if _, err := e.RecordBattle(BattleResult{
+		BattleID: randHex(4), FrontID: frontID, Outcome: outcome,
+		Map: mapName, Mode: "koth", Players: 8,
+	}); err != nil {
+		t.Fatalf("record battle on %s: %v", frontID, err)
+	}
+}
+
+func TestSmallQueuesStillGetAVarietyOfMaps(t *testing.T) {
+	e := newTestEngine(t)
+	f := e.ActiveFronts()[0]
+
+	// Four players is the population this has to work at: the whole point of the
+	// project is that a handful of people still get a war worth playing.
+	seen := map[string]int{}
+	for i := 0; i < 40; i++ {
+		seen[planMap(t, e, f.ID, 4)]++
+	}
+
+	if len(seen) < 3 {
+		t.Fatalf("40 battles at 4 players drew only %d distinct maps (%v) — "+
+			"an evening on one map is the failure this rotation exists to prevent",
+			len(seen), seen)
+	}
+
+	// And no single map may dominate: a pool that is technically varied but
+	// picks the same entry four times in five is the same evening.
+	for name, n := range seen {
+		if n > 30 {
+			t.Fatalf("%s came up %d times in 40 battles", name, n)
+		}
+	}
+}
+
+func TestAFrontDoesNotReplayTheMapItJustPlayed(t *testing.T) {
+	e := newTestEngine(t)
+	f := e.ActiveFronts()[0]
+
+	// Losing keeps the front on the same stage, so this is the exact situation
+	// where a naive picker repeats itself: same front, same stage, same queue.
+	last := planMap(t, e, f.ID, 4)
+	for i := 0; i < 12; i++ {
+		playMap(t, e, f.ID, last, f.Defender)
+
+		cur, ok := e.Front(f.ID)
+		if !ok {
+			// The offensive collapsed; carry on with whatever replaced it.
+			if len(e.ActiveFronts()) == 0 {
+				t.Fatal("the war went quiet")
+			}
+			f = e.ActiveFronts()[0]
+			last = planMap(t, e, f.ID, 4)
+			continue
+		}
+
+		next := planMap(t, e, cur.ID, 4)
+		if next == last {
+			t.Fatalf("battle %d on %s replayed %s immediately", i+2, cur.ID, next)
+		}
+		last = next
+	}
+}
+
+func TestTheFrontRemembersItsMapsAcrossAReplay(t *testing.T) {
+	// Anti-repeat that lives only in memory would reset every restart, which on
+	// a small server is most evenings.
+	log := MemoryLog()
+	e, err := NewEngine(testTheater(t), log, DefaultRules())
+	if err != nil {
+		t.Fatalf("new engine: %v", err)
+	}
+	f := e.ActiveFronts()[0]
+	// An attacker win clears a stage and leaves the front open, which is what
+	// this test needs; a defender win at stage 0 collapses the offensive.
+	playMap(t, e, f.ID, "koth_lakeside_final", f.Attacker)
+
+	before, ok := e.Front(f.ID)
+	if !ok {
+		t.Fatal("clearing one stage of a multi-stage plan closed the front")
+	}
+	if !before.PlayedRecently("koth_lakeside_final") {
+		t.Fatal("the front did not remember the map it just played")
+	}
+
+	replayed, err := NewEngine(testTheater(t), log, DefaultRules())
+	if err != nil {
+		t.Fatalf("replay engine: %v", err)
+	}
+	after, ok := replayed.Front(f.ID)
+	if !ok {
+		t.Fatal("the front did not survive the replay")
+	}
+	if !after.PlayedRecently("koth_lakeside_final") {
+		t.Fatalf("replay lost the map memory: %v", after.RecentMaps)
+	}
+}
+
+func TestMapMemoryStaysShort(t *testing.T) {
+	// It must not grow without bound — a front can host hundreds of battles, and
+	// remembering all of them would eventually leave nothing left to pick.
+	f := &Front{}
+	for i := 0; i < 20; i++ {
+		f.RememberMap(fmt.Sprintf("koth_%d", i))
+	}
+	if len(f.RecentMaps) != FrontMapMemory {
+		t.Fatalf("front remembers %d maps, want %d", len(f.RecentMaps), FrontMapMemory)
+	}
+	if f.RecentMaps[0] != "koth_19" {
+		t.Fatalf("newest map is %q, want koth_19", f.RecentMaps[0])
+	}
+	// Playing the same map twice must not fill the memory with one name.
+	f.RememberMap("koth_19")
+	if f.RecentMaps[0] != "koth_19" || (len(f.RecentMaps) > 1 && f.RecentMaps[1] == "koth_19") {
+		t.Fatalf("duplicate map filled the memory: %v", f.RecentMaps)
+	}
+}
+
+func TestBiggerQueuesStillGetTheStagesOwnMaps(t *testing.T) {
+	// Variety must not come at the cost of the thing it decorates: at a real
+	// population the stage's own mode has to show up, not a skirmish fallback.
+	e := newTestEngine(t)
+	f := e.ActiveFronts()[0]
+
+	modes := map[string]int{}
+	for i := 0; i < 30; i++ {
+		plan, err := e.PlanBattle(f.ID, 12)
+		if err != nil {
+			t.Fatalf("plan battle: %v", err)
+		}
+		modes[plan.Mode]++
+	}
+	if modes["arena"] > 0 {
+		t.Fatalf("12 players drew an arena map %d times; the stage's own pool fits", modes["arena"])
+	}
+	if modes["5cp"] == 0 {
+		t.Fatalf("12 players never drew the breakthrough stage's own mode: %v", modes)
+	}
+}

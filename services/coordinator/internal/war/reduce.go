@@ -171,6 +171,7 @@ func apply(st *State, ev Event) error {
 		}
 		f.Battles++
 		f.UpdatedAt = ev.At
+		f.RememberMap(d.Map)
 		switch d.Winner {
 		case f.Attacker:
 			f.AttackerWins++

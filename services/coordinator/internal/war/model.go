@@ -233,6 +233,47 @@ type Front struct {
 	Battles      int       `json:"battles"`
 	AttackerWins int       `json:"attacker_wins"`
 	DefenderWins int       `json:"defender_wins"`
+
+	// RecentMaps is what this front has just been fought on, newest first, so
+	// the next battle can avoid repeating it. A small community plays the same
+	// front all evening, and a war that keeps serving the same map is the
+	// fastest way to end the evening — the map is the only thing a player sees
+	// change between one battle and the next.
+	//
+	// It is rebuilt from the event log like everything else, so a restart does
+	// not reset the rotation.
+	RecentMaps []string `json:"recent_maps,omitempty"`
+}
+
+// FrontMapMemory is how many battles back a front remembers. Two is enough to
+// break the A-B-A-B alternation a single slot produces while still letting a
+// three-map pool come round again quickly.
+const FrontMapMemory = 2
+
+// RememberMap pushes a map onto the front's recent list, newest first.
+func (f *Front) RememberMap(name string) {
+	if name == "" {
+		return
+	}
+	out := make([]string, 0, FrontMapMemory)
+	out = append(out, name)
+	for _, m := range f.RecentMaps {
+		if m == name || len(out) >= FrontMapMemory {
+			continue
+		}
+		out = append(out, m)
+	}
+	f.RecentMaps = out
+}
+
+// PlayedRecently reports whether this front has just been fought on this map.
+func (f *Front) PlayedRecently(name string) bool {
+	for _, m := range f.RecentMaps {
+		if m == name {
+			return true
+		}
+	}
+	return false
 }
 
 // StageKindAt returns the stage kind for an index, clamped into the plan.

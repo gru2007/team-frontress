@@ -951,29 +951,13 @@ $Project "Client (TF)"
 				$File	"$SRCDIR\game\shared\tf\tf_gc_shared.h"
 				$File	"$SRCDIR\game\shared\tf\tf_gc_shared.cpp"
 
-				$File	"$SRCDIR\game\shared\greyline\greyline_shared.h"
-				$File	"$SRCDIR\game\shared\greyline\greyline_shared.cpp"
-				$File	"greyline\greyline_battle.h"
-				$File	"greyline\greyline_battle.cpp"
-				$File	"greyline\greyline_gc.h"
-				$File	"greyline\greyline_gc.cpp"
+				// The client's Greyline UI is the war map page the main menu
+				// loads (greyline_menu_page), which talks to the coordinator
+				// over its HTTP API through the game's own websocket bridge. The
+				// only C++ the client needs for it is the language file the
+				// server's briefing tokens are resolved against.
 				$File	"greyline\greyline_localize.cpp"
 
-				// One schema for both halves: the Go coordinator generates from
-				// this same file. protoc 2.6.1 is bundled in the tree and is
-				// what the $DynamicFile rule below runs.
-				$File	"$SRCDIR\..\services\coordinator\proto\greyline.proto"
-				$DynamicFile "$GENERATED_PROTO_DIR\greyline.pb.h"
-				$DynamicFile "$GENERATED_PROTO_DIR\greyline.pb.cc" [!$OSXALL]
-				{
-					$Configuration
-					{
-						$Compiler
-						{
-							$Create/UsePrecompiledHeader	"Not Using Precompiled Headers"
-						}
-					}
-				}
 				$File	"$SRCDIR\game\shared\tf\tf_match_description.cpp"
 				$File	"$SRCDIR\game\shared\tf\tf_match_description.h"
 				$File	"$SRCDIR\game\shared\tf\tf_match_description_shared.cpp"

@@ -104,47 +104,70 @@
   "battle_profiles": [
     {
       "id": "industrial",
+      "_comment": "Foundry 17 and Quarry: the working districts, and the ordinary shape of the war.",
       "stages": ["breakthrough", "advance", "assault"],
       "battlefields": {
         "skirmish": [
-          { "map": "koth_viaduct", "mode": "koth", "min_players": 4, "ideal_players": 8, "max_players": 14 },
-          { "map": "arena_badlands", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 10 },
-          { "map": "koth_sawmill", "mode": "koth", "min_players": 4, "ideal_players": 8, "max_players": 14 }
+          { "map": "arena_badlands", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 12 },
+          { "map": "arena_sawmill", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 12 },
+          { "map": "arena_nucleus", "mode": "arena", "min_players": 4, "ideal_players": 8, "max_players": 12 },
+          { "map": "koth_viaduct", "mode": "koth", "min_players": 4, "ideal_players": 8, "max_players": 16 },
+          { "map": "koth_sawmill", "mode": "koth", "min_players": 4, "ideal_players": 8, "max_players": 16 },
+          { "map": "koth_probed", "mode": "koth", "min_players": 4, "ideal_players": 10, "max_players": 16 }
         ],
         "breakthrough": [
-          { "map": "cp_process_final", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 16 },
-          { "map": "cp_snakewater_final1", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 16 },
-          { "map": "cp_badlands", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 18 }
+          { "map": "cp_process_final", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 18 },
+          { "map": "cp_snakewater_final1", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 18 },
+          { "map": "cp_badlands", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 18 },
+          { "map": "cp_gullywash_final1", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 18 },
+          { "map": "cp_fastlane", "mode": "5cp", "min_players": 8, "ideal_players": 14, "max_players": 20 },
+          { "map": "cp_coldfront", "mode": "5cp", "min_players": 8, "ideal_players": 14, "max_players": 20 }
         ],
         "advance": [
           { "map": "pl_badwater", "mode": "payload", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" },
-          { "map": "pl_upward", "mode": "payload", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" }
+          { "map": "pl_upward", "mode": "payload", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" },
+          { "map": "pl_goldrush", "mode": "payload", "min_players": 10, "ideal_players": 18, "max_players": 24, "attacker_team": "blu" },
+          { "map": "pl_borneo", "mode": "payload", "min_players": 8, "ideal_players": 14, "max_players": 24, "attacker_team": "blu" }
         ],
         "assault": [
           { "map": "cp_dustbowl", "mode": "attack_defend", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" },
-          { "map": "cp_gravelpit", "mode": "attack_defend", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" }
+          { "map": "cp_gravelpit", "mode": "attack_defend", "min_players": 8, "ideal_players": 14, "max_players": 24, "attacker_team": "blu" },
+          { "map": "cp_egypt_final", "mode": "attack_defend", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" },
+          { "map": "cp_junction_final", "mode": "attack_defend", "min_players": 8, "ideal_players": 12, "max_players": 20, "attacker_team": "blu" }
         ]
       }
     },
     {
       "id": "logistics",
+      "_comment": "Rail Yard and Reservoir: the routes between the districts and the headquarters behind them.",
       "stages": ["breakthrough", "advance", "assault"],
       "battlefields": {
         "skirmish": [
-          { "map": "koth_lakeside_final", "mode": "koth", "min_players": 4, "ideal_players": 8, "max_players": 14 },
-          { "map": "arena_lumberyard", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 10 }
+          { "map": "arena_lumberyard", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 12 },
+          { "map": "arena_well", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 12 },
+          { "map": "arena_watchtower", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 12 },
+          { "map": "koth_lakeside_final", "mode": "koth", "min_players": 4, "ideal_players": 8, "max_players": 16 },
+          { "map": "koth_highpass", "mode": "koth", "min_players": 4, "ideal_players": 8, "max_players": 16 },
+          { "map": "koth_suijin", "mode": "koth", "min_players": 4, "ideal_players": 10, "max_players": 16 }
         ],
         "breakthrough": [
-          { "map": "cp_gullywash_final1", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 16 },
-          { "map": "cp_well", "mode": "5cp", "min_players": 8, "ideal_players": 14, "max_players": 20 }
+          { "map": "cp_well", "mode": "5cp", "min_players": 8, "ideal_players": 14, "max_players": 20 },
+          { "map": "cp_freight_final1", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 18 },
+          { "map": "cp_metalworks", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 18 },
+          { "map": "cp_yukon_final", "mode": "5cp", "min_players": 8, "ideal_players": 14, "max_players": 20 },
+          { "map": "cp_reckoner", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 18 }
         ],
         "advance": [
           { "map": "pl_swiftwater_final1", "mode": "payload", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" },
-          { "map": "pl_barnblitz", "mode": "payload", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" }
+          { "map": "pl_barnblitz", "mode": "payload", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" },
+          { "map": "pl_hoodoo_final", "mode": "payload", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" },
+          { "map": "pl_snowycoast", "mode": "payload", "min_players": 8, "ideal_players": 14, "max_players": 24, "attacker_team": "blu" }
         ],
         "assault": [
+          { "map": "cp_gorge", "mode": "attack_defend", "min_players": 8, "ideal_players": 14, "max_players": 20, "attacker_team": "blu" },
           { "map": "cp_steel", "mode": "attack_defend", "min_players": 10, "ideal_players": 18, "max_players": 24, "attacker_team": "blu" },
-          { "map": "cp_gorge", "mode": "attack_defend", "min_players": 8, "ideal_players": 14, "max_players": 20, "attacker_team": "blu" }
+          { "map": "cp_snowplow", "mode": "attack_defend", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" },
+          { "map": "cp_mountainlab", "mode": "attack_defend", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" }
         ]
       }
     },
@@ -154,16 +177,23 @@
       "stages": ["breakthrough", "assault"],
       "battlefields": {
         "skirmish": [
-          { "map": "koth_nucleus", "mode": "koth", "min_players": 4, "ideal_players": 8, "max_players": 14 },
-          { "map": "arena_granary", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 10 }
+          { "map": "arena_granary", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 12 },
+          { "map": "arena_ravine", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 12 },
+          { "map": "arena_byre", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 12 },
+          { "map": "koth_nucleus", "mode": "koth", "min_players": 4, "ideal_players": 8, "max_players": 16 },
+          { "map": "koth_king", "mode": "koth", "min_players": 4, "ideal_players": 10, "max_players": 16 },
+          { "map": "koth_cascade", "mode": "koth", "min_players": 4, "ideal_players": 10, "max_players": 16 }
         ],
         "breakthrough": [
-          { "map": "cp_granary", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 16 },
-          { "map": "cp_metalworks", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 16 }
+          { "map": "cp_granary", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 18 },
+          { "map": "cp_metalworks", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 18 },
+          { "map": "cp_vanguard", "mode": "5cp", "min_players": 8, "ideal_players": 14, "max_players": 20 },
+          { "map": "cp_sunshine", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 18 }
         ],
         "assault": [
-          { "map": "cp_junction_final", "mode": "attack_defend", "min_players": 8, "ideal_players": 14, "max_players": 20, "attacker_team": "blu" },
-          { "map": "cp_mountainlab", "mode": "attack_defend", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" }
+          { "map": "cp_junction_final", "mode": "attack_defend", "min_players": 8, "ideal_players": 12, "max_players": 20, "attacker_team": "blu" },
+          { "map": "cp_mountainlab", "mode": "attack_defend", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" },
+          { "map": "cp_gravelpit", "mode": "attack_defend", "min_players": 8, "ideal_players": 14, "max_players": 24, "attacker_team": "blu" }
         ]
       }
     },
@@ -173,20 +203,30 @@
       "stages": ["breakthrough", "advance", "assault"],
       "battlefields": {
         "skirmish": [
-          { "map": "koth_harvest_final", "mode": "koth", "min_players": 4, "ideal_players": 8, "max_players": 14 },
-          { "map": "arena_well", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 10 }
+          { "map": "arena_offblast_final", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 12 },
+          { "map": "arena_well", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 12 },
+          { "map": "arena_badlands", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 12 },
+          { "map": "koth_harvest_final", "mode": "koth", "min_players": 4, "ideal_players": 8, "max_players": 16 },
+          { "map": "koth_brazil", "mode": "koth", "min_players": 4, "ideal_players": 10, "max_players": 16 },
+          { "map": "koth_viaduct", "mode": "koth", "min_players": 4, "ideal_players": 8, "max_players": 16 }
         ],
         "breakthrough": [
-          { "map": "cp_sunshine", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 16 },
-          { "map": "cp_powerhouse", "mode": "5cp", "min_players": 8, "ideal_players": 10, "max_players": 14 }
+          { "map": "cp_sunshine", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 18 },
+          { "map": "cp_powerhouse", "mode": "5cp", "min_players": 8, "ideal_players": 10, "max_players": 16 },
+          { "map": "cp_snakewater_final1", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 18 },
+          { "map": "cp_process_final", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 18 }
         ],
         "advance": [
           { "map": "pl_thundermountain", "mode": "payload", "min_players": 10, "ideal_players": 18, "max_players": 24, "attacker_team": "blu" },
-          { "map": "pl_frontier_final", "mode": "payload", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" }
+          { "map": "pl_frontier_final", "mode": "payload", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" },
+          { "map": "pl_cactuscanyon", "mode": "payload", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" },
+          { "map": "pl_upward", "mode": "payload", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" }
         ],
         "assault": [
           { "map": "cp_mercenarypark", "mode": "attack_defend", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" },
-          { "map": "cp_egypt_final", "mode": "attack_defend", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" }
+          { "map": "cp_egypt_final", "mode": "attack_defend", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" },
+          { "map": "cp_dustbowl", "mode": "attack_defend", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" },
+          { "map": "cp_steel", "mode": "attack_defend", "min_players": 10, "ideal_players": 18, "max_players": 24, "attacker_team": "blu" }
         ]
       }
     }

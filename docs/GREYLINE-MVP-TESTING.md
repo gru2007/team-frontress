@@ -19,13 +19,49 @@ minutes, which is the only practical way to see whether the war is any good.
 
 ```bash
 cd services/coordinator
-make race
+make check
 ```
 
-Covers the stage rule, capture and collapse, the counter-offensive, defensive
-mobilization, campaign end, log replay, the log parser, the side/team
-translation, and one end-to-end run over HTTP: four clients deploy, a server
-takes the battle, a result moves the front.
+That is four things, and each can be run on its own.
+
+**`make race`** — the war. The stage rule, capture and collapse, the
+counter-offensive, defensive mobilization, campaign end, log replay, the log
+parser, the side/team translation, map rotation, and one end-to-end run over
+HTTP: four clients deploy, a server takes the battle, a result moves the front.
+
+**`make game-test`** — the game's own logic, built with a plain `g++` and no
+Source engine at all. `greyline_briefing_logic.cpp` deliberately includes
+nothing from the tree, which is what makes this possible:
+
+```bash
+cd src/game/shared/greyline/tests
+make test     # ~1 second
+make asan     # the same, under AddressSanitizer and UBSan
+```
+
+It asserts the briefing a given battle produces line by line — including the one
+that tells a RED player they are wearing BLU — then reads the shipped
+`greyline_%language%.txt` files the way the engine does and replays every
+briefing through them. That catches the three ways the two halves drift apart
+without either failing to build: a token nobody translated (the player reads
+`#Greyline_Chat_Stage`), a `%sN` the server never sends (the player reads a
+blank), and a sentence longer than the client's 256-character buffer (the player
+reads half of it).
+
+**`make check-seams`** — the joins. The agent drives the game by typing convar
+names into a console; nothing else notices when one is renamed, and the symptom
+is a blank briefing during a live battle. This reads both sides as text and
+insists they agree, along with the stage kinds, the VPC file lists, and the
+language file the client loads.
+
+**`make check-maps`** — the theater. Envelopes, mode coverage, and a pool size
+per stage large enough to rotate. Point it at a real install to check the maps
+are actually there, which is worth doing before an evening rather than during
+one:
+
+```bash
+make check-maps MAPS=~/.steam/steam/steamapps/common/Team\ Fortress\ 2/tf/maps
+```
 
 ## Level 1 — a whole war, no game at all
 
@@ -88,6 +124,14 @@ Useful runs:
 - **Small queues get small formats.** At four players every battle is arena or
   koth even at the ADVANCE stage: the stage is strategic, the format follows the
   population. Run with `--players 20` and the same stage becomes 5CP and payload.
+- **The map changes between battles.** Thirty battles at four players should
+  draw five or six different maps, and never the same one twice running on one
+  front. One map all evening is a bug, not a small pool — count them:
+
+  ```bash
+  ./tools/greyline_sim.py --players 4 --battles 30 \
+    | grep -oE '  [a-z]+_[a-z0-9_]+ \(' | sort | uniq -c | sort -rn
+  ```
 - **The war survives a restart.** Stop the coordinator, start it again, and
   `GET /api/v1/status` reports the same campaign and revision. Delete
   `war-events.jsonl` to start a new war.
