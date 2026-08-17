@@ -25,11 +25,26 @@ const (
 // Config is the whole coordinator configuration. Loaded from JSON, with
 // environment overrides for the secrets.
 type Config struct {
-	// Listen is the address the game client link listens on (framed protobuf
-	// over TCP).
-	Listen string `json:"listen"`
+	// APIListen is the HTTP address clients and server agents talk to. This is
+	// the coordinator's live protocol.
+	APIListen string `json:"api_listen"`
 	// AdminListen serves /healthz and the read-only state endpoints.
 	AdminListen string `json:"admin_listen"`
+
+	// TheaterPath is the war's static definition: the node graph and its
+	// battlefields.
+	TheaterPath string `json:"theater_path"`
+	// WarLogPath is the append-only war event log. It is the world: deleting it
+	// starts a new war, and keeping it lets one be replayed.
+	WarLogPath string `json:"war_log_path"`
+
+	Pool PoolConfig `json:"pool"`
+	War  WarConfig  `json:"war"`
+
+	// Listen is the old framed-protobuf listener used by the retired P2P
+	// coordinator. It is kept so an existing config file still loads; nothing
+	// reads it any more.
+	Listen string `json:"listen,omitempty"`
 
 	Auth AuthConfig `json:"auth"`
 
@@ -62,6 +77,37 @@ type AuthConfig struct {
 	RequireOwnership bool `json:"require_ownership"`
 	// TicketCacheTTL avoids re-validating the same ticket on reconnect storms.
 	TicketCacheTTL Duration `json:"ticket_cache_ttl"`
+}
+
+// PoolConfig governs the dedicated server pool.
+type PoolConfig struct {
+	// Key is the shared secret an agent presents to join the pool. Every server
+	// holding it can report results that move the war, so treat it as a
+	// production credential: prefer the GREYLINE_POOL_KEY env var.
+	Key string `json:"key"`
+	// AdminKey guards the admin endpoint. Empty is only safe when AdminListen
+	// is bound to loopback.
+	AdminKey string `json:"admin_key"`
+	// OfflineAfter is how long a silent server stays in the pool.
+	OfflineAfter Duration `json:"offline_after"`
+	// PollWait caps a long-poll, for both agents and clients.
+	PollWait Duration `json:"poll_wait"`
+}
+
+// WarConfig is the strategic layer's tuning.
+type WarConfig struct {
+	// PlayersPerFront is how much population each additional active front
+	// needs. This is the rule that keeps a small community in one place.
+	PlayersPerFront int `json:"players_per_front"`
+	// MaxFronts caps how wide the war can get.
+	MaxFronts int `json:"max_fronts"`
+	// MobilizationDeficit is the territory gap at which the losing side is put
+	// under defensive mobilization.
+	MobilizationDeficit int `json:"mobilization_deficit"`
+	// Intermission is the armistice between campaigns.
+	Intermission Duration `json:"intermission"`
+	// CampaignName is what campaigns are numbered under.
+	CampaignName string `json:"campaign_name"`
 }
 
 type TimingConfig struct {
@@ -178,10 +224,23 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 // Validate forces the operator to supply one.
 func Default() *Config {
 	return &Config{
-		Listen:          "0.0.0.0:27100",
+		APIListen:       "0.0.0.0:27100",
 		AdminListen:     "127.0.0.1:27101",
-		ProtocolVersion: 1,
+		TheaterPath:     "theater.industrial.json",
+		WarLogPath:      "war-events.jsonl",
+		ProtocolVersion: 2,
 		StatePath:       "greyline-state.json",
+		Pool: PoolConfig{
+			OfflineAfter: Duration(45 * time.Second),
+			PollWait:     Duration(25 * time.Second),
+		},
+		War: WarConfig{
+			PlayersPerFront:     16,
+			MaxFronts:           4,
+			MobilizationDeficit: 2,
+			Intermission:        Duration(15 * time.Minute),
+			CampaignName:        "THE SECOND GRAVEL WAR",
+		},
 		Auth: AuthConfig{
 			Mode:             AuthDev,
 			AppID:            0,
@@ -245,7 +304,19 @@ func Load(path string) (*Config, error) {
 		}
 	}
 	if v := os.Getenv("GREYLINE_LISTEN"); v != "" {
-		cfg.Listen = v
+		cfg.APIListen = v
+	}
+	if v := os.Getenv("GREYLINE_POOL_KEY"); v != "" {
+		cfg.Pool.Key = v
+	}
+	if v := os.Getenv("GREYLINE_ADMIN_KEY"); v != "" {
+		cfg.Pool.AdminKey = v
+	}
+	if v := os.Getenv("GREYLINE_THEATER"); v != "" {
+		cfg.TheaterPath = v
+	}
+	if v := os.Getenv("GREYLINE_WAR_LOG"); v != "" {
+		cfg.WarLogPath = v
 	}
 	if v := os.Getenv("GREYLINE_ADMIN_LISTEN"); v != "" {
 		cfg.AdminListen = v
@@ -265,13 +336,28 @@ func Load(path string) (*Config, error) {
 	return cfg, nil
 }
 
-var ErrNoSecret = errors.New("security.secret is empty: set GREYLINE_GC_SECRET or security.secret in the config")
+var (
+	ErrNoSecret  = errors.New("security.secret is empty: set GREYLINE_GC_SECRET or security.secret in the config")
+	ErrNoPoolKey = errors.New("pool.key is empty: set GREYLINE_POOL_KEY or pool.key in the config")
+)
 
 // Validate rejects configurations that would silently produce an insecure or
 // non-functional coordinator.
 func (c *Config) Validate() error {
-	if c.Listen == "" {
-		return errors.New("listen address is empty")
+	if c.APIListen == "" {
+		return errors.New("api_listen address is empty")
+	}
+	if c.TheaterPath == "" {
+		return errors.New("theater_path is empty: the war has no map to be fought on")
+	}
+	if c.WarLogPath == "" {
+		return errors.New("war_log_path is empty: the war would not survive a restart")
+	}
+	if c.Pool.Key == "" {
+		// Every machine holding this key can report results that move the war,
+		// so an empty one would let anybody who can reach the port rewrite
+		// history.
+		return ErrNoPoolKey
 	}
 	if len(c.Match.TeamSizes) == 0 {
 		return errors.New("match.team_sizes is empty")

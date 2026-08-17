@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/greyline-frontress/coordinator/internal/hostelect"
+	"github.com/greyline-frontress/coordinator/internal/legacy/hostelect"
 )
 
 // Player is the coordinator's durable record for one account. It survives

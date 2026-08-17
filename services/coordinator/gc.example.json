@@ -1,6 +1,21 @@
 {
-  "listen": "0.0.0.0:27100",
+  "api_listen": "0.0.0.0:27100",
   "admin_listen": "127.0.0.1:27101",
+  "theater_path": "theater.industrial.json",
+  "war_log_path": "war-events.jsonl",
+  "pool": {
+    "key": "REPLACE-ME-WITH-A-32-BYTE-RANDOM-POOL-KEY",
+    "admin_key": "",
+    "offline_after": "45s",
+    "poll_wait": "25s"
+  },
+  "war": {
+    "players_per_front": 16,
+    "max_fronts": 4,
+    "mobilization_deficit": 2,
+    "intermission": "15m0s",
+    "campaign_name": "THE SECOND GRAVEL WAR"
+  },
   "auth": {
     "mode": "dev",
     "app_id": 0,
@@ -9,7 +24,7 @@
     "require_ownership": true,
     "ticket_cache_ttl": "10m0s"
   },
-  "protocol_version": 1,
+  "protocol_version": 2,
   "accepted_client_versions": null,
   "timing": {
     "heartbeat_interval": "10s",
@@ -55,6 +70,7 @@
     "flags_before_abort": 3,
     "kick_on_client_violation": true,
     "violation_ban": "30m0s",
+    "require_signed_results": false,
     "secret": "REPLACE-ME-WITH-A-32-BYTE-RANDOM-SECRET"
   },
   "state_path": "greyline-state.json"

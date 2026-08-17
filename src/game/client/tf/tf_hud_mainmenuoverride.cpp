@@ -99,6 +99,10 @@ void cc_tf_mainmenu_match_panel_type( IConVar *pConVar, const char *pOldString, 
 }
 
 
+ConVar greyline_menu_page( "greyline_menu_page", "ui/greyline.html", FCVAR_CLIENTDLL | FCVAR_ARCHIVE,
+	"Page the main menu web panel loads. \"ui/greyline.html\" is the GREYLINE war "
+	"map and deploy screen; \"ui/index.html\" is the stock Team Comtress menu." );
+
 ConVar tf_recent_achievements( "tf_recent_achievements", "0", FCVAR_ARCHIVE );
 ConVar tf_find_a_match_hint_viewed( "tf_find_a_match_hint_viewed", "0", FCVAR_ARCHIVE );
 ConVar tf_training_has_prompted_for_training( "tf_training_has_prompted_for_training", "0", FCVAR_ARCHIVE, "Whether the user has been prompted for training" );
@@ -263,7 +267,14 @@ CHudMainMenuOverride::CHudMainMenuOverride( IViewPort *pViewPort ) : BaseClass( 
 
 	m_MainMenuWebUiZIndex = -102;
 
-	m_pMainMenuWebUi = new CInteractiveWebPanel( this, "TFMainMenuWebUi", "ui/index.html", true, false );
+	// GREYLINE FRONTRESS: the main menu is the war map.
+	//
+	// While the real one is being built, the menu loads a plain test page that
+	// talks to the coordinator over its public HTTP API — the war map, DEPLOY,
+	// the queue and the jump into a battle, and nothing else. Point this convar
+	// back at "ui/index.html" to get the stock menu, which is untouched.
+	m_pMainMenuWebUi = new CInteractiveWebPanel( this, "TFMainMenuWebUi",
+		greyline_menu_page.GetString(), true, false );
 
 	vgui::ivgui()->AddTickSignal( GetVPanel(), 50 );
 }

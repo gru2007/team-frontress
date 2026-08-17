@@ -7,8 +7,8 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/greyline-frontress/coordinator/internal/hostelect"
-	"github.com/greyline-frontress/coordinator/internal/war"
+	"github.com/greyline-frontress/coordinator/internal/legacy/hostelect"
+	"github.com/greyline-frontress/coordinator/internal/legacy/war"
 	"github.com/greyline-frontress/coordinator/internal/wire/pb"
 )
 

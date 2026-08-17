@@ -4,10 +4,16 @@ GO      ?= go
 PROTOC  ?= protoc
 MODULE  := github.com/greyline-frontress/coordinator
 
-.PHONY: build test race run proto fmt vet clean
+.PHONY: build coordinator agent test race run fmt vet proto clean
 
-build:
+build: coordinator agent
+
+coordinator:
 	$(GO) build -o bin/coordinator ./cmd/coordinator
+
+# The agent runs next to a dedicated game server and joins it to the pool.
+agent:
+	$(GO) build -o bin/greyline-agent ./cmd/greyline-agent
 
 test:
 	$(GO) test ./...
@@ -15,18 +21,20 @@ test:
 race:
 	$(GO) test -race -count=2 ./...
 
-# Requires GREYLINE_GC_SECRET in the environment.
+# A local coordinator on the testbed settings. The war it starts is written to
+# war-events.jsonl; delete that file to start a new one.
 run:
-	$(GO) run ./cmd/coordinator -world world.example.json -log-level debug
-
-proto:
-	$(PROTOC) --proto_path=proto --go_out=. --go_opt=module=$(MODULE) proto/greyline.proto
+	$(GO) run ./cmd/coordinator -config gc.test.json -log-level debug
 
 fmt:
 	$(GO) fmt ./...
 
 vet:
 	$(GO) vet ./...
+
+# The retired peer-to-peer link still shares this schema with the game.
+proto:
+	$(PROTOC) --proto_path=proto --go_out=. --go_opt=module=$(MODULE) proto/greyline.proto
 
 clean:
 	rm -rf bin

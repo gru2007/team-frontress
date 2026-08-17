@@ -1,223 +1,175 @@
 # GREYLINE FRONTRESS — Game Coordinator
 
-> **Transport is not this service's problem.** Since the February 2025 Steam
-> Networking change, a listen server started with `map` is reachable from
-> outside without port forwarding. The coordinator's whole part in getting
-> players together is to carry one string — the address the host's own engine
-> advertises — from the host to everyone else. It never opens a socket to a
-> game, never routes a packet, and never interprets that string. The game side
-> ([src/game/client/greyline](../../src/game/client/greyline),
-> [src/game/server/greyline](../../src/game/server/greyline)) does the rest with
-> a single `connect`.
->
-> There is **no Steam lobby anywhere in this path**, on purpose. A battle used to
-> be assembled inside one; `CreateLobby` returned `k_EResultAccessDenied` on the
-> AppID this mod runs under, which is a Steamworks setting the project does not
-> own, and no amount of code fixes that. Lobbies are worth having back for
-> parties and invites once GREYLINE has its own AppID. A match must never depend
-> on one again.
->
-> Host migration and the HMAC/policy layer remain implemented but **out of MVP
-> scope**. Background: [docs/NETWORKING-SPIKE.md](docs/NETWORKING-SPIKE.md).
-
-The coordinator is the authority that turns a pile of individual TC2 matches into
-one war. It owns matchmaking, host election, match integrity and result
-recording. It does **not** own the war simulation — that lives behind
-`internal/war.Provider`, and the coordinator only reads fronts from it and hands
-back finished outcomes.
+The coordinator owns the war, the queue and the server pool. It decides which
+battle is worth playing next, hands that battle to a dedicated game server, and
+records what the result did to the front.
 
 ```
-   coordinator                         host client                  guest client
-   ───────────                         ───────────                  ────────────
-   fronts, roster, who hosts,
-   results, the war
-        │
-        ├── AssignHost ───────────────────►│
-        │                                  ├── map cp_process
-        │                                  ├── engine allocates an address
-        │◄── HostReady "169.254.4.12:27015"┤
-        │                                                          │
-        ├── JoinBattle "169.254.4.12:27015" ──────────────────────►│
-        │                                                          ├── connect
-        │                                  │◄─── Steam Networking ─┤
-        │◄── MatchResult ──────────────────┤                       │
+GAME CLIENT
+    │  DEPLOY
+    ▼
+COORDINATOR ──────────── war engine ── "Foundry, stage 2 of 3: an ADVANCE"
+    │                         ▲
+    │ assignment              │ one battle, one event
+    ▼                         │
+SERVER POOL ── greyline-agent ┘  RCON + log stream → a stock srcds
 ```
 
-The address is a Steam **FakeIP**: an address-shaped handle for a Steam P2P/SDR
-route, not a real internet address. It reveals nobody's IP, needs no port
-forwarding, and is meaningless outside the Steam client that resolves it — which
-is exactly why the coordinator can pass it around as an opaque string.
+Two rules the whole design rests on:
 
-The engine only asks Steam for one when the game is launched with
-`-enablefakeip`; `game/tc2.sh` and `game/tc2.bat` pass it. A host without an
-address still reports its game server SteamID, and the coordinator still forwards
-that, but reaching a server by identity alone is unproven on this engine build —
-treat a missing address as a broken host, not a working fallback.
+1. **A game server never touches war state.** It is told which map to load and
+   who is on which team; it reports who won. Everything strategic happens here.
+2. **One finished battle produces exactly one war event.** The event log is the
+   world: replaying it rebuilds the same war, which is also the world recap, the
+   audit trail and the restart story.
+
+The peer-to-peer coordinator that came before this — where a player's own
+machine was elected to host — is retired. See [`internal/legacy`](internal/legacy/README.md).
 
 ## Running it
 
 ```bash
-cd services/coordinator
 export GREYLINE_GC_SECRET="$(head -c 32 /dev/urandom | base64)"
-go run ./cmd/coordinator -world world.example.json
+export GREYLINE_POOL_KEY="$(head -c 32 /dev/urandom | base64)"
+
+make build
+./bin/coordinator -config gc.example.json
 ```
 
-Write a config file starting from the defaults:
+The war starts itself: with no event log, the coordinator opens campaign 1 from
+the theater's first opening and activates one front. Delete `war-events.jsonl`
+to start a new war; keep it and the same war comes back after a restart.
+
+| Flag / env | What it is |
+| --- | --- |
+| `-config` | Coordinator config (see `gc.example.json`, `gc.test.json`) |
+| `-theater` / `GREYLINE_THEATER` | The node graph and its battlefields |
+| `-war-log` / `GREYLINE_WAR_LOG` | The append-only war event log |
+| `GREYLINE_POOL_KEY` | Shared secret game servers present to join the pool |
+| `GREYLINE_GC_SECRET` | The coordinator's own signing key |
+| `GREYLINE_LISTEN` | HTTP listen address |
+
+## Joining a game server to the pool
+
+Run the agent next to a dedicated server. It needs RCON and a UDP port to
+receive the server's log on; it never needs an inbound connection from the
+coordinator.
 
 ```bash
-go run ./cmd/coordinator -print-config > gc.json
+./bin/greyline-agent \
+  -gc https://gc.example.org:27100 \
+  -key "$GREYLINE_POOL_KEY" \
+  -connect 203.0.113.10:27015 \
+  -rcon 127.0.0.1:27015 -rcon-password "$RCON" \
+  -log-listen 127.0.0.1:27500 \
+  -idle-map ctf_2fort
 ```
 
-Flags: `-config`, `-world`, `-log-level`, `-print-config`. Environment overrides:
-`GREYLINE_LISTEN`, `GREYLINE_ADMIN_LISTEN`, `GREYLINE_STEAM_WEBAPI_KEY`,
-`GREYLINE_GC_SECRET`, `GREYLINE_STATE_PATH`.
+What it does with a battle:
 
-The admin endpoint (default `127.0.0.1:27101`) serves `/healthz`, `/state`,
-`/policy` and `/world`. It exposes rosters and SteamIDs, so keep it on
-localhost or behind an authenticating proxy.
+1. sets the battle password, the roster and the war briefing over RCON;
+2. `changelevel` to the assigned map, and reports **ready** when it comes up;
+3. reports **live** when the first player arrives;
+4. reads `Round_Win`, `Team … final score` and `Game_Over` out of the log
+   stream, and reports the result;
+5. drops the password and returns to its idle map.
 
-## Tests
+The agent reports the scoreline **in in-game teams**, exactly as the scoreboard
+said it. The coordinator translates that back into war sides, because on a
+payload or attack/defend map the attacking side plays as BLU whichever side it
+is in the war.
+
+## HTTP API
+
+Everything is JSON with bearer tokens. Clients and agents both long-poll, so the
+coordinator never dials into anybody's network.
+
+### Client
+
+| | |
+| --- | --- |
+| `POST /api/v1/client/hello` | `{steam_id, ticket, name, side, region, client_version}` → session token |
+| `POST /api/v1/client/deploy` | `{front_id?, accept_contract}` — empty `front_id` is the DEPLOY button |
+| `POST /api/v1/client/cancel` | leave the queue |
+| `POST /api/v1/client/side` | change allegiance between battles |
+| `POST /api/v1/client/leave` | left the battle |
+| `GET  /api/v1/client/poll?since=N&wait=25` | queue, assignment, result, world events |
+| `GET  /api/v1/client/self` | current player, queue and battle — for a client that lost its stream |
+
+Poll events: `queue`, `match_state`, `match_ready` (connect address, password,
+side, in-game team, front, stage), `match_over` (result plus the war update),
+`world` (the map moved), `contract_offer`, `notice`.
+
+### War map — public, no session needed
+
+| | |
+| --- | --- |
+| `GET /api/v1/world` | Whole snapshot: nodes, owners, fronts, live battles, population |
+| `GET /api/v1/world/fronts` | Where you can deploy, with queue and battle counts |
+| `GET /api/v1/world/timeline?since=N` | The war's history — this is the world recap |
+| `GET /api/v1/status` | Campaign, population, pool health |
+
+### Server pool — pool key, then a per-server token
+
+| | |
+| --- | --- |
+| `POST /api/v1/servers/register` | `Authorization: Bearer <pool key>` → server id and token |
+| `GET  /api/v1/servers/poll?wait=25` | long-poll for the next command (`assign`, `abort`, `idle`) |
+| `POST /api/v1/servers/heartbeat` | status, current battle, map, players |
+| `POST /api/v1/servers/state` | `ready`, `live`, `failed` |
+| `POST /api/v1/servers/result` | `{match_id, outcome, red_score, blu_score, players, duration_s}` |
+| `POST /api/v1/servers/deregister` | leave the pool |
+
+The pool key is a production credential: anything holding it can report results
+that move the war.
+
+### Admin — its own listener, loopback by default
+
+`GET /state`, `/world`, `/timeline`, `/servers`, `/players`, `/battles`;
+`POST /servers/drain`. Set `pool.admin_key` if it is not on loopback.
+
+## Testing it
+
+[`docs/GREYLINE-MVP-TESTING.md`](../../docs/GREYLINE-MVP-TESTING.md) has four
+levels, from `make race` to four people on a real server. The one to run most is
+level 1 — a whole campaign in two minutes with no game involved at all:
 
 ```bash
-cd services/coordinator && go test -race ./...
+./bin/coordinator -config gc.test.json &
+./tools/greyline_sim.py --players 4 --battles 40
 ```
 
-`internal/gc/integration_test.go` runs the whole MVP acceptance path against a
-real listener: two clients deploy, a battle forms, a host is elected, the host
-reports a signed result, the client corroborates it, and the front advances. It
-also covers the failure paths — disputed results, forged signatures, a host
-lying about its own scoreline, host migration, and a fatal client cheat convar.
+## The war
 
-## Wire protocol
+See [`docs/GREYLINE-WAR.md`](../../docs/GREYLINE-WAR.md) for the model, and
+`theater.industrial.json` for the theater the MVP is fought over: seven nodes,
+two headquarters, four battle profiles.
 
-`proto/greyline.proto`, proto2 syntax so the game side can compile it against
-the in-tree `src/thirdparty/protobuf-2.6.1` that TC2 already links for gcsdk.
+The short version:
 
-Framing is `uint32 length` (little-endian) followed by a serialized
-`CMsgEnvelope`. Every message rides inside the envelope's `oneof`; requests set
-`job_id` and replies echo it in `job_id_target`.
-
-Regenerate the Go bindings after editing the proto:
-
-```bash
-protoc --proto_path=proto --go_out=. --go_opt=module=github.com/greyline-frontress/coordinator proto/greyline.proto
-```
-
-### Flow
-
-```
-client                          coordinator                      host client
-  │── Hello ──────────────────────►│
-  │◄───────────────────── Welcome ─│
-  │── DeployRequest ──────────────►│
-  │◄───────────────── QueueStatus ─│   (repeats while queued)
-  │                                │── AssignHost ─────────────────►│
-  │                                │◄─── HostReady (address) ───────│
-  │◄──────────────────── JoinBattle│
-  │── ClientJoinState ────────────►│
-  │                                │◄──────────── HostHeartbeat ────│  (snapshot)
-  │                                │◄────────── IntegrityReport ────│
-  │                                │◄────────────── MatchResult ────│
-  │── ResultAttestation ──────────►│
-  │◄───────────────────  MatchOver │── MatchOver ──────────────────►│
-```
-
-## Host election
-
-`internal/hostelect` scores every roster member and keeps the full ranking on the
-match, so a bad pick is traceable. Hard floors (upload, CPU, memory, worst-case
-RTT, `can_host`) disqualify outright; the remaining candidates are scored on:
-
-| term | weight | note |
-|---|---|---|
-| upload | 0.30 | saturates at 12 Mbit/s |
-| latency | 0.35 | scored on the **worst** roster member, not the average |
-| CPU | 0.15 | client-reported relative score |
-| stability | 0.20 | hosted-OK vs failed/abandoned, confidence-weighted by sample size |
-| bonuses | — | dedicated server, public IP; minus a recent-abandon penalty |
-
-Latency comes from `PopOracle`: measured client→host RTTs from previous matches
-win, and Steam Datagram Relay POP identity is the cold-start estimate. Ties break
-on the lower SteamID so repeated elections on identical input do not oscillate.
-
-## Host migration — deferred, not MVP
-
-Implemented and tested, but out of scope until transport is proven. The host sends a `CMsgMatchSnapshot` with every heartbeat (score, round, time
-left, plus a mode-specific opaque blob the game writes). When the host's link
-drops — or a *majority* of the remaining players report they lost it, which stops
-one player with a bad connection from forcing migrations — the coordinator:
-
-1. marks the old host as a failed host for this match, so it cannot be re-elected;
-2. applies the abandon penalty if the host actually left;
-3. re-runs the election over the surviving roster;
-4. sends `AssignHost` with `is_migration` and the snapshot to the new host, and
-   `MigrateHost` with a hold time to everyone else.
-
-After `match.max_migrations` attempts the match aborts instead. An aborted match
-never advances the war.
-
-## Security model — deferred, not MVP
-
-Implemented and tested, but out of scope until transport is proven. A P2P host is an ordinary player, so nothing it says is trusted on its own.
-
-**Admission.** Every player is given a join token: `HMAC(match_secret, match_id ‖
-steam_id ‖ side ‖ expiry)`. The host can verify it but cannot mint one for
-someone the coordinator did not roster. Match secrets are derived per match from
-the coordinator's root secret, so a leaked one reveals nothing about other
-matches.
-
-**Policy.** The coordinator issues an authoritative convar contract with each
-match (`internal/security.DefaultPolicy`) — `sv_cheats 0`, `sv_lan 0`,
-`sv_allow_wait_command 0`, `host_timescale 1`, `tf_bot_quota 0`,
-`sv_allow_votes 0` and the rest, plus the client-side rules the host queries with
-`IServerPluginHelpers::StartQueryCvarValue` (`r_drawothermodels`,
-`mat_wireframe`, `cl_interp_ratio`, `mat_picmip`, …). The policy carries a
-SHA-256 digest; a host reporting a digest other than the one it was issued has
-its match voided.
-
-**Corroboration.** The coordinator re-checks every reported convar observation
-itself rather than trusting the host's violation list, and clients may only speak
-about themselves. `sv_cheats` is replicated, so a host that lies about it
-disagrees with its own players.
-
-**Results.** The host signs the scoreline with the match secret. The declared
-winner must be consistent with the scores the host itself sent. A result only
-advances the war if enough non-host players attest to the same outcome
-(`match.result_quorum`); anything contradicted is recorded as disputed and
-discarded.
-
-**Penalties.** Abandoning a live battle or tripping a fatal policy rule earns a
-matchmaking ban, extended rather than replaced on repeat, persisted in the player
-store so reconnecting does not clear it.
-
-### Authentication caveat
-
-`auth.mode=webapi` validates Steam auth tickets through
-`ISteamUserAuth/AuthenticateUserTicket`, which needs a **publisher** Web API key
-for the AppID the game ships under. `game/tc2/gameinfo.txt` currently declares
-`SteamAppId 243750` (Valve's Source SDK Base 2013 MP), for which no such key can
-be obtained — so until the project has its own AppID, run `auth.mode=dev` on a
-network you control. Identity inside a match does not depend on this: Steam
-authenticates every P2P connection, so the host reports the SteamIDs Steam
-actually handed it and the coordinator cross-checks them against the roster.
-
-The coordinator link itself is plain TCP. Terminate TLS in front of it for any
-deployment that crosses the public internet.
+- A **node** is a district, not a map. Foundry 17 is fought over on
+  `cp_process_final`, `pl_badwater` and `cp_dustbowl` depending on the stage.
+- A **front** is one side's offensive against one adjacent enemy node, fought
+  over a **stage plan** — breakthrough, advance, assault. Winning clears a
+  stage; losing pushes it back one; losing at the bottom breaks the offensive
+  and usually opens the defender's counter-attack.
+- Clearing the last stage **captures the node**, and the front physically moves
+  along the graph to the next one.
+- How many fronts are open at once follows the **population**: one until sixteen
+  people are online, then one more per step. A small community fights in one
+  place.
+- Taking an enemy **headquarters** ends the campaign; after a short armistice
+  the next one starts from a different opening.
 
 ## Layout
 
-| path | what |
-|---|---|
-| `cmd/coordinator` | entry point, flags, admin HTTP server |
-| `internal/config` | configuration, defaults, validation |
-| `internal/wire` | length-prefixed protobuf framing |
-| `internal/wire/pb` | generated bindings (do not edit) |
-| `internal/steam` | auth ticket validation |
-| `internal/war` | war-layer interface + JSON-file implementation |
-| `internal/security` | convar policy, digests, join tokens, signatures |
-| `internal/hostelect` | host scoring and the latency oracle |
-| `internal/gc` | sessions, queue, match lifecycle, migration, results |
-
-`internal/gc` runs a single core goroutine that owns all mutable state. Socket
-goroutines only move frames and post events, so the match lifecycle reads as
-ordinary sequential code with no locks.
+| Package | What it does |
+| --- | --- |
+| `internal/war` | The war: theater, staged fronts, campaigns, the event log and its reducer |
+| `internal/mm` | Queue, battle formation, sides and contracts, match lifecycle |
+| `internal/pool` | The dedicated server registry and its command channel |
+| `internal/httpapi` | Every route, for all three audiences |
+| `internal/rcon` | Minimal Source RCON client, used by the agent |
+| `internal/srclog` | Reads the game server's log stream |
+| `internal/steam` | Auth ticket validation (`dev` and `webapi`) |
+| `internal/legacy` | The retired peer-to-peer coordinator |

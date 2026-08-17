@@ -54,33 +54,50 @@ jobs:
         run: go test -race -count=2 ./...
 
       - name: Build
-        run: go build -o bin/coordinator ./cmd/coordinator
+        run: |
+          go build -o bin/coordinator ./cmd/coordinator
+          go build -o bin/greyline-agent ./cmd/greyline-agent
 
       # A config that will not load is a broken release, and it costs seconds to
-      # find out here rather than on a server.
+      # find out here rather than on a server. The war log is the world, so each
+      # smoke run gets a fresh one.
       - name: Smoke test the shipped configs
         run: |
           set -euo pipefail
           export GREYLINE_GC_SECRET=ci-smoke-test-secret
+          export GREYLINE_POOL_KEY=ci-smoke-test-pool-key
           export GREYLINE_STATE_PATH="$(mktemp -d)/players.json"
 
-          for world in world.example.json world.test.json; do
-            echo "--- $world"
-            GREYLINE_LISTEN=127.0.0.1:0 \
-              timeout 5s ./bin/coordinator -world "$world" > out.log 2>&1 || true
-            grep -q "coordinator listening" out.log || { cat out.log; exit 1; }
-          done
+          echo "--- defaults with the shipped theater"
+          GREYLINE_WAR_LOG="$(mktemp -d)/war.jsonl" GREYLINE_LISTEN=127.0.0.1:0 \
+            timeout 5s ./bin/coordinator -theater theater.industrial.json > out.log 2>&1 || true
+          grep -q "api listening" out.log || { cat out.log; exit 1; }
+          grep -q "war loaded" out.log || { cat out.log; exit 1; }
 
           echo "--- gc.test.json"
-          GREYLINE_LISTEN=127.0.0.1:0 \
-            timeout 5s ./bin/coordinator -config gc.test.json -world world.test.json > out.log 2>&1 || true
-          grep -q "coordinator listening" out.log || { cat out.log; exit 1; }
+          GREYLINE_WAR_LOG="$(mktemp -d)/war.jsonl" GREYLINE_LISTEN=127.0.0.1:0 \
+            timeout 5s ./bin/coordinator -config gc.test.json > out.log 2>&1 || true
+          grep -q "api listening" out.log || { cat out.log; exit 1; }
 
-      - name: Archive coordinator
+          echo "--- a war must survive a restart"
+          LOG="$(mktemp -d)/war.jsonl"
+          for run in 1 2; do
+            GREYLINE_WAR_LOG="$LOG" GREYLINE_LISTEN=127.0.0.1:0 \
+              timeout 5s ./bin/coordinator -config gc.test.json > out.log 2>&1 || true
+            grep -q "war loaded" out.log || { cat out.log; exit 1; }
+          done
+          # The second run replayed the first one's log rather than starting a
+          # new campaign, which is the whole point of the log being the world.
+          grep -q '"kind":"campaign_started"' "$LOG"
+          test "$(grep -c '"kind":"campaign_started"' "$LOG")" = "1"
+
+      - name: Archive coordinator and agent
         uses: actions/upload-artifact@v7
         with:
           name: greyline-coordinator-linux
-          path: services/coordinator/bin/coordinator
+          path: |
+            services/coordinator/bin/coordinator
+            services/coordinator/bin/greyline-agent
 
   schema:
     name: Shared schema

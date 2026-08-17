@@ -1,9 +1,18 @@
 // Command coordinator runs the GREYLINE FRONTRESS Game Coordinator.
 //
-//	coordinator -config gc.json -world world.json
+//	coordinator -config gc.json
 //
-// See services/coordinator/README.md for the protocol and the game-side
-// integration it expects.
+// It owns three things and nothing else: the war (a node graph, staged fronts
+// and an append-only event log), the queue of players who pressed DEPLOY, and
+// the pool of dedicated servers those battles run on. Game servers play games;
+// the coordinator decides which game is worth playing next and records what it
+// did to the war.
+//
+// The peer-to-peer host election the earlier prototype used is retired. Its
+// code is still in internal/legacy for reference, and nothing here calls it.
+//
+// See services/coordinator/README.md for the HTTP protocol and
+// docs/GREYLINE-WAR.md for the strategic model.
 package main
 
 import (
@@ -19,18 +28,20 @@ import (
 	"time"
 
 	"github.com/greyline-frontress/coordinator/internal/config"
-	"github.com/greyline-frontress/coordinator/internal/gc"
-	"github.com/greyline-frontress/coordinator/internal/security"
+	"github.com/greyline-frontress/coordinator/internal/httpapi"
+	"github.com/greyline-frontress/coordinator/internal/mm"
+	"github.com/greyline-frontress/coordinator/internal/pool"
 	"github.com/greyline-frontress/coordinator/internal/steam"
 	"github.com/greyline-frontress/coordinator/internal/war"
 )
 
 func main() {
 	var (
-		configPath = flag.String("config", "", "path to the coordinator config JSON")
-		worldPath  = flag.String("world", "world.json", "path to the war world file")
-		logLevel   = flag.String("log-level", "info", "debug | info | warn | error")
-		printCfg   = flag.Bool("print-config", false, "write the effective default config to stdout and exit")
+		configPath  = flag.String("config", "", "path to the coordinator config JSON")
+		theaterPath = flag.String("theater", "", "path to the theater definition (overrides the config)")
+		warLogPath  = flag.String("war-log", "", "path to the war event log (overrides the config)")
+		logLevel    = flag.String("log-level", "info", "debug | info | warn | error")
+		printCfg    = flag.Bool("print-config", false, "write the effective default config to stdout and exit")
 	)
 	flag.Parse()
 
@@ -45,23 +56,40 @@ func main() {
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {
-		if errors.Is(err, config.ErrNoSecret) {
+		switch {
+		case errors.Is(err, config.ErrNoSecret):
 			fail(fmt.Errorf("%w\n\nGenerate one with:\n  head -c 32 /dev/urandom | base64", err))
+		case errors.Is(err, config.ErrNoPoolKey):
+			fail(fmt.Errorf("%w\n\nGenerate one with:\n  head -c 32 /dev/urandom | base64\n"+
+				"Every game server in the pool needs it, and holding it means being able\n"+
+				"to report battle results that move the war.", err))
 		}
 		fail(err)
 	}
+	if *theaterPath != "" {
+		cfg.TheaterPath = *theaterPath
+	}
+	if *warLogPath != "" {
+		cfg.WarLogPath = *warLogPath
+	}
 
-	world, err := war.LoadFile(*worldPath)
+	theater, err := war.LoadTheater(cfg.TheaterPath)
 	if err != nil {
 		fail(err)
 	}
-
-	policy := security.DefaultPolicy()
-	if cfg.Security.PolicyPath != "" {
-		policy, err = security.LoadPolicy(cfg.Security.PolicyPath)
-		if err != nil {
-			fail(err)
-		}
+	warLog, err := war.OpenLog(cfg.WarLogPath)
+	if err != nil {
+		fail(err)
+	}
+	engine, err := war.NewEngine(theater, warLog, war.Rules{
+		PlayersPerFront:     cfg.War.PlayersPerFront,
+		MaxFronts:           cfg.War.MaxFronts,
+		MobilizationDeficit: cfg.War.MobilizationDeficit,
+		Intermission:        cfg.War.Intermission.D(),
+		CampaignName:        cfg.War.CampaignName,
+	})
+	if err != nil {
+		fail(err)
 	}
 
 	auth, err := buildAuthenticator(cfg, log)
@@ -69,25 +97,74 @@ func main() {
 		fail(err)
 	}
 
-	players, err := gc.LoadPlayerStore(cfg.StatePath)
-	if err != nil {
-		fail(err)
-	}
+	servers := pool.New(cfg.Pool.OfflineAfter.D())
+	maker := mm.New(matchmakingConfig(cfg), log, engine, servers)
+	api := httpapi.New(log, auth, engine, maker, servers, httpapi.Options{
+		PoolKey:         cfg.Pool.Key,
+		AdminKey:        cfg.Pool.AdminKey,
+		MaxPollWait:     cfg.Pool.PollWait.D(),
+		ClientVersions:  cfg.AcceptedClientVersions,
+		ProtocolVersion: int(cfg.ProtocolVersion),
+	})
 
-	srv := gc.New(cfg, log, auth, world, policy, players)
+	snap := engine.Snapshot()
+	log.Info("war loaded",
+		"theater", snap.Theater.Name,
+		"campaign", snap.Campaign.Name,
+		"status", snap.Campaign.Status,
+		"revision", snap.Revision,
+		"nodes", len(snap.Nodes),
+		"active_fronts", len(engine.ActiveFronts()),
+		"events", warLog.Seq())
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	admin := startAdmin(ctx, cfg.AdminListen, srv, log)
+	go maker.Run(ctx, cfg.Timing.TickInterval.D())
+	admin := startAdmin(ctx, cfg.AdminListen, api, log)
 
-	if err := srv.Run(ctx); err != nil {
-		log.Error("coordinator stopped with an error", "err", err)
-		shutdownAdmin(admin)
+	serveErr := httpapi.Serve(ctx, log, cfg.APIListen, api.Handler())
+	shutdownAdmin(admin)
+	// The log is the war, so closing it cleanly matters more than a tidy exit
+	// code: a flushed log is a world that comes back.
+	if err := engine.Close(); err != nil {
+		log.Error("could not close the war log cleanly", "err", err)
+	}
+	if serveErr != nil {
+		log.Error("coordinator stopped with an error", "err", serveErr)
 		os.Exit(1)
 	}
-	shutdownAdmin(admin)
 	log.Info("coordinator stopped cleanly")
+}
+
+// matchmakingConfig maps the operator's configuration onto the matchmaker's.
+func matchmakingConfig(cfg *config.Config) mm.Config {
+	c := mm.DefaultConfig()
+	if len(cfg.Match.TeamSizes) > 0 {
+		c.TeamSizes = cfg.Match.TeamSizes
+	}
+	if cfg.Match.MinTeamSize > 0 {
+		c.MinTeamSize = cfg.Match.MinTeamSize
+	}
+	if cfg.Match.FormWait > 0 {
+		c.FormWait = cfg.Match.FormWait.D()
+	}
+	if cfg.Match.MaxConcurrentPerFront > 0 {
+		c.MaxBattlesPerFront = cfg.Match.MaxConcurrentPerFront
+	}
+	if cfg.Timing.HostBootDeadline > 0 {
+		c.BootDeadline = cfg.Timing.HostBootDeadline.D()
+	}
+	if cfg.Timing.ClientConnectDeadline > 0 {
+		c.JoinDeadline = cfg.Timing.ClientConnectDeadline.D()
+	}
+	if cfg.Timing.SessionTimeout > 0 {
+		c.SessionTimeout = cfg.Timing.SessionTimeout.D()
+	}
+	if cfg.Timing.HeartbeatInterval > 0 {
+		c.HeartbeatInterval = cfg.Timing.HeartbeatInterval.D()
+	}
+	return c
 }
 
 func buildAuthenticator(cfg *config.Config, log *slog.Logger) (steam.Authenticator, error) {
@@ -109,13 +186,13 @@ func buildAuthenticator(cfg *config.Config, log *slog.Logger) (steam.Authenticat
 	}
 }
 
-func startAdmin(ctx context.Context, addr string, srv *gc.Server, log *slog.Logger) *http.Server {
+func startAdmin(ctx context.Context, addr string, api *httpapi.API, log *slog.Logger) *http.Server {
 	if addr == "" {
 		return nil
 	}
 	h := &http.Server{
 		Addr:              addr,
-		Handler:           srv.AdminHandler(),
+		Handler:           api.AdminHandler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {
@@ -147,6 +224,7 @@ func newLogger(level string) *slog.Logger {
 func dumpDefaults() error {
 	cfg := config.Default()
 	cfg.Security.Secret = "REPLACE-ME-WITH-A-32-BYTE-RANDOM-SECRET"
+	cfg.Pool.Key = "REPLACE-ME-WITH-A-32-BYTE-RANDOM-POOL-KEY"
 	enc := newJSONEncoder()
 	return enc(cfg)
 }

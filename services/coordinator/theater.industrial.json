@@ -1,0 +1,194 @@
+{
+  "id": "greyline_industrial",
+  "name": "GREYLINE INDUSTRIAL THEATER",
+
+  "_comment": [
+    "One theater, seven nodes. Small enough that a player remembers it after two",
+    "evenings — 'Foundry is the middle', 'we lost Rail Yard again' — which is what",
+    "makes it a place instead of a menu.",
+    "",
+    "A strategic node is not a Source map. FOUNDRY 17 is a district: cp_process is",
+    "one part of it, pl_badwater another. That is why seven nodes need no bespoke",
+    "content at all.",
+    "",
+    "                          IRON JUNCTION",
+    "                         /             \\",
+    "                   FOUNDRY 17         QUARRY",
+    "                       |                 |",
+    "                   RAIL YARD ------- RESERVOIR",
+    "                       |                 |",
+    "                    RED HQ            BLU HQ"
+  ],
+
+  "nodes": [
+    {
+      "id": "iron_junction",
+      "name": "Iron Junction",
+      "profile": "junction",
+      "x": 50, "y": 10,
+      "adjacent": ["foundry_17", "quarry"]
+    },
+    {
+      "id": "foundry_17",
+      "name": "Foundry 17",
+      "profile": "industrial",
+      "x": 25, "y": 32,
+      "adjacent": ["iron_junction", "rail_yard"]
+    },
+    {
+      "id": "quarry",
+      "name": "Quarry",
+      "profile": "industrial",
+      "x": 75, "y": 32,
+      "adjacent": ["iron_junction", "reservoir"]
+    },
+    {
+      "id": "rail_yard",
+      "name": "Rail Yard",
+      "profile": "logistics",
+      "x": 25, "y": 62,
+      "adjacent": ["foundry_17", "reservoir", "red_command"]
+    },
+    {
+      "id": "reservoir",
+      "name": "Reservoir",
+      "profile": "logistics",
+      "x": 75, "y": 62,
+      "adjacent": ["quarry", "rail_yard", "blu_command"]
+    },
+    {
+      "id": "red_command",
+      "name": "RED Command",
+      "profile": "headquarters",
+      "hq": "RED",
+      "x": 30, "y": 90,
+      "adjacent": ["rail_yard"]
+    },
+    {
+      "id": "blu_command",
+      "name": "BLU Command",
+      "profile": "headquarters",
+      "hq": "BLU",
+      "x": 70, "y": 90,
+      "adjacent": ["reservoir"]
+    }
+  ],
+
+  "openings": [
+    {
+      "name": "Standard deployment",
+      "owners": {
+        "red_command": "RED",
+        "rail_yard": "RED",
+        "foundry_17": "RED",
+        "blu_command": "BLU",
+        "reservoir": "BLU",
+        "quarry": "BLU",
+        "iron_junction": "NONE"
+      }
+    },
+    {
+      "name": "Crossed positions",
+      "owners": {
+        "red_command": "RED",
+        "rail_yard": "RED",
+        "quarry": "RED",
+        "blu_command": "BLU",
+        "reservoir": "BLU",
+        "foundry_17": "BLU",
+        "iron_junction": "NONE"
+      }
+    }
+  ],
+
+  "battle_profiles": [
+    {
+      "id": "industrial",
+      "stages": ["breakthrough", "advance", "assault"],
+      "battlefields": {
+        "skirmish": [
+          { "map": "koth_viaduct", "mode": "koth", "min_players": 4, "ideal_players": 8, "max_players": 14 },
+          { "map": "arena_badlands", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 10 },
+          { "map": "koth_sawmill", "mode": "koth", "min_players": 4, "ideal_players": 8, "max_players": 14 }
+        ],
+        "breakthrough": [
+          { "map": "cp_process_final", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 16 },
+          { "map": "cp_snakewater_final1", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 16 },
+          { "map": "cp_badlands", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 18 }
+        ],
+        "advance": [
+          { "map": "pl_badwater", "mode": "payload", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" },
+          { "map": "pl_upward", "mode": "payload", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" }
+        ],
+        "assault": [
+          { "map": "cp_dustbowl", "mode": "attack_defend", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" },
+          { "map": "cp_gravelpit", "mode": "attack_defend", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" }
+        ]
+      }
+    },
+    {
+      "id": "logistics",
+      "stages": ["breakthrough", "advance", "assault"],
+      "battlefields": {
+        "skirmish": [
+          { "map": "koth_lakeside_final", "mode": "koth", "min_players": 4, "ideal_players": 8, "max_players": 14 },
+          { "map": "arena_lumberyard", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 10 }
+        ],
+        "breakthrough": [
+          { "map": "cp_gullywash_final1", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 16 },
+          { "map": "cp_well", "mode": "5cp", "min_players": 8, "ideal_players": 14, "max_players": 20 }
+        ],
+        "advance": [
+          { "map": "pl_swiftwater_final1", "mode": "payload", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" },
+          { "map": "pl_barnblitz", "mode": "payload", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" }
+        ],
+        "assault": [
+          { "map": "cp_steel", "mode": "attack_defend", "min_players": 10, "ideal_players": 18, "max_players": 24, "attacker_team": "blu" },
+          { "map": "cp_gorge", "mode": "attack_defend", "min_players": 8, "ideal_players": 14, "max_players": 20, "attacker_team": "blu" }
+        ]
+      }
+    },
+    {
+      "id": "junction",
+      "_comment": "The middle. Two stages, so it changes hands often enough to be the node everyone talks about.",
+      "stages": ["breakthrough", "assault"],
+      "battlefields": {
+        "skirmish": [
+          { "map": "koth_nucleus", "mode": "koth", "min_players": 4, "ideal_players": 8, "max_players": 14 },
+          { "map": "arena_granary", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 10 }
+        ],
+        "breakthrough": [
+          { "map": "cp_granary", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 16 },
+          { "map": "cp_metalworks", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 16 }
+        ],
+        "assault": [
+          { "map": "cp_junction_final", "mode": "attack_defend", "min_players": 8, "ideal_players": 14, "max_players": 20, "attacker_team": "blu" },
+          { "map": "cp_mountainlab", "mode": "attack_defend", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" }
+        ]
+      }
+    },
+    {
+      "id": "headquarters",
+      "_comment": "Taking one of these ends the campaign, so it is the deepest push in the theater.",
+      "stages": ["breakthrough", "advance", "assault"],
+      "battlefields": {
+        "skirmish": [
+          { "map": "koth_harvest_final", "mode": "koth", "min_players": 4, "ideal_players": 8, "max_players": 14 },
+          { "map": "arena_well", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 10 }
+        ],
+        "breakthrough": [
+          { "map": "cp_sunshine", "mode": "5cp", "min_players": 8, "ideal_players": 12, "max_players": 16 },
+          { "map": "cp_powerhouse", "mode": "5cp", "min_players": 8, "ideal_players": 10, "max_players": 14 }
+        ],
+        "advance": [
+          { "map": "pl_thundermountain", "mode": "payload", "min_players": 10, "ideal_players": 18, "max_players": 24, "attacker_team": "blu" },
+          { "map": "pl_frontier_final", "mode": "payload", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" }
+        ],
+        "assault": [
+          { "map": "cp_mercenarypark", "mode": "attack_defend", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" },
+          { "map": "cp_egypt_final", "mode": "attack_defend", "min_players": 8, "ideal_players": 16, "max_players": 24, "attacker_team": "blu" }
+        ]
+      }
+    }
+  ]
+}

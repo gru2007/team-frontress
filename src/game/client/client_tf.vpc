@@ -957,6 +957,7 @@ $Project "Client (TF)"
 				$File	"greyline\greyline_battle.cpp"
 				$File	"greyline\greyline_gc.h"
 				$File	"greyline\greyline_gc.cpp"
+				$File	"greyline\greyline_localize.cpp"
 
 				// One schema for both halves: the Go coordinator generates from
 				// this same file. protoc 2.6.1 is bundled in the tree and is

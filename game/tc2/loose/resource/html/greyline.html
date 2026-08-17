@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>GREYLINE FRONTRESS</title>
+<!--
+  GREYLINE FRONTRESS — the test menu.
+
+  This is the whole client for the MVP: the war map, DEPLOY, the queue, and the
+  jump into a battle. It is deliberately one plain file with no build step and
+  no assets, because it exists to test the coordinator, not to be the game's
+  real interface. When the real menu is built this can be deleted without
+  anything else noticing: everything it does goes through the coordinator's
+  public HTTP API.
+
+  It runs in two places:
+
+    in the game   — the main menu web panel. Requests go through the game's
+                    "fetch" bridge (SteamHTTP), so there is no CORS to fight,
+                    and joining a battle can drive the console directly.
+    in a browser  — same page, opened at the coordinator during development.
+                    Requests are ordinary fetch(); joining prints the console
+                    line to paste.
+
+  Nothing here is authoritative. The war lives in the coordinator; this page
+  only asks it questions and presses DEPLOY.
+-->
+<style>
+  :root {
+    --bg: #14100e;
+    --panel: #1d1815;
+    --panel-2: #262019;
+    --line: #3a3029;
+    --ink: #e8dcc8;
+    --dim: #9a8b78;
+    --red: #b8383b;
+    --blu: #5885a2;
+    --neutral: #6b6259;
+    --gold: #d8a038;
+    --ok: #7ea04d;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-size: 15px;
+  }
+  body { display: flex; flex-direction: column; overflow: hidden; }
+
+  header {
+    display: flex; align-items: baseline; gap: 18px;
+    padding: 14px 22px; border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, #241d18, #191411);
+  }
+  header h1 {
+    margin: 0; font-size: 20px; letter-spacing: .18em;
+    color: var(--gold); font-weight: 700;
+  }
+  header .campaign { color: var(--ink); font-size: 14px; }
+  header .spacer { flex: 1; }
+  header .stat { color: var(--dim); font-size: 13px; }
+  header .stat b { color: var(--ink); font-weight: 600; }
+
+  main { flex: 1; display: flex; min-height: 0; }
+  .left { flex: 1.2; padding: 18px; display: flex; flex-direction: column; min-width: 0; }
+  .right { width: 430px; border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 3px; margin-bottom: 14px;
+  }
+  .card h2 {
+    margin: 0; padding: 9px 14px; font-size: 12px; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--dim);
+    border-bottom: 1px solid var(--line); background: var(--panel-2);
+  }
+  .card .body { padding: 12px 14px; }
+
+  #map { flex: 1; min-height: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 3px; }
+  svg { width: 100%; height: 100%; display: block; }
+  .link { stroke: #4a3f36; stroke-width: .5; }
+  .link.front { stroke: var(--gold); stroke-width: 1.1; stroke-dasharray: 2 1.4; }
+  .node circle { stroke: #0d0a08; stroke-width: .7; cursor: pointer; }
+  .node text { font-size: 2.6px; fill: var(--ink); text-anchor: middle; pointer-events: none; }
+  .node text.sub { font-size: 2.1px; fill: var(--dim); }
+  .node.hq circle { stroke: var(--gold); stroke-width: 1; }
+  .node.contested circle { stroke: var(--gold); stroke-width: 1.2; }
+
+  .front { border-top: 1px solid var(--line); padding: 11px 14px; }
+  .front:first-child { border-top: none; }
+  .front .name { font-weight: 600; letter-spacing: .05em; }
+  .front .meta { color: var(--dim); font-size: 13px; margin-top: 3px; }
+  .front .row { display: flex; align-items: center; gap: 10px; }
+  .front .row .grow { flex: 1; min-width: 0; }
+
+  .pips { display: inline-flex; gap: 3px; vertical-align: middle; margin-left: 6px; }
+  .pip { width: 16px; height: 5px; background: #3a3029; border-radius: 1px; }
+  .pip.done { background: var(--gold); }
+
+  button {
+    font: inherit; color: var(--ink); background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 2px;
+    padding: 7px 14px; cursor: pointer; letter-spacing: .08em;
+  }
+  button:hover:not(:disabled) { background: #33291f; border-color: var(--gold); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary {
+    background: var(--gold); color: #1a1206; border-color: var(--gold); font-weight: 700;
+  }
+  button.primary:hover:not(:disabled) { background: #edb44a; }
+  button.big { width: 100%; padding: 13px; font-size: 16px; letter-spacing: .22em; }
+
+  input, select {
+    font: inherit; color: var(--ink); background: #120e0c;
+    border: 1px solid var(--line); border-radius: 2px; padding: 6px 8px; width: 100%;
+  }
+  label { display: block; font-size: 12px; color: var(--dim); margin: 0 0 3px; letter-spacing: .1em; text-transform: uppercase; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .grid .full { grid-column: 1 / -1; }
+
+  .side-RED { color: var(--red); font-weight: 700; }
+  .side-BLU { color: var(--blu); font-weight: 700; }
+  .side-NONE { color: var(--neutral); }
+
+  #feed { flex: 1; overflow-y: auto; padding: 4px 0; min-height: 80px; }
+  #feed .line { padding: 5px 14px; border-bottom: 1px solid #241e19; font-size: 13px; display: flex; gap: 9px; }
+  #feed .line time { color: var(--dim); font-variant-numeric: tabular-nums; }
+  #feed .line.capture { color: var(--gold); }
+  #feed .line.campaign { color: var(--ok); }
+
+  #banner {
+    padding: 12px 14px; border: 1px solid var(--gold); background: #2b2113;
+    border-radius: 3px; margin-bottom: 14px; display: none;
+  }
+  #banner.show { display: block; }
+  #banner .headline { font-size: 17px; color: var(--gold); font-weight: 700; }
+
+  .status { display: flex; gap: 14px; font-size: 12px; color: var(--dim); padding: 8px 22px; border-top: 1px solid var(--line); background: #100d0b; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #6b3030; margin-right: 5px; }
+  .dot.on { background: var(--ok); }
+  .muted { color: var(--dim); }
+  .mono { font-family: "Consolas", "Menlo", monospace; }
+  .err { color: #d9705c; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>GREYLINE FRONTRESS</h1>
+  <span class="campaign" id="campaign">—</span>
+  <span class="spacer"></span>
+  <span class="stat">theater <b id="theater">—</b></span>
+  <span class="stat">online <b id="population">0</b></span>
+  <span class="stat">servers <b id="servers">0/0</b></span>
+  <span class="stat">rev <b id="revision">0</b></span>
+</header>
+
+<main>
+  <div class="left">
+    <div id="banner">
+      <div class="headline" id="bannerHeadline"></div>
+      <div class="muted" id="bannerDetail"></div>
+    </div>
+    <div id="map">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+        <g id="links"></g>
+        <g id="nodes"></g>
+      </svg>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="card" style="margin: 14px 14px 0;">
+      <h2>Deploy</h2>
+      <div class="body">
+        <button class="primary big" id="deployBtn" disabled>DEPLOY</button>
+        <div class="muted" id="deployHint" style="margin-top: 8px; font-size: 13px;">
+          not connected to a coordinator
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="battleCard" style="margin: 14px 14px 0; display: none;">
+      <h2>Your battle</h2>
+      <div class="body">
+        <div id="battleWhat" style="font-weight: 600;"></div>
+        <div class="muted" id="battleWhy" style="margin: 4px 0 10px;"></div>
+        <div class="mono muted" id="battleWhere" style="font-size: 13px;"></div>
+        <div style="margin-top: 10px; display: flex; gap: 8px;">
+          <button class="primary" id="joinBtn" disabled>JOIN BATTLE</button>
+          <button id="leaveBtn">LEAVE</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="frontsCard" style="margin: 14px 14px 0;">
+      <h2>Active fronts</h2>
+      <div id="fronts"></div>
+    </div>
+
+    <div class="card" style="margin: 14px 14px 0; flex: 1; display: flex; flex-direction: column; min-height: 120px;">
+      <h2>War log</h2>
+      <div id="feed"></div>
+    </div>
+
+    <div class="card" style="margin: 14px;">
+      <h2>Test settings</h2>
+      <div class="body">
+        <div class="grid">
+          <div class="full">
+            <label for="gcUrl">Coordinator</label>
+            <input id="gcUrl" placeholder="http://127.0.0.1:27100">
+          </div>
+          <div class="full">
+            <label for="steamId">SteamID64 (dev auth trusts this)</label>
+            <input id="steamId" placeholder="76561198000000000">
+          </div>
+          <div>
+            <label for="playerName">Name</label>
+            <input id="playerName" placeholder="mercenary">
+          </div>
+          <div>
+            <label for="sidePick">Allegiance</label>
+            <select id="sidePick">
+              <option value="RED">RED</option>
+              <option value="BLU">BLU</option>
+            </select>
+          </div>
+          <div class="full" style="display: flex; gap: 8px; align-items: center;">
+            <button id="connectBtn">CONNECT</button>
+            <button id="randomIdBtn">RANDOM ID</button>
+            <label style="text-transform: none; letter-spacing: 0; margin: 0; display: flex; align-items: center; gap: 6px;">
+              <input type="checkbox" id="autoJoin" style="width: auto;" checked> auto-join
+            </label>
+          </div>
+        </div>
+        <div id="settingsError" class="err" style="margin-top: 8px; font-size: 13px;"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="status">
+  <span><span class="dot" id="dotGC"></span>coordinator</span>
+  <span><span class="dot" id="dotGame"></span>game bridge</span>
+  <span class="mono" id="statusText">idle</span>
+</div>
+
+<script>
+"use strict";
+
+// ---------------------------------------------------------------------------
+// The game bridge.
+//
+// The main menu is a web panel, and the game exposes a small JSON-RPC over a
+// websocket on the same origin: {"i":id,"m":method,"p":params} in, {"i":id,
+// "r":value} back. Two methods matter here — "cmd" to drive the console, and
+// "fetch" to make an HTTP request through Steam, which is what lets this page
+// talk to a coordinator on another host without a word about CORS.
+//
+// Outside the game the socket simply never opens and everything falls back to
+// the browser, which is how this page is usable during development.
+// ---------------------------------------------------------------------------
+const Bridge = {
+  ws: null,
+  ready: false,
+  nextId: 1,
+  pending: new Map(),
+
+  connect() {
+    try {
+      this.ws = new WebSocket("ws://127.0.0.1:58270/ws");
+    } catch (e) {
+      return;
+    }
+    this.ws.onopen = () => { this.ready = true; UI.setDot("dotGame", true); };
+    this.ws.onclose = () => {
+      this.ready = false;
+      UI.setDot("dotGame", false);
+      // The panel outlives a reconnect; keep trying quietly.
+      setTimeout(() => this.connect(), 3000);
+    };
+    this.ws.onerror = () => { this.ready = false; UI.setDot("dotGame", false); };
+    this.ws.onmessage = (ev) => {
+      let msg;
+      try { msg = JSON.parse(ev.data); } catch (e) { return; }
+      if (msg.i === undefined) return;
+      const waiter = this.pending.get(msg.i);
+      if (!waiter) return;
+      this.pending.delete(msg.i);
+      waiter(msg.r === undefined ? "" : msg.r);
+    };
+  },
+
+  call(method, params) {
+    return new Promise((resolve, reject) => {
+      if (!this.ready) { reject(new Error("game bridge is not connected")); return; }
+      const id = this.nextId++;
+      this.pending.set(id, resolve);
+      // A reply that never comes must not leak a pending promise forever.
+      setTimeout(() => {
+        if (this.pending.has(id)) { this.pending.delete(id); reject(new Error(method + " timed out")); }
+      }, 30000);
+      this.ws.send(JSON.stringify({ i: id, m: method, p: params === undefined ? "" : String(params) }));
+    });
+  },
+
+  // The console rejects anything with a semicolon, so commands go one at a time.
+  cmd(line) { return this.call("cmd", line); },
+};
+
+// ---------------------------------------------------------------------------
+// Talking to the coordinator
+// ---------------------------------------------------------------------------
+const GC = {
+  base: "",
+  token: "",
+
+  async request(method, path, body, useToken) {
+    const url = this.base.replace(/\/+$/, "") + path;
+    const headers = { "Content-Type": "application/json" };
+    if (useToken && this.token) headers["Authorization"] = "Bearer " + this.token;
+
+    if (Bridge.ready) {
+      const raw = await Bridge.call("fetch", JSON.stringify({
+        url: url, method: method, headers: headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
+      }));
+      // "<status> <body>"
+      const sp = raw.indexOf(" ");
+      const status = parseInt(sp < 0 ? raw : raw.slice(0, sp), 10) || 0;
+      const text = sp < 0 ? "" : raw.slice(sp + 1);
+      return this.finish(status, text, path);
+    }
+
+    const resp = await fetch(url, {
+      method: method, headers: headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    return this.finish(resp.status, await resp.text(), path);
+  },
+
+  finish(status, text, path) {
+    let parsed = null;
+    if (text) { try { parsed = JSON.parse(text); } catch (e) { /* not JSON */ } }
+    if (status < 200 || status >= 300) {
+      const message = (parsed && parsed.error) || text || ("HTTP " + status);
+      const err = new Error(message);
+      err.status = status;
+      err.path = path;
+      throw err;
+    }
+    return parsed;
+  },
+
+  get(path, useToken) { return this.request("GET", path, undefined, useToken); },
+  post(path, body, useToken) { return this.request("POST", path, body || {}, useToken); },
+};
+
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+const State = {
+  settings: {
+    gc: "http://127.0.0.1:27100",
+    steamId: "",
+    name: "mercenary",
+    side: "RED",
+    autoJoin: true,
+  },
+  connected: false,
+  seq: 0,
+  timelineSeq: 0,
+  world: null,
+  fronts: [],
+  match: null,
+  queue: null,
+  polling: false,
+
+  load() {
+    try {
+      const raw = localStorage.getItem("greyline.settings");
+      if (raw) Object.assign(this.settings, JSON.parse(raw));
+    } catch (e) { /* first run */ }
+  },
+  save() {
+    try { localStorage.setItem("greyline.settings", JSON.stringify(this.settings)); } catch (e) {}
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Rendering
+// ---------------------------------------------------------------------------
+const UI = {
+  el(id) { return document.getElementById(id); },
+
+  setDot(id, on) { this.el(id).classList.toggle("on", !!on); },
+
+  status(text, isError) {
+    const el = this.el("statusText");
+    el.textContent = text;
+    el.classList.toggle("err", !!isError);
+  },
+
+  sideSpan(side) {
+    return '<span class="side-' + (side || "NONE") + '">' + (side || "NONE") + "</span>";
+  },
+
+  colourOf(side) {
+    if (side === "RED") return "#b8383b";
+    if (side === "BLU") return "#5885a2";
+    return "#6b6259";
+  },
+
+  renderHeader(status) {
+    this.el("campaign").textContent =
+      status.campaign.name + (status.campaign.status === "ACTIVE" ? "" : " — " + status.campaign.status);
+    this.el("theater").textContent = status.theater.name;
+    this.el("population").textContent = status.population;
+    this.el("servers").textContent = status.servers.free + "/" + status.servers.total;
+    this.el("revision").textContent = status.world_revision;
+  },
+
+  // The map is drawn straight from the world snapshot: the theater ships x/y
+  // for exactly this, so a client needs one document and no layout of its own.
+  renderMap(world) {
+    const nodes = world.nodes;
+    const byId = {};
+    nodes.forEach(n => byId[n.id] = n);
+
+    const frontPairs = {};
+    (world.fronts || []).forEach(f => {
+      frontPairs[f.source_node + "|" + f.target_node] = true;
+      frontPairs[f.target_node + "|" + f.source_node] = true;
+    });
+
+    let links = "";
+    const drawn = {};
+    nodes.forEach(n => {
+      (n.adjacent || []).forEach(other => {
+        const key = [n.id, other].sort().join("|");
+        if (drawn[key]) return;
+        drawn[key] = true;
+        const b = byId[other];
+        if (!b) return;
+        const isFront = frontPairs[n.id + "|" + other];
+        links += '<line class="link' + (isFront ? " front" : "") + '" x1="' + n.x +
+                 '" y1="' + n.y + '" x2="' + b.x + '" y2="' + b.y + '"></line>';
+      });
+    });
+    this.el("links").innerHTML = links;
+
+    let markers = "";
+    nodes.forEach(n => {
+      const classes = ["node"];
+      if (n.hq && n.hq !== "NONE") classes.push("hq");
+      if (n.contested) classes.push("contested");
+      const r = (n.hq && n.hq !== "NONE") ? 4.2 : 3.4;
+      markers += '<g class="' + classes.join(" ") + '">' +
+        '<circle cx="' + n.x + '" cy="' + n.y + '" r="' + r + '" fill="' + this.colourOf(n.owner) + '"></circle>' +
+        '<text x="' + n.x + '" y="' + (n.y + r + 3.2) + '">' + this.escape(n.name.toUpperCase()) + '</text>' +
+        (n.contested
+          ? '<text class="sub" x="' + n.x + '" y="' + (n.y + r + 6) + '">CONTESTED</text>'
+          : "") +
+        "</g>";
+    });
+    this.el("nodes").innerHTML = markers;
+  },
+
+  renderFronts(fronts, queued) {
+    const host = this.el("fronts");
+    if (!fronts.length) {
+      host.innerHTML = '<div class="front muted">No active front. The war is between offensives.</div>';
+      return;
+    }
+    host.innerHTML = fronts.map(f => {
+      const total = (f.plan || []).length;
+      let pips = "";
+      for (let i = 0; i < total; i++) pips += '<span class="pip' + (i < f.stage ? " done" : "") + '"></span>';
+      const stageName = (f.plan && f.plan[Math.min(f.stage, total - 1)]) || "";
+      return '<div class="front">' +
+        '<div class="row">' +
+          '<div class="grow">' +
+            '<div class="name">' + this.escape(f.name) + "</div>" +
+            '<div class="meta">' + this.sideSpan(f.attacker) + " on the offensive · " +
+              this.escape(stageName.toUpperCase()) + " " + (f.stage + 1) + "/" + total +
+              '<span class="pips">' + pips + "</span></div>" +
+            '<div class="meta">' + (f.players_fighting || 0) + " fighting · " +
+              (f.queued || 0) + " queued</div>" +
+          "</div>" +
+          '<button data-front="' + this.escape(f.id) + '"' + (queued ? " disabled" : "") + ">DEPLOY</button>" +
+        "</div></div>";
+    }).join("");
+
+    host.querySelectorAll("button[data-front]").forEach(btn => {
+      btn.onclick = () => Actions.deploy(btn.getAttribute("data-front"));
+    });
+  },
+
+  renderQueue(queue) {
+    const btn = this.el("deployBtn");
+    const hint = this.el("deployHint");
+    if (!State.connected) {
+      btn.disabled = true;
+      btn.textContent = "DEPLOY";
+      hint.textContent = "not connected to a coordinator";
+      return;
+    }
+    btn.disabled = false;
+    if (queue && queue.queued) {
+      btn.textContent = "CANCEL";
+      btn.classList.remove("primary");
+      hint.textContent = queue.message + " · " + queue.front_name +
+        " · waited " + queue.waited_s + "s";
+    } else {
+      btn.textContent = "DEPLOY";
+      btn.classList.add("primary");
+      hint.textContent = "the coordinator picks the front that needs you";
+    }
+  },
+
+  renderMatch(match) {
+    const card = this.el("battleCard");
+    if (!match) { card.style.display = "none"; return; }
+    card.style.display = "";
+
+    this.el("battleWhat").innerHTML =
+      this.escape(match.front_name) + " — " +
+      this.escape(String(match.stage_kind).toUpperCase()) + " " + match.stage + "/" + match.stage_count +
+      " · " + this.escape(match.map);
+
+    let why = match.reason || "";
+    if (match.side && match.team && match.side !== match.team) {
+      // The thing a player would otherwise think is a bug: this map is built
+      // for BLU to attack, so their side is fighting it in the other colours.
+      why += " — you fight for " + match.side + " here, in " + match.team +
+             " colours: the scoreboard will say " + match.team + ".";
+    }
+    if (match.contract) why += " (mercenary contract)";
+    this.el("battleWhy").innerHTML = this.escape(why);
+
+    const where = match.connect
+      ? match.connect + (match.password ? "  password " + match.password : "")
+      : "waiting for the battle server…";
+    this.el("battleWhere").textContent = where;
+    this.el("joinBtn").disabled = !match.connect;
+  },
+
+  banner(headline, detail) {
+    this.el("bannerHeadline").textContent = headline;
+    this.el("bannerDetail").textContent = detail || "";
+    this.el("banner").classList.add("show");
+  },
+
+  feed(events) {
+    const host = this.el("feed");
+    events.forEach(ev => {
+      const line = document.createElement("div");
+      line.className = "line";
+      if (ev.kind === "node_captured") line.className += " capture";
+      if (ev.kind === "campaign_started" || ev.kind === "campaign_ended") line.className += " campaign";
+      const at = (ev.at || "").slice(11, 19);
+      line.innerHTML = "<time>" + at + "</time><span>" + this.escape(ev.headline || ev.kind) + "</span>";
+      host.appendChild(line);
+    });
+    while (host.childNodes.length > 200) host.removeChild(host.firstChild);
+    host.scrollTop = host.scrollHeight;
+  },
+
+  escape(s) {
+    return String(s === undefined || s === null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Actions
+// ---------------------------------------------------------------------------
+const Actions = {
+  async connect() {
+    const s = State.settings;
+    s.gc = UI.el("gcUrl").value.trim() || "http://127.0.0.1:27100";
+    s.steamId = UI.el("steamId").value.trim();
+    s.name = UI.el("playerName").value.trim() || "mercenary";
+    s.side = UI.el("sidePick").value;
+    s.autoJoin = UI.el("autoJoin").checked;
+    State.save();
+    UI.el("settingsError").textContent = "";
+
+    if (!/^\d{17}$/.test(s.steamId)) {
+      UI.el("settingsError").textContent =
+        "SteamID64 must be 17 digits. Press RANDOM ID for a throwaway one — the " +
+        "coordinator's dev auth mode accepts whatever you claim.";
+      return;
+    }
+
+    GC.base = s.gc;
+    try {
+      const reply = await GC.post("/api/v1/client/hello", {
+        steam_id: Number(s.steamId),
+        name: s.name,
+        side: s.side,
+        client_version: "greyline-test-ui",
+      });
+      GC.token = reply.token;
+      State.connected = true;
+      State.seq = 0;
+      UI.setDot("dotGC", true);
+      UI.status("connected as " + s.name + " (" + s.side + ")");
+      if (reply.mercenary_contract) {
+        UI.banner(reply.mercenary_contract.message,
+          "Tick DEPLOY and the coordinator may put you on that side for one battle.");
+      }
+      await Promise.all([Loop.refreshWorld(), Loop.refreshSelf()]);
+      Loop.start();
+    } catch (e) {
+      State.connected = false;
+      UI.setDot("dotGC", false);
+      UI.el("settingsError").textContent = "could not reach the coordinator: " + e.message;
+      UI.status("not connected", true);
+    }
+    UI.renderQueue(State.queue);
+  },
+
+  async deploy(frontId) {
+    if (!State.connected) return;
+    try {
+      if (State.queue && State.queue.queued && !frontId) {
+        await GC.post("/api/v1/client/cancel", {}, true);
+        State.queue = null;
+        UI.renderQueue(null);
+        UI.status("deployment cancelled");
+        return;
+      }
+      const reply = await GC.post("/api/v1/client/deploy", {
+        front_id: frontId || "",
+        accept_contract: true,
+      }, true);
+      State.queue = reply.queue;
+      UI.renderQueue(State.queue);
+      UI.status("deployed: " + (reply.queue.front_name || "searching"));
+    } catch (e) {
+      UI.status(e.message, true);
+    }
+  },
+
+  // Joining is the one thing that needs the game itself. In a browser there is
+  // nothing to drive, so the console line is shown to copy instead.
+  async join() {
+    const m = State.match;
+    if (!m || !m.connect) return;
+    if (!Bridge.ready) {
+      UI.status("no game bridge — run: password " + (m.password || "") + " ; connect " + m.connect);
+      return;
+    }
+    try {
+      if (m.password) await Bridge.cmd("password " + m.password);
+      await Bridge.cmd("connect " + m.connect);
+      UI.status("joining " + m.connect);
+    } catch (e) {
+      UI.status("could not drive the console: " + e.message, true);
+    }
+  },
+
+  async leave() {
+    if (!State.connected) return;
+    try { await GC.post("/api/v1/client/leave", {}, true); } catch (e) { /* nothing to leave */ }
+    State.match = null;
+    UI.renderMatch(null);
+  },
+};
+
+// ---------------------------------------------------------------------------
+// The loop: poll the coordinator, refresh the map when it moves
+// ---------------------------------------------------------------------------
+const Loop = {
+  timer: null,
+  worldTimer: null,
+
+  start() {
+    if (this.timer) return;
+    this.timer = setInterval(() => this.poll(), 1500);
+    this.worldTimer = setInterval(() => this.refreshWorld(), 5000);
+  },
+
+  async refreshWorld() {
+    try {
+      const [status, fronts, world] = await Promise.all([
+        GC.get("/api/v1/status"),
+        GC.get("/api/v1/world/fronts"),
+        GC.get("/api/v1/world"),
+      ]);
+      UI.renderHeader(status);
+      State.world = world.world;
+      State.fronts = fronts.fronts || [];
+      UI.renderMap(world.world);
+      UI.renderFronts(State.fronts, State.queue && State.queue.queued);
+      UI.setDot("dotGC", true);
+    } catch (e) {
+      UI.setDot("dotGC", false);
+      UI.status("coordinator unreachable: " + e.message, true);
+    }
+  },
+
+  async refreshTimeline() {
+    try {
+      const reply = await GC.get("/api/v1/world/timeline?since=" + State.timelineSeq + "&limit=50");
+      const events = reply.events || [];
+      if (events.length) {
+        State.timelineSeq = events[events.length - 1].seq;
+        UI.feed(events);
+      }
+    } catch (e) { /* the feed is not worth an error banner */ }
+  },
+
+  // Everything that happens to this player arrives here: the queue filling, the
+  // battle being ready, the result and what it did to the war.
+  async poll() {
+    if (!State.connected || State.polling) return;
+    State.polling = true;
+    try {
+      const reply = await GC.get("/api/v1/client/poll?since=" + State.seq + "&wait=0", true);
+      State.seq = reply.seq || State.seq;
+      (reply.events || []).forEach(ev => this.handle(ev));
+      await this.refreshTimeline();
+    } catch (e) {
+      if (e.status === 401) {
+        // The coordinator restarted, or the session aged out. Say hello again
+        // rather than polling into the void.
+        State.connected = false;
+        UI.setDot("dotGC", false);
+        UI.status("session expired — reconnecting");
+        await Actions.connect();
+      }
+    } finally {
+      State.polling = false;
+    }
+  },
+
+  handle(ev) {
+    switch (ev.type) {
+      case "queue":
+        State.queue = ev.queue;
+        UI.renderQueue(ev.queue);
+        UI.renderFronts(State.fronts, ev.queue && ev.queue.queued);
+        break;
+
+      case "match_state":
+        State.match = ev.match;
+        UI.renderMatch(ev.match);
+        UI.status(ev.message || "battle forming");
+        break;
+
+      case "match_ready":
+        State.match = ev.match;
+        UI.renderMatch(ev.match);
+        UI.status("battle ready at " + ev.match.connect);
+        if (State.settings.autoJoin) Actions.join();
+        break;
+
+      case "match_over": {
+        State.match = null;
+        State.queue = null;
+        UI.renderMatch(null);
+        UI.renderQueue(null);
+        const over = ev.over || {};
+        const update = over.war_update || {};
+        UI.banner(update.headline || over.message || "battle over",
+          over.won ? "Your side won it." : "Your side lost it.");
+        this.refreshWorld();
+        break;
+      }
+
+      case "world":
+        this.refreshWorld();
+        if (ev.world && ev.world.headline) UI.status(ev.world.headline);
+        break;
+
+      case "contract_offer":
+        if (ev.contract) UI.banner(ev.contract.message, "Deploy and you may be given that side for one battle.");
+        break;
+
+      case "notice":
+        UI.status(ev.message || "");
+        break;
+    }
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Boot
+// ---------------------------------------------------------------------------
+(async function main() {
+  State.load();
+  UI.el("gcUrl").value = State.settings.gc;
+  UI.el("steamId").value = State.settings.steamId;
+  UI.el("playerName").value = State.settings.name;
+  UI.el("sidePick").value = State.settings.side;
+  UI.el("autoJoin").checked = State.settings.autoJoin !== false;
+
+  UI.el("connectBtn").onclick = () => Actions.connect();
+  UI.el("deployBtn").onclick = () => Actions.deploy("");
+  UI.el("joinBtn").onclick = () => Actions.join();
+  UI.el("leaveBtn").onclick = () => Actions.leave();
+  UI.el("randomIdBtn").onclick = () => {
+    // A throwaway account number. Dev auth trusts whatever is claimed, which is
+    // the whole reason this button can exist.
+    const account = Math.floor(Math.random() * 90000000) + 10000000;
+    UI.el("steamId").value = String(76561197960265728 + account);
+  };
+
+  Bridge.connect();
+
+  // Borrow the player's own name from the game when it is there to ask.
+  setTimeout(async () => {
+    if (!Bridge.ready) return;
+    try {
+      const name = await Bridge.call("getcvar", "name");
+      if (name && !State.settings.name) UI.el("playerName").value = name;
+    } catch (e) { /* not important enough to report */ }
+  }, 800);
+
+  if (State.settings.steamId) {
+    Actions.connect();
+  } else {
+    UI.status("set a SteamID and press CONNECT");
+  }
+})();
+</script>
+</body>
+</html>

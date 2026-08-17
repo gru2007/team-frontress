@@ -13,9 +13,9 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/greyline-frontress/coordinator/internal/config"
+	"github.com/greyline-frontress/coordinator/internal/legacy/war"
 	"github.com/greyline-frontress/coordinator/internal/security"
 	"github.com/greyline-frontress/coordinator/internal/steam"
-	"github.com/greyline-frontress/coordinator/internal/war"
 	"github.com/greyline-frontress/coordinator/internal/wire"
 	"github.com/greyline-frontress/coordinator/internal/wire/pb"
 )
@@ -66,6 +66,9 @@ func newHarnessWithWorld(t *testing.T, worldJSON string, tune func(*config.Confi
 	cfg.Listen = "127.0.0.1:0"
 	cfg.AdminListen = ""
 	cfg.Security.Secret = "test-secret"
+	// The retired P2P coordinator has no server pool, but it shares the config
+	// type with the live one, whose validation requires a pool key.
+	cfg.Pool.Key = "test-pool-key"
 	cfg.Match.TeamSizes = []int{1}
 	cfg.Match.MinTeamSize = 1
 	cfg.Match.FormWait = 0

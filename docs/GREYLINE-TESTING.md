@@ -1,5 +1,16 @@
 # GREYLINE FRONTRESS — how to test it
 
+> **Superseded.** This document describes the retired peer-to-peer coordinator,
+> where a player's own machine was elected to host the battle. Battles now run
+> on a pool of dedicated servers driven over HTTP: see
+> [`services/coordinator/README.md`](../services/coordinator/README.md) for how
+> to run the coordinator and join a game server to the pool, and
+> [`GREYLINE-WAR.md`](GREYLINE-WAR.md) for the war it feeds.
+>
+> It is kept because the FakeIP and Steam Networking findings below are still
+> the accurate account of how a Source listen server becomes reachable, which is
+> the thing to reread if community-hosted nodes ever come back.
+
 Everything below runs the real thing end to end: coordinator, listen server,
 migration, war state. No mocks.
 

@@ -51,8 +51,10 @@ typedef int socklen_t;
 ConVar greyline_gc_address( "greyline_gc_address", "127.0.0.1:27100", FCVAR_CLIENTDLL | FCVAR_ARCHIVE,
 	"Address of the Greyline Game Coordinator." );
 
-ConVar greyline_gc_enable( "greyline_gc_enable", "1", FCVAR_CLIENTDLL | FCVAR_ARCHIVE,
-	"Connect to the Greyline Game Coordinator." );
+ConVar greyline_gc_enable( "greyline_gc_enable", "0", FCVAR_CLIENTDLL | FCVAR_ARCHIVE,
+	"Connect to the retired peer-to-peer Greyline coordinator link. Off by "
+	"default: battles now run on the coordinator's dedicated server pool, and "
+	"this framed-protobuf link is kept only for reference." );
 
 ConVar greyline_gc_debug( "greyline_gc_debug", "0", FCVAR_CLIENTDLL,
 	"Spew Greyline coordinator traffic." );
