@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/greyline-frontress/coordinator/internal/hostelect"
 	"github.com/greyline-frontress/coordinator/internal/mm"
 	"github.com/greyline-frontress/coordinator/internal/pool"
 	"github.com/greyline-frontress/coordinator/internal/steam"
@@ -89,12 +90,17 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/client/side", a.withPlayer(a.setSide))
 	mux.HandleFunc("GET /api/v1/client/poll", a.withPlayer(a.poll))
 	mux.HandleFunc("GET /api/v1/client/self", a.withPlayer(a.self))
+	// An elected host accepting a host_offer, and the roster corroborating a
+	// P2P host's result — see internal/mm's election and corroboration.
+	mux.HandleFunc("POST /api/v1/client/host-register", a.withPlayer(a.hostRegister))
+	mux.HandleFunc("POST /api/v1/client/confirm-result", a.withPlayer(a.confirmResult))
 
 	// The server pool.
 	mux.HandleFunc("POST /api/v1/servers/register", a.serverRegister)
 	mux.HandleFunc("POST /api/v1/servers/heartbeat", a.withServer(a.serverHeartbeat))
 	mux.HandleFunc("GET /api/v1/servers/poll", a.withServer(a.serverPoll))
 	mux.HandleFunc("POST /api/v1/servers/state", a.withServer(a.serverState))
+	mux.HandleFunc("POST /api/v1/servers/address", a.withServer(a.serverAddress))
 	mux.HandleFunc("POST /api/v1/servers/result", a.withServer(a.serverResult))
 	mux.HandleFunc("POST /api/v1/servers/deregister", a.withServer(a.serverDeregister))
 
@@ -158,6 +164,18 @@ type helloRequest struct {
 	Region          string `json:"region"`
 	ClientVersion   string `json:"client_version"`
 	ProtocolVersion int    `json:"protocol_version"`
+
+	// HostCapable and the fields below are only ever consulted when the
+	// dedicated pool has nothing free and the coordinator is choosing who, if
+	// anyone, should host a battle on their own machine. A client that never
+	// sets HostCapable is simply never offered host — see greyline_can_host in
+	// the game, which defaults it off for anyone who hasn't opted in.
+	HostCapable  bool   `json:"host_capable,omitempty"`
+	UploadKbps   uint32 `json:"upload_kbps,omitempty"`
+	CPUScore     uint32 `json:"cpu_score,omitempty"`
+	MemoryMB     uint32 `json:"memory_mb,omitempty"`
+	HasPublicIP  bool   `json:"has_public_ip,omitempty"`
+	MaxHostSlots uint32 `json:"max_host_slots,omitempty"`
 }
 
 type helloResponse struct {
@@ -202,7 +220,16 @@ func (a *API) hello(w http.ResponseWriter, r *http.Request) {
 	}
 
 	side, _ := war.ParseSide(req.Side)
-	p := a.mm.Hello(ident.SteamID, req.Name, side, req.Region)
+	caps := hostelect.Capabilities{
+		CanHost:             req.HostCapable,
+		UploadKbps:          req.UploadKbps,
+		CPUScore:            req.CPUScore,
+		MemoryMB:            req.MemoryMB,
+		HasPublicIP:         req.HasPublicIP,
+		IsDedicated:         false,
+		MaxPlayersSupported: req.MaxHostSlots,
+	}
+	p := a.mm.Hello(ident.SteamID, req.Name, side, req.Region, caps)
 	cfg := a.mm.Config()
 
 	resp := helloResponse{
@@ -228,6 +255,10 @@ func (a *API) hello(w http.ResponseWriter, r *http.Request) {
 type deployRequest struct {
 	FrontID        string `json:"front_id"`
 	AcceptContract bool   `json:"accept_contract"`
+	// PartyID, when set, is shared by everyone who wants to land in the same
+	// battle together. It is opaque to the coordinator — client-chosen, only
+	// ever compared for equality against other queued players' own PartyID.
+	PartyID string `json:"party_id,omitempty"`
 }
 
 func (a *API) deploy(w http.ResponseWriter, r *http.Request, p *mm.Player) {
@@ -235,7 +266,7 @@ func (a *API) deploy(w http.ResponseWriter, r *http.Request, p *mm.Player) {
 	if r.ContentLength > 0 && !readJSON(w, r, &req) {
 		return
 	}
-	status, err := a.mm.Deploy(p, req.FrontID, req.AcceptContract)
+	status, err := a.mm.Deploy(p, req.FrontID, req.AcceptContract, req.PartyID)
 	if err != nil {
 		fail(w, http.StatusConflict, err.Error())
 		return
@@ -303,6 +334,68 @@ func (a *API) self(w http.ResponseWriter, r *http.Request, p *mm.Player) {
 		out["match"] = info
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+type hostRegisterRequest struct {
+	MatchID     string `json:"match_id"`
+	Name        string `json:"name,omitempty"`
+	Region      string `json:"region,omitempty"`
+	Capacity    int    `json:"capacity,omitempty"`
+	GameVersion string `json:"game_version,omitempty"`
+}
+
+// hostRegister is a client accepting a host_offer: its own machine joins the
+// server pool for exactly this one battle. It is authenticated by the
+// player's ordinary session token, never by the pool key — a random player
+// must never be able to claim to be dedicated infrastructure, so
+// mm.ConfirmHost is the only thing that decides whether this call succeeds,
+// and it only ever says yes to the one SteamID the coordinator itself elected.
+func (a *API) hostRegister(w http.ResponseWriter, r *http.Request, p *mm.Player) {
+	var req hostRegisterRequest
+	if !readJSON(w, r, &req) {
+		return
+	}
+	id, token, err := a.mm.ConfirmHost(p, req.MatchID, pool.Registration{
+		Name: req.Name, Region: req.Region, Capacity: req.Capacity, GameVersion: req.GameVersion,
+	})
+	if err != nil {
+		fail(w, http.StatusConflict, err.Error())
+		return
+	}
+	a.log.Info("player accepted a host offer", "steam_id", p.SteamID, "match", req.MatchID, "server", id)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"server_id":    id,
+		"server_token": token,
+		"heartbeat_s":  15,
+		"poll_wait_s":  int(a.opts.MaxPollWait.Seconds()),
+	})
+}
+
+type confirmResultRequest struct {
+	MatchID  string `json:"match_id"`
+	Outcome  string `json:"outcome"`
+	RedScore uint32 `json:"red_score"`
+	BluScore uint32 `json:"blu_score"`
+}
+
+// confirmResult is a roster member corroborating a P2P host's reported
+// result — see mm.ConfirmResult for the quorum rule.
+func (a *API) confirmResult(w http.ResponseWriter, r *http.Request, p *mm.Player) {
+	var req confirmResultRequest
+	if !readJSON(w, r, &req) {
+		return
+	}
+	outcome, err := war.ParseOutcome(req.Outcome)
+	if err != nil {
+		fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	update, err := a.mm.ConfirmResult(p, req.MatchID, outcome, req.RedScore, req.BluScore)
+	if err != nil {
+		fail(w, http.StatusConflict, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "war_update": update})
 }
 
 // ---------------------------------------------------------------------------
@@ -463,6 +556,26 @@ func (a *API) serverState(w http.ResponseWriter, r *http.Request, s *pool.Server
 	}
 	if err := a.mm.ServerState(s.ID, req.MatchID, req.State, req.Players); err != nil {
 		fail(w, http.StatusConflict, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+type serverAddressRequest struct {
+	ConnectAddress string `json:"connect_address"`
+}
+
+// serverAddress patches in a server's connect address after registration —
+// what a P2P host does once its own engine finishes allocating a Steam
+// FakeIP, since it has none yet at registration time. A dedicated server
+// never needs this; its address is required at register.
+func (a *API) serverAddress(w http.ResponseWriter, r *http.Request, s *pool.Server) {
+	var req serverAddressRequest
+	if !readJSON(w, r, &req) {
+		return
+	}
+	if err := a.pool.SetConnectAddress(s.ID, bearer(r), req.ConnectAddress); err != nil {
+		fail(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})

@@ -10,20 +10,24 @@ snapshot restore and result corroboration are all machinery for making an
 untrusted, unreliable host trustworthy enough to move war state — three hard
 problems in the way of finding out whether the war loop is fun at all.
 
-The live coordinator runs battles on a pool of dedicated servers instead
-(`internal/pool`, `internal/mm`, `internal/httpapi`). Nothing in the running
-program imports this directory, and the client's side of it is off by default
-(`greyline_gc_enable 0`).
+The live coordinator runs battles on a pool of dedicated servers, with a
+player-hosted battle server as an ordinary (untrusted, lower-priority) member
+of that same pool when nothing dedicated is free — see the coordinator README
+and `docs/GREYLINE-WAR.md` for that design. Nothing in the running program
+imports this directory any more, and the client's raw-TCP side of it is off by
+default (`greyline_gc_enable 0`).
 
 It is kept because the problems it solves are real ones the project may come
 back to — community-hosted nodes with no fixed address are exactly the P2P case
 — and because the host-election scoring and the corroboration rules are worth
-more as working code than as a memory.
+more as working code than as a memory. The host-election scoring already made
+that trip: it now lives at `internal/hostelect` (moved out of this directory,
+still imported here by `legacy/gc`) and is what `internal/mm` uses to elect a
+player-hosted battle server.
 
 | Package | What it was |
 | --- | --- |
 | `legacy/gc` | The framed-protobuf coordinator: sessions, queue, match lifecycle, migration |
-| `legacy/hostelect` | Scoring a roster to pick the machine most likely to hold a battle up |
 | `legacy/war` | The first war model: one front, battle points, a flat map pool |
 | `legacy/testdata` | World files for that model |
 

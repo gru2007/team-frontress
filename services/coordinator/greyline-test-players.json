@@ -1,0 +1,32 @@
+{
+  "players": [
+    {
+      "steam_id": 76561198317961869,
+      "history": {
+        "HostedOK": 0,
+        "HostedFailed": 2,
+        "Abandons": 1,
+        "AvgServerFPS": 0,
+        "LastPenaltyAt": 1786949673
+      },
+      "banned_until": "2026-08-17T17:04:33.460381773+10:00",
+      "ban_reason": "abandoned a live battle",
+      "matches": 0,
+      "abandons": 1,
+      "last_seen": "2026-08-17T17:04:34.923090394+10:00"
+    },
+    {
+      "steam_id": 76561198238393804,
+      "history": {
+        "HostedOK": 0,
+        "HostedFailed": 2,
+        "Abandons": 0,
+        "AvgServerFPS": 0,
+        "LastPenaltyAt": 1786949763
+      },
+      "matches": 0,
+      "abandons": 0,
+      "last_seen": "2026-08-17T16:53:52.523222422+10:00"
+    }
+  ]
+}

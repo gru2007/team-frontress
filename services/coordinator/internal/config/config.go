@@ -90,8 +90,12 @@ type PoolConfig struct {
 	// AdminKey guards the admin endpoint. Empty is only safe when AdminListen
 	// is bound to loopback.
 	AdminKey string `json:"admin_key"`
-	// OfflineAfter is how long a silent server stays in the pool.
+	// OfflineAfter is how long a silent dedicated server stays in the pool.
 	OfflineAfter Duration `json:"offline_after"`
+	// OfflineAfterP2P is the same, for a player-hosted server. Shorter by
+	// default: a home connection dropping is far more likely, and far less
+	// recoverable, than a dedicated machine's.
+	OfflineAfterP2P Duration `json:"offline_after_p2p"`
 	// PollWait caps a long-poll, for both agents and clients.
 	PollWait Duration `json:"poll_wait"`
 }
@@ -140,6 +144,10 @@ type TimingConfig struct {
 	ReconnectGrace Duration `json:"reconnect_grace"`
 	// TickInterval is the coordinator's own scheduling tick.
 	TickInterval Duration `json:"tick_interval"`
+	// HostAcceptDeadline is how long an elected P2P host has to call
+	// client/host-register before the coordinator gives up on the offer and
+	// puts the roster back in the queue.
+	HostAcceptDeadline Duration `json:"host_accept_deadline"`
 }
 
 type MatchConfig struct {
@@ -160,6 +168,15 @@ type MatchConfig struct {
 	// ResultQuorum is the fraction of non-host players that must corroborate
 	// the host's reported result for it to count towards the war.
 	ResultQuorum float64 `json:"result_quorum"`
+	// WidenAfter is how long a queued player waits before the coordinator
+	// starts favouring a front that already has people queued over one that
+	// merely matches their preference. Zero disables widening.
+	WidenAfter Duration `json:"widen_after"`
+	// WidenStepBonus is how much score one WidenAfter-sized step of waiting
+	// adds to a front that already has somebody queued on it.
+	WidenStepBonus float64 `json:"widen_step_bonus"`
+	// WidenMaxSteps caps how far widening can push the score.
+	WidenMaxSteps int `json:"widen_max_steps"`
 }
 
 type ElectionConfig struct {
@@ -238,8 +255,9 @@ func Default() *Config {
 		WarLogPath:      "war-events.jsonl",
 		ProtocolVersion: 2,
 		Pool: PoolConfig{
-			OfflineAfter: Duration(45 * time.Second),
-			PollWait:     Duration(25 * time.Second),
+			OfflineAfter:    Duration(45 * time.Second),
+			OfflineAfterP2P: Duration(20 * time.Second),
+			PollWait:        Duration(25 * time.Second),
 		},
 		War: WarConfig{
 			PlayersPerFront:     16,
@@ -264,6 +282,7 @@ func Default() *Config {
 			MigrationHold:         Duration(105 * time.Second),
 			ReconnectGrace:        Duration(120 * time.Second),
 			TickInterval:          Duration(time.Second),
+			HostAcceptDeadline:    Duration(10 * time.Second),
 		},
 		Match: MatchConfig{
 			TeamSizes:             []int{2, 3, 4, 6},
@@ -273,6 +292,9 @@ func Default() *Config {
 			AbandonBanDuration:    Duration(10 * time.Minute),
 			MaxMigrations:         3,
 			ResultQuorum:          0.5,
+			WidenAfter:            Duration(30 * time.Second),
+			WidenStepBonus:        0.4,
+			WidenMaxSteps:         6,
 		},
 		Election: ElectionConfig{
 			WeightUpload:      0.30,

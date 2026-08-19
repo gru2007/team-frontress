@@ -996,6 +996,14 @@ $Project "Server (TF)"
 					}
 				}
 				$File	"greyline\greyline_briefing.cpp"
+				// Publishes a player-hosted (P2P) listen server's own address
+				// and live score into replicated convars the client-side
+				// websocket bridge reads — see greyline_bridge.cpp in the
+				// client project and the coordinator README's "when nothing
+				// dedicated is free" section. No-ops entirely on a dedicated
+				// server, which is joined to the pool by greyline-agent
+				// instead.
+				$File	"greyline\greyline_hoststate.cpp"
 				$File	"$SRCDIR\game\shared\tf\tf_match_description.cpp"
 				$File	"$SRCDIR\game\shared\tf\tf_match_description.h"
 				$File	"$SRCDIR\game\shared\tf\tf_match_description_shared.cpp"

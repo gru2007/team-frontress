@@ -96,10 +96,49 @@ coordinator never dials into anybody's network.
 | `POST /api/v1/client/leave` | left the battle |
 | `GET  /api/v1/client/poll?since=N&wait=25` | queue, assignment, result, world events |
 | `GET  /api/v1/client/self` | current player, queue and battle — for a client that lost its stream |
+| `POST /api/v1/client/host-register` | accept a `host_offer`: register your own machine into the server pool for exactly this battle |
+| `POST /api/v1/client/confirm-result` | corroborate a P2P host's reported result |
 
 Poll events: `queue`, `match_state`, `match_ready` (connect address, password,
 side, in-game team, front, stage), `match_over` (result plus the war update),
-`world` (the map moved), `contract_offer`, `notice`.
+`world` (the map moved), `contract_offer`, `host_offer` (see below), `notice`.
+
+### When nothing dedicated is free: electing a player to host
+
+`deploy` may carry `party_id`: everyone who sends the same (client-chosen)
+value lands in the same battle, on the same side, room permitting — the one
+thing a per-player server search can never express and a shared queue can.
+
+If a formed roster has no free dedicated server, the coordinator scores the
+roster with the same host-election logic the original P2P prototype used
+(`internal/hostelect`: upload, CPU, memory, hosting history) and, if anyone
+qualifies, sends that one player a `host_offer` instead of aborting the match.
+Accepting means calling `host-register` within its `accept_deadline_s`, which
+registers that client's own machine into the pool — under a token scoped to
+this one battle, authenticated by the player's ordinary session, never the
+pool key — and hands it the assignment exactly like a dedicated agent would
+receive it. From there the protocol is identical to a dedicated server's: the
+game's own listen-server code applies the hosting contract, loads the map, and
+reports `ready`/`live`/`result` over the same `/api/v1/servers/*` routes.
+
+Two differences from a dedicated server, both about trust:
+
+- A player-hosted server does not know its own address at registration —
+  its engine has not finished allocating a Steam FakeIP yet — so it patches it
+  in with `POST /api/v1/servers/address` once `TryPublishAddress` succeeds.
+  `servers/state ready` refuses to proceed without one, rather than sending a
+  roster to an empty connect string.
+- A player-hosted server's reported result is **not** recorded on its own.
+  It is held until enough of the non-host roster corroborates it with
+  `client/confirm-result` — `match.ResultQuorum` of them, rounded up, minimum
+  one — because nothing stops an elected host from reporting a win for
+  themselves the way a dedicated server's operator has no reason to.
+
+A dedicated server is always preferred over an idle player-hosted one when
+both are free (`pool.Reserve`), so a P2P host is the fallback a small,
+money-constrained test population needs, not the default — see
+[`internal/legacy/README.md`](internal/legacy/README.md) for why the earlier,
+fully P2P prototype was retired and what this design keeps from it.
 
 ### War map — public, no session needed
 
@@ -117,9 +156,15 @@ side, in-game team, front, stage), `match_over` (result plus the war update),
 | `POST /api/v1/servers/register` | `Authorization: Bearer <pool key>` → server id and token |
 | `GET  /api/v1/servers/poll?wait=25` | long-poll for the next command (`assign`, `abort`, `idle`) |
 | `POST /api/v1/servers/heartbeat` | status, current battle, map, players |
-| `POST /api/v1/servers/state` | `ready`, `live`, `failed` |
+| `POST /api/v1/servers/state` | `ready`, `live`, `failed` — `ready` needs a connect address on file, see below |
+| `POST /api/v1/servers/address` | patch in `{connect_address}` — only a player-hosted server needs this; a dedicated one supplies it at register |
 | `POST /api/v1/servers/result` | `{match_id, outcome, red_score, blu_score, players, duration_s}` |
 | `POST /api/v1/servers/deregister` | leave the pool |
+
+A server registered through `servers/register` and the pool key is trusted
+infrastructure. One registered through `client/host-register` — a player's own
+machine, elected because nothing dedicated was free — is not: see "When
+nothing dedicated is free" above.
 
 The pool key is a production credential: anything holding it can report results
 that move the war.
@@ -181,7 +226,8 @@ The short version:
 | --- | --- |
 | `internal/war` | The war: theater, staged fronts, campaigns, the event log and its reducer |
 | `internal/mm` | Queue, battle formation, sides and contracts, match lifecycle |
-| `internal/pool` | The dedicated server registry and its command channel |
+| `internal/pool` | The server registry and its command channel — dedicated and player-hosted alike |
+| `internal/hostelect` | Scores a formed roster to elect a P2P host when nothing dedicated is free |
 | `internal/httpapi` | Every route, for all three audiences |
 | `internal/rcon` | Minimal Source RCON client, used by the agent |
 | `internal/srclog` | Reads the game server's log stream |

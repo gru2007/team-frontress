@@ -48,6 +48,21 @@ var (
 	ErrBusy          = errors.New("pool: server is not free")
 )
 
+// Kind is what sort of machine a pool member is.
+type Kind string
+
+const (
+	// KindDedicated is the coordinator's own infrastructure: an operator ran
+	// the agent with the pool key. Its word about a battle's result is taken
+	// as it stands.
+	KindDedicated Kind = "dedicated"
+	// KindP2P is an ordinary player's own machine, elected to host one battle
+	// because nothing dedicated was free. It is preferred less than a
+	// dedicated server when both are idle, and its reported results are not
+	// trusted on their own — see mm's result corroboration.
+	KindP2P Kind = "p2p"
+)
+
 // Server is one machine in the pool.
 type Server struct {
 	ID     string   `json:"id"`
@@ -56,11 +71,20 @@ type Server struct {
 	Tags   []string `json:"tags,omitempty"`
 	// ConnectAddress is what a player's "connect" command takes: the address the
 	// game server is reachable at, as the operator declared it. The coordinator
-	// only forwards it.
+	// only forwards it. A P2P host registers before it has one — its own engine
+	// has not finished allocating a Steam FakeIP yet — and patches it in later
+	// through SetConnectAddress.
 	ConnectAddress string `json:"connect_address"`
 	Capacity       int    `json:"capacity"`
 	AgentVersion   string `json:"agent_version,omitempty"`
 	GameVersion    string `json:"game_version,omitempty"`
+
+	// Kind and Trusted are set only by the registration path itself, never by
+	// anything in the request body a caller controls — see Register vs.
+	// RegisterElectedHost. Trusted governs whether a reported result is
+	// recorded immediately or held for roster corroboration.
+	Kind    Kind `json:"kind"`
+	Trusted bool `json:"trusted"`
 
 	Status  Status `json:"status"`
 	MatchID string `json:"match_id,omitempty"`
@@ -193,9 +217,14 @@ type Registration struct {
 type Pool struct {
 	mu      sync.Mutex
 	servers map[string]*Server
-	// offlineAfter is how long a silent server stays in the pool before it is
-	// considered gone.
+	// offlineAfter is how long a silent dedicated server stays in the pool
+	// before it is considered gone.
 	offlineAfter time.Duration
+	// offlineAfterP2P is the same, for a player-hosted server. It defaults much
+	// shorter: a home connection dropping is far more likely, and far less
+	// recoverable, than a VPS hiccup, and a stuck P2P "battle" wastes the whole
+	// roster's time.
+	offlineAfterP2P time.Duration
 }
 
 // New builds an empty pool.
@@ -203,11 +232,35 @@ func New(offlineAfter time.Duration) *Pool {
 	if offlineAfter <= 0 {
 		offlineAfter = 45 * time.Second
 	}
-	return &Pool{servers: make(map[string]*Server), offlineAfter: offlineAfter}
+	return &Pool{
+		servers:         make(map[string]*Server),
+		offlineAfter:    offlineAfter,
+		offlineAfterP2P: 20 * time.Second,
+	}
 }
 
-// Register admits a server, or re-admits one that restarted. It returns the
-// server's identity and the token it must present from then on.
+// SetP2POfflineAfter overrides how long a silent player-hosted server stays in
+// the pool. Call it before the pool is serving traffic.
+func (p *Pool) SetP2POfflineAfter(d time.Duration) {
+	if d <= 0 {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.offlineAfterP2P = d
+}
+
+func (p *Pool) offlineAfterFor(k Kind) time.Duration {
+	if k == KindP2P {
+		return p.offlineAfterP2P
+	}
+	return p.offlineAfter
+}
+
+// Register admits a dedicated server, or re-admits one that restarted. It
+// returns the server's identity and the token it must present from then on.
+// A dedicated server is the coordinator's own infrastructure: it is trusted,
+// and its results are recorded without a player vote.
 func (p *Pool) Register(reg Registration, now time.Time) (id, token string, err error) {
 	if reg.ConnectAddress == "" {
 		return "", "", errors.New("pool: registration has no connect_address; players would have nowhere to go")
@@ -238,6 +291,8 @@ func (p *Pool) Register(reg Registration, now time.Time) (id, token string, err 
 		Capacity:       reg.Capacity,
 		AgentVersion:   reg.AgentVersion,
 		GameVersion:    reg.GameVersion,
+		Kind:           KindDedicated,
+		Trusted:        true,
 		Status:         StatusIdle,
 		RegisteredAt:   now,
 		LastSeen:       now,
@@ -247,6 +302,68 @@ func (p *Pool) Register(reg Registration, now time.Time) (id, token string, err 
 		mailbox: make(chan Command, 4),
 	}
 	return id, token, nil
+}
+
+// RegisterElectedHost admits a player's own machine as a pool member for
+// exactly one battle, already reserved for matchID. Unlike Register, it never
+// touches a caller-supplied trust flag: Kind and Trusted are hardcoded here,
+// because the only door a random player's session token can walk through is
+// this one, and it must never be able to claim to be dedicated infrastructure.
+//
+// ConnectAddress may be empty — the host's own engine has not finished
+// allocating a Steam FakeIP yet — and is filled in later by SetConnectAddress.
+// There is no restart-reclaims-its-slot behaviour here: a P2P registration is
+// one battle's worth, not a standing identity.
+func (p *Pool) RegisterElectedHost(reg Registration, matchID string, now time.Time) (id, token string, err error) {
+	if matchID == "" {
+		return "", "", errors.New("pool: an elected host registration needs a match id")
+	}
+	if reg.Capacity <= 0 {
+		reg.Capacity = 24
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	id = "p2p-" + randHex(6)
+	token = randHex(24)
+	p.servers[id] = &Server{
+		ID:             id,
+		Name:           firstNonEmpty(reg.Name, id),
+		Region:         reg.Region,
+		ConnectAddress: reg.ConnectAddress,
+		Capacity:       reg.Capacity,
+		AgentVersion:   reg.AgentVersion,
+		GameVersion:    reg.GameVersion,
+		Kind:           KindP2P,
+		Trusted:        false,
+		Status:         StatusReserved,
+		MatchID:        matchID,
+		RegisteredAt:   now,
+		LastSeen:       now,
+		token:          token,
+		mailbox:        make(chan Command, 4),
+	}
+	return id, token, nil
+}
+
+// SetConnectAddress patches in a server's address after registration — the
+// one thing a P2P host does not know until its own engine has finished
+// allocating a Steam FakeIP.
+func (p *Pool) SetConnectAddress(id, token, addr string) error {
+	if addr == "" {
+		return errors.New("pool: refusing to set an empty connect address")
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	s, ok := p.servers[id]
+	if !ok {
+		return ErrUnknownServer
+	}
+	if s.token != token {
+		return ErrBadToken
+	}
+	s.ConnectAddress = addr
+	return nil
 }
 
 // Authenticate resolves a server by ID and token.
@@ -325,22 +442,24 @@ func (p *Pool) Poll(ctx context.Context, id, token string, wait time.Duration) (
 	}
 }
 
-// Reserve takes a free server for a battle. Preferring the least recently used
-// server spreads battles across the pool instead of hammering whichever machine
-// registered first.
+// Reserve takes a free server for a battle. Dedicated infrastructure is
+// preferred over a player-hosted one whenever both are free — a P2P host is
+// the fallback money is short enough to need, not the default — and within a
+// kind, preferring the least recently used server spreads battles across the
+// pool instead of hammering whichever machine registered first.
 func (p *Pool) Reserve(matchID string, region string, now time.Time) (*Server, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	var best *Server
 	for _, s := range p.servers {
-		if !s.Free() || now.Sub(s.LastSeen) > p.offlineAfter {
+		if !s.Free() || now.Sub(s.LastSeen) > p.offlineAfterFor(s.Kind) {
 			continue
 		}
 		if region != "" && s.Region != "" && s.Region != region {
 			continue
 		}
-		if best == nil || s.Hosted < best.Hosted || (s.Hosted == best.Hosted && s.ID < best.ID) {
+		if best == nil || preferred(s, best) {
 			best = s
 		}
 	}
@@ -350,6 +469,18 @@ func (p *Pool) Reserve(matchID string, region string, now time.Time) (*Server, e
 	best.Status = StatusReserved
 	best.MatchID = matchID
 	return best, nil
+}
+
+// preferred reports whether s should be picked over the current best.
+func preferred(s, best *Server) bool {
+	sDedicated, bestDedicated := s.Kind != KindP2P, best.Kind != KindP2P
+	if sDedicated != bestDedicated {
+		return sDedicated
+	}
+	if s.Hosted != best.Hosted {
+		return s.Hosted < best.Hosted
+	}
+	return s.ID < best.ID
 }
 
 // Send queues a command for a server. A server whose mailbox is full is one
@@ -433,7 +564,7 @@ func (p *Pool) ExpireSilent(now time.Time) []string {
 	defer p.mu.Unlock()
 	var lost []string
 	for _, s := range p.servers {
-		if s.Status == StatusOffline || now.Sub(s.LastSeen) <= p.offlineAfter {
+		if s.Status == StatusOffline || now.Sub(s.LastSeen) <= p.offlineAfterFor(s.Kind) {
 			continue
 		}
 		s.Status = StatusOffline

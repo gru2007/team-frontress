@@ -15,10 +15,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/greyline-frontress/coordinator/internal/hostelect"
 	"github.com/greyline-frontress/coordinator/internal/pool"
 	"github.com/greyline-frontress/coordinator/internal/war"
 )
@@ -46,6 +48,30 @@ type Config struct {
 	SessionTimeout time.Duration
 	// HeartbeatInterval is what clients are told to poll at.
 	HeartbeatInterval time.Duration
+
+	// WidenAfter is how long a queued player waits before bestFrontFor starts
+	// favouring a front that already has people queued over one that merely
+	// fits their preference. Zero disables widening.
+	WidenAfter time.Duration
+	// WidenStepBonus is how much score one WidenAfter-sized step of waiting
+	// adds to a front that already has somebody queued on it.
+	WidenStepBonus float64
+	// WidenMaxSteps caps how far widening can push the score, so an
+	// extraordinarily long wait cannot swamp every other factor.
+	WidenMaxSteps int
+
+	// HostElection and HostRequirements score a formed roster to pick a P2P
+	// host when the dedicated pool has nothing free. See package hostelect.
+	HostElection     hostelect.Weights
+	HostRequirements hostelect.Requirements
+	// HostAcceptDeadline is how long an elected host has to call
+	// client/host-register before the coordinator gives up on the offer and
+	// puts the roster back in the queue.
+	HostAcceptDeadline time.Duration
+	// ResultQuorum is the fraction of non-host roster members who must
+	// corroborate a P2P host's reported result before it counts towards the
+	// war. A dedicated server's result is never held for a vote.
+	ResultQuorum float64
 }
 
 // DefaultConfig is tuned for the MVP: small battles, one front, a handful of
@@ -61,6 +87,19 @@ func DefaultConfig() Config {
 		MatchTimeout:       75 * time.Minute,
 		SessionTimeout:     90 * time.Second,
 		HeartbeatInterval:  10 * time.Second,
+		WidenAfter:         30 * time.Second,
+		WidenStepBonus:     0.4,
+		WidenMaxSteps:      6,
+		HostElection: hostelect.Weights{
+			Upload: 0.30, Latency: 0.35, CPU: 0.15, Stability: 0.20,
+			DedicatedBonus: 0.50, PublicIPBonus: 0.10, AbandonPenalty: 0.35,
+		},
+		HostRequirements: hostelect.Requirements{
+			MinUploadKbps: 1500, MinCPUScore: 40, MinMemoryMB: 2048,
+			MaxAcceptableRTT: 180, RequireCanHost: true,
+		},
+		HostAcceptDeadline: 10 * time.Second,
+		ResultQuorum:       0.5,
 	}
 }
 
@@ -89,6 +128,17 @@ type Matchmaker struct {
 	byToken map[string]*Player
 	matches map[string]*Match
 
+	// hostElector scores a formed roster to pick a P2P host. Nil (in a test
+	// that builds a Config with a zeroed Elector-worthy Weights value is still
+	// fine — Elect just always disqualifies on RequireCanHost) never crashes;
+	// electHost guards it anyway for clarity.
+	hostElector *hostelect.Elector
+	// hostHistory is what the coordinator has learned about each player's
+	// hosting record. In-memory only, which is right for the MVP: it exists to
+	// make repeated elections in one session smarter, not to be a persistent
+	// reputation system.
+	hostHistory map[uint64]*hostelect.History
+
 	lastRevision uint64
 	stats        Stats
 }
@@ -103,11 +153,18 @@ func New(cfg Config, log *slog.Logger, engine *war.Engine, servers *pool.Pool) *
 	}
 	sort.Ints(cfg.TeamSizes)
 	return &Matchmaker{
-		cfg:          cfg,
-		log:          log,
-		war:          engine,
-		pool:         servers,
-		now:          time.Now,
+		cfg:  cfg,
+		log:  log,
+		war:  engine,
+		pool: servers,
+		now:  time.Now,
+		// No latency oracle yet: the coordinator does not collect per-client
+		// RTT samples in this MVP, so every candidate scores an equal (zero)
+		// latency term. Wiring hostelect.PopOracle up to client heartbeats is
+		// future work, not a correctness gap — election still works on upload,
+		// CPU and hosting history.
+		hostElector:  hostelect.New(cfg.HostElection, cfg.HostRequirements, nil),
+		hostHistory:  make(map[uint64]*hostelect.History),
 		players:      make(map[uint64]*Player),
 		byToken:      make(map[string]*Player),
 		matches:      make(map[string]*Match),
@@ -124,7 +181,9 @@ func (m *Matchmaker) Config() Config { return m.cfg }
 
 // Hello admits a client. An account that was already connected keeps its place:
 // reconnecting must not cost a player their queue position or their battle.
-func (m *Matchmaker) Hello(steamID uint64, name string, side war.Side, region string) *Player {
+// caps is what the client reports about its own ability to host a battle,
+// only ever consulted when the dedicated pool has nothing free.
+func (m *Matchmaker) Hello(steamID uint64, name string, side war.Side, region string, caps hostelect.Capabilities) *Player {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	now := m.now()
@@ -146,6 +205,7 @@ func (m *Matchmaker) Hello(steamID uint64, name string, side war.Side, region st
 	if region != "" {
 		p.Region = region
 	}
+	p.HostCaps = caps
 	p.LastSeen = now
 	return p
 }
@@ -225,8 +285,11 @@ func (m *Matchmaker) SetSide(p *Player, side war.Side) error {
 // ---------------------------------------------------------------------------
 
 // Deploy puts a player in the queue. frontID may be empty, which is the plain
-// DEPLOY button: the coordinator decides where they are needed.
-func (m *Matchmaker) Deploy(p *Player, frontID string, acceptContract bool) (QueueStatus, error) {
+// DEPLOY button: the coordinator decides where they are needed. partyID, when
+// non-empty, is shared by everyone who wants to land in the same battle
+// together — it is opaque to the coordinator, which only ever compares it for
+// equality against other queued players' own partyID.
+func (m *Matchmaker) Deploy(p *Player, frontID string, acceptContract bool, partyID string) (QueueStatus, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	now := m.now()
@@ -237,6 +300,7 @@ func (m *Matchmaker) Deploy(p *Player, frontID string, acceptContract bool) (Que
 	if p.Side == war.SideNone {
 		p.Side = m.lightestSide()
 	}
+	p.PartyID = partyID
 
 	fronts := m.war.ActiveFronts()
 	if len(fronts) == 0 {
@@ -286,6 +350,26 @@ func (m *Matchmaker) bestFrontFor(p *Player, fronts []war.Front) string {
 		score float64
 	}
 	need := 2 * m.cfg.MinTeamSize
+
+	// widenSteps grows with how long this player has already been waiting.
+	// Quickplay-style server search scores every option once, locally, and
+	// never revisits a bad early guess; this is the one place that is
+	// deliberately not true here — the longer somebody has waited, the more a
+	// front that already has people queued pulls ahead of one that merely
+	// matches their preference, because getting them into a battle starts to
+	// outweigh which battle it is. Only meaningful for a player who is already
+	// queued (rehomeOrphanedQueue); a fresh DEPLOY has nothing to widen from
+	// yet.
+	widenSteps := 0.0
+	if p.State == StateQueued && m.cfg.WidenAfter > 0 {
+		if waited := m.now().Sub(p.QueuedAt); waited > 0 {
+			widenSteps = float64(waited / m.cfg.WidenAfter)
+			if m.cfg.WidenMaxSteps > 0 && widenSteps > float64(m.cfg.WidenMaxSteps) {
+				widenSteps = float64(m.cfg.WidenMaxSteps)
+			}
+		}
+	}
+
 	var best []scored
 	for _, f := range fronts {
 		queued := 0
@@ -299,6 +383,7 @@ func (m *Matchmaker) bestFrontFor(p *Player, fronts []war.Front) string {
 		// starting a queue of one.
 		if queued > 0 {
 			s += 2.0 - float64(abs(need-queued-1))*0.1
+			s += widenSteps * m.cfg.WidenStepBonus
 		}
 		// A front where the player's own side is defending is where their side
 		// most needs them.
@@ -389,7 +474,7 @@ func (m *Matchmaker) formOne(f war.Front) bool {
 	if m.liveOnFrontLocked(f.ID) >= m.cfg.MaxBattlesPerFront {
 		return false
 	}
-	queued := m.queuedOn(f.ID)
+	queued := withParties(m.queuedOn(f.ID))
 	if len(queued) < 2*m.cfg.MinTeamSize {
 		return false
 	}
@@ -430,41 +515,58 @@ func (m *Matchmaker) formOne(f war.Front) bool {
 	slots := assignSlots(picked, teamSize, plan)
 	matchID := newID("b")
 
-	server, err := m.pool.Reserve(matchID, pickRegion(picked), m.now())
-	if err != nil {
-		m.stats.NoServer++
-		// Nobody is dropped from the queue: the battle is formed the moment a
-		// machine frees up. Telling players why they are waiting is better than
-		// a silent queue.
-		m.noticeQueued(f.ID, "waiting for a free battle server")
-		return false
-	}
-
 	match := &Match{
 		ID:         matchID,
 		FrontID:    f.ID,
 		Plan:       plan,
 		Slots:      slots,
-		ServerID:   server.ID,
-		Connect:    server.ConnectAddress,
 		Password:   pool.NewPassword(),
 		State:      MatchForming,
 		CreatedAt:  m.now(),
 		StateSince: m.now(),
 	}
-	m.matches[match.ID] = match
-	for _, s := range slots {
-		p := m.players[s.SteamID]
-		if p == nil {
-			continue
+
+	server, err := m.pool.Reserve(matchID, pickRegion(picked), m.now())
+	if err != nil {
+		// Nothing dedicated is free. Before giving up, see if anybody just
+		// picked is willing and able to run the battle on their own machine —
+		// this is the fallback money-constrained testing needs, not the
+		// default: Reserve already prefers a dedicated server whenever one is
+		// idle, including a previously-elected P2P host sitting idle from an
+		// earlier battle.
+		host, ok := m.electHostLocked(picked)
+		if !ok {
+			m.stats.NoServer++
+			// Nobody is dropped from the queue: the battle is formed the
+			// moment a machine frees up, or somebody is elected to host it
+			// themselves. Telling players why they are waiting is better than
+			// a silent queue.
+			m.noticeQueued(f.ID, "waiting for a free battle server")
+			return false
 		}
-		p.State = StateAssigned
-		p.MatchID = match.ID
-		if s.Contract {
-			p.Contracts++
-			m.stats.Contracts++
+		match.HostSteamID = host
+		match.setState(MatchAwaitingHost, m.now())
+		m.matches[match.ID] = match
+		m.claimSlotsLocked(match)
+		m.stats.Formed++
+
+		if hp := m.players[host]; hp != nil {
+			hp.push(Event{Type: EventHostOffer, Host: &HostOffer{
+				MatchID: match.ID, Map: plan.Map, Mode: plan.Mode,
+				MaxPlayers: len(slots), FrontName: plan.FrontName,
+				AcceptDeadlineS: int(m.cfg.HostAcceptDeadline.Seconds()),
+			}})
 		}
+		m.log.Info("host offered", "match", match.ID, "front", f.ID,
+			"steam_id", host, "map", plan.Map)
+		m.pushMatchState(match, "a machine in the roster was asked to host "+plan.Map)
+		return true
 	}
+
+	match.ServerID = server.ID
+	match.Connect = server.ConnectAddress
+	m.matches[match.ID] = match
+	m.claimSlotsLocked(match)
 	m.stats.Formed++
 
 	if err := m.pool.Send(server.ID, pool.Command{
@@ -486,16 +588,131 @@ func (m *Matchmaker) formOne(f war.Front) bool {
 	return true
 }
 
+// claimSlotsLocked marks every player in a formed match as assigned and out
+// of the queue. Called with the lock held, for both the dedicated-server and
+// the elected-host paths through formOne.
+func (m *Matchmaker) claimSlotsLocked(match *Match) {
+	for _, s := range match.Slots {
+		p := m.players[s.SteamID]
+		if p == nil {
+			continue
+		}
+		p.State = StateAssigned
+		p.MatchID = match.ID
+		if s.Contract {
+			p.Contracts++
+			m.stats.Contracts++
+		}
+	}
+}
+
+// electHostLocked scores a just-formed roster and returns a SteamID willing
+// and able to host the battle, if anyone qualifies. Called with the lock
+// held: every input is already in memory, so this never blocks.
+func (m *Matchmaker) electHostLocked(picked []*Player) (uint64, bool) {
+	if m.hostElector == nil || len(picked) == 0 {
+		return 0, false
+	}
+	candidates := make([]hostelect.Candidate, 0, len(picked))
+	for _, p := range picked {
+		candidates = append(candidates, hostelect.Candidate{
+			SteamID: p.SteamID,
+			Caps:    p.HostCaps,
+			Hist:    m.hostHistoryLocked(p.SteamID),
+			// Everyone in picked is a currently-queued, currently-polling
+			// client — that is exactly what queuedOn already filtered for.
+			Online: true,
+		})
+	}
+	best, _, ok := m.hostElector.Elect(candidates)
+	if !ok {
+		return 0, false
+	}
+	return best.SteamID, true
+}
+
+func (m *Matchmaker) hostHistoryLocked(steamID uint64) hostelect.History {
+	if h, ok := m.hostHistory[steamID]; ok {
+		return *h
+	}
+	return hostelect.History{}
+}
+
+// recordHostOutcomeLocked is the only place a player's hosting record
+// changes. It is in-memory only, which is right for the MVP: it exists to
+// make repeated elections within one session smarter, not to be a persistent
+// reputation system.
+func (m *Matchmaker) recordHostOutcomeLocked(steamID uint64, hostedOK, hostedFailed, abandoned bool) {
+	if steamID == 0 {
+		return
+	}
+	h, exists := m.hostHistory[steamID]
+	if !exists {
+		h = &hostelect.History{}
+		m.hostHistory[steamID] = h
+	}
+	if hostedOK {
+		h.HostedOK++
+	}
+	if hostedFailed {
+		h.HostedFailed++
+	}
+	if abandoned {
+		h.Abandons++
+	}
+}
+
+// ConfirmHost is called when a client accepts a host_offer: it registers the
+// client's own machine into the server pool for exactly this battle and hands
+// it the assignment, the same way a dedicated agent would receive it.
+func (m *Matchmaker) ConfirmHost(p *Player, matchID string, reg pool.Registration) (serverID, serverToken string, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	match, ok := m.matches[matchID]
+	if !ok {
+		return "", "", fmt.Errorf("mm: unknown battle %q", matchID)
+	}
+	if match.State != MatchAwaitingHost || match.HostSteamID != p.SteamID {
+		return "", "", fmt.Errorf("mm: you were not offered host for battle %q", matchID)
+	}
+
+	id, token, err := m.pool.RegisterElectedHost(reg, matchID, m.now())
+	if err != nil {
+		return "", "", err
+	}
+	match.ServerID = id
+	if err := m.pool.Send(id, pool.Command{
+		Type:       pool.CommandAssign,
+		MatchID:    match.ID,
+		Assignment: m.assignmentFor(match),
+	}); err != nil {
+		m.abort(match, "the elected host's registration could not be handed the battle")
+		return "", "", fmt.Errorf("mm: could not hand the battle to your machine: %w", err)
+	}
+	match.setState(MatchBooting, m.now())
+	m.log.Info("elected host confirmed", "match", match.ID, "steam_id", p.SteamID, "server", id)
+	return id, token, nil
+}
+
 // assignSlots splits the picked players into two sides. Allegiance is honoured
 // where it can be; the rest are given contracts for the other side, which is
-// what a war of mercenaries can do and a war of armies cannot.
+// what a war of mercenaries can do and a war of armies cannot. A party — a
+// non-empty PartyID shared by two or more picked players — is kept on the same
+// side whenever there is room, ahead of everything except a player's own
+// already-placed partymates: landing together is the entire reason to queue as
+// a party, and quickplay-style matchmaking has no way to express that at all.
 func assignSlots(picked []*Player, teamSize int, plan war.BattlePlan) []*Slot {
 	slots := make([]*Slot, 0, len(picked))
 	counts := map[war.Side]int{}
+	partySide := map[string]war.Side{}
 	var leftovers []*Player
 
 	place := func(p *Player, side war.Side) {
 		counts[side]++
+		if p.PartyID != "" {
+			partySide[p.PartyID] = side
+		}
 		slots = append(slots, &Slot{
 			SteamID:  p.SteamID,
 			Name:     p.Name,
@@ -506,6 +723,12 @@ func assignSlots(picked []*Player, teamSize int, plan war.BattlePlan) []*Slot {
 	}
 
 	for _, p := range picked {
+		if p.PartyID != "" {
+			if side, ok := partySide[p.PartyID]; ok && counts[side] < teamSize {
+				place(p, side)
+				continue
+			}
+		}
 		if p.Side != war.SideNone && counts[p.Side] < teamSize {
 			place(p, p.Side)
 			continue
@@ -518,6 +741,12 @@ func assignSlots(picked []*Player, teamSize int, plan war.BattlePlan) []*Slot {
 		return leftovers[i].AcceptContract && !leftovers[j].AcceptContract
 	})
 	for _, p := range leftovers {
+		if p.PartyID != "" {
+			if side, ok := partySide[p.PartyID]; ok && counts[side] < teamSize {
+				place(p, side)
+				continue
+			}
+		}
 		if counts[war.SideRed] <= counts[war.SideBlu] && counts[war.SideRed] < teamSize {
 			place(p, war.SideRed)
 		} else {
@@ -525,6 +754,38 @@ func assignSlots(picked []*Player, teamSize int, plan war.BattlePlan) []*Slot {
 		}
 	}
 	return slots
+}
+
+// withParties reorders a queue so a party lands together in one clump instead
+// of being split apart by plain arrival order. A party's clump takes the
+// position of its earliest member's arrival, so a party never skips ahead of
+// players who queued before any of them did — it only stops being split up.
+func withParties(queued []*Player) []*Player {
+	earliest := map[string]time.Time{}
+	for _, p := range queued {
+		if p.PartyID == "" {
+			continue
+		}
+		if t, ok := earliest[p.PartyID]; !ok || p.QueuedAt.Before(t) {
+			earliest[p.PartyID] = p.QueuedAt
+		}
+	}
+	if len(earliest) == 0 {
+		return queued // nobody partied up; the FIFO order already stands.
+	}
+	out := make([]*Player, len(queued))
+	copy(out, queued)
+	sort.SliceStable(out, func(i, j int) bool {
+		ti, tj := out[i].QueuedAt, out[j].QueuedAt
+		if out[i].PartyID != "" {
+			ti = earliest[out[i].PartyID]
+		}
+		if out[j].PartyID != "" {
+			tj = earliest[out[j].PartyID]
+		}
+		return ti.Before(tj)
+	})
+	return out
 }
 
 func (m *Matchmaker) assignmentFor(match *Match) *pool.Assignment {
@@ -609,6 +870,20 @@ func (m *Matchmaker) ServerState(serverID, matchID, state string, players int) e
 	switch state {
 	case "ready":
 		if match.State == MatchBooting {
+			// Re-read the address from the pool rather than trusting whatever
+			// formOne captured at reservation time: a dedicated server always
+			// had one, but a P2P host only learns its Steam FakeIP after its
+			// own engine allocates it, well after the assignment was sent —
+			// see servers/address. Sending a match_ready with nothing to
+			// connect to is exactly the silent "connection never happens" bug
+			// this design exists to not reproduce, so it is refused outright
+			// rather than sent empty.
+			if srv, ok := m.pool.Get(serverID); ok && srv.ConnectAddress != "" {
+				match.Connect = srv.ConnectAddress
+			}
+			if match.Connect == "" {
+				return fmt.Errorf("mm: battle %q has no connect address to send anyone to yet", matchID)
+			}
 			match.setState(MatchReady, now)
 			m.sendToBattle(match)
 		}
@@ -633,8 +908,14 @@ func (m *Matchmaker) ServerState(serverID, matchID, state string, players int) e
 	return nil
 }
 
-// ServerResult records a finished battle: the one place a game result becomes a
-// war event.
+// ServerResult records a finished battle: the one place a game result becomes
+// a war event — unless the server reporting it is untrusted, in which case it
+// is held for the roster to corroborate. See ConfirmResult.
+//
+// Dedicated servers are the coordinator's own infrastructure and their word is
+// taken as it stands. A P2P host is an ordinary player: nothing stops an
+// elected host from reporting a win for themselves, so their report only
+// counts once enough of the rest of the roster says the same thing.
 func (m *Matchmaker) ServerResult(serverID string, res war.BattleResult) (*war.Update, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -657,17 +938,93 @@ func (m *Matchmaker) ServerResult(serverID string, res war.BattleResult) (*war.U
 	// plan is the only place that mapping lives, so the translation happens
 	// here rather than in every agent.
 	res.Outcome, res.RedScore, res.BluScore = match.Plan.TranslateResult(res.Outcome, res.RedScore, res.BluScore)
-
 	res.FrontID = match.FrontID
 	res.Map = match.Plan.Map
 	res.Mode = match.Plan.Mode
 	if res.Players == 0 {
 		res.Players = len(match.Slots)
 	}
+
+	srv, _ := m.pool.Get(serverID)
+	if srv == nil || !srv.Trusted {
+		match.PendingResult = &res
+		m.log.Info("battle result reported by an untrusted host; waiting for the roster to corroborate it",
+			"match", match.ID, "host_steam_id", match.HostSteamID, "outcome", res.Outcome)
+		return nil, nil
+	}
+	return m.finalizeResultLocked(match, res), nil
+}
+
+// ConfirmResult is a roster member corroborating a P2P host's reported
+// result. Once enough of the non-host roster agrees — Config.ResultQuorum,
+// rounded up, of however many of them there are — the result is recorded the
+// same way a trusted dedicated server's report is. A vote that disagrees with
+// the pending result is logged and otherwise ignored: the MVP has no dispute
+// process yet, only visibility for an operator to notice a pattern.
+func (m *Matchmaker) ConfirmResult(p *Player, matchID string, outcome war.Outcome, redScore, bluScore uint32) (*war.Update, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	match, ok := m.matches[matchID]
+	if !ok {
+		return nil, fmt.Errorf("mm: unknown battle %q", matchID)
+	}
+	if match.over() {
+		return nil, nil
+	}
+	if match.PendingResult == nil {
+		return nil, fmt.Errorf("mm: battle %q has no result to corroborate yet", matchID)
+	}
+	if match.HostSteamID != 0 && p.SteamID == match.HostSteamID {
+		return nil, fmt.Errorf("mm: the host's own report needs corroboration, not another vote from the host")
+	}
+	if match.slot(p.SteamID) == nil {
+		return nil, fmt.Errorf("mm: you were not on this battle's roster")
+	}
+
+	outcome, redScore, bluScore = match.Plan.TranslateResult(outcome, redScore, bluScore)
+	if outcome != match.PendingResult.Outcome || redScore != match.PendingResult.RedScore || bluScore != match.PendingResult.BluScore {
+		m.log.Warn("a roster member's result confirmation disagrees with the host's report",
+			"match", match.ID, "steam_id", p.SteamID)
+		return nil, nil
+	}
+
+	if match.confirms == nil {
+		match.confirms = map[uint64]bool{}
+	}
+	match.confirms[p.SteamID] = true
+
+	nonHost := 0
+	for _, s := range match.Slots {
+		if s.SteamID != match.HostSteamID {
+			nonHost++
+		}
+	}
+	needed := int(math.Ceil(m.cfg.ResultQuorum * float64(nonHost)))
+	if needed < 1 {
+		needed = 1
+	}
+	if needed > nonHost {
+		needed = nonHost
+	}
+	if len(match.confirms) < needed {
+		return nil, nil
+	}
+	return m.finalizeResultLocked(match, *match.PendingResult), nil
+}
+
+// finalizeResultLocked is the one place a game result actually becomes a war
+// event, reached either straight from a trusted server's report or once a P2P
+// host's report has been corroborated. Called with the lock held.
+func (m *Matchmaker) finalizeResultLocked(match *Match, res war.BattleResult) *war.Update {
 	match.Result = &res
+	match.PendingResult = nil
 	match.RedScore, match.BluScore = res.RedScore, res.BluScore
 	match.setState(MatchFinished, m.now())
 	m.stats.Finished++
+	if match.HostSteamID != 0 {
+		m.recordHostOutcomeLocked(match.HostSteamID, true, false, false)
+	}
 
 	var update *war.Update
 	counted := false
@@ -702,9 +1059,11 @@ func (m *Matchmaker) ServerResult(serverID string, res war.BattleResult) (*war.U
 		}
 		p.push(Event{Type: EventMatchOver, Over: over})
 	}
-	m.pool.Release(serverID, true)
+	if match.ServerID != "" {
+		m.pool.Release(match.ServerID, true)
+	}
 	m.broadcastWorldLocked(update)
-	return update, nil
+	return update
 }
 
 func resultMessage(counted bool, up *war.Update) string {
@@ -751,8 +1110,10 @@ func (m *Matchmaker) matchInfo(match *Match, s *Slot) MatchInfo {
 		Stage: plan.Stage + 1, StageCount: plan.StageCount, StageKind: plan.StageKind,
 		Headline: plan.Headline, Reason: briefingReason(plan, nodeName),
 	}
+	info.IsP2P = match.HostSteamID != 0
 	if s != nil {
 		info.Side, info.Team, info.Contract = s.Side, s.Team, s.Contract
+		info.IsHost = match.HostSteamID != 0 && match.HostSteamID == s.SteamID
 	}
 	return info
 }
@@ -776,6 +1137,18 @@ func (m *Matchmaker) pushMatchState(match *Match, message string) {
 func (m *Matchmaker) abort(match *Match, reason string) {
 	if match.over() {
 		return
+	}
+	// A P2P host's hosting record is the one input to future elections a
+	// player cannot forge — see hostelect. Booting is "never got up",
+	// anything past that is "went away mid-battle": both matter, but
+	// differently, so hostelect scores them differently too.
+	if match.HostSteamID != 0 {
+		switch match.State {
+		case MatchReady, MatchLive:
+			m.recordHostOutcomeLocked(match.HostSteamID, false, false, true)
+		case MatchAwaitingHost, MatchBooting:
+			m.recordHostOutcomeLocked(match.HostSteamID, false, true, false)
+		}
 	}
 	match.setState(MatchAborted, m.now())
 	m.stats.Aborted++
@@ -863,6 +1236,10 @@ func (m *Matchmaker) Tick() {
 
 	for id, match := range m.matches {
 		switch match.State {
+		case MatchAwaitingHost:
+			if now.Sub(match.StateSince) > m.cfg.HostAcceptDeadline {
+				m.abort(match, "the elected host did not confirm in time")
+			}
 		case MatchBooting:
 			if now.Sub(match.StateSince) > m.cfg.BootDeadline {
 				m.abort(match, "the battle server did not come up in time")

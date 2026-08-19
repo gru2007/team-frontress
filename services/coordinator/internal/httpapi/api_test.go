@@ -123,6 +123,15 @@ func (c *client) deploy() {
 	}
 }
 
+func (c *client) deployWithParty(partyID string) {
+	c.h.t.Helper()
+	var out map[string]any
+	if code := c.h.do("POST", "/api/v1/client/deploy", c.token,
+		map[string]any{"accept_contract": true, "party_id": partyID}, &out); code != http.StatusOK {
+		c.h.t.Fatalf("deploy for %d: status %d (%v)", c.steamID, code, out)
+	}
+}
+
 // poll drains whatever the client has been told since last time.
 func (c *client) poll() []mm.Event {
 	c.h.t.Helper()
@@ -158,6 +167,65 @@ type agent struct {
 	h     *harness
 	id    string
 	token string
+}
+
+// newHostCapableClient is a client whose hello reports enough upload, CPU and
+// memory to clear every floor in mm.DefaultConfig's HostRequirements, so it is
+// a deterministic, eligible host-election candidate.
+func (h *harness) newHostCapableClient(steamID uint64, side string) *client {
+	h.t.Helper()
+	var resp helloResponse
+	code := h.do("POST", "/api/v1/client/hello", "", map[string]any{
+		"steam_id": steamID, "name": fmt.Sprintf("merc%d", steamID), "side": side,
+		"host_capable": true, "upload_kbps": 5000, "cpu_score": 80, "memory_mb": 8192,
+	}, &resp)
+	if code != http.StatusOK {
+		h.t.Fatalf("hello for %d: status %d", steamID, code)
+	}
+	return &client{h: h, steamID: steamID, token: resp.Token}
+}
+
+func (c *client) hostRegister(matchID string) (serverID, serverToken string) {
+	c.h.t.Helper()
+	var out struct {
+		ServerID    string `json:"server_id"`
+		ServerToken string `json:"server_token"`
+	}
+	code := c.h.do("POST", "/api/v1/client/host-register", c.token,
+		map[string]any{"match_id": matchID}, &out)
+	if code != http.StatusOK {
+		c.h.t.Fatalf("host-register for %d: status %d", c.steamID, code)
+	}
+	return out.ServerID, out.ServerToken
+}
+
+func (c *client) confirmResult(matchID, outcome string, red, blu uint32) map[string]any {
+	c.h.t.Helper()
+	var out map[string]any
+	code := c.h.do("POST", "/api/v1/client/confirm-result", c.token, map[string]any{
+		"match_id": matchID, "outcome": outcome, "red_score": red, "blu_score": blu,
+	}, &out)
+	if code != http.StatusOK {
+		c.h.t.Fatalf("confirm-result for %d: status %d (%v)", c.steamID, code, out)
+	}
+	return out
+}
+
+// agentFromToken wraps an already-issued server id/token — what a P2P host
+// gets back from host-register — in the same fake-agent helper a dedicated
+// server test uses, since both speak the identical /api/v1/servers/* protocol
+// from here on.
+func (h *harness) agentFromToken(id, token string) *agent {
+	return &agent{h: h, id: id, token: token}
+}
+
+func (a *agent) setAddress(addr string) {
+	a.h.t.Helper()
+	var out map[string]any
+	if code := a.h.do("POST", "/api/v1/servers/address?server_id="+a.id, a.token,
+		serverAddressRequest{ConnectAddress: addr}, &out); code != http.StatusOK {
+		a.h.t.Fatalf("server address: status %d (%v)", code, out)
+	}
 }
 
 func (h *harness) newAgent(name, connect string) *agent {
@@ -570,6 +638,198 @@ func TestRepeatedDeployKeepsYourPlaceInTheQueue(t *testing.T) {
 	}
 	if after.Position != 1 {
 		t.Fatalf("player is now position %d in a queue of one", after.Position)
+	}
+}
+
+// TestPartyDeployLandsTogether is the matchmaking gap the quickplay-vs-
+// matchmaking critique calls out by name: a per-player server search has no
+// way to reserve a slot for a friend. Here two players queue as a party three
+// slots apart — enough that plain FIFO batching would put them in different
+// 2v2 battles — and must still land in the same one.
+func TestPartyDeployLandsTogether(t *testing.T) {
+	h := newHarness(t)
+	serverA := h.newAgent("node-a", "10.0.0.5:27015")
+	serverB := h.newAgent("node-b", "10.0.0.6:27015")
+
+	sides := []string{"RED", "RED", "BLU", "BLU", "RED", "BLU", "RED", "BLU"}
+	clients := make([]*client, 8)
+	for i := 0; i < 8; i++ {
+		clients[i] = h.newClient(uint64(i+1), sides[i])
+	}
+	for i, c := range clients {
+		steamID := i + 1
+		if steamID == 3 || steamID == 6 {
+			c.deployWithParty("duo")
+		} else {
+			c.deploy()
+		}
+	}
+
+	h.maker.Tick()
+
+	rosters := [][]uint64{}
+	for _, s := range []*agent{serverA, serverB} {
+		cmd, ok := s.poll()
+		if !ok || cmd.Assignment == nil {
+			continue
+		}
+		var ids []uint64
+		for _, e := range cmd.Assignment.Roster {
+			ids = append(ids, e.SteamID)
+		}
+		rosters = append(rosters, ids)
+	}
+
+	contains := func(ids []uint64, want uint64) bool {
+		for _, id := range ids {
+			if id == want {
+				return true
+			}
+		}
+		return false
+	}
+	found := false
+	for _, roster := range rosters {
+		if contains(roster, 3) {
+			found = true
+			if !contains(roster, 6) {
+				t.Fatalf("party members 3 and 6 were split across battles: this roster is %v", roster)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("player 3 was not assigned to any battle; rosters formed: %v", rosters)
+	}
+}
+
+// TestP2PHostElectedAndCorroborated is the whole point of this rework, end to
+// end over HTTP with no dedicated server in the pool at all: a roster forms,
+// nothing is free to host it, the coordinator elects a capable player instead,
+// that player's own machine joins the pool for exactly this battle, and its
+// reported result only counts once enough of the rest of the roster agrees —
+// the corroboration an untrusted, player-run host needs that a dedicated
+// server's word does not.
+func TestP2PHostElectedAndCorroborated(t *testing.T) {
+	h := newHarness(t)
+
+	host := h.newHostCapableClient(1, "RED")
+	others := []*client{
+		h.newClient(2, "RED"), h.newClient(3, "BLU"), h.newClient(4, "BLU"),
+	}
+	allClients := append([]*client{host}, others...)
+	for _, c := range allClients {
+		c.deploy()
+	}
+
+	h.maker.Tick()
+
+	// Every player, including the elected host, was pulled out of the queue
+	// the moment the offer was made — nobody is left double-queued while an
+	// offer is pending.
+	var offer mm.Event
+	found := false
+	for _, ev := range host.poll() {
+		if ev.Type == mm.EventHostOffer {
+			offer, found = ev, true
+		}
+	}
+	if !found || offer.Host == nil {
+		t.Fatal("the capable player was never offered host")
+	}
+	matchID := offer.Host.MatchID
+	if offer.Host.Map == "" {
+		t.Fatal("the host offer carried no map to load")
+	}
+
+	serverID, serverToken := host.hostRegister(matchID)
+	if serverID == "" || serverToken == "" {
+		t.Fatal("host-register returned no server identity")
+	}
+	selfAgent := h.agentFromToken(serverID, serverToken)
+
+	cmd, ok := selfAgent.poll()
+	if !ok || cmd.Type != pool.CommandAssign || cmd.Assignment == nil {
+		t.Fatalf("the elected host's own machine never received the assignment: %+v", cmd)
+	}
+	if cmd.Assignment.MatchID != matchID {
+		t.Fatalf("assignment is for match %q, want %q", cmd.Assignment.MatchID, matchID)
+	}
+
+	// Reporting ready before an address exists must not silently send anyone
+	// to nowhere — this is exactly the historical "connection never happens"
+	// failure mode, refused loudly instead of reproduced.
+	var errOut map[string]any
+	if code := h.do("POST", "/api/v1/servers/state?server_id="+serverID, serverToken,
+		serverStateRequest{MatchID: matchID, State: "ready"}, &errOut); code == http.StatusOK {
+		t.Fatal("the server was allowed to report ready with no connect address")
+	}
+
+	const fakeIP = "169.254.10.7:27015"
+	selfAgent.setAddress(fakeIP)
+	selfAgent.state(matchID, "ready")
+
+	for _, c := range others {
+		ev := c.waitFor(mm.EventMatchReady)
+		if ev.Match == nil || ev.Match.Connect != fakeIP {
+			t.Fatalf("client %d was not sent the host's published address: %+v", c.steamID, ev.Match)
+		}
+		if ev.Match.IsHost {
+			t.Fatalf("client %d was told it is the host, but only steam id 1 is", c.steamID)
+		}
+	}
+	hostEv := host.waitFor(mm.EventMatchReady)
+	if hostEv.Match == nil || !hostEv.Match.IsHost {
+		t.Fatalf("the elected host was not told it is the host: %+v", hostEv.Match)
+	}
+
+	selfAgent.state(matchID, "live")
+
+	// The host reports a result. Because this server is untrusted, it must not
+	// move the war on its own.
+	out := selfAgent.result(matchID, "RED_WIN", 3, 1)
+	if out["war_update"] != nil {
+		t.Fatalf("an uncorroborated P2P host's result moved the war: %v", out)
+	}
+	match, ok := h.maker.Match(matchID)
+	if !ok {
+		t.Fatal("the match vanished after an uncorroborated result")
+	}
+	if match.PendingResult == nil {
+		t.Fatal("the result was not held for corroboration")
+	}
+	if match.State == mm.MatchFinished {
+		t.Fatal("the match finished on an uncorroborated report")
+	}
+
+	// The host cannot corroborate its own report.
+	var hostVoteOut map[string]any
+	if code := h.do("POST", "/api/v1/client/confirm-result", host.token,
+		map[string]any{"match_id": matchID, "outcome": "RED_WIN", "red_score": 3, "blu_score": 1},
+		&hostVoteOut); code == http.StatusOK {
+		t.Fatal("the elected host was allowed to corroborate its own result")
+	}
+
+	// One vote is not, by default, a quorum of three non-host roster members
+	// (ceil(0.5*3) = 2).
+	firstVote := others[0].confirmResult(matchID, "RED_WIN", 3, 1)
+	if firstVote["war_update"] != nil {
+		t.Fatalf("a single corroboration was enough to move the war: %v", firstVote)
+	}
+
+	secondVote := others[1].confirmResult(matchID, "RED_WIN", 3, 1)
+	if secondVote["war_update"] == nil {
+		t.Fatalf("two of three non-host roster members agreeing was not enough: %v", secondVote)
+	}
+
+	match, _ = h.maker.Match(matchID)
+	if match.State != mm.MatchFinished {
+		t.Fatalf("match state = %s, want finished", match.State)
+	}
+	for _, c := range allClients {
+		ev := c.waitFor(mm.EventMatchOver)
+		if ev.Over == nil || !ev.Over.Counted {
+			t.Fatalf("client %d was not told the corroborated battle counted: %+v", c.steamID, ev.Over)
+		}
 	}
 }
 

@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/greyline-frontress/coordinator/internal/config"
+	"github.com/greyline-frontress/coordinator/internal/hostelect"
 	"github.com/greyline-frontress/coordinator/internal/httpapi"
 	"github.com/greyline-frontress/coordinator/internal/mm"
 	"github.com/greyline-frontress/coordinator/internal/pool"
@@ -99,6 +100,7 @@ func main() {
 	}
 
 	servers := pool.New(cfg.Pool.OfflineAfter.D())
+	servers.SetP2POfflineAfter(cfg.Pool.OfflineAfterP2P.D())
 	maker := mm.New(matchmakingConfig(cfg), log, engine, servers)
 	api := httpapi.New(log, auth, engine, maker, servers, httpapi.Options{
 		PoolKey:         cfg.Pool.Key,
@@ -164,6 +166,32 @@ func matchmakingConfig(cfg *config.Config) mm.Config {
 	}
 	if cfg.Timing.HeartbeatInterval > 0 {
 		c.HeartbeatInterval = cfg.Timing.HeartbeatInterval.D()
+	}
+	if cfg.Match.WidenAfter > 0 {
+		c.WidenAfter = cfg.Match.WidenAfter.D()
+	}
+	if cfg.Match.WidenStepBonus > 0 {
+		c.WidenStepBonus = cfg.Match.WidenStepBonus
+	}
+	if cfg.Match.WidenMaxSteps > 0 {
+		c.WidenMaxSteps = cfg.Match.WidenMaxSteps
+	}
+	if cfg.Match.ResultQuorum > 0 {
+		c.ResultQuorum = cfg.Match.ResultQuorum
+	}
+	if cfg.Timing.HostAcceptDeadline > 0 {
+		c.HostAcceptDeadline = cfg.Timing.HostAcceptDeadline.D()
+	}
+	c.HostElection = hostelect.Weights{
+		Upload: cfg.Election.WeightUpload, Latency: cfg.Election.WeightLatency,
+		CPU: cfg.Election.WeightCPU, Stability: cfg.Election.WeightStability,
+		DedicatedBonus: cfg.Election.DedicatedBonus, PublicIPBonus: cfg.Election.PublicIPBonus,
+		AbandonPenalty: cfg.Election.AbandonPenalty,
+	}
+	c.HostRequirements = hostelect.Requirements{
+		MinUploadKbps: cfg.Election.MinUploadKbps, MinCPUScore: cfg.Election.MinCPUScore,
+		MinMemoryMB: cfg.Election.MinMemoryMB, MaxAcceptableRTT: cfg.Election.MaxAcceptableRTT,
+		RequireCanHost: cfg.Election.RequireCanHostBit,
 	}
 	return c
 }

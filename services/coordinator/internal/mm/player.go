@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/greyline-frontress/coordinator/internal/hostelect"
 	"github.com/greyline-frontress/coordinator/internal/war"
 )
 
@@ -42,6 +43,16 @@ type Player struct {
 	QueuedAt time.Time
 	LastSeen time.Time
 	Region   string
+	// PartyID groups players who want to land in the same battle together. It
+	// is client-chosen (shared out of game by whoever is partying up) and only
+	// ever compared for equality — the coordinator never allocates or tracks
+	// party membership beyond "these queued players share a string".
+	PartyID string
+
+	// HostCaps is what this client reported about its ability to run a battle
+	// itself, from hello. Only meaningful when electing a P2P host from a
+	// formed roster; a dedicated-server battle never looks at it.
+	HostCaps hostelect.Capabilities
 	// AcceptContract means the player is willing to fight one battle for the
 	// other side. Everyone here is a mercenary, so this is a preference, not a
 	// betrayal — and it is what keeps a lopsided population playable.
@@ -71,6 +82,7 @@ type PlayerView struct {
 	AcceptContract bool        `json:"accept_contract"`
 	Battles        int         `json:"battles"`
 	Contracts      int         `json:"contracts"`
+	PartyID        string      `json:"party_id,omitempty"`
 }
 
 // maxBuffered is how many undelivered events a client may fall behind by. A
@@ -142,7 +154,7 @@ func (p *Player) Public() PlayerView {
 		SteamID: p.SteamID, Name: p.Name, Side: p.Side, State: p.State,
 		FrontID: p.FrontID, MatchID: p.MatchID, QueuedAt: p.QueuedAt,
 		LastSeen: p.LastSeen, Region: p.Region, AcceptContract: p.AcceptContract,
-		Battles: p.Battles, Contracts: p.Contracts,
+		Battles: p.Battles, Contracts: p.Contracts, PartyID: p.PartyID,
 	}
 }
 
@@ -162,6 +174,11 @@ const (
 	EventWorld EventType = "world"
 	// EventContract offers a battle for the side that is short of mercenaries.
 	EventContract EventType = "contract_offer"
+	// EventHostOffer asks a client to run the battle itself, because nothing
+	// dedicated was free. Accepting means calling client/host-register within
+	// AcceptDeadlineS; doing nothing lets the coordinator fall back to waiting
+	// for a server the ordinary way.
+	EventHostOffer EventType = "host_offer"
 	// EventNotice is a plain message.
 	EventNotice EventType = "notice"
 )
@@ -177,6 +194,7 @@ type Event struct {
 	Over     *MatchOver     `json:"over,omitempty"`
 	World    *WorldNotice   `json:"world,omitempty"`
 	Contract *ContractOffer `json:"contract,omitempty"`
+	Host     *HostOffer     `json:"host,omitempty"`
 	Message  string         `json:"message,omitempty"`
 }
 
@@ -210,6 +228,17 @@ type MatchInfo struct {
 	Side     war.Side `json:"side"`
 	Team     war.Side `json:"team"`
 	Contract bool     `json:"contract"`
+	// IsHost means this client's own machine is running the battle — see the
+	// coordinator README's "when nothing dedicated is free" section. A host
+	// must call servers/result once the battle ends; everyone else on the
+	// roster only ever calls client/confirm-result.
+	IsHost bool `json:"is_host,omitempty"`
+	// IsP2P means *some* roster member is running this battle on their own
+	// machine — true for every slot in a P2P match, not just the host's own.
+	// A client uses this to know whether it is worth watching for a result to
+	// corroborate at all: a dedicated server's battle never needs a client-side
+	// vote, since the dedicated agent reports the result on its own.
+	IsP2P bool `json:"is_p2p,omitempty"`
 
 	FrontID    string        `json:"front_id"`
 	FrontName  string        `json:"front_name"`
@@ -253,6 +282,20 @@ type ContractOffer struct {
 	FrontID  string   `json:"front_id"`
 	Message  string   `json:"message"`
 	ExpiresS int      `json:"expires_s"`
+}
+
+// HostOffer asks a client to run this battle on its own machine, because
+// nothing dedicated was free. The map and briefing are already decided —
+// the only thing missing is where the battle physically runs — so a client
+// that accepts can start loading the map the moment it gets back a server
+// token from client/host-register.
+type HostOffer struct {
+	MatchID         string `json:"match_id"`
+	Map             string `json:"map"`
+	Mode            string `json:"mode"`
+	MaxPlayers      int    `json:"max_players"`
+	FrontName       string `json:"front_name"`
+	AcceptDeadlineS int    `json:"accept_deadline_s"`
 }
 
 func randHex(n int) string {
