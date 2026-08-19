@@ -324,6 +324,9 @@ BLU-coloured RED team and confirming the post-match headline says RED.
 | Players queue forever, coordinator logs `formations_without_a_server` | every server is busy or offline; `offline_after` may have retired one |
 | Agent: `could not reach the game server over RCON` | `rcon_password`, and srcds bound where you think it is |
 | Agent joins but a battle never goes `ready` | the log stream is not arriving: check `-log-advertise` is an address srcds can reach, and `rcon logaddress_list` |
+| P2P battle aborts ~20s in with `the battle server stopped responding` | the host was still loading the map. The heartbeats come from the menu page, inside the game process that is busy loading, so it goes quiet for the whole load — `timing.host_boot_deadline` is what bounds that phase, and the pool gives a booting server that long plus a minute before it calls it gone |
+| The same player is offered host over and over, everyone else gets `409 already in a battle` | that client is not answering the offer (still loading, or its menu bridge is down). A failed host now sits out `timing.host_failure_cooldown`, and pressing DEPLOY while stuck in a battle that never started leaves it |
+| A live battle shows more players than are actually in it | `players` on the war map is what the server last reported, `roster_size` is how many were sent. People still loading in are the difference |
 | Battle runs forever, no result | the mode's win conditions did not end it; check `mp_winlimit` / `mp_maxrounds` after the changelevel |
 | Result reported but the war does not move | coordinator logs `battle did not advance the war` with a reason — usually a front that was already decided |
 | Briefing shows raw `#Greyline_...` tokens | `resource/greyline_%language%.txt` is not being loaded on the client |

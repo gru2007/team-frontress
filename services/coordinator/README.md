@@ -134,11 +134,41 @@ Two differences from a dedicated server, both about trust:
   one — because nothing stops an elected host from reporting a win for
   themselves the way a dedicated server's operator has no reason to.
 
+Two things keep an elected host that cannot deliver from taking the front
+with it. A host that is still loading its map is not judged by the heartbeat
+rule at all — the heartbeats come from the game's own menu page, inside the
+process that is busy loading the level, so silence during boot says nothing
+about whether the host is alive; `timing.host_boot_deadline` bounds that phase
+instead. And a host that fails — an offer it never answered, a server that
+never came up — sits out `timing.host_failure_cooldown` before it can be
+elected again, because election otherwise picks the same unreachable machine
+on the very next tick and the front does nothing but form and abort the same
+battle while everyone else on it waits.
+
 A dedicated server is always preferred over an idle player-hosted one when
 both are free (`pool.Reserve`), so a P2P host is the fallback a small,
 money-constrained test population needs, not the default — see
 [`internal/legacy/README.md`](internal/legacy/README.md) for why the earlier,
 fully P2P prototype was retired and what this design keeps from it.
+
+### A battle is not sealed when it forms
+
+A formed roster is a starting roster. Every scheduling pass, before it forms
+anything new, the coordinator puts queued players into battles already running
+on their front, up to what the battlefield itself holds — and tells the server
+who is arriving over the same command channel the assignment came on
+(`roster`), so it can seat them on the side the war put them on. Latecomers
+only ever fill towards balance, and only cross to the other side under a
+contract they already agreed to, so a battle can never grow more lopsided than
+it already was.
+
+This is why an assignment's `max_players` is the battlefield's capacity rather
+than the size of the roster that opened it: a server told to hold exactly the
+four people who formed the battle has nowhere to put the fifth.
+
+On the war map, a live battle's `players` is what the server last reported and
+`roster_size` is how many the coordinator sent. They are different numbers,
+and while people are still loading in the difference is the interesting part.
 
 ### War map — public, no session needed
 

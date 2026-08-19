@@ -68,6 +68,13 @@ type Config struct {
 	// client/host-register before the coordinator gives up on the offer and
 	// puts the roster back in the queue.
 	HostAcceptDeadline time.Duration
+	// HostFailureCooldown is how long a player whose hosting attempt failed —
+	// an offer they never answered, or a server of theirs that never came up
+	// — is kept out of elections. Without it the same unreachable client wins
+	// the election again on the very next tick, and the front spends forever
+	// forming and aborting the same battle while everybody else sits at
+	// "already in a battle" and cannot even re-queue.
+	HostFailureCooldown time.Duration
 	// ResultQuorum is the fraction of non-host roster members who must
 	// corroborate a P2P host's reported result before it counts towards the
 	// war. A dedicated server's result is never held for a vote.
@@ -98,8 +105,9 @@ func DefaultConfig() Config {
 			MinUploadKbps: 1500, MinCPUScore: 40, MinMemoryMB: 2048,
 			MaxAcceptableRTT: 180, RequireCanHost: true,
 		},
-		HostAcceptDeadline: 10 * time.Second,
-		ResultQuorum:       0.5,
+		HostAcceptDeadline:  20 * time.Second,
+		HostFailureCooldown: 2 * time.Minute,
+		ResultQuorum:        0.5,
 	}
 }
 
@@ -138,6 +146,11 @@ type Matchmaker struct {
 	// make repeated elections in one session smarter, not to be a persistent
 	// reputation system.
 	hostHistory map[uint64]*hostelect.History
+	// hostCooldown keeps a player who just failed to host out of the next few
+	// elections. Same lifetime and same reasoning as hostHistory: in memory,
+	// for this session, to stop one unreachable client from monopolising a
+	// front.
+	hostCooldown map[uint64]time.Time
 
 	lastRevision uint64
 	stats        Stats
@@ -165,6 +178,7 @@ func New(cfg Config, log *slog.Logger, engine *war.Engine, servers *pool.Pool) *
 		// CPU and hosting history.
 		hostElector:  hostelect.New(cfg.HostElection, cfg.HostRequirements, nil),
 		hostHistory:  make(map[uint64]*hostelect.History),
+		hostCooldown: make(map[uint64]time.Time),
 		players:      make(map[uint64]*Player),
 		byToken:      make(map[string]*Player),
 		matches:      make(map[string]*Match),
@@ -295,7 +309,22 @@ func (m *Matchmaker) Deploy(p *Player, frontID string, acceptContract bool, part
 	now := m.now()
 
 	if p.State == StateAssigned || p.State == StatePlaying {
-		return QueueStatus{}, fmt.Errorf("mm: already in a battle")
+		// A battle nobody has been sent to yet is not somewhere to be stuck.
+		// Between forming and going ready a client can be holding a slot in a
+		// battle that is waiting on a host who is not answering, and the only
+		// thing it can do about it is press DEPLOY — which used to come back
+		// "already in a battle" for as long as the front kept re-forming
+		// around it. Pressing DEPLOY there means "get me out of this and find
+		// me another one", so that is what it does.
+		match := m.matches[p.MatchID]
+		switch {
+		case match == nil || match.over():
+			p.MatchID = ""
+		case match.live():
+			return QueueStatus{}, fmt.Errorf("mm: you are already in a battle — leave it first")
+		default:
+			m.dropFromPendingMatchLocked(p, match)
+		}
 	}
 	if p.Side == war.SideNone {
 		p.Side = m.lightestSide()
@@ -465,9 +494,120 @@ func (m *Matchmaker) queueStatusLocked(p *Player) QueueStatus {
 // Called with the lock held.
 func (m *Matchmaker) tryForm() {
 	for _, f := range m.war.ActiveFronts() {
+		// A battle that is already being played and has room takes people
+		// before a new one is formed. Two 1v1s on the same front while four
+		// people are online is the wrong answer; so is making somebody who
+		// deployed thirty seconds late wait out a battle they could be in.
+		m.topUpLocked(f)
 		for m.formOne(f) {
 		}
 	}
+}
+
+// topUpLocked puts queued players into battles already running on this front.
+//
+// A formed roster is not a sealed one. The MVP's population is small enough
+// that the difference between "you are in the fight that is happening" and
+// "you are the second half of a fight that will form in four minutes" decides
+// whether an evening of testing works at all — and a battlefield that holds
+// twelve has no reason to run 2v2 while four more people wait beside it.
+//
+// Latecomers only ever fill towards balance, and only take the other side
+// under a contract they already agreed to, so growing a battle can never make
+// it more lopsided than it already was. Called with the lock held.
+func (m *Matchmaker) topUpLocked(f war.Front) {
+	for _, match := range m.matches {
+		if match.FrontID != f.ID || !match.live() {
+			continue
+		}
+		// Sending somebody to a battle with no address is sending them
+		// nowhere, silently — the one failure this whole design exists to not
+		// reproduce. It cannot normally happen past ready; refuse it anyway.
+		if match.Connect == "" {
+			continue
+		}
+		room := m.capacityOf(match) - len(match.Slots)
+		if room <= 0 {
+			continue
+		}
+		var added []pool.RosterEntry
+		for _, p := range m.queuedOn(f.ID) {
+			if room == 0 {
+				break
+			}
+			slot, ok := m.joinRunningLocked(match, p)
+			if !ok {
+				continue
+			}
+			room--
+			added = append(added, pool.RosterEntry{
+				SteamID: slot.SteamID, Name: slot.Name,
+				Side: slot.Side.String(), Team: slot.Team.String(),
+				Contract: slot.Contract,
+			})
+		}
+		if len(added) == 0 {
+			continue
+		}
+		// The server has to know who is coming before they arrive: it decides
+		// their team from the roster, and a player it has never heard of is
+		// one the war has no place for.
+		if match.ServerID != "" {
+			if err := m.pool.Send(match.ServerID, pool.Command{
+				Type: pool.CommandRoster, MatchID: match.ID, Roster: added,
+			}); err != nil {
+				m.log.Warn("could not send a roster update to a running battle",
+					"match", match.ID, "server", match.ServerID, "err", err)
+			}
+		}
+		m.log.Info("players joined a running battle", "match", match.ID,
+			"front", f.ID, "joined", len(added), "roster", len(match.Slots))
+	}
+}
+
+// joinRunningLocked seats one queued player in a battle that is already being
+// played, or reports that there is no place for them in it. Called with the
+// lock held.
+func (m *Matchmaker) joinRunningLocked(match *Match, p *Player) (*Slot, bool) {
+	if match.slot(p.SteamID) != nil {
+		return nil, false
+	}
+	red, blu := match.sideCounts()
+
+	// Fill the thinner side. A player only crosses to the other one under a
+	// contract, which is a thing they opted into — never a surprise.
+	side := p.Side
+	switch {
+	case red < blu:
+		side = war.SideRed
+	case blu < red:
+		side = war.SideBlu
+	}
+	contract := side != p.Side
+	if contract && !p.AcceptContract {
+		return nil, false
+	}
+
+	slot := &Slot{
+		SteamID: p.SteamID, Name: p.Name,
+		Side: side, Team: match.Plan.GameTeam(side), Contract: contract,
+	}
+	match.Slots = append(match.Slots, slot)
+
+	p.State = StateAssigned
+	p.MatchID = match.ID
+	p.FrontID = match.FrontID
+	if contract {
+		p.Contracts++
+		m.stats.Contracts++
+	}
+
+	red, blu = match.sideCounts()
+	info := m.matchInfo(match, slot)
+	info.RedPlayers, info.BluPlayers = red, blu
+	info.DeadlineS = int(m.cfg.JoinDeadline.Seconds())
+	p.push(Event{Type: EventMatchReady, Match: &info})
+	return slot, true
 }
 
 func (m *Matchmaker) formOne(f war.Front) bool {
@@ -588,6 +728,31 @@ func (m *Matchmaker) formOne(f war.Front) bool {
 	return true
 }
 
+// dropFromPendingMatchLocked takes a player out of a battle that has not sent
+// anybody anywhere yet. If they were the one elected to host it, the battle
+// has lost its server before it ever had one, so it is aborted and the rest of
+// the roster goes back to the queue — which is exactly what would have
+// happened when the offer timed out, only now.
+func (m *Matchmaker) dropFromPendingMatchLocked(p *Player, match *Match) {
+	p.MatchID = ""
+	if match.HostSteamID == p.SteamID {
+		m.abort(match, "the elected host withdrew before the battle started")
+		return
+	}
+	slots := match.Slots[:0]
+	for _, s := range match.Slots {
+		if s.SteamID != p.SteamID {
+			slots = append(slots, s)
+		}
+	}
+	match.Slots = slots
+	// A roster that has dropped below a battle's floor is not a battle. Let it
+	// go now rather than let it sit until its own deadline runs out.
+	if len(match.Slots) < 2*m.cfg.MinTeamSize {
+		m.abort(match, "the roster fell apart before the battle started")
+	}
+}
+
 // claimSlotsLocked marks every player in a formed match as assigned and out
 // of the queue. Called with the lock held, for both the dedicated-server and
 // the elected-host paths through formOne.
@@ -613,16 +778,21 @@ func (m *Matchmaker) electHostLocked(picked []*Player) (uint64, bool) {
 	if m.hostElector == nil || len(picked) == 0 {
 		return 0, false
 	}
+	now := m.now()
 	candidates := make([]hostelect.Candidate, 0, len(picked))
 	for _, p := range picked {
-		candidates = append(candidates, hostelect.Candidate{
+		c := hostelect.Candidate{
 			SteamID: p.SteamID,
 			Caps:    p.HostCaps,
 			Hist:    m.hostHistoryLocked(p.SteamID),
 			// Everyone in picked is a currently-queued, currently-polling
 			// client — that is exactly what queuedOn already filtered for.
 			Online: true,
-		})
+		}
+		if until, ok := m.hostCooldown[p.SteamID]; ok && now.Before(until) {
+			c.ExcludeReason = "a recent hosting attempt by this machine failed"
+		}
+		candidates = append(candidates, c)
 	}
 	best, _, ok := m.hostElector.Elect(candidates)
 	if !ok {
@@ -788,6 +958,19 @@ func withParties(queued []*Player) []*Player {
 	return out
 }
 
+// capacityOf is how many players a battle can hold: what the battlefield
+// itself allows, never less than the roster already on it.
+func (m *Matchmaker) capacityOf(match *Match) int {
+	capacity := match.Plan.MaxPlayers
+	if capacity <= 0 {
+		capacity = 2 * m.cfg.TeamSizes[len(m.cfg.TeamSizes)-1]
+	}
+	if capacity < len(match.Slots) {
+		capacity = len(match.Slots)
+	}
+	return capacity
+}
+
 func (m *Matchmaker) assignmentFor(match *Match) *pool.Assignment {
 	plan := match.Plan
 	roster := make([]pool.RosterEntry, 0, len(match.Slots))
@@ -806,11 +989,15 @@ func (m *Matchmaker) assignmentFor(match *Match) *pool.Assignment {
 		mob = s.String()
 	}
 	return &pool.Assignment{
-		MatchID:    match.ID,
-		Map:        plan.Map,
-		Mode:       plan.Mode,
-		Password:   match.Password,
-		MaxPlayers: len(match.Slots),
+		MatchID:  match.ID,
+		Map:      plan.Map,
+		Mode:     plan.Mode,
+		Password: match.Password,
+		// The battlefield's capacity, not the size of the roster that opened
+		// it: a server told to hold exactly the four people who formed the
+		// battle has no room for the fifth who deploys a minute later, and
+		// keeping that room is the whole point of letting a battle grow.
+		MaxPlayers: m.capacityOf(match),
 		Roster:     roster,
 		Briefing: pool.Briefing{
 			FrontID:    plan.FrontID,
@@ -1160,12 +1347,23 @@ func (m *Matchmaker) abort(match *Match, reason string) {
 	// player cannot forge — see hostelect. Booting is "never got up",
 	// anything past that is "went away mid-battle": both matter, but
 	// differently, so hostelect scores them differently too.
+	//
+	// A failed host also goes on cooldown. History alone is not enough to
+	// break the loop: it is one term among several, so a client that is the
+	// only capable machine on the front still wins the very next election, and
+	// the front does nothing but form and abort the same battle from then on.
+	hostFailed := false
 	if match.HostSteamID != 0 {
 		switch match.State {
 		case MatchReady, MatchLive:
 			m.recordHostOutcomeLocked(match.HostSteamID, false, false, true)
+			hostFailed = true
 		case MatchAwaitingHost, MatchBooting:
 			m.recordHostOutcomeLocked(match.HostSteamID, false, true, false)
+			hostFailed = true
+		}
+		if hostFailed && m.cfg.HostFailureCooldown > 0 {
+			m.hostCooldown[match.HostSteamID] = m.now().Add(m.cfg.HostFailureCooldown)
 		}
 	}
 	match.setState(MatchAborted, m.now())
@@ -1184,6 +1382,23 @@ func (m *Matchmaker) abort(match *Match, reason string) {
 			continue
 		}
 		p.MatchID = ""
+
+		// The host of a battle that never got up does not go back in the
+		// queue. Their client just demonstrated that it is not answering —
+		// still loading, minimised, gone — and re-queueing it only feeds it
+		// straight back into the next formation on this front, where it holds
+		// a slot the people who *are* answering then wait behind. Idle is the
+		// honest state: pressing DEPLOY again is one click, and by then their
+		// game is actually there to press it.
+		if hostFailed && s.SteamID == match.HostSteamID {
+			p.State = StateIdle
+			p.FrontID = ""
+			status := QueueStatus{Queued: false, Side: p.Side,
+				Message: "your machine did not get the battle up — DEPLOY again when the game is ready"}
+			p.push(Event{Type: EventQueue, Queue: &status})
+			continue
+		}
+
 		p.State = StateQueued
 		p.QueuedAt = m.now()
 		p.FrontID = match.FrontID
@@ -1408,11 +1623,24 @@ func (m *Matchmaker) LiveBattles() []LiveBattle {
 		if match.over() {
 			continue
 		}
+		// Players is who is actually on the server, as the server itself
+		// last reported — not the size of the roster. They are not the same
+		// number and the difference is the whole story on the war map: a
+		// battle showing "2 players" that only one person has managed to
+		// reach is a battle somebody is waiting alone in, and saying so is
+		// what lets them tell that apart from a battle in progress.
+		players := 0
+		if match.ServerID != "" {
+			if srv, ok := m.pool.Get(match.ServerID); ok {
+				players = srv.Players
+			}
+		}
 		out = append(out, LiveBattle{
 			MatchID: match.ID, FrontID: match.FrontID, FrontName: match.Plan.FrontName,
 			NodeID: match.Plan.TargetNode, Map: match.Plan.Map, Mode: match.Plan.Mode,
 			StageKind: match.Plan.StageKind, Stage: match.Plan.Stage + 1,
-			State: match.State, Players: len(match.Slots),
+			State: match.State, Players: players,
+			RosterSize: len(match.Slots), Capacity: m.capacityOf(match),
 			RedScore: match.RedScore, BluScore: match.BluScore,
 			StartedAt: match.CreatedAt,
 		})

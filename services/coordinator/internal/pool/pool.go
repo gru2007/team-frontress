@@ -122,6 +122,11 @@ const (
 	CommandAssign CommandType = "assign"
 	// CommandAbort tells it to stop hosting the named battle.
 	CommandAbort CommandType = "abort"
+	// CommandRoster adds players to a battle that is already running. A battle
+	// is not sealed at the moment it forms: people who deploy while it is
+	// being played join it rather than wait for the next one, and the server
+	// has to be told who they are before they arrive.
+	CommandRoster CommandType = "roster"
 	// CommandIdle sends it back to its idle map.
 	CommandIdle CommandType = "idle"
 	// CommandShutdown asks the agent to leave the pool.
@@ -135,6 +140,11 @@ type Command struct {
 	MatchID    string      `json:"match_id,omitempty"`
 	Reason     string      `json:"reason,omitempty"`
 	Assignment *Assignment `json:"assignment,omitempty"`
+	// Roster carries the players CommandRoster is adding, and is empty for
+	// every other command type. It is only ever the new arrivals, never the
+	// whole roster: adding somebody who is already on it is harmless, but
+	// re-sending everybody on every join is noise the server has to re-apply.
+	Roster []RosterEntry `json:"roster,omitempty"`
 }
 
 // Assignment is the whole contract for one battle, in the form the agent needs
@@ -225,6 +235,9 @@ type Pool struct {
 	// recoverable, than a VPS hiccup, and a stuck P2P "battle" wastes the whole
 	// roster's time.
 	offlineAfterP2P time.Duration
+	// bootGrace replaces both of the above while a server is still getting its
+	// map up. See silenceBudgetFor.
+	bootGrace time.Duration
 }
 
 // New builds an empty pool.
@@ -250,11 +263,45 @@ func (p *Pool) SetP2POfflineAfter(d time.Duration) {
 	p.offlineAfterP2P = d
 }
 
+// SetBootGrace overrides how long a server that has been handed a battle but
+// has not reported it live yet may stay silent. Call it before the pool is
+// serving traffic.
+func (p *Pool) SetBootGrace(d time.Duration) {
+	if d <= 0 {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.bootGrace = d
+}
+
 func (p *Pool) offlineAfterFor(k Kind) time.Duration {
 	if k == KindP2P {
 		return p.offlineAfterP2P
 	}
 	return p.offlineAfter
+}
+
+// silenceBudgetFor is how long this particular server may go without a
+// heartbeat before it is presumed gone.
+//
+// A server that has been handed a battle and has not reported it live yet is
+// loading a map, and a player-hosted one cannot heartbeat at all while it
+// does: the heartbeats come from the menu page, which lives inside the very
+// game process that is busy loading the level. Silence during boot therefore
+// carries no information about whether the host is alive, and judging it by
+// the same rule as a running server kills exactly the hosts whose machines
+// are slowest — the ones the whole election just decided were worth waiting
+// for. That phase is bounded by the battle's own boot deadline instead, which
+// is what bootGrace is set from.
+func (p *Pool) silenceBudgetFor(s *Server) time.Duration {
+	base := p.offlineAfterFor(s.Kind)
+	if s.Status == StatusReserved || s.Status == StatusBooting {
+		if p.bootGrace > base {
+			return p.bootGrace
+		}
+	}
+	return base
 }
 
 // Register admits a dedicated server, or re-admits one that restarted. It
@@ -564,7 +611,7 @@ func (p *Pool) ExpireSilent(now time.Time) []string {
 	defer p.mu.Unlock()
 	var lost []string
 	for _, s := range p.servers {
-		if s.Status == StatusOffline || now.Sub(s.LastSeen) <= p.offlineAfterFor(s.Kind) {
+		if s.Status == StatusOffline || now.Sub(s.LastSeen) <= p.silenceBudgetFor(s) {
 			continue
 		}
 		s.Status = StatusOffline

@@ -148,6 +148,12 @@ type TimingConfig struct {
 	// client/host-register before the coordinator gives up on the offer and
 	// puts the roster back in the queue.
 	HostAcceptDeadline Duration `json:"host_accept_deadline"`
+	// HostFailureCooldown is how long a player whose hosting attempt failed is
+	// kept out of elections. Without it, one client that cannot host — a game
+	// still loading, a machine that went away — wins the election again on
+	// every tick, and its front does nothing but form and abort the same
+	// battle while everyone else on it waits.
+	HostFailureCooldown Duration `json:"host_failure_cooldown"`
 }
 
 type MatchConfig struct {
@@ -282,7 +288,8 @@ func Default() *Config {
 			MigrationHold:         Duration(105 * time.Second),
 			ReconnectGrace:        Duration(120 * time.Second),
 			TickInterval:          Duration(time.Second),
-			HostAcceptDeadline:    Duration(10 * time.Second),
+			HostAcceptDeadline:    Duration(20 * time.Second),
+			HostFailureCooldown:   Duration(2 * time.Minute),
 		},
 		Match: MatchConfig{
 			TeamSizes:             []int{2, 3, 4, 6},

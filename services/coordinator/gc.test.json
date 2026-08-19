@@ -8,6 +8,8 @@
     "key": "testbed-pool-key-change-me",
     "admin_key": "",
     "offline_after": "30s",
+    "_comment_offline_after_p2p": "A player-hosted server heartbeats from the menu page, which is inside the game process: it stops sending entirely while the engine loads a level, so this has to survive a changelevel, not just a network hiccup.",
+    "offline_after_p2p": "45s",
     "poll_wait": "20s"
   },
   "war": {
@@ -23,10 +25,13 @@
   "protocol_version": 2,
   "timing": {
     "heartbeat_interval": "5s",
-    "session_timeout": "30s",
-    "host_boot_deadline": "1m0s",
-    "client_connect_deadline": "1m0s",
-    "migration_hold": "1m0s",
+    "_comment_session_timeout": "Long enough to cover a map load: a client in the middle of one is not polling, and dropping it there would take it out of the battle it is loading into.",
+    "session_timeout": "1m30s",
+    "host_boot_deadline": "2m0s",
+    "host_accept_deadline": "30s",
+    "host_failure_cooldown": "2m0s",
+    "client_connect_deadline": "2m0s",
+    "migration_hold": "2m0s",
     "tick_interval": "1s"
   },
   "match": {

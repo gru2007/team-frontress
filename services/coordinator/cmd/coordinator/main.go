@@ -101,6 +101,12 @@ func main() {
 
 	servers := pool.New(cfg.Pool.OfflineAfter.D())
 	servers.SetP2POfflineAfter(cfg.Pool.OfflineAfterP2P.D())
+	// A server still loading its map is judged by the battle's own boot
+	// deadline, not by the heartbeat rule — see pool.silenceBudgetFor. The
+	// extra minute of slack is so the matchmaker's BootDeadline is what ends a
+	// boot that really has stalled, with the reason that actually explains it,
+	// rather than the pool declaring the host gone a moment earlier.
+	servers.SetBootGrace(cfg.Timing.HostBootDeadline.D() + time.Minute)
 	maker := mm.New(matchmakingConfig(cfg), log, engine, servers)
 	api := httpapi.New(log, auth, engine, maker, servers, httpapi.Options{
 		PoolKey:         cfg.Pool.Key,
@@ -181,6 +187,9 @@ func matchmakingConfig(cfg *config.Config) mm.Config {
 	}
 	if cfg.Timing.HostAcceptDeadline > 0 {
 		c.HostAcceptDeadline = cfg.Timing.HostAcceptDeadline.D()
+	}
+	if cfg.Timing.HostFailureCooldown > 0 {
+		c.HostFailureCooldown = cfg.Timing.HostFailureCooldown.D()
 	}
 	c.HostElection = hostelect.Weights{
 		Upload: cfg.Election.WeightUpload, Latency: cfg.Election.WeightLatency,

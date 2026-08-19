@@ -36,6 +36,26 @@
 // method lambdas below, which take no captures, can read it.
 static int g_nGreylineGameOverSeq = 0;
 
+// CountConnectedPlayers is how many people are actually on this server right
+// now. When this client is hosting a battle it is the number the coordinator
+// puts on the war map, and it is the only one worth putting there: the roster
+// says how many were sent, which is a different — and, while people are still
+// loading in, a misleading — number.
+static int CountConnectedPlayers()
+{
+	int nPlayers = 0;
+	const int nMaxClients = engine->GetMaxClients();
+	for ( int i = 1; i <= nMaxClients; ++i )
+	{
+		player_info_t info;
+		if ( engine->GetPlayerInfo( i, &info ) && !info.fakeplayer )
+		{
+			++nPlayers;
+		}
+	}
+	return nPlayers;
+}
+
 //-----------------------------------------------------------------------------
 // Purpose: counts game endings for the page and hangs the war map's two
 // engine queries off the web RPC once that system exists.
@@ -70,9 +90,10 @@ public:
 		{
 			const bool bInGame = engine->IsInGame();
 			const char *pszLevel = bInGame ? engine->GetLevelName() : NULL;
-			CFmtStr1024 strJSON( "{\"in_game\":%s,\"level\":\"%s\",\"game_over_seq\":%d}",
+			CFmtStr1024 strJSON( "{\"in_game\":%s,\"level\":\"%s\",\"players\":%d,\"game_over_seq\":%d}",
 				bInGame ? "true" : "false",
 				pszLevel ? pszLevel : "",
+				bInGame ? CountConnectedPlayers() : 0,
 				g_nGreylineGameOverSeq );
 			return std::make_pair( true, std::string( strJSON.Get() ) );
 		} ) );

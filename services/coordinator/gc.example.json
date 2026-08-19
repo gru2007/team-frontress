@@ -7,6 +7,7 @@
     "key": "REPLACE-ME-WITH-A-32-BYTE-RANDOM-POOL-KEY",
     "admin_key": "",
     "offline_after": "45s",
+    "offline_after_p2p": "45s",
     "poll_wait": "25s"
   },
   "war": {
@@ -31,6 +32,8 @@
     "heartbeat_interval": "10s",
     "session_timeout": "45s",
     "host_boot_deadline": "1m30s",
+    "host_accept_deadline": "20s",
+    "host_failure_cooldown": "2m0s",
     "client_connect_deadline": "1m30s",
     "migration_hold": "1m45s",
     "reconnect_grace": "2m0s",

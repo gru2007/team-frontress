@@ -138,3 +138,41 @@ func TestExpireSilentUsesTheShorterP2PTimeout(t *testing.T) {
 		t.Fatal("dedicated server was expired using the P2P timeout")
 	}
 }
+
+// TestABootingServerIsNotExpiredByTheHeartbeatRule is the timeout that ended
+// battles on the testbed before they ever started. A player-hosted server
+// heartbeats from the game's own menu page, and the game is busy loading the
+// map — so it goes quiet for exactly as long as the boot takes, which is
+// exactly when the heartbeat rule was killing it. Silence during boot means
+// nothing; the boot deadline is what bounds that phase.
+func TestABootingServerIsNotExpiredByTheHeartbeatRule(t *testing.T) {
+	start := time.Now()
+	p := New(45 * time.Second)
+	p.SetP2POfflineAfter(20 * time.Second)
+	p.SetBootGrace(2 * time.Minute)
+
+	id, token, err := p.RegisterElectedHost(Registration{
+		Name: "a player", ConnectAddress: "", Capacity: 8,
+	}, "b-1", start)
+	if err != nil {
+		t.Fatalf("register elected host: %v", err)
+	}
+
+	// Halfway through a slow map load: well past the P2P silence budget, well
+	// inside the boot grace.
+	if lost := p.ExpireSilent(start.Add(50 * time.Second)); len(lost) != 0 {
+		t.Fatalf("a host still loading its map was declared gone after 50s: %v", lost)
+	}
+	if s, _ := p.Get(id); s.Status == StatusOffline {
+		t.Fatal("a booting host was marked offline by the heartbeat rule")
+	}
+
+	// Once it is live, the ordinary rule applies again.
+	if err := p.Heartbeat(id, token, StatusLive, "b-1", "koth_suijin", 4, start.Add(60*time.Second)); err != nil {
+		t.Fatalf("heartbeat: %v", err)
+	}
+	lost := p.ExpireSilent(start.Add(60*time.Second + 25*time.Second))
+	if len(lost) != 1 || lost[0] != "b-1" {
+		t.Fatalf("a live host that went silent for 25s should take its battle with it: %v", lost)
+	}
+}

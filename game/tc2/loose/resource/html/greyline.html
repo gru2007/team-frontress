@@ -797,6 +797,7 @@ const P2P = {
   host: null,
   heartbeatTimer: null,
   gameWatchTimer: null,
+  commandWatch: false,
   watchBusy: false,
 
   sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); },
@@ -867,7 +868,7 @@ const P2P = {
           status: h.ready ? "live" : "booting",
           match_id: h.matchId,
           map: h.map || "",
-          players: 0,
+          players: await this.playerCount(),
         });
       } catch (e) {
         UI.status("P2P heartbeat failed: " + e.message, true);
@@ -875,6 +876,69 @@ const P2P = {
     };
     beat();
     this.heartbeatTimer = setInterval(beat, 5000);
+  },
+
+  // How many people are actually on this server. The war map shows this
+  // number, and the roster size — which is what it used to show — is a
+  // different thing: a battle four people were sent to is not a battle four
+  // people are in, and while everyone is still loading the difference is the
+  // only interesting part.
+  async playerCount() {
+    if (!Bridge.ready) return 0;
+    try {
+      const state = this.parseBridgeJSON(await Bridge.call("greyline_state", ""));
+      return Math.max(0, Number(state.players || 0));
+    } catch (e) {
+      // Mid map load the bridge does not answer; it will next beat.
+      return 0;
+    }
+  },
+
+  // A battle is not sealed when it starts: the coordinator sends latecomers
+  // to it while it runs, and tells this host who they are over the same
+  // command channel the assignment arrived on. Without applying those the
+  // server would meet a player it has never heard of and put them wherever
+  // its own team balance felt like.
+  startCommandWatch() {
+    if (this.commandWatch) return;
+    this.commandWatch = true;
+    const loop = async () => {
+      while (this.host && this.commandWatch) {
+        const h = this.host;
+        try {
+          const cmd = await GC.serverGet(h, "/api/v1/servers/poll?wait=15");
+          if (this.host !== h) break;
+          await this.applyCommand(cmd);
+        } catch (e) {
+          // A dropped poll is not a dropped battle; the heartbeat is what
+          // decides whether this host is still there.
+          await this.sleep(2000);
+        }
+      }
+      this.commandWatch = false;
+    };
+    loop();
+  },
+
+  async applyCommand(cmd) {
+    if (!cmd || !cmd.type || !this.host) return;
+    if (cmd.type === "roster") {
+      const entries = cmd.roster || [];
+      for (const e of entries) {
+        await Bridge.cmd("greyline_roster_add " + e.steam_id + " " +
+          String(e.team || "").toUpperCase() + " " +
+          String(e.side || "").toUpperCase() + " " + (e.contract ? 1 : 0));
+      }
+      if (entries.length) {
+        UI.status(entries.length + " more " +
+          (entries.length === 1 ? "mercenary joined" : "mercenaries joined") + " this battle");
+      }
+      return;
+    }
+    if (cmd.type === "abort") {
+      UI.status("coordinator ended this battle: " + (cmd.reason || "aborted"), true);
+      await this.finishHost(cmd.match_id);
+    }
   },
 
   modeRules(mode) {
@@ -962,15 +1026,17 @@ const P2P = {
 
       if (onMap && configured && endpoint.ready && endpoint.address) {
         await GC.serverPost(this.host, "/api/v1/servers/address", { connect_address: endpoint.address });
+        const players = Math.max(1, Number(state.players || 0));
         await GC.serverPost(this.host, "/api/v1/servers/state", {
-          match_id: as.match_id, state: "ready", players: 1,
+          match_id: as.match_id, state: "ready", players: players,
         });
         this.host.ready = true;
         await GC.serverPost(this.host, "/api/v1/servers/state", {
-          match_id: as.match_id, state: "live", players: 1,
+          match_id: as.match_id, state: "live", players: players,
         });
         UI.status("P2P battle live at " + endpoint.address);
         this.startGameWatch();
+        this.startCommandWatch();
         return;
       }
       await this.sleep(500);
@@ -1021,6 +1087,7 @@ const P2P = {
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     if (this.gameWatchTimer) clearInterval(this.gameWatchTimer);
     this.heartbeatTimer = this.gameWatchTimer = null;
+    this.commandWatch = false;
     try { await GC.serverPost(h, "/api/v1/servers/deregister", {}); } catch (e) { /* pool will expire it anyway */ }
     this.host = null;
     try { if (Bridge.ready) await Bridge.cmd("disconnect"); } catch (e) { /* already disconnected */ }
@@ -1032,6 +1099,7 @@ const P2P = {
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     if (this.gameWatchTimer) clearInterval(this.gameWatchTimer);
     this.heartbeatTimer = this.gameWatchTimer = null;
+    this.commandWatch = false;
     try {
       await GC.serverPost(h, "/api/v1/servers/state", {
         match_id: h.matchId, state: "failed", players: 0, reason: reason || "P2P host failed",

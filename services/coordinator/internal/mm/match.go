@@ -118,8 +118,14 @@ type LiveBattle struct {
 	StageKind war.StageKind `json:"stage_kind"`
 	Stage     int           `json:"stage"`
 	State     MatchState    `json:"state"`
-	Players   int           `json:"players"`
-	RedScore  uint32        `json:"red_score"`
-	BluScore  uint32        `json:"blu_score"`
-	StartedAt time.Time     `json:"started_at"`
+	// Players is how many people the server says are on it right now;
+	// RosterSize is how many the coordinator sent, and Capacity is how many
+	// the battlefield can hold. A battle with room in it is one somebody can
+	// still deploy into — see the matchmaker's topUpLocked.
+	Players    int       `json:"players"`
+	RosterSize int       `json:"roster_size"`
+	Capacity   int       `json:"capacity"`
+	RedScore   uint32    `json:"red_score"`
+	BluScore   uint32    `json:"blu_score"`
+	StartedAt  time.Time `json:"started_at"`
 }

@@ -80,6 +80,8 @@ func (a *Agent) handleCommand(ctx context.Context, cmd pool.Command) {
 			a.log.Warn("battle aborted by the coordinator", "match", cmd.MatchID, "reason", cmd.Reason)
 			a.goIdle(ctx)
 		}
+	case pool.CommandRoster:
+		a.addToRoster(cmd)
 	case pool.CommandIdle:
 		a.goIdle(ctx)
 	case pool.CommandShutdown:
@@ -88,6 +90,33 @@ func (a *Agent) handleCommand(ctx context.Context, cmd pool.Command) {
 	default:
 		a.log.Warn("unknown command", "type", cmd.Type)
 	}
+}
+
+// addToRoster seats players who deployed after this battle had already
+// started. The console side is additive — greyline_roster_add on top of the
+// roster already there — so a repeat of an entry the server has costs nothing
+// but a line in its log.
+func (a *Agent) addToRoster(cmd pool.Command) {
+	if a.battle == nil || a.battle.as.MatchID != cmd.MatchID {
+		a.log.Warn("roster update for a battle this server is not running", "match", cmd.MatchID)
+		return
+	}
+	for _, e := range cmd.Roster {
+		contract := 0
+		if e.Contract {
+			contract = 1
+		}
+		line := fmt.Sprintf("greyline_roster_add %d %s %s %d",
+			e.SteamID, strings.ToUpper(e.Team), strings.ToUpper(e.Side), contract)
+		if _, err := a.exec("%s", line); err != nil {
+			a.log.Error("could not add a player to the running roster",
+				"match", cmd.MatchID, "steam_id", e.SteamID, "err", err)
+			continue
+		}
+		a.battle.as.Roster = append(a.battle.as.Roster, e)
+	}
+	a.log.Info("roster extended", "match", cmd.MatchID, "added", len(cmd.Roster),
+		"roster", len(a.battle.as.Roster))
 }
 
 // startBattle applies the assignment to the game server: lock it to this
