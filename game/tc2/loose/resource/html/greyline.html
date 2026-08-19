@@ -274,6 +274,10 @@
 // "fetch" to make an HTTP request through Steam, which is what lets this page
 // talk to a coordinator on another host without a word about CORS.
 //
+// The game serves this page itself, so the socket lives at the same origin —
+// no second server, no second port to keep in step with the one the panel was
+// loaded from.
+//
 // Outside the game the socket simply never opens and everything falls back to
 // the browser, which is how this page is usable during development.
 // ---------------------------------------------------------------------------
@@ -285,7 +289,10 @@ const Bridge = {
 
   connect() {
     try {
-      this.ws = new WebSocket("ws://127.0.0.1:58270/ws");
+      // Same origin as the page when the game served it; the loopback
+      // default only ever applies to a copy opened straight off disk.
+      const host = location.protocol.startsWith("http") ? location.host : "127.0.0.1:58270";
+      this.ws = new WebSocket("ws://" + host + "/ws");
     } catch (e) {
       return;
     }
@@ -914,7 +921,7 @@ const P2P = {
 
   async launch(as) {
     if (!this.host) return;
-    const before = this.parseBridgeJSON(await Bridge.call("state", ""));
+    const before = this.parseBridgeJSON(await Bridge.call("greyline_state", ""));
     this.host.baselineGameOverSeq = Number(before.game_over_seq || 0);
 
     // A listen server does not exist yet, unlike the dedicated agent's srcds.
@@ -933,8 +940,8 @@ const P2P = {
     let configured = false;
     while (Date.now() < deadline) {
       if (!this.host) return;
-      const state = this.parseBridgeJSON(await Bridge.call("state", ""));
-      const endpoint = this.parseBridgeJSON(await Bridge.call("host_address", ""));
+      const state = this.parseBridgeJSON(await Bridge.call("greyline_state", ""));
+      const endpoint = this.parseBridgeJSON(await Bridge.call("greyline_host_address", ""));
       const level = String(state.level || "").replace(/\\/g, "/").split("/").pop().replace(/\.bsp$/i, "");
       const onMap = !!state.in_game && level.toLowerCase() === String(as.map || "").toLowerCase();
 
@@ -981,7 +988,7 @@ const P2P = {
     if (!h || !h.ready || h.resultReported || this.watchBusy || !Bridge.ready) return;
     this.watchBusy = true;
     try {
-      const state = this.parseBridgeJSON(await Bridge.call("state", ""));
+      const state = this.parseBridgeJSON(await Bridge.call("greyline_state", ""));
       const seq = Number(state.game_over_seq || 0);
       if (seq <= h.baselineGameOverSeq) return;
 

@@ -376,6 +376,13 @@ void CHudMainMenuOverride::OnTick()
 		{
 			if ( GetGameStateManager()->IsReady() )
 			{
+				// Mark the UI ready before the panel is allowed to connect,
+				// not after: the RPC hands out its one privileged client at
+				// accept time and only once the UI is ready, so a panel that
+				// gets there first ends up unprivileged for the rest of the
+				// session — with "fetch" (which the war map reaches the
+				// coordinator through) silently returning nothing.
+				GetGameStateManager()->MarkUIReady();
 				m_pMainMenuWebUi->LoadInteractivePanel();
 			}
 

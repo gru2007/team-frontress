@@ -952,19 +952,16 @@ $Project "Client (TF)"
 				$File	"$SRCDIR\game\shared\tf\tf_gc_shared.cpp"
 
 				// The client's Greyline UI is the war map page the main menu
-				// loads (greyline_menu_page), which talks to the coordinator
-				// over its HTTP API through the game's own websocket bridge —
-				// see greyline_bridge.cpp for the bridge itself and
-				// docs/GREYLINE-WAR.md / the coordinator README for the
-				// protocol it carries. greyline_http.cpp is the shared
-				// ISteamHTTP transport both the bridge's "fetch" method and
-				// (indirectly, via the bridge) a player-hosted P2P battle use.
+				// loads (greyline_menu_page), which reaches the engine and the
+				// coordinator over the game's own web RPC — the loopback
+				// server in game/shared/gamestate, which serves the page and
+				// already answers "cmd", "getcvar" and "fetch".
+				// greyline_menu_rpc.cpp adds the two questions only the engine
+				// can answer to that same RPC; see docs/GREYLINE-WAR.md and the
+				// coordinator README for the protocol the page carries over it.
 				// greyline_localize.cpp is the language file the server's
 				// briefing tokens are resolved against.
-				$File	"greyline\greyline_bridge.cpp"
-				$File	"greyline\greyline_bridge.h"
-				$File	"greyline\greyline_http.cpp"
-				$File	"greyline\greyline_http.h"
+				$File	"greyline\greyline_menu_rpc.cpp"
 				$File	"greyline\greyline_localize.cpp"
 
 				$File	"$SRCDIR\game\shared\tf\tf_match_description.cpp"

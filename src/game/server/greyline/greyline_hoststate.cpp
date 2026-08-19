@@ -2,9 +2,9 @@
 //
 // Purpose: publishes a player-hosted (P2P) listen server's own address and
 // live score into replicated convars, so the client half of this same
-// process — the game's websocket bridge, see
-// src/game/client/greyline/greyline_bridge.cpp — can read them and drive the
-// coordinator's server-pool protocol over HTTP.
+// process — the menu page, through the web RPC methods in
+// src/game/client/greyline/greyline_menu_rpc.cpp — can read them and drive
+// the coordinator's server-pool protocol over HTTP.
 //
 // This is a trimmed port of what the retired P2P prototype's
 // src/game/greyline_legacy/greyline_host.cpp did. It keeps exactly the two

@@ -157,7 +157,11 @@ public:
 		"getmodes",
 		"getmode",
 		"playsound",
-		"getingame"
+		"getingame",
+		// Both read-only, and both answer questions "getcvar" above already
+		// answers piecemeal — see game/client/greyline/greyline_menu_rpc.cpp.
+		"greyline_state",
+		"greyline_host_address"
 	},
 	m_UnprivilegedEvents{
 		"ingame",

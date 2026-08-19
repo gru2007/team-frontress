@@ -328,6 +328,7 @@ BLU-coloured RED team and confirming the post-match headline says RED.
 | Result reported but the war does not move | coordinator logs `battle did not advance the war` with a reason — usually a front that was already decided |
 | Briefing shows raw `#Greyline_...` tokens | `resource/greyline_%language%.txt` is not being loaded on the client |
 | Menu is blank or shows the stock TC2 menu | `greyline_menu_page` — it must be `ui/greyline.html`, and the file must be in `tc2/loose/resource/html/` |
+| Menu is a blue error page with `-324` (`ERR_EMPTY_RESPONSE`) | something else on this machine holds `127.0.0.1:58270`, the port the game serves the menu on. From the host shell: `curl -sv http://127.0.0.1:58270/ui/greyline.html`. A second copy of the game is the usual answer |
 | Menu says "could not reach the coordinator" | the address in its settings, and that the coordinator is listening on something the game can route to |
 | Menu works in the game but not in a browser | that is CORS; the coordinator sends `Access-Control-Allow-Origin: *`, so check you are not on an old build |
 | Every battle is arena at any population | the front's profile has no battlefield whose envelope fits; widen `min_players` in the theater |

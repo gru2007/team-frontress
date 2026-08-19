@@ -22,8 +22,7 @@ echo "=== isolating compile commands for the new greyline files ==="
 python3 - <<'PYEOF'
 import json
 targets = [
-    "greyline_bridge.cpp",
-    "greyline_http.cpp",
+    "greyline_menu_rpc.cpp",
     "greyline_hoststate.cpp",
 ]
 with open("compile_commands.json") as f:
