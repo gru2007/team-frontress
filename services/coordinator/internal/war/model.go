@@ -223,6 +223,12 @@ type Front struct {
 	// only when the coordinator says so at open time, never retroactively.
 	Plan  []StageKind `json:"plan"`
 	Stage int         `json:"stage"`
+	// Push is how far into the next stage this offensive has fought, in
+	// stages: positive towards the attacker, negative towards the defender,
+	// always strictly between -1 and 1. A battle at full strength clears a
+	// whole stage on its own and leaves this at zero; a thin one leaves the
+	// remainder here for the next battle to finish. See Advance.
+	Push float64 `json:"push"`
 	// CollapseAtStage is the stage at which a defensive win breaks the offensive
 	// outright instead of pushing it back one step. Normally 0; a defender under
 	// DEFENSIVE MOBILIZATION gets 1, so its defence needs one stage less.
@@ -444,6 +450,12 @@ type Update struct {
 	StageCount   int         `json:"stage_count"`
 	StageKind    StageKind   `json:"stage_kind"`
 	FrontStatus  FrontStatus `json:"front_status"`
+	// Weight is how much of a stage this one battle was worth, and Push is
+	// where the offensive stands inside its current stage afterwards. A client
+	// that only says "you won" makes a thin battle look like a full one; these
+	// two are what let it say how much it actually moved.
+	Weight float64 `json:"weight"`
+	Push   float64 `json:"push"`
 	NodeCaptured bool        `json:"node_captured"`
 	NodeID       string      `json:"node_id,omitempty"`
 	NewOwner     Side        `json:"new_owner,omitempty"`

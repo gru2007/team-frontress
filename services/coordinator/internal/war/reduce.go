@@ -61,30 +61,77 @@ func (st *State) NodeCount() map[Side]int {
 
 // Advance is the stage rule: what a battle does to a front.
 //
-// An attacker win clears a stage, and clearing the last one takes the node. A
-// defender win pushes the offensive back one stage, except at the line it
-// cannot be pushed past, where the offensive breaks outright — that line is
-// CollapseAtStage, and it is one stage higher for a defender under DEFENSIVE
-// MOBILIZATION. A stalemate consumes a battle and moves nothing.
+// A stage is not cleared by winning a battle, it is cleared by winning a
+// stage's worth of battle. weight is how much of one this battle was — see
+// BattleWeight — and it accumulates on the front as Push: positive towards the
+// attacker, negative towards the defender. A full stage's worth in either
+// direction moves the front one step and leaves the remainder behind.
+//
+// The reason is that without it a 1v1 between the two people who happened to
+// be online moves an offensive exactly as far as a 6v6 does, which makes the
+// strategic layer a function of who pressed DEPLOY rather than of who fought.
+// A battle at full strength still clears a stage on its own; a thin one is
+// worth what it was.
+//
+// Everything else is unchanged: clearing the last stage takes the node, a
+// defender pushing past CollapseAtStage breaks the offensive outright, and a
+// stalemate consumes a battle and moves nothing.
 //
 // It is exported because the engine needs to describe an outcome before the
 // event that causes it is written, and both must be the same rule.
-func Advance(f *Front, winner Side) (stage int, status FrontStatus) {
+func Advance(f *Front, winner Side, weight float64) (stage int, push float64, status FrontStatus) {
+	if weight <= 0 {
+		// An event written before battles carried a weight, replayed now. It
+		// meant one whole stage when it happened and it still does.
+		weight = 1
+	}
+	stage, push, status = f.Stage, f.Push, f.Status
 	switch winner {
 	case f.Attacker:
-		next := f.Stage + 1
-		if next >= len(f.Plan) {
-			return len(f.Plan), FrontWon
+		push += weight
+		for push >= 1 {
+			push--
+			stage++
+			if stage >= len(f.Plan) {
+				return len(f.Plan), 0, FrontWon
+			}
 		}
-		return next, f.Status
 	case f.Defender:
-		if f.Stage <= f.CollapseAtStage {
-			return f.Stage, FrontCollapsed
+		push -= weight
+		for push <= -1 {
+			push++
+			if stage <= f.CollapseAtStage {
+				return stage, 0, FrontCollapsed
+			}
+			stage--
 		}
-		return f.Stage - 1, f.Status
 	default:
-		return f.Stage, f.Status
+		return stage, push, status
 	}
+	return stage, push, status
+}
+
+// BattleWeight is how much of a stage a battle of this size is worth.
+//
+// It is linear in the headcount up to fullStrength, floored at min so a small
+// battle still counts for something — an evening where four people are online
+// has to be able to move the war, just more slowly than an evening where
+// twelve are.
+func BattleWeight(players, fullStrength int, min float64) float64 {
+	if fullStrength <= 0 {
+		return 1
+	}
+	if min <= 0 {
+		min = 1
+	}
+	w := float64(players) / float64(fullStrength)
+	if w > 1 {
+		w = 1
+	}
+	if w < min {
+		w = min
+	}
+	return w
 }
 
 // apply is the only writer of State. It must stay pure with respect to the
@@ -178,7 +225,7 @@ func apply(st *State, ev Event) error {
 		case f.Defender:
 			f.DefenderWins++
 		}
-		f.Stage, f.Status = Advance(f, d.Winner)
+		f.Stage, f.Push, f.Status = Advance(f, d.Winner, d.Weight)
 
 	case EventNodeCaptured:
 		d := ev.NodeCaptured

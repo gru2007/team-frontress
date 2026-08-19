@@ -504,26 +504,36 @@ func (m *Matchmaker) tryForm() {
 	}
 }
 
-// topUpLocked puts queued players into battles already running on this front.
+// topUpLocked puts queued players into battles this front already has, whether
+// those battles are being played or still standing up.
 //
-// A formed roster is not a sealed one. The MVP's population is small enough
-// that the difference between "you are in the fight that is happening" and
-// "you are the second half of a fight that will form in four minutes" decides
-// whether an evening of testing works at all — and a battlefield that holds
-// twelve has no reason to run 2v2 while four more people wait beside it.
+// A formed roster is not a sealed one, and the moment a battle was created is
+// not a reason to make the next person wait for a whole second one. The MVP's
+// population is small enough that the difference between "you are in the fight
+// that is happening" and "you are the first half of a fight that will form in
+// four minutes" decides whether an evening of testing works at all — and a
+// battlefield that holds twelve has no reason to run 2v2 while four more
+// people wait beside it.
+//
+// Standing-up battles matter as much as running ones here: a map takes half a
+// minute to load, and anybody who deployed during that half minute used to sit
+// in the queue watching a battle they could have been in, until there were
+// enough of them to start a second one next to it.
 //
 // Latecomers only ever fill towards balance, and only take the other side
 // under a contract they already agreed to, so growing a battle can never make
 // it more lopsided than it already was. Called with the lock held.
 func (m *Matchmaker) topUpLocked(f war.Front) {
 	for _, match := range m.matches {
-		if match.FrontID != f.ID || !match.live() {
+		if match.FrontID != f.ID || match.over() {
 			continue
 		}
-		// Sending somebody to a battle with no address is sending them
+		// Sending somebody to a running battle with no address is sending them
 		// nowhere, silently — the one failure this whole design exists to not
 		// reproduce. It cannot normally happen past ready; refuse it anyway.
-		if match.Connect == "" {
+		// A battle that has not got there yet has no address by definition,
+		// and its roster is what it will boot with.
+		if match.live() && match.Connect == "" {
 			continue
 		}
 		room := m.capacityOf(match) - len(match.Slots)
@@ -535,7 +545,7 @@ func (m *Matchmaker) topUpLocked(f war.Front) {
 			if room == 0 {
 				break
 			}
-			slot, ok := m.joinRunningLocked(match, p)
+			slot, ok := m.seatLocked(match, p)
 			if !ok {
 				continue
 			}
@@ -551,24 +561,25 @@ func (m *Matchmaker) topUpLocked(f war.Front) {
 		}
 		// The server has to know who is coming before they arrive: it decides
 		// their team from the roster, and a player it has never heard of is
-		// one the war has no place for.
+		// one the war has no place for. A battle that has not been handed to a
+		// server yet needs no telling — the assignment is built from the
+		// roster at the moment it goes out, so it will carry them already.
 		if match.ServerID != "" {
 			if err := m.pool.Send(match.ServerID, pool.Command{
 				Type: pool.CommandRoster, MatchID: match.ID, Roster: added,
 			}); err != nil {
-				m.log.Warn("could not send a roster update to a running battle",
+				m.log.Warn("could not send a roster update to a battle in progress",
 					"match", match.ID, "server", match.ServerID, "err", err)
 			}
 		}
-		m.log.Info("players joined a running battle", "match", match.ID,
-			"front", f.ID, "joined", len(added), "roster", len(match.Slots))
+		m.log.Info("players joined an existing battle", "match", match.ID,
+			"front", f.ID, "state", match.State, "joined", len(added), "roster", len(match.Slots))
 	}
 }
 
-// joinRunningLocked seats one queued player in a battle that is already being
-// played, or reports that there is no place for them in it. Called with the
-// lock held.
-func (m *Matchmaker) joinRunningLocked(match *Match, p *Player) (*Slot, bool) {
+// seatLocked puts one queued player into a battle that already exists, or
+// reports that there is no place for them in it. Called with the lock held.
+func (m *Matchmaker) seatLocked(match *Match, p *Player) (*Slot, bool) {
 	if match.slot(p.SteamID) != nil {
 		return nil, false
 	}
@@ -606,7 +617,16 @@ func (m *Matchmaker) joinRunningLocked(match *Match, p *Player) (*Slot, bool) {
 	info := m.matchInfo(match, slot)
 	info.RedPlayers, info.BluPlayers = red, blu
 	info.DeadlineS = int(m.cfg.JoinDeadline.Seconds())
-	p.push(Event{Type: EventMatchReady, Match: &info})
+	if match.live() {
+		p.push(Event{Type: EventMatchReady, Match: &info})
+	} else {
+		// Nowhere to send them yet. They get the connect details with
+		// everybody else's when the server reports ready — sendToBattle walks
+		// the roster this player is now on.
+		info.Connect, info.Password = "", ""
+		p.push(Event{Type: EventMatchState, Match: &info,
+			Message: "you are in the next battle at " + match.Plan.FrontName + " — it is starting up"})
+	}
 	return slot, true
 }
 
@@ -998,7 +1018,12 @@ func (m *Matchmaker) assignmentFor(match *Match) *pool.Assignment {
 		// battle has no room for the fifth who deploys a minute later, and
 		// keeping that room is the whole point of letting a battle grow.
 		MaxPlayers: m.capacityOf(match),
-		Roster:     roster,
+		// Wait for the roster that opened the battle, not for the battlefield
+		// to fill: capacity is room to grow into, MinPlayers is who this
+		// battle was formed out of and is therefore actually coming.
+		MinPlayers:     len(match.Slots),
+		MusterTimeoutS: int(m.cfg.JoinDeadline.Seconds()),
+		Roster:         roster,
 		Briefing: pool.Briefing{
 			FrontID:    plan.FrontID,
 			FrontName:  plan.FrontName,

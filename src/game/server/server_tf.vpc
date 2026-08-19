@@ -1004,6 +1004,11 @@ $Project "Server (TF)"
 				// dedicated server, which is joined to the pool by
 				// greyline-agent instead.
 				$File	"greyline\greyline_hoststate.cpp"
+				// Holds a battle in the engine's own WAITING FOR PLAYERS
+				// period until the roster the coordinator formed is actually
+				// on the server, so the war never counts a result decided
+				// while half of it was still on a loading screen.
+				$File	"greyline\greyline_muster.cpp"
 				$File	"$SRCDIR\game\shared\tf\tf_match_description.cpp"
 				$File	"$SRCDIR\game\shared\tf\tf_match_description.h"
 				$File	"$SRCDIR\game\shared\tf\tf_match_description_shared.cpp"

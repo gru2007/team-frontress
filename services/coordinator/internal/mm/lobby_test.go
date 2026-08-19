@@ -169,3 +169,91 @@ func TestALatecomerOnlyCrossesSidesUnderAContract(t *testing.T) {
 		t.Fatalf("a player who refused a contract was moved off %s to balance a battle", heavier)
 	}
 }
+
+// TestSomebodyWhoDeploysDuringABootJoinsThatBattle is the "seamless" half of
+// lobby expansion. A map takes half a minute to load; anybody who deploys in
+// that half minute used to watch from the queue until there were enough of
+// them to start a second battle beside the first.
+func TestSomebodyWhoDeploysDuringABootJoinsThatBattle(t *testing.T) {
+	m, servers := newTestMaker(t)
+	id, token, err := servers.Register(pool.Registration{
+		Name: "dedi", ConnectAddress: "10.0.0.1:27015", Capacity: 24,
+	}, time.Now())
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	for steamID := uint64(1); steamID <= 4; steamID++ {
+		side := war.SideRed
+		if steamID%2 == 0 {
+			side = war.SideBlu
+		}
+		deploy(t, m, steamID, side, true)
+	}
+	m.Tick()
+
+	var match *Match
+	for _, candidate := range m.matches {
+		match = candidate
+	}
+	if match == nil || match.State != MatchBooting {
+		t.Fatalf("expected a battle loading its map, got %v", match)
+	}
+	match.Plan.MaxPlayers = 8
+	if _, ok, err := servers.Poll(context.Background(), id, token, time.Second); err != nil || !ok {
+		t.Fatalf("the battle was never handed to its server (ok=%v, err=%v)", ok, err)
+	}
+	before := len(match.Slots)
+
+	late := deploy(t, m, 5, war.SideRed, true)
+	m.Tick()
+
+	if late.MatchID != match.ID {
+		t.Fatalf("a player who deployed during the boot was left in the queue (state %s, match %q)",
+			late.State, late.MatchID)
+	}
+	if len(match.Slots) != before+1 {
+		t.Fatalf("roster = %d, want %d", len(match.Slots), before+1)
+	}
+
+	// They must not be handed a connect address for a server that is still
+	// loading — that is the silent "connection never happens" failure.
+	for _, ev := range late.drain(0) {
+		if ev.Type == EventMatchReady {
+			t.Fatal("a latecomer was sent to a battle whose server had not reported ready")
+		}
+		if ev.Type == EventMatchState && ev.Match != nil && ev.Match.Connect != "" {
+			t.Fatal("a battle still booting handed out a connect address")
+		}
+	}
+
+	// And when it does come up, they are on the roster that gets sent there.
+	if err := m.ServerState(id, match.ID, "ready", 5); err != nil {
+		t.Fatalf("ready: %v", err)
+	}
+	sawReady := false
+	for _, ev := range late.drain(0) {
+		if ev.Type == EventMatchReady && ev.Match != nil && ev.Match.Connect != "" {
+			sawReady = true
+		}
+	}
+	if !sawReady {
+		t.Fatal("the latecomer was never sent to the battle they had been seated in")
+	}
+}
+
+// TestAnAssignmentCarriesTheMuster: the server has to be told to hold the
+// round, or a battle starts around whoever loaded the map fastest.
+func TestAnAssignmentCarriesTheMuster(t *testing.T) {
+	m, servers := newTestMaker(t)
+	match, _, _ := runningBattle(t, m, servers)
+	as := m.assignmentFor(match)
+	if as.MinPlayers != len(match.Slots) {
+		t.Fatalf("assignment waits for %d players, roster is %d", as.MinPlayers, len(match.Slots))
+	}
+	if as.MusterTimeoutS <= 0 {
+		t.Fatal("an assignment with no muster timeout would hold a battle for a player who never comes")
+	}
+	if as.MaxPlayers < as.MinPlayers {
+		t.Fatalf("capacity %d is below the roster %d", as.MaxPlayers, as.MinPlayers)
+	}
+}

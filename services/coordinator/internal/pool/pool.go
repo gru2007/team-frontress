@@ -167,6 +167,16 @@ type Assignment struct {
 	// are fighting in and why this is the map they got.
 	Briefing Briefing `json:"briefing"`
 
+	// MinPlayers is how many people must actually be on the server before the
+	// battle starts. A game that begins while one person is still on the
+	// loading screen is a game that person did not play, and on a small
+	// population that is most of them — so the server holds in
+	// waiting-for-players until the roster is there.
+	MinPlayers int `json:"min_players"`
+	// MusterTimeoutS is how long it may hold before starting anyway, so a
+	// roster member who never arrives costs a wait rather than the battle.
+	MusterTimeoutS int `json:"muster_timeout_s"`
+
 	// BootDeadlineS is how long the agent has to report the server ready.
 	BootDeadlineS int `json:"boot_deadline_s"`
 	// ResultDeadlineS is how long the battle may run before the coordinator

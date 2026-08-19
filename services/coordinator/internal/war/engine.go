@@ -57,6 +57,15 @@ type Rules struct {
 	// reason they cannot see. Set it empty to let each battlefield decide, which
 	// puts the surprise back.
 	AttackerTeam string
+
+	// FullStrengthPlayers is the headcount at which a battle is worth a whole
+	// stage of an offensive. Below it a battle still counts, in proportion —
+	// see BattleWeight — so the war moves at the pace the population can
+	// actually fight at instead of at the pace of whoever pressed DEPLOY.
+	FullStrengthPlayers int
+	// MinBattleWeight is the floor under that proportion, so the smallest
+	// battle a small evening can field is never worth nothing at all.
+	MinBattleWeight float64
 }
 
 // DefaultRules match the MVP: one front until sixteen people are online, a soft
@@ -69,6 +78,8 @@ func DefaultRules() Rules {
 		Intermission:        15 * time.Minute,
 		CampaignName:        "THE SECOND GRAVEL WAR",
 		AttackerTeam:        "blu",
+		FullStrengthPlayers: 12,
+		MinBattleWeight:     0.25,
 	}
 }
 
@@ -84,6 +95,15 @@ func (r *Rules) fill() {
 	}
 	if r.CampaignName == "" {
 		r.CampaignName = "THE SECOND GRAVEL WAR"
+	}
+	if r.FullStrengthPlayers <= 0 {
+		r.FullStrengthPlayers = 12
+	}
+	if r.MinBattleWeight <= 0 {
+		r.MinBattleWeight = 0.25
+	}
+	if r.MinBattleWeight > 1 {
+		r.MinBattleWeight = 1
 	}
 }
 
@@ -399,10 +419,15 @@ func (e *Engine) RecordBattle(res BattleResult) (Update, error) {
 	targetName := e.nodeName(target)
 	attacker, defender := f.Attacker, f.Defender
 
+	// How much of a stage this battle was worth. Decided here, once, and
+	// carried in the event: the reducer must not depend on rules that can be
+	// retuned between now and the next replay of this log.
+	weight := BattleWeight(res.Players, e.rules.FullStrengthPlayers, e.rules.MinBattleWeight)
+
 	// The headline describes where the front ends up, so it has to be written
 	// against the projected state rather than the one still in memory. Advance
 	// is the same rule the reducer applies a moment later.
-	nextStage, nextStatus := Advance(f, winner)
+	nextStage, _, nextStatus := Advance(f, winner, weight)
 	headline := battleHeadline(f, winner, kind, f.StageKindAt(nextStage), nextStatus, targetName)
 
 	if err := e.emit(Event{
@@ -422,6 +447,7 @@ func (e *Engine) RecordBattle(res BattleResult) (Update, error) {
 			StageKind: kind,
 			Players:   res.Players,
 			DurationS: int64(res.Duration.Seconds()),
+			Weight:    weight,
 		},
 	}); err != nil {
 		return Update{}, err
@@ -436,6 +462,8 @@ func (e *Engine) RecordBattle(res BattleResult) (Update, error) {
 		StageCount:  len(f.Plan),
 		StageKind:   f.CurrentStage(),
 		FrontStatus: f.Status,
+		Weight:      weight,
+		Push:        f.Push,
 		Headline:    headline,
 	}
 

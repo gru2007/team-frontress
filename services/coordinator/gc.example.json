@@ -16,7 +16,9 @@
     "mobilization_deficit": 2,
     "intermission": "15m0s",
     "campaign_name": "THE SECOND GRAVEL WAR",
-    "attacker_team": "blu"
+    "attacker_team": "blu",
+    "full_strength_players": 12,
+    "min_battle_weight": 0.25
   },
   "auth": {
     "mode": "dev",

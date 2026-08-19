@@ -106,6 +106,12 @@ type BattleRecordedData struct {
 	StageKind StageKind `json:"stage_kind"`
 	Players   int       `json:"players"`
 	DurationS int64     `json:"duration_s"`
+	// Weight is how much of a stage this battle was worth, decided from the
+	// headcount when it was recorded. It is written into the event rather than
+	// recomputed on replay for the same reason Headline is: retuning the rules
+	// must not rewrite what already happened. Zero means an event from before
+	// battles were weighted, which counted as a whole stage.
+	Weight float64 `json:"weight,omitempty"`
 }
 
 // NodeCapturedData flips a territory.

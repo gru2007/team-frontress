@@ -89,6 +89,8 @@ func main() {
 		Intermission:        cfg.War.Intermission.D(),
 		CampaignName:        cfg.War.CampaignName,
 		AttackerTeam:        cfg.War.AttackerTeam,
+		FullStrengthPlayers: cfg.War.FullStrengthPlayers,
+		MinBattleWeight:     cfg.War.MinBattleWeight,
 	})
 	if err != nil {
 		fail(err)

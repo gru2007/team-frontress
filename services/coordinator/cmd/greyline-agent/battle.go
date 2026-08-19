@@ -165,6 +165,12 @@ func (a *Agent) battleCommands(as *pool.Assignment) []string {
 		fmt.Sprintf("greyline_stage_count %d", as.Briefing.StageCount),
 		fmt.Sprintf("greyline_stage_kind %q", as.Briefing.StageKind),
 		fmt.Sprintf("greyline_mobilized %q", as.Briefing.Mobilized),
+
+		// Hold the round until the roster is actually on the server. Without
+		// this the map starts the moment it loads and whoever is still on the
+		// loading screen misses the opening of a battle the war is counting.
+		fmt.Sprintf("greyline_min_players %d", as.MinPlayers),
+		fmt.Sprintf("greyline_muster_timeout %d", as.MusterTimeoutS),
 	}
 	// The roster, so the server can put every mercenary on the side the war put
 	// them on rather than letting them pick.

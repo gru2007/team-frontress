@@ -120,6 +120,14 @@ type WarConfig struct {
 	// "" to let each battlefield decide instead, which means a player's colours
 	// change with the map rather than with their role.
 	AttackerTeam string `json:"attacker_team"`
+	// FullStrengthPlayers is the headcount at which one battle is worth a whole
+	// stage of an offensive. A thinner battle moves the front in proportion,
+	// down to MinBattleWeight, so a 1v1 between whoever happened to be online
+	// does not carry the war the way a full one does.
+	FullStrengthPlayers int `json:"full_strength_players"`
+	// MinBattleWeight floors that proportion. It is what keeps a four-person
+	// evening able to move the war at all.
+	MinBattleWeight float64 `json:"min_battle_weight"`
 }
 
 type TimingConfig struct {
@@ -272,6 +280,8 @@ func Default() *Config {
 			Intermission:        Duration(15 * time.Minute),
 			CampaignName:        "THE SECOND GRAVEL WAR",
 			AttackerTeam:        "blu",
+			FullStrengthPlayers: 12,
+			MinBattleWeight:     0.25,
 		},
 		Auth: AuthConfig{
 			Mode:             AuthDev,

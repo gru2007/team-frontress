@@ -154,13 +154,21 @@ fully P2P prototype was retired and what this design keeps from it.
 ### A battle is not sealed when it forms
 
 A formed roster is a starting roster. Every scheduling pass, before it forms
-anything new, the coordinator puts queued players into battles already running
-on their front, up to what the battlefield itself holds — and tells the server
-who is arriving over the same command channel the assignment came on
-(`roster`), so it can seat them on the side the war put them on. Latecomers
-only ever fill towards balance, and only cross to the other side under a
-contract they already agreed to, so a battle can never grow more lopsided than
-it already was.
+anything new, the coordinator puts queued players into battles this front
+already has — running ones and ones still standing up alike — up to what the
+battlefield itself holds. Somebody who deploys during the thirty seconds a map
+takes to load joins that battle rather than waiting for a second one to fill up
+next to it, which is what "one place to fight" has to mean in practice.
+
+A player seated in a battle that is already up gets `match_ready` and a
+`roster` command goes to its server, so it can put them on the side the war
+put them on. A player seated in one that is still booting gets `match_state`
+and no connect address — they are sent with everybody else when the server
+reports ready, and the assignment it boots with already carries them.
+
+Latecomers only ever fill towards balance, and only cross to the other side
+under a contract they already agreed to, so a battle can never grow more
+lopsided than it already was.
 
 This is why an assignment's `max_players` is the battlefield's capacity rather
 than the size of the roster that opened it: a server told to hold exactly the
@@ -169,6 +177,39 @@ four people who formed the battle has nowhere to put the fifth.
 On the war map, a live battle's `players` is what the server last reported and
 `roster_size` is how many the coordinator sent. They are different numbers,
 and while people are still loading in the difference is the interesting part.
+
+### A battle does not start until the people in it are there
+
+An assignment carries `min_players` — the roster it was formed out of — and
+`muster_timeout_s`. The game server holds the round in the engine's own
+WAITING FOR PLAYERS period until that many humans are connected, then starts
+(`greyline_min_players` / `greyline_muster_timeout`, see
+`game/server/greyline/greyline_muster.cpp`). Without it a map that takes half
+a minute to load begins the moment it is up, and on a small population most of
+a battle is fought by whoever loaded fastest while the rest are still on a
+loading screen — and the war counts that result.
+
+The timeout is the escape: a roster member who never arrives costs a wait, not
+the battle.
+
+### A battle is worth its size
+
+A stage of an offensive is not cleared by winning a battle, it is cleared by
+winning a stage's worth of battle. `war.BattleWeight` turns a headcount into a
+fraction of a stage — linear up to `war.full_strength_players`, floored at
+`war.min_battle_weight` — and `Front.Push` accumulates it, positive towards the
+attacker and negative towards the defender, until a whole stage's worth moves
+the front one step.
+
+Without this a 1v1 between the two people who happened to be online moves an
+offensive exactly as far as a 6v6 does, and the strategic layer becomes a
+function of who pressed DEPLOY rather than of who fought. A battle at full
+strength still clears a stage on its own; a thin one is worth what it was.
+
+The weight is written into the battle event when it is recorded, not
+recomputed on replay: retuning the rules must not rewrite what already
+happened. An event with no weight is one from before battles were weighted and
+counts as a whole stage, so old war logs replay to the state they produced.
 
 ### War map — public, no session needed
 

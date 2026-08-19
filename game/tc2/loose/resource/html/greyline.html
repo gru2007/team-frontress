@@ -141,6 +141,9 @@
   .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #6b3030; margin-right: 5px; }
   .dot.on { background: var(--ok); }
   .muted { color: var(--dim); }
+  /* Ground held into the next stage of an offensive, or lost out of it. */
+  .gained { color: var(--ok); }
+  .pushed { color: #d9705c; }
   .mono { font-family: "Consolas", "Menlo", monospace; }
   .err { color: #d9705c; }
   .hidden { display: none !important; }
@@ -534,7 +537,7 @@ const UI = {
             '<div class="name">' + this.escape(f.name) + "</div>" +
             '<div class="meta">' + this.sideSpan(f.attacker) + " on the offensive · " +
               this.escape(stageName.toUpperCase()) + " " + (f.stage + 1) + "/" + total +
-              '<span class="pips">' + pips + "</span></div>" +
+              '<span class="pips">' + pips + "</span>" + this.groundHeld(f.push) + "</div>" +
             '<div class="meta">' + (f.players_fighting || 0) + " fighting · " +
               (f.queued || 0) + " queued</div>" +
           "</div>" +
@@ -545,6 +548,20 @@ const UI = {
     host.querySelectorAll("button[data-front]").forEach(btn => {
       btn.onclick = () => Actions.deploy(btn.getAttribute("data-front"));
     });
+  },
+
+  // How far into the current stage an offensive has fought. A battle is worth
+  // its size, so most battles move a fraction of a stage rather than a whole
+  // one — without this the map would sit on the same stage for four battles
+  // with nothing to show that anything happened.
+  groundHeld(push) {
+    const p = Number(push || 0);
+    if (!p) return "";
+    const pct = Math.round(Math.abs(p) * 100);
+    if (!pct) return "";
+    return p > 0
+      ? ' <span class="gained">+' + pct + "% into the next</span>"
+      : ' <span class="pushed">−' + pct + "% pushed back</span>";
   },
 
   renderQueue(queue) {
@@ -737,6 +754,8 @@ const Actions = {
 
   // Joining is the one thing that needs the game itself. In a browser there is
   // nothing to drive, so the console line is shown to copy instead.
+  joinWatch: null,
+
   async join() {
     const m = State.match;
     if (!m) return;
@@ -750,12 +769,64 @@ const Actions = {
       return;
     }
     try {
-      if (m.password) await Bridge.cmd("password " + m.password);
-      await Bridge.cmd("connect " + m.connect);
-      UI.status("joining " + m.connect);
+      await this.attemptConnect(m);
+      this.watchJoin(m);
     } catch (e) {
       UI.status("could not drive the console: " + e.message, true);
     }
+  },
+
+  async attemptConnect(m) {
+    if (m.password) await Bridge.cmd("password " + P2P.quote(m.password));
+    await Bridge.cmd("connect " + P2P.cleanConsole(m.connect));
+    UI.status("joining " + m.connect);
+  },
+
+  // A connect that does not take is the failure mode this whole design is
+  // most exposed to: over Steam's peer-to-peer transport the handshake can be
+  // dropped while the relay is still settling ("did not have the correct
+  // challenge"), and nothing about that tells the player anything. One quiet
+  // retry costs a few seconds; not retrying costs the battle.
+  watchJoin(m) {
+    if (this.joinWatch) clearInterval(this.joinWatch);
+    let attempts = 1;
+    const startedAt = Date.now();
+    const deadline = startedAt + Math.max(30000, (m.deadline_s || 60) * 1000);
+
+    this.joinWatch = setInterval(async () => {
+      const current = State.match;
+      if (!current || current.match_id !== m.match_id || !Bridge.ready) {
+        clearInterval(this.joinWatch);
+        this.joinWatch = null;
+        return;
+      }
+      let state;
+      try {
+        state = P2P.parseBridgeJSON(await Bridge.call("greyline_state", ""));
+      } catch (e) {
+        return; // mid-load the bridge does not answer; that is progress, not failure
+      }
+      if (state.in_game) {
+        clearInterval(this.joinWatch);
+        this.joinWatch = null;
+        UI.status("in the battle at " + m.connect);
+        return;
+      }
+      if (Date.now() > deadline) {
+        clearInterval(this.joinWatch);
+        this.joinWatch = null;
+        UI.status("could not reach the battle server at " + m.connect +
+          " after " + attempts + " attempts — leaving the battle", true);
+        // Holding a slot in a battle this client cannot reach helps nobody,
+        // and it is what makes DEPLOY come back "already in a battle" for as
+        // long as the battle lasts. Give the slot up and go back to the map.
+        this.leave();
+        return;
+      }
+      attempts++;
+      UI.status("still not in — retrying " + m.connect + " (attempt " + attempts + ")");
+      try { await this.attemptConnect(m); } catch (e) { /* reported by the next tick */ }
+    }, 8000);
   },
 
   async confirmResult() {
@@ -974,6 +1045,10 @@ const P2P = {
       "greyline_stage_count " + (b.stage_count || 0),
       "greyline_stage_kind " + this.quote(b.stage_kind),
       "greyline_mobilized " + this.quote(b.mobilized || ""),
+      // Hold the round until the roster is actually on the server, instead of
+      // starting the battle around whoever loaded the map fastest.
+      "greyline_min_players " + Math.max(0, parseInt(as.min_players, 10) || 0),
+      "greyline_muster_timeout " + Math.max(15, parseInt(as.muster_timeout_s, 10) || 90),
     ];
     (as.roster || []).forEach(entry => {
       cmds.push("greyline_roster_add " + entry.steam_id + " " +
@@ -1231,8 +1306,15 @@ const Loop = {
         }
         const over = ev.over || {};
         const update = over.war_update || {};
-        UI.banner(update.headline || over.message || "battle over",
-          over.won ? "Your side won it." : "Your side lost it.");
+        const worth = Number(update.weight || 0);
+        let line = over.won ? "Your side won it." : "Your side lost it.";
+        if (worth > 0 && worth < 1) {
+          // A battle counts for what it was: saying so is the difference
+          // between "we won and nothing moved" and understanding why.
+          line += " A battle that size is worth " + Math.round(worth * 100) +
+            "% of a stage — the offensive moves when a stage's worth is fought.";
+        }
+        UI.banner(update.headline || over.message || "battle over", line);
         this.refreshWorld();
         break;
       }

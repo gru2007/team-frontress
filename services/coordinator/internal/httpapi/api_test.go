@@ -594,8 +594,11 @@ func TestQueueSurvivesItsFrontBeingDecided(t *testing.T) {
 		if cur.Attacker == war.SideBlu {
 			outcome = war.OutcomeBluWin
 		}
+		// Full strength on purpose: a battle is worth its headcount, and this
+		// test is about what happens to a queue when a front is decided, not
+		// about how many thin battles it takes to decide one.
 		if _, err := h.engine.RecordBattle(war.BattleResult{
-			BattleID: "forced", FrontID: front, Outcome: outcome,
+			BattleID: "forced", FrontID: front, Outcome: outcome, Players: 24,
 		}); err != nil {
 			break
 		}
