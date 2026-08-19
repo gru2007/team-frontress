@@ -25,7 +25,17 @@ import sys
 
 AGENT = "services/coordinator/cmd/greyline-agent/battle.go"
 WAR_MODEL = "services/coordinator/internal/war/model.go"
-BRIEFING = "src/game/server/greyline/greyline_briefing.cpp"
+# Every server-side greyline source, because the console vocabulary a battle is
+# driven by is not all in one file: the briefing declares the war context, the
+# muster declares the hold, the host state declares what it publishes back.
+SERVER_GREYLINE_DIR = "src/game/server/greyline"
+# The menu page is the second driver of that same vocabulary: when a player
+# hosts the battle on their own machine there is no agent, and the page types
+# the very same commands into the game's own console. It drifting out of step
+# with the agent fails exactly as silently.
+MENU_PAGE = "game/tc2/loose/resource/html/greyline.html"
+# What the page asks the engine over the web RPC, which the client registers.
+MENU_RPC = "src/game/client/greyline/greyline_menu_rpc.cpp"
 LOGIC = "src/game/shared/greyline/greyline_briefing_logic.cpp"
 CLIENT_VPC = "src/game/client/client_tf.vpc"
 SERVER_VPC = "src/game/server/server_tf.vpc"
@@ -51,16 +61,30 @@ def read(root, rel):
 # --- 1. the agent's console vocabulary exists in the game ---------------------
 
 
+def server_sources(root):
+    """Every .cpp under the server's greyline directory, path-relative."""
+    d = os.path.join(root, SERVER_GREYLINE_DIR)
+    if not os.path.isdir(d):
+        fail(f"missing directory: {SERVER_GREYLINE_DIR}")
+        return []
+    return [
+        os.path.join(SERVER_GREYLINE_DIR, name)
+        for name in sorted(os.listdir(d))
+        if name.endswith(".cpp")
+    ]
+
+
 def check_convars(root):
     """Every greyline_* the agent types must be declared in the game DLL."""
     agent = read(root, AGENT)
-    briefing = read(root, BRIEFING)
-    if not agent or not briefing:
+    sources = server_sources(root)
+    game = "".join(read(root, rel) for rel in sources)
+    if not agent or not game:
         return
 
     # ConVar greyline_x( "greyline_x", ... )  and  CON_COMMAND_F( greyline_y, ...
-    declared = set(re.findall(r'ConVar\s+\w+\(\s*"(greyline_\w+)"', briefing))
-    declared |= set(re.findall(r"CON_COMMAND_F\(\s*(greyline_\w+)", briefing))
+    declared = set(re.findall(r'ConVar\s+\w+\(\s*"(greyline_\w+)"', game))
+    declared |= set(re.findall(r"CON_COMMAND_F\(\s*(greyline_\w+)", game))
 
     # The agent builds commands as Go string literals: "greyline_x %q" or bare.
     used = set()
@@ -73,23 +97,71 @@ def check_convars(root):
         fail(f"{AGENT}: found no greyline_* commands at all — did the parser break?")
         return
     if not declared:
-        fail(f"{BRIEFING}: found no greyline_* declarations — did the parser break?")
+        fail(f"{SERVER_GREYLINE_DIR}: found no greyline_* declarations — did the parser break?")
         return
 
     for name in sorted(used):
         if name not in declared:
             fail(
-                f"the agent runs '{name}' but {os.path.basename(BRIEFING)} declares no such "
-                f"convar or command — the server would answer 'Unknown command' and the "
-                f"briefing would be blank"
+                f"the agent runs '{name}' but nothing in {SERVER_GREYLINE_DIR}/ declares such a "
+                f"convar or command — the server would answer 'Unknown command' and whatever "
+                f"that line was setting up would silently not happen"
             )
 
-    notes.append(f"agent drives {len(used)} greyline commands, all declared in the game")
+    notes.append(
+        f"agent drives {len(used)} greyline commands, all declared across "
+        f"{len(sources)} server source(s)"
+    )
 
-    unused = declared - used
+    # The menu page drives the same console when a player hosts the battle
+    # themselves. Everything it types has to exist too, and it is the half
+    # nothing else in CI reads.
+    page_used = set()
+    page = read(root, MENU_PAGE)
+    if page:
+        # Bridge.call names are web RPC methods, not console commands — they
+        # are checked separately, against what the client registers.
+        rpc_calls = set(re.findall(r'Bridge\.call\(\s*"(greyline_\w+)"', page))
+        for lit in re.findall(r'"([^"\n]*)"', page):
+            m = re.match(r"^(greyline_\w+)", lit.strip())
+            if m and m.group(1) not in rpc_calls:
+                page_used.add(m.group(1))
+
+        if not page_used:
+            fail(f"{MENU_PAGE}: found no greyline_* commands at all — did the parser break?")
+        for name in sorted(page_used):
+            if name not in declared:
+                fail(
+                    f"the menu page runs '{name}' when a player hosts the battle, but nothing "
+                    f"in {SERVER_GREYLINE_DIR}/ declares such a convar or command"
+                )
+        if page_used:
+            notes.append(
+                f"menu page drives {len(page_used)} greyline commands, all declared too"
+            )
+
+        # And the methods it asks the engine for have to be registered.
+        rpc_src = read(root, MENU_RPC)
+        if rpc_src:
+            registered = set(re.findall(r'RegisterMethod\(\s*"(greyline_\w+)"', rpc_src))
+            for name in sorted(rpc_calls):
+                if name not in registered:
+                    fail(
+                        f"the menu page calls the '{name}' bridge method, but "
+                        f"{os.path.basename(MENU_RPC)} registers no such method — the web RPC "
+                        f"answers an empty string and the page waits for something that "
+                        f"never comes"
+                    )
+            if rpc_calls:
+                notes.append(
+                    "menu page's engine queries all registered: " + ", ".join(sorted(rpc_calls))
+                )
+
+    unused = declared - used - page_used
     if unused:
         notes.append(
-            "declared but never driven by the agent (fine if they are for humans): "
+            "declared but driven by neither the agent nor the menu page "
+            "(fine if they are for humans, or read rather than set): "
             + ", ".join(sorted(unused))
         )
 
