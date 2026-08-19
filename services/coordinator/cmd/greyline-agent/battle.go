@@ -144,6 +144,10 @@ func (a *Agent) battleCommands(as *pool.Assignment) []string {
 		// Only the roster gets in. The coordinator handed each of them this
 		// password with their assignment.
 		fmt.Sprintf("sv_password %q", as.Password),
+		// Who may join is the roster and the password above, not whoever the
+		// machine's Steam account happens to be friends with. A no-op on a
+		// dedicated server that has never heard of the convar.
+		"sv_friends_only 0",
 		// The coordinator decides the teams, so the server must not shuffle
 		// them back.
 		"mp_autoteambalance 0",

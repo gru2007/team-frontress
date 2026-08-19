@@ -29,6 +29,9 @@ WAR_MODEL = "services/coordinator/internal/war/model.go"
 # driven by is not all in one file: the briefing declares the war context, the
 # muster declares the hold, the host state declares what it publishes back.
 SERVER_GREYLINE_DIR = "src/game/server/greyline"
+# Shared greyline sources declare convars too — the uniform swap is read by the
+# client and written by the server, so it lives here rather than on either side.
+SHARED_GREYLINE_DIR = "src/game/shared/greyline"
 # The menu page is the second driver of that same vocabulary: when a player
 # hosts the battle on their own machine there is no agent, and the page types
 # the very same commands into the game's own console. It drifting out of step
@@ -61,23 +64,26 @@ def read(root, rel):
 # --- 1. the agent's console vocabulary exists in the game ---------------------
 
 
-def server_sources(root):
-    """Every .cpp under the server's greyline directory, path-relative."""
-    d = os.path.join(root, SERVER_GREYLINE_DIR)
-    if not os.path.isdir(d):
-        fail(f"missing directory: {SERVER_GREYLINE_DIR}")
-        return []
-    return [
-        os.path.join(SERVER_GREYLINE_DIR, name)
-        for name in sorted(os.listdir(d))
-        if name.endswith(".cpp")
-    ]
+def game_sources(root):
+    """Every greyline .cpp a convar could be declared in, path-relative."""
+    out = []
+    for rel in (SERVER_GREYLINE_DIR, SHARED_GREYLINE_DIR):
+        d = os.path.join(root, rel)
+        if not os.path.isdir(d):
+            fail(f"missing directory: {rel}")
+            continue
+        out += [
+            os.path.join(rel, name)
+            for name in sorted(os.listdir(d))
+            if name.endswith(".cpp")
+        ]
+    return out
 
 
 def check_convars(root):
     """Every greyline_* the agent types must be declared in the game DLL."""
     agent = read(root, AGENT)
-    sources = server_sources(root)
+    sources = game_sources(root)
     game = "".join(read(root, rel) for rel in sources)
     if not agent or not game:
         return
@@ -97,20 +103,21 @@ def check_convars(root):
         fail(f"{AGENT}: found no greyline_* commands at all — did the parser break?")
         return
     if not declared:
-        fail(f"{SERVER_GREYLINE_DIR}: found no greyline_* declarations — did the parser break?")
+        fail("found no greyline_* declarations in the game sources — did the parser break?")
         return
 
     for name in sorted(used):
         if name not in declared:
             fail(
-                f"the agent runs '{name}' but nothing in {SERVER_GREYLINE_DIR}/ declares such a "
+                f"the agent runs '{name}' but nothing in {SERVER_GREYLINE_DIR}/ or "
+                f"{SHARED_GREYLINE_DIR}/ declares such a "
                 f"convar or command — the server would answer 'Unknown command' and whatever "
                 f"that line was setting up would silently not happen"
             )
 
     notes.append(
         f"agent drives {len(used)} greyline commands, all declared across "
-        f"{len(sources)} server source(s)"
+        f"{len(sources)} game source(s)"
     )
 
     # The menu page drives the same console when a player hosts the battle
@@ -133,7 +140,8 @@ def check_convars(root):
             if name not in declared:
                 fail(
                     f"the menu page runs '{name}' when a player hosts the battle, but nothing "
-                    f"in {SERVER_GREYLINE_DIR}/ declares such a convar or command"
+                    f"in {SERVER_GREYLINE_DIR}/ or {SHARED_GREYLINE_DIR}/ declares such a "
+                    f"convar or command"
                 )
         if page_used:
             notes.append(

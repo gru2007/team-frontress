@@ -192,6 +192,63 @@ loading screen — and the war counts that result.
 The timeout is the escape: a roster member who never arrives costs a wait, not
 the battle.
 
+### Only the roster gets in, and only where the war put them
+
+Two things decide it and neither of them is Steam's friend list: a battle turns
+`sv_friends_only` off before it loads the map, because the people the war sends
+to a battle are mercenaries on the same front, not each other's friends, and a
+listen server left on friends-only refuses all of them with nothing but "You
+are not permitted to join this server!" to go on.
+
+The battle password is a shared secret handed to a dozen clients over HTTP, and
+a shared secret leaks. The roster is the list of accounts the coordinator
+actually assigned to this battle, which is the better question, so the game
+server asks that one: `greyline_roster_gate` refuses the connection outright
+rather than kicking a stranger who has already spawned.
+
+Inside, the team is not a choice. A roster member is seated on the team the war
+gave them the moment they arrive — before the team menu, not a second after it
+— and `jointeam` for any other team is refused with a line saying why. The war
+balanced those two sides around its own allegiances and, on a directional map,
+around which team the map lets attack; a player switching out of that is not
+expressing a preference, they are breaking the battle the war is counting.
+
+That last constraint has a visible cost: the attacking side always wears BLU,
+so a RED offensive is fought as the BLU team. `greyline_uniform_by_war_side`
+puts the war's colours back on the player models for exactly those battles —
+bodies, weapons, cosmetics, viewmodels and buildings alike, because redrawing
+a player and not what they are holding reads as a bug rather than a decision —
+per team and never per player, because the colour of a body is the answer to
+"do I shoot this" and that answer cannot depend on a campaign. It is on: the
+HUD and the map still say BLU, and reading past that once is easier than being
+told all evening that you are BLU while fighting for RED. The briefing knows
+which of the two the player is looking at and says the matching sentence. See
+`game/shared/greyline/greyline_uniform.h`.
+
+### Allegiance is not a choice of role
+
+The uniform is fixed — the attacking side always wears BLU — which invites the
+objection that RED therefore always defends, that people will pick a side and
+spend the evening doing one job, and that TF2's classes make defending the
+easier one.
+
+Half of it is true and it is the half that does not matter. The *in-game team*
+is fixed by the maps. The *war side* is not: which belligerent is on the
+offensive is a property of the front, and a front exists wherever one side owns
+ground next to the other's. `candidates()` generates both directions by the
+same rule and scores them with terms that never name a side — distance to the
+defender's headquarters, momentum, mobilization. Measured over sixty coin-flip
+campaigns on the shipped theater, RED is the attacker in 50.2% of battles
+(`TestNeitherSideIsStructurallyTheAttacker`, which also fails if that ever
+stops being true).
+
+Within one campaign it is lopsided — the middle half of campaigns run between
+31% and 62% — but that is the war having a direction rather than a bias, and
+defensive mobilization exists to turn it around when it goes too far.
+
+What a player does need is to be able to tell which side they are on while
+wearing the other one's colours, which is what the previous section is about.
+
 ### A battle is worth its size
 
 A stage of an offensive is not cleared by winning a battle, it is cleared by

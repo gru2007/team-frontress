@@ -496,6 +496,60 @@ GREYLINE_TEST( Briefing_renders_large_stage_numbers )
 	CHECK_EQ( b.m_szStageCount, "100" );
 }
 
+// ---------------------------------------------------------------------------
+// Which battles are fought in swapped colours. This is what decides whether
+// the player bodies are redrawn in the war's colours — see greyline_uniform.h
+// — so it has to be right about the battles that are swapped and, more
+// importantly, about the ones that are not.
+// ---------------------------------------------------------------------------
+
+GREYLINE_TEST( A_directional_map_with_RED_attacking_is_a_swapped_battle )
+{
+	// The attacking side always wears BLU, so a RED offensive puts every
+	// RED-allegiance player in BLU and every BLU one in RED.
+	CRoster roster;
+	CHECK( roster.Add( 111, kTeamBlu, kTeamRed, false ) );	// RED side, BLU uniform
+	CHECK( roster.Add( 222, kTeamRed, kTeamBlu, false ) );	// BLU side, RED uniform
+	CHECK_EQ( RosterColoursSwapped( roster ), true );
+}
+
+GREYLINE_TEST( A_directional_map_with_BLU_attacking_is_not_swapped )
+{
+	// Nothing to put back: the colours already say what the war says.
+	CRoster roster;
+	CHECK( roster.Add( 111, kTeamBlu, kTeamBlu, false ) );
+	CHECK( roster.Add( 222, kTeamRed, kTeamRed, false ) );
+	CHECK_EQ( RosterColoursSwapped( roster ), false );
+}
+
+GREYLINE_TEST( A_symmetric_map_is_never_a_swapped_battle )
+{
+	// koth and 5cp send no war side at all; the uniform is the side.
+	CRoster roster;
+	CHECK( roster.Add( 111, kTeamRed, kTeamNone, false ) );
+	CHECK( roster.Add( 222, kTeamBlu, kTeamNone, false ) );
+	CHECK_EQ( RosterColoursSwapped( roster ), false );
+}
+
+GREYLINE_TEST( A_contract_alone_does_not_make_a_battle_swapped )
+{
+	// A mercenary under contract fights for the other side this battle — that
+	// is a fact about one player's allegiance, not about the colours the
+	// battle is being fought in, and redrawing everybody over it would be
+	// wrong.
+	CRoster roster;
+	CHECK( roster.Add( 111, kTeamRed, kTeamRed, true ) );
+	CHECK( roster.Add( 222, kTeamBlu, kTeamBlu, true ) );
+	CHECK_EQ( RosterColoursSwapped( roster ), false );
+}
+
+GREYLINE_TEST( An_empty_roster_is_not_a_swapped_battle )
+{
+	// A server between battles must not redraw anybody.
+	CRoster roster;
+	CHECK_EQ( RosterColoursSwapped( roster ), false );
+}
+
 int main()
 {
 	return greylinetest::RunAll( "greyline_logic" );

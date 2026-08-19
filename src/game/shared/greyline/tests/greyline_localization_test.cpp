@@ -83,6 +83,15 @@ bool ReadUTF16File( const std::string &strPath, U16String *pOut, std::string *pE
 		*pErr = strPath + " has an odd byte count and cannot be UTF-16";
 		return false;
 	}
+	// A second BOM is what an edit that re-encoded an already-decoded file
+	// leaves behind. Every parser here would skip it as whitespace and every
+	// token would still be found, so nothing would notice until the engine
+	// read the file and briefed nobody.
+	if ( bytes.size() >= 4 && bytes[2] == 0xFF && bytes[3] == 0xFE )
+	{
+		*pErr = strPath + " starts with two BOMs — it was re-encoded on top of its own BOM";
+		return false;
+	}
 
 	pOut->clear();
 	for ( size_t i = 2; i + 1 < bytes.size(); i += 2 )
@@ -302,11 +311,18 @@ std::vector<Scenario_t> AllScenarios()
 	const char *pszStages[] = { "skirmish", "breakthrough", "advance", "assault", "" };
 	std::vector<Scenario_t> out;
 
+	// Both halves of every scenario: with the player bodies drawn in the
+	// war's colours and without. The two produce different sentences about
+	// what the player is looking at, and a language that translates only one
+	// of them leaves somebody reading a raw token in the case that actually
+	// happens to them.
+	for ( int nUniform = 0; nUniform < 2; ++nUniform )
 	for ( size_t s = 0; s < sizeof( pszStages ) / sizeof( pszStages[0] ); ++s )
 	{
 		for ( int nVariant = 0; nVariant < 4; ++nVariant )
 		{
 			Scenario_t sc;
+			sc.m_Context.m_bUniformsShowWarSide = ( nUniform != 0 );
 			sc.m_Context.m_pszFrontName = kLongFrontName;
 			sc.m_Context.m_pszNodeName = kLongNodeName;
 			sc.m_Context.m_pszNodeID = "reservoir";
@@ -328,7 +344,8 @@ std::vector<Scenario_t> AllScenarios()
 
 			sc.m_strName = std::string( "stage=" ) +
 				( pszStages[s][0] ? pszStages[s] : "(empty)" ) +
-				" variant=" + std::to_string( nVariant );
+				" variant=" + std::to_string( nVariant ) +
+				" uniforms=" + ( nUniform ? "war" : "team" );
 			out.push_back( sc );
 		}
 	}
@@ -438,7 +455,7 @@ GREYLINE_TEST( Every_token_the_server_can_emit_is_translated )
 
 	// Sanity: the scenarios really do exercise the whole briefing. If this drops
 	// the tests below would still pass while covering less.
-	CHECK( used.size() >= 15 );
+	CHECK( used.size() >= 17 );
 
 	for ( std::set<std::string>::const_iterator it = used.begin(); it != used.end(); ++it )
 	{

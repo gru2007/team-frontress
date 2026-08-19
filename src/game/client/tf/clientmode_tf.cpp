@@ -581,13 +581,24 @@ void ClientModeTFNormal::Init()
 
 	m_bPendingRichPresenceUpdate = true;
 
-	// client defaults for privacy settings (so map command is Friends Only by default)
-	static ConVarRef sv_friends_only( "sv_friends_only" );
-	if ( sv_friends_only.IsValid() )
-	{
-		sv_friends_only.SetValue( true );
-	}
-
+	// GREYLINE FRONTRESS: sv_friends_only is no longer forced on here.
+	//
+	// It used to be set true on every launch — "so map command is Friends Only
+	// by default" — which means a listen server this client stands up admits
+	// the host's Steam friends and refuses everybody else, silently, with
+	// "You are not permitted to join this server!" and nothing about the
+	// reason. In GREYLINE that is exactly the wrong list: who may join a
+	// battle is decided by the coordinator's roster and its per-battle
+	// password (see greyline_roster_gate), and the people it sends are
+	// mercenaries in the same war, not each other's friends.
+	//
+	// Forcing it every launch also meant a value the player set themselves
+	// never survived a restart, so it was not really a default at all. The
+	// engine's own default stands now, and a GREYLINE host turns it off
+	// explicitly before it loads the map rather than depending on it.
+	//
+	// The line below is the one that actually keeps a listen server off the
+	// public server browser, and it is untouched.
 	static ConVarRef sv_allow_server_adverisement_to_master_server( "sv_allow_server_adverisement_to_master_server" );
 	if ( sv_allow_server_adverisement_to_master_server.IsValid() )
 	{

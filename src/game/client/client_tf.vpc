@@ -961,6 +961,13 @@ $Project "Client (TF)"
 				// coordinator README for the protocol the page carries over it.
 				// greyline_localize.cpp is the language file the server's
 				// briefing tokens are resolved against.
+				// Whether this battle has the war's two sides wearing each
+				// other's in-game colours, and what to draw them in if so.
+				// Shared because the server works it out from the roster and
+				// the client is what draws the players. Off by default — see
+				// the header for why.
+				$File	"$SRCDIR\game\shared\greyline\greyline_uniform.cpp"
+				$File	"$SRCDIR\game\shared\greyline\greyline_uniform.h"
 				$File	"greyline\greyline_menu_rpc.cpp"
 				$File	"greyline\greyline_localize.cpp"
 

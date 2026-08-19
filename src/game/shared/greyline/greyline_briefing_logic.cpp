@@ -178,6 +178,16 @@ bool ColoursDisagree( const RosterEntry_t *pEntry )
 	return pEntry->m_iTeam != pEntry->m_iWarSide;
 }
 
+bool RosterColoursSwapped( const CRoster &roster )
+{
+	for ( int i = 0; i < roster.Count(); ++i )
+	{
+		if ( ColoursDisagree( &roster[i] ) )
+			return true;
+	}
+	return false;
+}
+
 static void AddLine( Briefing_t *pOut, int iDest, const char *pszToken,
 					 const char *p1 = 0, const char *p2 = 0,
 					 const char *p3 = 0, const char *p4 = 0 )
@@ -230,10 +240,15 @@ void BuildBriefing( const BattleContext_t &ctx, const RosterEntry_t *pEntry,
 
 	// Line 3, the one that stops a player thinking the game is broken. Payload
 	// and attack/defend maps are built for BLU to attack, so a RED offensive is
-	// fought in BLU colours. Said once, plainly, or the scoreboard lies.
+	// fought as the BLU team. Which half of that a player can see depends on
+	// whether the uniforms have been put back into the war's colours, so there
+	// are two versions of the sentence and they say opposite things about what
+	// the player is looking at. Said once, plainly, or the scoreboard lies.
 	if ( ColoursDisagree( pEntry ) )
 	{
-		AddLine( pOut, kDestChat, "#Greyline_Chat_Colours",
+		AddLine( pOut, kDestChat,
+				 ctx.m_bUniformsShowWarSide ? "#Greyline_Chat_Colours_Uniform"
+											: "#Greyline_Chat_Colours",
 				 SideTokenFromTeam( pEntry->m_iWarSide ),
 				 SideTokenFromTeam( pEntry->m_iTeam ) );
 	}
@@ -266,7 +281,9 @@ void BuildBriefing( const BattleContext_t &ctx, const RosterEntry_t *pEntry,
 	// counter, because it is the more urgent of the two.
 	if ( ColoursDisagree( pEntry ) )
 	{
-		AddLine( pOut, kDestCenter, "#Greyline_Hud_Colours",
+		AddLine( pOut, kDestCenter,
+				 ctx.m_bUniformsShowWarSide ? "#Greyline_Hud_Colours_Uniform"
+											: "#Greyline_Hud_Colours",
 				 ctx.m_pszFrontName, pszStageToken,
 				 SideTokenFromTeam( pEntry->m_iWarSide ),
 				 SideTokenFromTeam( pEntry->m_iTeam ) );

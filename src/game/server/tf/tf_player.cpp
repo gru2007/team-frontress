@@ -11,6 +11,9 @@
 #include "tf_gamestats.h"
 #include "KeyValues.h"
 #include "viewport_panel_names.h"
+// GREYLINE FRONTRESS: which team the war put this player on — see
+// HandleCommand_JoinTeam.
+#include "greyline/greyline_roster_gate.h"
 #include "client.h"
 #include "team.h"
 #include "tf_weaponbase.h"
@@ -7080,6 +7083,21 @@ void CTFPlayer::HandleCommand_JoinTeam( const char *pTeamName )
 		if ( iHumanTeam != TEAM_ANY )
 		{
 			iTeam = iHumanTeam;
+			bAutoTeamed = true;
+		}
+
+		// GREYLINE FRONTRESS: in a coordinator battle the team is not a
+		// choice. The war balanced these two sides around its own allegiances
+		// and, on a directional map, around which team the map lets attack —
+		// so a player switching out of it is not expressing a preference, they
+		// are breaking the battle the war is counting. Refusing the pick here
+		// is kinder than allowing it and dragging them back a second later:
+		// the second version looks like the server taking something away.
+		const int iWarTeam = greyline::RosterTeamFor( this );
+		if ( iWarTeam != TEAM_UNASSIGNED && iTeam != iWarTeam )
+		{
+			ClientPrint( this, HUD_PRINTTALK, "#Greyline_Chat_TeamIsAssigned" );
+			iTeam = iWarTeam;
 			bAutoTeamed = true;
 		}
 	}

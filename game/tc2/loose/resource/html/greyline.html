@@ -1070,6 +1070,12 @@ const P2P = {
     // main menu yet, and silently typing them before `map` would leave the
     // roster/password unset.
     await Bridge.cmd("sv_lan 0");
+    // Who may join this battle is the coordinator's roster and its password,
+    // not the host's Steam friend list. Set here rather than assumed: a
+    // listen server left on friends-only refuses every mercenary the war sent
+    // who does not happen to know the host, and says only "You are not
+    // permitted to join this server!" about it.
+    await Bridge.cmd("sv_friends_only 0");
     await Bridge.cmd("maxplayers " + Math.max(2, as.max_players || 12));
     await Bridge.cmd("map " + this.cleanConsole(as.map));
     UI.status("starting local P2P server on " + as.map + "…");

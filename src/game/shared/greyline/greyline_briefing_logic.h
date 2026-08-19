@@ -123,11 +123,18 @@ struct BattleContext_t
 	const char *m_pszMobilized;		// empty when nobody is mobilized
 	int			m_nStage;			// 1-based, as the coordinator sends it
 	int			m_nStageCount;
+	// True when the player bodies are being drawn in the war's colours rather
+	// than the in-game team's — see greyline_uniform.h. It changes what the
+	// briefing has to explain, not whether it explains anything: with it off
+	// the player is confused by wearing the wrong colour, and with it on by a
+	// scoreboard that names a team they do not look like. Telling them the
+	// wrong one of those two is worse than telling them nothing.
+	bool		m_bUniformsShowWarSide;
 
 	BattleContext_t()
 		: m_pszFrontName( "" ), m_pszNodeName( "" ), m_pszNodeID( "" ),
 		  m_pszAttacker( "" ), m_pszStageKind( "" ), m_pszMobilized( "" ),
-		  m_nStage( 0 ), m_nStageCount( 0 ) {}
+		  m_nStage( 0 ), m_nStageCount( 0 ), m_bUniformsShowWarSide( false ) {}
 
 	// A server with no front name is not hosting a Greyline battle, and must say
 	// nothing at all rather than briefing players on an empty war.
@@ -174,6 +181,17 @@ struct Briefing_t
 // is the one fact a player must be told or the game is calling them BLU while
 // the war calls them RED.
 bool ColoursDisagree( const RosterEntry_t *pEntry );
+
+// True when this battle as a whole is being fought in swapped colours: the
+// coordinator mapped the war's sides onto the opposite in-game teams, which is
+// what a directional map forces whenever the side on the offensive is not the
+// one the map lets attack.
+//
+// It is a property of the battle rather than of a player because the mapping
+// is decided once, for everybody — which is exactly why it is safe to redraw
+// the teams in the war's colours (see greyline_uniform.h) and would not be if
+// it were per player.
+bool RosterColoursSwapped( const CRoster &roster );
 
 // Builds the briefing for one player. pEntry may be NULL — a spectator, a late
 // joiner whose SteamID has not arrived yet, or somebody the coordinator never

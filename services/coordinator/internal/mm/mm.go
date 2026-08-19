@@ -211,7 +211,13 @@ func (m *Matchmaker) Hello(steamID uint64, name string, side war.Side, region st
 	if name != "" {
 		p.Name = name
 	}
-	if side != war.SideNone {
+	// Allegiance is a between-battles decision, on this path as much as on
+	// SetSide's. A client that reconnects mid-battle — a crash, a settings
+	// save, a second hello — must not be able to change the side its own
+	// roster slot was written against, or the battle is counted for a side
+	// the player was not fighting for.
+	inBattle := p.State == StateAssigned || p.State == StatePlaying
+	if side != war.SideNone && !inBattle {
 		p.Side = side
 	} else if p.Side == war.SideNone {
 		p.Side = m.lightestSide()
@@ -541,6 +547,7 @@ func (m *Matchmaker) topUpLocked(f war.Front) {
 			continue
 		}
 		var added []pool.RosterEntry
+		var seated []seat
 		for _, p := range m.queuedOn(f.ID) {
 			if room == 0 {
 				break
@@ -550,6 +557,7 @@ func (m *Matchmaker) topUpLocked(f war.Front) {
 				continue
 			}
 			room--
+			seated = append(seated, seat{player: p, slot: slot})
 			added = append(added, pool.RosterEntry{
 				SteamID: slot.SteamID, Name: slot.Name,
 				Side: slot.Side.String(), Team: slot.Team.String(),
@@ -559,11 +567,12 @@ func (m *Matchmaker) topUpLocked(f war.Front) {
 		if len(added) == 0 {
 			continue
 		}
-		// The server has to know who is coming before they arrive: it decides
-		// their team from the roster, and a player it has never heard of is
-		// one the war has no place for. A battle that has not been handed to a
-		// server yet needs no telling — the assignment is built from the
-		// roster at the moment it goes out, so it will carry them already.
+		// The server is told before the players are, and that order matters:
+		// it decides their team from the roster and refuses anybody not on it,
+		// so a player who set off first could arrive at a server that has
+		// never heard of them. A battle that has not been handed to a server
+		// yet needs no telling — the assignment is built from the roster at
+		// the moment it goes out, so it will carry them already.
 		if match.ServerID != "" {
 			if err := m.pool.Send(match.ServerID, pool.Command{
 				Type: pool.CommandRoster, MatchID: match.ID, Roster: added,
@@ -571,6 +580,9 @@ func (m *Matchmaker) topUpLocked(f war.Front) {
 				m.log.Warn("could not send a roster update to a battle in progress",
 					"match", match.ID, "server", match.ServerID, "err", err)
 			}
+		}
+		for _, s := range seated {
+			m.notifySeatedLocked(match, s.player, s.slot)
 		}
 		m.log.Info("players joined an existing battle", "match", match.ID,
 			"front", f.ID, "state", match.State, "joined", len(added), "roster", len(match.Slots))
@@ -613,21 +625,34 @@ func (m *Matchmaker) seatLocked(match *Match, p *Player) (*Slot, bool) {
 		m.stats.Contracts++
 	}
 
-	red, blu = match.sideCounts()
+	return slot, true
+}
+
+// seat is one player and the place they were just given, held between seating
+// them and telling them — see topUpLocked for why those are not the same
+// moment.
+type seat struct {
+	player *Player
+	slot   *Slot
+}
+
+// notifySeatedLocked tells a player they are in a battle, and where it is if
+// there is anywhere to go yet. Called with the lock held.
+func (m *Matchmaker) notifySeatedLocked(match *Match, p *Player, slot *Slot) {
+	red, blu := match.sideCounts()
 	info := m.matchInfo(match, slot)
 	info.RedPlayers, info.BluPlayers = red, blu
 	info.DeadlineS = int(m.cfg.JoinDeadline.Seconds())
 	if match.live() {
 		p.push(Event{Type: EventMatchReady, Match: &info})
-	} else {
-		// Nowhere to send them yet. They get the connect details with
-		// everybody else's when the server reports ready — sendToBattle walks
-		// the roster this player is now on.
-		info.Connect, info.Password = "", ""
-		p.push(Event{Type: EventMatchState, Match: &info,
-			Message: "you are in the next battle at " + match.Plan.FrontName + " — it is starting up"})
+		return
 	}
-	return slot, true
+	// Nowhere to send them yet. They get the connect details with everybody
+	// else's when the server reports ready — sendToBattle walks the roster
+	// this player is now on.
+	info.Connect, info.Password = "", ""
+	p.push(Event{Type: EventMatchState, Match: &info,
+		Message: "you are in the next battle at " + match.Plan.FrontName + " — it is starting up"})
 }
 
 func (m *Matchmaker) formOne(f war.Front) bool {

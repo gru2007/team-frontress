@@ -580,12 +580,29 @@ func TestQueueSurvivesItsFrontBeingDecided(t *testing.T) {
 	waiting.deploy()
 
 	server.state(cmd.Assignment.MatchID, "live")
-	winner := "RED_WIN"
-	if f.Attacker == war.SideBlu {
-		winner = "BLU_WIN"
+
+	// A server reports its scoreboard, in in-game teams, and the attacking
+	// side plays as BLU — so which outcome string means "the attacker won" is
+	// read off the roster the way the coordinator reads it, not guessed from
+	// the side's name. See TestOneBattleMovesTheWar for the same translation.
+	winner := ""
+	for _, e := range cmd.Assignment.Roster {
+		if side, _ := war.ParseSide(e.Side); side == f.Attacker {
+			winner = e.Team + "_WIN"
+			break
+		}
+	}
+	if winner == "" {
+		t.Fatal("no roster entry fights for the attacking side")
 	}
 	server.result(cmd.Assignment.MatchID, winner, 3, 0)
-	for i := 0; i < len(f.Plan); i++ {
+
+	// Then push it the rest of the way at full strength. How many battles that
+	// takes is not a fixed number — a battle is worth its headcount, and the
+	// one above was a small one — so this runs until the front is decided,
+	// bounded so a rule that stops deciding fronts at all fails the assertion
+	// below instead of hanging here.
+	for i := 0; i < 4*len(f.Plan)+4; i++ {
 		cur, open := h.engine.Front(front)
 		if !open {
 			break
@@ -594,9 +611,6 @@ func TestQueueSurvivesItsFrontBeingDecided(t *testing.T) {
 		if cur.Attacker == war.SideBlu {
 			outcome = war.OutcomeBluWin
 		}
-		// Full strength on purpose: a battle is worth its headcount, and this
-		// test is about what happens to a queue when a front is decided, not
-		// about how many thin battles it takes to decide one.
 		if _, err := h.engine.RecordBattle(war.BattleResult{
 			BattleID: "forced", FrontID: front, Outcome: outcome, Players: 24,
 		}); err != nil {

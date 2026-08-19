@@ -32,6 +32,8 @@
 
 #include "cbase.h"
 #include "greyline/greyline_briefing_logic.h"
+#include "greyline_roster_gate.h"
+#include "greyline/greyline_uniform.h"
 #include "igamesystem.h"
 #include "GameEventListener.h"
 #include "eiface.h"
@@ -86,9 +88,14 @@ ConVar greyline_briefing_enabled( "greyline_briefing_enabled", "1", FCVAR_GAMEDL
 	"Announce the battle's place in the war to players." );
 ConVar greyline_roster_enforce( "greyline_roster_enforce", "1", FCVAR_GAMEDLL,
 	"Put players on the team the coordinator assigned them." );
+ConVar greyline_roster_gate( "greyline_roster_gate", "1", FCVAR_GAMEDLL,
+	"Refuse connections from players who are not on this battle's roster. The battle "
+	"password is a shared secret and a shared secret leaks; the roster is the list of "
+	"people the coordinator actually sent here, which is a different and better question." );
 ConVar greyline_roster_kick_strangers( "greyline_roster_kick_strangers", "0", FCVAR_GAMEDLL,
-	"Kick players who are not on the battle roster. The battle password already "
-	"keeps them out, so this is a second line rather than the first." );
+	"Kick players who are not on the battle roster. With greyline_roster_gate on they "
+	"could not have connected in the first place, so this is a third line rather than "
+	"a second." );
 ConVar greyline_briefing_debug( "greyline_briefing_debug", "0", FCVAR_GAMEDLL,
 	"Spew Greyline briefing and roster decisions." );
 
@@ -125,11 +132,23 @@ public:
 	virtual void FrameUpdatePostEntityThink() OVERRIDE;
 	virtual void FireGameEvent( IGameEvent *pEvent ) OVERRIDE;
 
-	void ClearRoster() { m_Roster.Clear(); }
+	void ClearRoster()
+	{
+		m_Roster.Clear();
+		greyline::RecomputeUniformSwap();
+	}
 	bool AddToRoster( uint64 ulSteamID, int iTeam, int iWarSide, bool bContract )
 	{
-		return m_Roster.Add( ulSteamID, iTeam, iWarSide, bContract );
+		if ( !m_Roster.Add( ulSteamID, iTeam, iWarSide, bContract ) )
+			return false;
+		greyline::RecomputeUniformSwap();
+		return true;
 	}
+
+	// Whether this battle puts the war's sides in each other's in-game
+	// colours. The rule itself lives in the logic layer, where it is unit
+	// tested without an engine.
+	bool RosterIsColourSwapped() const { return greyline::RosterColoursSwapped( m_Roster ); }
 
 	// Returns NULL when the player is not on the roster, which is the normal
 	// case on a server that is not currently hosting a Greyline battle.
@@ -140,7 +159,17 @@ public:
 	void AnnounceToAll( bool bIncludeHUD );
 	void AnnounceToPlayer( CBasePlayer *pPlayer, bool bIncludeHUD );
 
+	// Puts one player straight onto the team the war put them on, the moment
+	// they arrive, and opens class selection there. Without it they are shown
+	// the team menu, pick a side the war did not give them, and get moved off
+	// it a second later by EnforceTeams — which reads as the server taking
+	// something away rather than as never having been theirs to choose.
+	void SeatPlayer( CBasePlayer *pPlayer );
+
 	bool HasBattle() const { return greyline_front_name.GetString()[0] != '\0'; }
+
+	int RosterCount() const { return m_Roster.Count(); }
+	bool IsOnRoster( uint64 ulSteamID ) const { return m_Roster.Find( ulSteamID ) != NULL; }
 
 private:
 	void EnforceTeams();
@@ -167,6 +196,9 @@ greyline::BattleContext_t CGreylineBriefing::CurrentContext()
 	ctx.m_pszMobilized = greyline_mobilized.GetString();
 	ctx.m_nStage = greyline_stage.GetInt();
 	ctx.m_nStageCount = greyline_stage_count.GetInt();
+	// What the player can actually see decides which half of the colour
+	// explanation is true — see greyline_uniform.h.
+	ctx.m_bUniformsShowWarSide = greyline::UniformSwapped();
 	return ctx;
 }
 
@@ -212,15 +244,10 @@ void CGreylineBriefing::EnforceTeams()
 			continue;
 		}
 
-		if ( pEntry->m_iTeam == TEAM_UNASSIGNED || pPlayer->GetTeamNumber() == pEntry->m_iTeam )
-			continue;
-
-		if ( greyline_briefing_debug.GetBool() )
-		{
-			Msg( "[greyline] moving %s to team %d (coordinator assignment)\n",
-				pPlayer->GetPlayerName(), pEntry->m_iTeam );
-		}
-		pPlayer->ForceChangeTeam( pEntry->m_iTeam, false );
+		// Same path as on arrival, so a player the backstop catches — one
+		// whose SteamID had not reached the server yet when they activated —
+		// gets the class menu too rather than a silent yank.
+		SeatPlayer( pPlayer );
 	}
 }
 
@@ -255,8 +282,10 @@ void CGreylineBriefing::FireGameEvent( IGameEvent *pEvent )
 	if ( !V_strcmp( pszName, "player_activate" ) )
 	{
 		// Somebody joined late, or reconnected after a crash. They deserve the
-		// same briefing everyone else got.
+		// same briefing everyone else got — and to be put where the war wants
+		// them before they are asked to choose.
 		CBasePlayer *pPlayer = UTIL_PlayerByUserId( pEvent->GetInt( "userid" ) );
+		SeatPlayer( pPlayer );
 		AnnounceToPlayer( pPlayer, true );
 	}
 }
@@ -310,6 +339,94 @@ void CGreylineBriefing::AnnounceToPlayer( CBasePlayer *pPlayer, bool bIncludeHUD
 			line.m_pszParams[2], line.m_pszParams[3] );
 	}
 }
+
+//-----------------------------------------------------------------------------
+void CGreylineBriefing::SeatPlayer( CBasePlayer *pPlayer )
+{
+	if ( !greyline_roster_enforce.GetBool() || !pPlayer || pPlayer->IsFakeClient() )
+		return;
+
+	const greyline::RosterEntry_t *pEntry = FindEntry( pPlayer );
+	if ( !pEntry || pEntry->m_iTeam == TEAM_UNASSIGNED )
+		return;
+	if ( pPlayer->GetTeamNumber() == pEntry->m_iTeam )
+		return;
+
+	CTFPlayer *pTFPlayer = ToTFPlayer( pPlayer );
+	if ( !pTFPlayer )
+		return;
+
+	pTFPlayer->ForceChangeTeam( pEntry->m_iTeam, false );
+	// Straight to class selection: the team menu behind it has one legal
+	// answer, and showing it anyway is how a player ends up believing they
+	// picked something.
+	pTFPlayer->ShowViewPortPanel(
+		( pEntry->m_iTeam == TF_TEAM_RED ) ? PANEL_CLASS_RED : PANEL_CLASS_BLUE );
+
+	if ( greyline_briefing_debug.GetBool() )
+	{
+		Msg( "[greyline] seated %s on team %d\n",
+			pPlayer->GetPlayerName(), pEntry->m_iTeam );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// What the stock TF code asks the war before it lets somebody play. See
+// greyline_roster_gate.h for why this is three free functions.
+//-----------------------------------------------------------------------------
+namespace greyline
+{
+
+bool BattleHasRoster()
+{
+	return g_GreylineBriefing.RosterCount() > 0;
+}
+
+bool MayJoinBattle( unsigned long long ulSteamID, const char **ppszReason )
+{
+	if ( !greyline_roster_gate.GetBool() || !BattleHasRoster() )
+		return true;
+
+	// Steam has not identified this client yet. Refusing here would lock out
+	// an offline or LAN client outright, and the roster still decides their
+	// team once they are in — so this is deliberately a soft edge, and the
+	// only one.
+	if ( ulSteamID == 0 )
+	{
+		Warning( "[greyline] admitting a client Steam has not identified; the roster gate cannot judge it\n" );
+		return true;
+	}
+
+	if ( g_GreylineBriefing.IsOnRoster( ulSteamID ) )
+		return true;
+
+	if ( ppszReason )
+	{
+		*ppszReason = "You are not on this battle's roster. Deploy from the GREYLINE menu to be sent to one.";
+	}
+	return false;
+}
+
+void RecomputeUniformSwap()
+{
+	// Published as a replicated convar because the client is what draws the
+	// players and it cannot see the roster. See greyline_uniform.h.
+	ConVarRef swap( "greyline_uniform_swap" );
+	if ( swap.IsValid() )
+	{
+		swap.SetValue( g_GreylineBriefing.RosterIsColourSwapped() ? 1 : 0 );
+	}
+}
+
+int RosterTeamFor( CBasePlayer *pPlayer )
+{
+	if ( !greyline_roster_enforce.GetBool() )
+		return TEAM_UNASSIGNED;
+	const greyline::RosterEntry_t *pEntry = g_GreylineBriefing.FindEntry( pPlayer );
+	return pEntry ? pEntry->m_iTeam : TEAM_UNASSIGNED;
+}
+
+} // namespace greyline
 
 //-----------------------------------------------------------------------------
 // Console commands the agent drives over RCON.

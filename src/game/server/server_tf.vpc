@@ -1008,6 +1008,13 @@ $Project "Server (TF)"
 				// period until the roster the coordinator formed is actually
 				// on the server, so the war never counts a result decided
 				// while half of it was still on a loading screen.
+				// Whether this battle has the war's two sides wearing each
+				// other's in-game colours, and what to draw them in if so.
+				// Shared because the server works it out from the roster and
+				// the client is what draws the players. Off by default — see
+				// the header for why.
+				$File	"$SRCDIR\game\shared\greyline\greyline_uniform.cpp"
+				$File	"$SRCDIR\game\shared\greyline\greyline_uniform.h"
 				$File	"greyline\greyline_muster.cpp"
 				$File	"$SRCDIR\game\shared\tf\tf_match_description.cpp"
 				$File	"$SRCDIR\game\shared\tf\tf_match_description.h"

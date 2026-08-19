@@ -72,6 +72,9 @@
 	#include "soundenvelope.h"
 	#include "dt_utlvector_send.h"
 	#include "tf_tactical_mission.h"
+	// GREYLINE FRONTRESS: who the coordinator sent to this battle — see
+	// ClientConnected below.
+	#include "greyline/greyline_roster_gate.h"
 	#include "nav_mesh/tf_nav_area.h"
 	#include "bot/tf_bot.h"
 	#include "bot/tf_bot_manager.h"
@@ -20637,6 +20640,25 @@ CObjectSentrygun *CTFGameRules::FindSentryGunWithMostKills( int team ) const
 //-----------------------------------------------------------------------------
 bool CTFGameRules::ClientConnected( edict_t *pEntity, const char *pszName, const char *pszAddress, char *reject, int maxrejectlen )
 {
+	// GREYLINE FRONTRESS: only the people the coordinator sent here get in.
+	// The battle password is a shared secret and a shared secret leaks — it is
+	// handed to a dozen clients over HTTP every battle. The roster is the list
+	// of accounts that were actually assigned to this battle, which is the
+	// question worth asking, and it is asked here rather than after they have
+	// spawned because a stranger who has to be kicked has already been seen.
+	{
+		const CSteamID *pSteamID = engine->GetClientSteamID( pEntity );
+		const char *pszWhy = NULL;
+		if ( !greyline::MayJoinBattle( pSteamID ? pSteamID->ConvertToUint64() : 0ull, &pszWhy ) )
+		{
+			if ( reject && maxrejectlen > 0 && pszWhy )
+			{
+				V_strncpy( reject, pszWhy, maxrejectlen );
+			}
+			return false;
+		}
+	}
+
 	if ( IsMannVsMachineMode() )
 	{
 		int nCount = 0;

@@ -28,6 +28,9 @@
 #include "choreoscene.h"
 #include "tf_weaponbase.h"
 #include "c_tf_playerresource.h"
+// GREYLINE FRONTRESS: whether this battle is fought in swapped colours — see
+// C_TFPlayer::GetSkin.
+#include "greyline/greyline_uniform.h"
 #include "toolframework/itoolframework.h"
 #include "tier1/KeyValues.h"
 #include "tier0/vprof.h"
@@ -8187,6 +8190,15 @@ int C_TFPlayer::GetSkin()
 	{
 		iVisibleTeam = m_Shared.GetDisguiseTeam();
 	}
+
+	// GREYLINE FRONTRESS: a battle can have the war's sides wearing each
+	// other's colours — the attacking side always plays as BLU, whichever
+	// side is attacking. This puts the war's colours back on the bodies, per
+	// team and never per player, and does nothing at all unless
+	// greyline_uniform_by_war_side is on. It goes after the disguise
+	// resolution above on purpose: a disguised spy shows the colours of the
+	// team they are pretending to be, and those are swapped too.
+	iVisibleTeam = greyline::DisplayTeam( iVisibleTeam );
 
 	int nSkin;
 
