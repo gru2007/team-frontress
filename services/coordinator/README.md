@@ -4,6 +4,10 @@ The coordinator owns the war, the queue and the server pool. It decides which
 battle is worth playing next, hands that battle to a dedicated game server, and
 records what the result did to the front.
 
+This file describes what the coordinator does. For what is finished and what is
+not — across the coordinator, the game code and the menu —
+see [`docs/GREYLINE-STATUS.md`](../../docs/GREYLINE-STATUS.md).
+
 ```
 GAME CLIENT
     │  DEPLOY

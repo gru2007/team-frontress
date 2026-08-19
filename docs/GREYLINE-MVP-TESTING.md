@@ -1,5 +1,9 @@
 # Testing the GREYLINE MVP
 
+> Before an evening of testing, read [`GREYLINE-STATUS.md`](GREYLINE-STATUS.md):
+> it lists what is finished, what has never been compiled, and which gaps are
+> already known, so nobody spends the evening rediscovering one.
+
 Four levels, each one adding a real piece. Do them in order: every level tells
 you which half is broken when the next one misbehaves.
 

@@ -1,7 +1,8 @@
 # The war
 
 This is the design of GREYLINE FRONTRESS's strategic layer as it is actually
-implemented, in `services/coordinator/internal/war`.
+implemented, in `services/coordinator/internal/war`. For what is finished,
+half-finished and untried, see [`GREYLINE-STATUS.md`](GREYLINE-STATUS.md).
 
 The point of the whole thing is one sentence:
 
@@ -163,27 +164,55 @@ server the same map it just played.
 Payload and attack/defend maps are built for BLU to attack. The cart, the spawn
 rooms and the respawn visualizers are the map's own geometry, so no amount of
 code makes RED the attacker on `pl_badwater`, and stock TF2 has no map where
-RED attacks. Repainting the players instead would be worse than the problem:
-team colour is how everyone tells friend from foe, and a mercenary in the wrong
-uniform gets shot by his own side.
+RED attacks.
 
 So the coordinator makes it a rule rather than an accident: **the attacking side
-wears BLU in every battle**, on every map, symmetric or not. A player's uniform
-then means something — it says which half of the fight they are in — and it
-never flips for a reason they cannot see.
+plays as the BLU team in every battle**, on every map, symmetric or not. A
+player's in-game team then means something — it says which half of the fight
+they are in — and it never flips for a reason they cannot see.
 
 The coordinator does the translation both ways: it assigns in-game teams in the
 roster, and reads the reported scoreline back into war sides. The war never sees
-the swap, and the game says the rule out loud in the briefing:
+the swap.
+
+This does not make one side the permanent defender. Which belligerent is on the
+offensive is a property of the front, not of the side: both generate candidates
+by the same rule, scored by terms that never name RED or BLU. Measured over
+sixty coin-flip campaigns on the shipped theater, RED is the attacker in 50.2%
+of battles. What is fixed is the uniform, not the job.
+
+### Which leaves the uniform lying
+
+A RED offensive fought as the BLU team tells every player in it, all evening,
+that they are BLU. Saying so in the briefing helps once; it does not survive
+three hours.
+
+The obvious fix is the wrong one. Colouring each player by their own allegiance
+would put a red body inside a blue team, and the colour of a body is the answer
+to *do I shoot this* — an answer that cannot be allowed to depend on a
+campaign. So the swap is **per team and total**: in a battle where the war's
+sides are wearing each other's colours, the attacking team is drawn RED and the
+defending team BLU, everybody alike. Two people on the same team always look
+the same as each other, so friend-and-foe still reads exactly as it did.
+
+What it costs is that only the models follow — the HUD, the scoreboard and the
+map still name the in-game team, and so do particle effects. The briefing knows
+which of the two situations the player is looking at and says the matching
+sentence:
 
 ```
-▌ You fight for RED. In GREYLINE the attacking side always wears BLU, so this
-  battle you are the BLU team — the scoreboard will say BLU. The war still
-  counts it for RED.
+▌ You fight for RED and you are wearing RED. The game has you on its BLU team,
+  so the scoreboard and the end-of-round banner will say BLU — the war counts
+  this battle for RED.
 ```
 
-`war.attacker_team` turns the rule off (`""`), which puts the surprise back:
-colours would then follow the map rather than the player's role.
+`greyline_uniform_by_war_side 0` turns the repaint off and goes back to the
+in-game team's colours everywhere. `war.attacker_team` turns the underlying
+rule off (`""`), which puts the surprise back: colours would then follow the
+map rather than the player's role.
+
+The exact coverage, and what is still unpainted, is in
+[`GREYLINE-STATUS.md`](GREYLINE-STATUS.md).
 
 ## Defensive mobilization
 

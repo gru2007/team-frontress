@@ -133,3 +133,33 @@ func TestDeployWillNotWalkOutOfARunningBattle(t *testing.T) {
 		t.Fatal("DEPLOY pulled a player out of a live battle")
 	}
 }
+
+// TestReconnectingCannotChangeSidesMidBattle: allegiance is a between-battles
+// decision. SetSide has always refused during a battle; hello used to accept
+// one anyway, so a crash, a settings save or any second hello could change the
+// side the player's own roster slot was written against — and the battle would
+// then be counted for a side they were not fighting for.
+func TestReconnectingCannotChangeSidesMidBattle(t *testing.T) {
+	m, servers := newTestMaker(t)
+	match, _, _ := runningBattle(t, m, servers)
+
+	p := m.players[match.Slots[0].SteamID]
+	was := p.Side
+	other := war.SideBlu
+	if was == war.SideBlu {
+		other = war.SideRed
+	}
+
+	if again := m.Hello(p.SteamID, p.Name, other, "", hostelect.Capabilities{}); again.Side != was {
+		t.Fatalf("a hello mid-battle changed allegiance from %s to %s", was, again.Side)
+	}
+	if err := m.SetSide(p, other); err == nil {
+		t.Fatal("SetSide accepted a change during a battle")
+	}
+
+	// And once the battle is over it is their choice again.
+	m.abort(match, "test")
+	if again := m.Hello(p.SteamID, p.Name, other, "", hostelect.Capabilities{}); again.Side != other {
+		t.Fatalf("allegiance stayed %s after the battle ended; it is a choice between battles", again.Side)
+	}
+}
