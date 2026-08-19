@@ -207,8 +207,15 @@ are not permitted to join this server!" to go on.
 The battle password is a shared secret handed to a dozen clients over HTTP, and
 a shared secret leaks. The roster is the list of accounts the coordinator
 actually assigned to this battle, which is the better question, so the game
-server asks that one: `greyline_roster_gate` refuses the connection outright
-rather than kicking a stranger who has already spawned.
+server can ask that one instead: `greyline_roster_gate` refuses the connection
+outright rather than kicking a stranger who has already spawned.
+
+It is only asked when the answer means anything. An assignment carries
+`verified_identities`, true only under `auth.mode=webapi`, and the gate follows
+it. Under dev auth a client states whichever SteamID it likes, so the roster
+can name accounts the game server will never see — and a gate on that turns the
+whole battle away rather than a stranger. The same mismatch stops team
+assignment working, quietly, which is the more expensive half of it.
 
 Inside, the team is not a choice. A roster member is seated on the team the war
 gave them the moment they arrive — before the team menu, not a second after it

@@ -167,6 +167,14 @@ type Assignment struct {
 	// are fighting in and why this is the map they got.
 	Briefing Briefing `json:"briefing"`
 
+	// VerifiedIdentities says whether the SteamIDs on this roster were proven
+	// to Steam or merely claimed by the clients. It decides whether the game
+	// server may turn people away for not being on the roster: under dev auth
+	// a client states whichever SteamID it likes, so the roster can be full of
+	// accounts the server will never see, and refusing strangers would refuse
+	// everybody.
+	VerifiedIdentities bool `json:"verified_identities"`
+
 	// MinPlayers is how many people must actually be on the server before the
 	// battle starts. A game that begins while one person is still on the
 	// loading screen is a game that person did not play, and on a small

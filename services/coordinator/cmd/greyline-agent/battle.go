@@ -148,6 +148,10 @@ func (a *Agent) battleCommands(as *pool.Assignment) []string {
 		// machine's Steam account happens to be friends with. A no-op on a
 		// dedicated server that has never heard of the convar.
 		"sv_friends_only 0",
+		// Turn people away for not being on the roster only when the roster
+		// names accounts this server will actually see — see
+		// Assignment.VerifiedIdentities. Otherwise the password is the gate.
+		fmt.Sprintf("greyline_roster_gate %d", boolToConVar(as.VerifiedIdentities)),
 		// The coordinator decides the teams, so the server must not shuffle
 		// them back.
 		"mp_autoteambalance 0",
@@ -191,6 +195,13 @@ func (a *Agent) battleCommands(as *pool.Assignment) []string {
 	cmds = append(cmds, modeRules(as.Mode)...)
 	cmds = append(cmds, fmt.Sprintf("changelevel %s", as.Map))
 	return cmds
+}
+
+func boolToConVar(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 // modeRules are the win conditions that make a battle end by itself. Without

@@ -75,6 +75,11 @@ type Config struct {
 	// forming and aborting the same battle while everybody else sits at
 	// "already in a battle" and cannot even re-queue.
 	HostFailureCooldown time.Duration
+	// VerifiedIdentities is true when this coordinator proves SteamIDs against
+	// Steam rather than trusting what a client claims. It travels with every
+	// assignment, because a game server cannot otherwise know whether the
+	// roster it was handed names accounts it will actually see.
+	VerifiedIdentities bool
 	// ResultQuorum is the fraction of non-host roster members who must
 	// corroborate a P2P host's reported result before it counts towards the
 	// war. A dedicated server's result is never held for a vote.
@@ -1046,9 +1051,10 @@ func (m *Matchmaker) assignmentFor(match *Match) *pool.Assignment {
 		// Wait for the roster that opened the battle, not for the battlefield
 		// to fill: capacity is room to grow into, MinPlayers is who this
 		// battle was formed out of and is therefore actually coming.
-		MinPlayers:     len(match.Slots),
-		MusterTimeoutS: int(m.cfg.JoinDeadline.Seconds()),
-		Roster:         roster,
+		VerifiedIdentities: m.cfg.VerifiedIdentities,
+		MinPlayers:         len(match.Slots),
+		MusterTimeoutS:     int(m.cfg.JoinDeadline.Seconds()),
+		Roster:             roster,
 		Briefing: pool.Briefing{
 			FrontID:    plan.FrontID,
 			FrontName:  plan.FrontName,
@@ -1091,7 +1097,11 @@ func briefingReason(plan war.BattlePlan, nodeName string) string {
 // ---------------------------------------------------------------------------
 
 // ServerState records a game server's progress on its battle.
-func (m *Matchmaker) ServerState(serverID, matchID, state string, players int) error {
+// reason is what the server said about a "failed" state and is ignored for
+// every other one. It is the only account anybody gets of why a battle a
+// player was standing on ended, so it is carried through rather than replaced
+// with a sentence the coordinator made up.
+func (m *Matchmaker) ServerState(serverID, matchID, state string, players int, reason string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -1138,7 +1148,11 @@ func (m *Matchmaker) ServerState(serverID, matchID, state string, players int) e
 			m.pushMatchState(match, "battle is live")
 		}
 	case "failed":
-		m.abort(match, "the battle server could not host this battle")
+		why := "the battle server could not host this battle"
+		if reason != "" {
+			why = "the battle server gave up: " + reason
+		}
+		m.abort(match, why)
 	default:
 		return fmt.Errorf("mm: unknown server state %q", state)
 	}
@@ -1461,9 +1475,17 @@ func (m *Matchmaker) abort(match *Match, reason string) {
 // Leave takes a player out of whatever they are in. A player who leaves a live
 // battle is not punished yet; the MVP has no reputation system to punish them
 // with, and a wrong penalty is worse than none.
-func (m *Matchmaker) Leave(p *Player) {
+// reason is what the client said it was leaving for, and may be empty. It is
+// logged and nothing else: a player who could not reach a battle and one who
+// walked out of it look identical from here otherwise, and the first of those
+// is a fault worth seeing in the log.
+func (m *Matchmaker) Leave(p *Player, reason string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if reason != "" {
+		m.log.Info("player left", "steam_id", p.SteamID, "state", p.State,
+			"match", p.MatchID, "reason", reason)
+	}
 	if p.State == StateQueued {
 		p.State = StateIdle
 		p.FrontID = ""

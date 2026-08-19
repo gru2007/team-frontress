@@ -819,8 +819,9 @@ const Actions = {
           " after " + attempts + " attempts — leaving the battle", true);
         // Holding a slot in a battle this client cannot reach helps nobody,
         // and it is what makes DEPLOY come back "already in a battle" for as
-        // long as the battle lasts. Give the slot up and go back to the map.
-        this.leave();
+        // long as the battle lasts. Give the slot up and go back to the map,
+        // and tell the coordinator which of the two it was.
+        this.leave("could not reach " + m.connect + " after " + attempts + " attempts");
         return;
       }
       attempts++;
@@ -847,12 +848,17 @@ const Actions = {
     }
   },
 
-  async leave() {
+  async leave(reason) {
     if (!State.connected) return;
+    const why = reason || "left from the menu";
     if (P2P.host && State.match && P2P.host.matchId === State.match.match_id) {
-      await P2P.failHost("host left the battle");
+      // Leaving while hosting ends the battle for everybody on it, so say
+      // which of the two happened rather than letting the coordinator guess.
+      await P2P.failHost("the host " + why);
     }
-    try { await GC.post("/api/v1/client/leave", {}, true); } catch (e) { /* nothing to leave */ }
+    try {
+      await GC.post("/api/v1/client/leave", { reason: why }, true);
+    } catch (e) { /* nothing to leave */ }
     State.match = null;
     State.pendingResult = null;
     State.resultConfirmed = false;
@@ -1032,6 +1038,12 @@ const P2P = {
       "mp_teams_unbalance_limit 0",
       "sv_pausable 0",
       "mp_forcecamera 0",
+      // Turn people away for not being on the roster only when the roster names
+      // accounts this server will actually see. Under the coordinator's dev
+      // auth a client states whichever SteamID it likes, so the roster can be
+      // full of accounts that never turn up and refusing strangers would
+      // refuse everybody. The battle password is the gate until then.
+      "greyline_roster_gate " + (as.verified_identities ? 1 : 0),
       "greyline_roster_clear",
       "greyline_battle_id " + this.quote(as.match_id),
       "greyline_front_id " + this.quote(b.front_id),

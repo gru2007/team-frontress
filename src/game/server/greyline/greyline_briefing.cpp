@@ -88,10 +88,15 @@ ConVar greyline_briefing_enabled( "greyline_briefing_enabled", "1", FCVAR_GAMEDL
 	"Announce the battle's place in the war to players." );
 ConVar greyline_roster_enforce( "greyline_roster_enforce", "1", FCVAR_GAMEDLL,
 	"Put players on the team the coordinator assigned them." );
-ConVar greyline_roster_gate( "greyline_roster_gate", "1", FCVAR_GAMEDLL,
-	"Refuse connections from players who are not on this battle's roster. The battle "
-	"password is a shared secret and a shared secret leaks; the roster is the list of "
-	"people the coordinator actually sent here, which is a different and better question." );
+ConVar greyline_roster_gate( "greyline_roster_gate", "0", FCVAR_GAMEDLL,
+	"Refuse connections from players who are not on this battle's roster.\n"
+	"OFF by default, and the reason is the whole point: this gate is worth exactly as "
+	"much as the identities on the roster are. Under auth.mode=dev a client states "
+	"whichever SteamID it likes, so the roster can be full of accounts the game server "
+	"will never see — and turning strangers away then means turning everybody away. "
+	"The coordinator switches it on for itself when it is running verified Steam auth "
+	"(assignment field verified_identities); the battle password is what gates a "
+	"battle until then." );
 ConVar greyline_roster_kick_strangers( "greyline_roster_kick_strangers", "0", FCVAR_GAMEDLL,
 	"Kick players who are not on the battle roster. With greyline_roster_gate on they "
 	"could not have connected in the first place, so this is a third line rather than "
@@ -169,6 +174,7 @@ public:
 	bool HasBattle() const { return greyline_front_name.GetString()[0] != '\0'; }
 
 	int RosterCount() const { return m_Roster.Count(); }
+	void PrintRoster() const;
 	bool IsOnRoster( uint64 ulSteamID ) const { return m_Roster.Find( ulSteamID ) != NULL; }
 
 private:
@@ -341,6 +347,38 @@ void CGreylineBriefing::AnnounceToPlayer( CBasePlayer *pPlayer, bool bIncludeHUD
 }
 
 //-----------------------------------------------------------------------------
+// Purpose: what this server thinks the battle is, for whoever is looking at a
+//			disconnect box that says they are not on the roster.
+//-----------------------------------------------------------------------------
+void CGreylineBriefing::PrintRoster() const
+{
+	Msg( "[greyline] battle %s on front %s: %d on the roster, gate %s, enforce %s\n",
+		greyline_battle_id.GetString()[0] ? greyline_battle_id.GetString() : "(none)",
+		greyline_front_name.GetString()[0] ? greyline_front_name.GetString() : "(none)",
+		m_Roster.Count(),
+		greyline_roster_gate.GetBool() ? "on" : "off",
+		greyline_roster_enforce.GetBool() ? "on" : "off" );
+
+	for ( int i = 0; i < m_Roster.Count(); ++i )
+	{
+		const greyline::RosterEntry_t &e = m_Roster[i];
+		Msg( "  %llu  team %d  war side %d%s\n",
+			e.m_ulSteamID, e.m_iTeam, e.m_iWarSide, e.m_bContract ? "  (contract)" : "" );
+	}
+
+	// The other half of the answer: who is here that the roster does not know.
+	for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+		if ( !pPlayer || !pPlayer->IsConnected() || pPlayer->IsFakeClient() )
+			continue;
+		const uint64 ulSteamID = pPlayer->GetSteamIDAsUInt64();
+		Msg( "  connected: %s  %llu  %s\n", pPlayer->GetPlayerName(), ulSteamID,
+			m_Roster.Find( ulSteamID ) ? "on the roster" : "NOT on the roster" );
+	}
+}
+
+//-----------------------------------------------------------------------------
 void CGreylineBriefing::SeatPlayer( CBasePlayer *pPlayer )
 {
 	if ( !greyline_roster_enforce.GetBool() || !pPlayer || pPlayer->IsFakeClient() )
@@ -399,6 +437,14 @@ bool MayJoinBattle( unsigned long long ulSteamID, const char **ppszReason )
 
 	if ( g_GreylineBriefing.IsOnRoster( ulSteamID ) )
 		return true;
+
+	// Loud, because the only way this is ever wrong is that the roster on this
+	// server is not the roster the coordinator thinks it sent — and a silent
+	// refusal gives whoever is debugging it nothing but a disconnect box.
+	Warning( "[greyline] refusing %llu: not among the %d players on this battle's roster. "
+		"Run greyline_roster_status to see who is on it, or greyline_roster_gate 0 to let "
+		"the battle password decide on its own.\n",
+		ulSteamID, g_GreylineBriefing.RosterCount() );
 
 	if ( ppszReason )
 	{
@@ -467,6 +513,13 @@ CON_COMMAND_F( greyline_roster_add,
 		Msg( "[greyline] roster: %llu -> team %d, war side %d%s\n",
 			ulSteamID, iTeam, iWarSide, bContract ? " (contract)" : "" );
 	}
+}
+
+CON_COMMAND_F( greyline_roster_status,
+	"Print the battle roster this server is actually holding.",
+	FCVAR_GAMEDLL )
+{
+	g_GreylineBriefing.PrintRoster();
 }
 
 CON_COMMAND_F( greyline_announce_briefing,

@@ -193,6 +193,9 @@ func matchmakingConfig(cfg *config.Config) mm.Config {
 	if cfg.Timing.HostFailureCooldown > 0 {
 		c.HostFailureCooldown = cfg.Timing.HostFailureCooldown.D()
 	}
+	// Only verified Steam auth produces a roster a game server can turn people
+	// away against. See pool.Assignment.VerifiedIdentities.
+	c.VerifiedIdentities = cfg.Auth.Mode == config.AuthWebAPI
 	c.HostElection = hostelect.Weights{
 		Upload: cfg.Election.WeightUpload, Latency: cfg.Election.WeightLatency,
 		CPU: cfg.Election.WeightCPU, Stability: cfg.Election.WeightStability,

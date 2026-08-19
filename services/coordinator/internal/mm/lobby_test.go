@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -77,10 +78,10 @@ func runningBattle(t *testing.T, m *Matchmaker, servers *pool.Pool) (*Match, str
 	if _, ok, err := servers.Poll(context.Background(), id, token, time.Second); err != nil || !ok {
 		t.Fatalf("the battle was never handed to its server (ok=%v, err=%v)", ok, err)
 	}
-	if err := m.ServerState(id, match.ID, "ready", 4); err != nil {
+	if err := m.ServerState(id, match.ID, "ready", 4, ""); err != nil {
 		t.Fatalf("ready: %v", err)
 	}
-	if err := m.ServerState(id, match.ID, "live", 4); err != nil {
+	if err := m.ServerState(id, match.ID, "live", 4, ""); err != nil {
 		t.Fatalf("live: %v", err)
 	}
 	return match, id, token
@@ -227,7 +228,7 @@ func TestSomebodyWhoDeploysDuringABootJoinsThatBattle(t *testing.T) {
 	}
 
 	// And when it does come up, they are on the roster that gets sent there.
-	if err := m.ServerState(id, match.ID, "ready", 5); err != nil {
+	if err := m.ServerState(id, match.ID, "ready", 5, ""); err != nil {
 		t.Fatalf("ready: %v", err)
 	}
 	sawReady := false
@@ -255,5 +256,60 @@ func TestAnAssignmentCarriesTheMuster(t *testing.T) {
 	}
 	if as.MaxPlayers < as.MinPlayers {
 		t.Fatalf("capacity %d is below the roster %d", as.MaxPlayers, as.MinPlayers)
+	}
+}
+
+// TestTheRosterGateFollowsWhetherIdentitiesAreProven is the failure this cost
+// an evening: the game server was told to turn away anybody not on the roster,
+// while the coordinator was running dev auth — where a client states whichever
+// SteamID it likes, so the roster names accounts the server will never see and
+// "not on the roster" is everybody.
+func TestTheRosterGateFollowsWhetherIdentitiesAreProven(t *testing.T) {
+	m, servers := newTestMaker(t)
+	match, _, _ := runningBattle(t, m, servers)
+
+	if as := m.assignmentFor(match); as.VerifiedIdentities {
+		t.Fatal("a coordinator that trusts whatever a client claims must not tell a " +
+			"server to turn people away for not matching its roster")
+	}
+
+	m.cfg.VerifiedIdentities = true
+	if as := m.assignmentFor(match); !as.VerifiedIdentities {
+		t.Fatal("with proven identities the roster is worth gating on, and the " +
+			"assignment must say so")
+	}
+}
+
+// TestAFailedBattleKeepsTheReasonTheServerGave: when a battle a player was
+// standing on ends, the coordinator's log is the only account anybody gets of
+// why. Replacing what the server actually said with a sentence of our own
+// turns every distinct failure into the same unhelpful line.
+func TestAFailedBattleKeepsTheReasonTheServerGave(t *testing.T) {
+	m, servers := newTestMaker(t)
+	match, serverID, _ := runningBattle(t, m, servers)
+
+	if err := m.ServerState(serverID, match.ID, "failed", 0,
+		"listen server has no Steam FakeIP"); err != nil {
+		t.Fatalf("failed state: %v", err)
+	}
+	if match.State != MatchAborted {
+		t.Fatalf("a server that gave up left the battle in %s", match.State)
+	}
+
+	var told string
+	for _, s := range match.Slots {
+		p := m.players[s.SteamID]
+		if p == nil {
+			continue
+		}
+		for _, ev := range p.drain(0) {
+			if ev.Type == EventQueue && ev.Queue != nil && ev.Queue.Message != "" {
+				told = ev.Queue.Message
+			}
+		}
+		break
+	}
+	if !strings.Contains(told, "no Steam FakeIP") {
+		t.Fatalf("the roster was told %q, which does not contain what the server said", told)
 	}
 }

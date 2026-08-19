@@ -279,8 +279,19 @@ func (a *API) cancel(w http.ResponseWriter, r *http.Request, p *mm.Player) {
 	writeJSON(w, http.StatusOK, map[string]any{"queue": a.mm.QueueStatusFor(p)})
 }
 
+type leaveRequest struct {
+	// Reason is optional and for the log only — "could not reach the battle
+	// server" and "changed my mind" are the same event from here otherwise,
+	// and only one of them is a fault.
+	Reason string `json:"reason"`
+}
+
 func (a *API) leave(w http.ResponseWriter, r *http.Request, p *mm.Player) {
-	a.mm.Leave(p)
+	var req leaveRequest
+	if r.ContentLength > 0 {
+		_ = json.NewDecoder(r.Body).Decode(&req) // optional body; a bad one is not a failure to leave
+	}
+	a.mm.Leave(p, req.Reason)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
@@ -554,7 +565,7 @@ func (a *API) serverState(w http.ResponseWriter, r *http.Request, s *pool.Server
 	if !readJSON(w, r, &req) {
 		return
 	}
-	if err := a.mm.ServerState(s.ID, req.MatchID, req.State, req.Players); err != nil {
+	if err := a.mm.ServerState(s.ID, req.MatchID, req.State, req.Players, req.Reason); err != nil {
 		fail(w, http.StatusConflict, err.Error())
 		return
 	}
