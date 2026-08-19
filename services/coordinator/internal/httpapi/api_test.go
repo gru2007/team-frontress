@@ -801,6 +801,18 @@ func TestP2PHostElectedAndCorroborated(t *testing.T) {
 		t.Fatal("the match finished on an uncorroborated report")
 	}
 
+	// Every non-host receives the literal in-game scoreboard report. The real
+	// client shows this and asks the player to compare it with the scoreboard
+	// before confirming; it must not silently trust the elected host.
+	for _, c := range others {
+		ev := c.waitFor(mm.EventResultPending)
+		if ev.Pending == nil || ev.Pending.MatchID != matchID ||
+			ev.Pending.Outcome.String() != "RED_WIN" ||
+			ev.Pending.RedScore != 3 || ev.Pending.BluScore != 1 {
+			t.Fatalf("client %d got the wrong pending P2P result: %+v", c.steamID, ev.Pending)
+		}
+	}
+
 	// The host cannot corroborate its own report.
 	var hostVoteOut map[string]any
 	if code := h.do("POST", "/api/v1/client/confirm-result", host.token,

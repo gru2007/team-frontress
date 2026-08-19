@@ -179,6 +179,11 @@ const (
 	// AcceptDeadlineS; doing nothing lets the coordinator fall back to waiting
 	// for a server the ordinary way.
 	EventHostOffer EventType = "host_offer"
+	// EventResultPending asks non-host roster members to corroborate what an
+	// untrusted P2P host reported. The values are the raw in-game scoreboard
+	// values, not war-side values: ConfirmResult performs the same side/team
+	// translation as ServerResult before it compares them.
+	EventResultPending EventType = "result_pending"
 	// EventNotice is a plain message.
 	EventNotice EventType = "notice"
 )
@@ -189,13 +194,14 @@ type Event struct {
 	At   time.Time `json:"at"`
 	Type EventType `json:"type"`
 
-	Queue    *QueueStatus   `json:"queue,omitempty"`
-	Match    *MatchInfo     `json:"match,omitempty"`
-	Over     *MatchOver     `json:"over,omitempty"`
-	World    *WorldNotice   `json:"world,omitempty"`
-	Contract *ContractOffer `json:"contract,omitempty"`
-	Host     *HostOffer     `json:"host,omitempty"`
-	Message  string         `json:"message,omitempty"`
+	Queue    *QueueStatus         `json:"queue,omitempty"`
+	Match    *MatchInfo           `json:"match,omitempty"`
+	Over     *MatchOver           `json:"over,omitempty"`
+	World    *WorldNotice         `json:"world,omitempty"`
+	Contract *ContractOffer       `json:"contract,omitempty"`
+	Host     *HostOffer           `json:"host,omitempty"`
+	Pending  *ResultPendingNotice `json:"pending,omitempty"`
+	Message  string               `json:"message,omitempty"`
 }
 
 // QueueStatus is what the DEPLOY screen shows while waiting.
@@ -296,6 +302,17 @@ type HostOffer struct {
 	MaxPlayers      int    `json:"max_players"`
 	FrontName       string `json:"front_name"`
 	AcceptDeadlineS int    `json:"accept_deadline_s"`
+}
+
+// ResultPendingNotice is what non-host players see after a P2P host reports a
+// finished battle. It deliberately carries the scoreboard as the game saw it,
+// so the player can compare it with the scoreboard before confirming it. A
+// client must never auto-confirm this merely because the host said it.
+type ResultPendingNotice struct {
+	MatchID  string      `json:"match_id"`
+	Outcome  war.Outcome `json:"outcome"`
+	RedScore uint32      `json:"red_score"`
+	BluScore uint32      `json:"blu_score"`
 }
 
 func randHex(n int) string {

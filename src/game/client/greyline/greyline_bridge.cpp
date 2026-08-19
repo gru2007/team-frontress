@@ -569,7 +569,7 @@ void CGreylineBridge::ProcessFrames()
 			const char *pszParams = pRoot->GetString( "p", "" );
 			if ( nID >= 0 && pszMethod[0] )
 			{
-				DispatchMessage( nID, pszMethod, pszParams );
+				DispatchRPCMessage( nID, pszMethod, pszParams );
 			}
 			pRoot->deleteThis();
 			break;
@@ -632,7 +632,7 @@ void CGreylineBridge::Reply( int nID, const char *pszResult )
 // arrived yet, for standing up a P2P battle — see greyline_hoststate.cpp,
 // which is the only thing that ever sets these two convars).
 //-----------------------------------------------------------------------------
-void CGreylineBridge::DispatchMessage( int nID, const char *pszMethod, const char *pszParams )
+void CGreylineBridge::DispatchRPCMessage( int nID, const char *pszMethod, const char *pszParams )
 {
 	if ( greyline_bridge_debug.GetBool() )
 	{

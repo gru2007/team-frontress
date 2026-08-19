@@ -189,8 +189,10 @@
         <div id="battleWhat" style="font-weight: 600;"></div>
         <div class="muted" id="battleWhy" style="margin: 4px 0 10px;"></div>
         <div class="mono muted" id="battleWhere" style="font-size: 13px;"></div>
-        <div style="margin-top: 10px; display: flex; gap: 8px;">
+        <div id="pendingResult" class="muted" style="margin-top: 10px; font-size: 13px; display: none;"></div>
+        <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
           <button class="primary" id="joinBtn" disabled>JOIN BATTLE</button>
+          <button class="primary" id="confirmResultBtn" style="display: none;">CONFIRM RESULT</button>
           <button id="leaveBtn">LEAVE</button>
         </div>
       </div>
@@ -229,11 +231,22 @@
               <option value="BLU">BLU</option>
             </select>
           </div>
-          <div class="full" style="display: flex; gap: 8px; align-items: center;">
+          <div>
+            <label for="p2pUpload">P2P upload kbps (test)</label>
+            <input id="p2pUpload" inputmode="numeric" placeholder="10000">
+          </div>
+          <div>
+            <label for="p2pSlots">P2P max players</label>
+            <input id="p2pSlots" inputmode="numeric" placeholder="12">
+          </div>
+          <div class="full" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
             <button id="connectBtn">CONNECT</button>
             <button id="randomIdBtn">RANDOM ID</button>
             <label style="text-transform: none; letter-spacing: 0; margin: 0; display: flex; align-items: center; gap: 6px;">
               <input type="checkbox" id="autoJoin" style="width: auto;" checked> auto-join
+            </label>
+            <label style="text-transform: none; letter-spacing: 0; margin: 0; display: flex; align-items: center; gap: 6px;">
+              <input type="checkbox" id="p2pHost" style="width: auto;" checked> allow P2P hosting
             </label>
           </div>
         </div>
@@ -310,6 +323,14 @@ const Bridge = {
 
   // The console rejects anything with a semicolon, so commands go one at a time.
   cmd(line) { return this.call("cmd", line); },
+
+  async waitReady(timeoutMs) {
+    const deadline = Date.now() + (timeoutMs || 0);
+    while (!this.ready && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    return this.ready;
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -319,10 +340,11 @@ const GC = {
   base: "",
   token: "",
 
-  async request(method, path, body, useToken) {
+  async request(method, path, body, useToken, extraHeaders) {
     const url = this.base.replace(/\/+$/, "") + path;
     const headers = { "Content-Type": "application/json" };
     if (useToken && this.token) headers["Authorization"] = "Bearer " + this.token;
+    Object.assign(headers, extraHeaders || {});
 
     if (Bridge.ready) {
       const raw = await Bridge.call("fetch", JSON.stringify({
@@ -358,6 +380,19 @@ const GC = {
 
   get(path, useToken) { return this.request("GET", path, undefined, useToken); },
   post(path, body, useToken) { return this.request("POST", path, body || {}, useToken); },
+
+  serverHeaders(host) {
+    return {
+      "Authorization": "Bearer " + host.serverToken,
+      "X-Greyline-Server": host.serverId,
+    };
+  },
+  serverGet(host, path) {
+    return this.request("GET", path, undefined, false, this.serverHeaders(host));
+  },
+  serverPost(host, path, body) {
+    return this.request("POST", path, body || {}, false, this.serverHeaders(host));
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -370,6 +405,9 @@ const State = {
     name: "mercenary",
     side: "RED",
     autoJoin: true,
+    p2pHost: true,
+    p2pUploadKbps: 10000,
+    p2pMaxPlayers: 12,
   },
   connected: false,
   seq: 0,
@@ -378,6 +416,8 @@ const State = {
   fronts: [],
   match: null,
   queue: null,
+  pendingResult: null,
+  resultConfirmed: false,
   polling: false,
 
   load() {
@@ -548,7 +588,28 @@ const UI = {
       ? match.connect + (match.password ? "  password " + match.password : "")
       : "waiting for the battle server…";
     this.el("battleWhere").textContent = where;
-    this.el("joinBtn").disabled = !match.connect;
+    const hostingHere = !!(match.is_host && P2P.host && P2P.host.matchId === match.match_id);
+    this.el("joinBtn").disabled = !match.connect && !hostingHere;
+    this.el("joinBtn").textContent = hostingHere ? "HOSTING" : "JOIN BATTLE";
+    this.renderPendingResult(State.pendingResult);
+  },
+
+  renderPendingResult(pending) {
+    const text = this.el("pendingResult");
+    const btn = this.el("confirmResultBtn");
+    if (!pending) {
+      text.style.display = "none";
+      btn.style.display = "none";
+      btn.disabled = false;
+      btn.textContent = "CONFIRM RESULT";
+      return;
+    }
+    text.style.display = "";
+    text.textContent = "P2P host reports: " + pending.outcome + " · RED " +
+      pending.red_score + " — " + pending.blu_score + " BLU. Check the scoreboard before confirming.";
+    btn.style.display = "";
+    btn.disabled = !!State.resultConfirmed;
+    btn.textContent = State.resultConfirmed ? "CONFIRMED" : "CONFIRM RESULT";
   },
 
   banner(headline, detail) {
@@ -590,6 +651,9 @@ const Actions = {
     s.name = UI.el("playerName").value.trim() || "mercenary";
     s.side = UI.el("sidePick").value;
     s.autoJoin = UI.el("autoJoin").checked;
+    s.p2pHost = UI.el("p2pHost").checked;
+    s.p2pUploadKbps = Math.max(0, parseInt(UI.el("p2pUpload").value || "0", 10) || 0);
+    s.p2pMaxPlayers = Math.max(2, parseInt(UI.el("p2pSlots").value || "12", 10) || 12);
     State.save();
     UI.el("settingsError").textContent = "";
 
@@ -602,11 +666,25 @@ const Actions = {
 
     GC.base = s.gc;
     try {
+      // A P2P host has to be able to drive the local listen server. Give the
+      // loopback bridge a moment to connect before saying hello so a saved
+      // auto-connect does not accidentally advertise this machine as unable
+      // to host just because CEF won a startup race.
+      if (s.p2pHost) await Bridge.waitReady(2500);
+      const canHost = !!(s.p2pHost && Bridge.ready);
+      const cores = Math.max(1, navigator.hardwareConcurrency || 4);
+      const memoryMB = Math.max(2048, Math.round((navigator.deviceMemory || 8) * 1024));
       const reply = await GC.post("/api/v1/client/hello", {
         steam_id: Number(s.steamId),
         name: s.name,
         side: s.side,
         client_version: "greyline-test-ui",
+        protocol_version: 2,
+        host_capable: canHost,
+        upload_kbps: canHost ? s.p2pUploadKbps : 0,
+        cpu_score: canHost ? Math.max(40, Math.min(100, cores * 10)) : 0,
+        memory_mb: canHost ? memoryMB : 0,
+        max_host_slots: canHost ? s.p2pMaxPlayers : 0,
       });
       GC.token = reply.token;
       State.connected = true;
@@ -654,7 +732,12 @@ const Actions = {
   // nothing to drive, so the console line is shown to copy instead.
   async join() {
     const m = State.match;
-    if (!m || !m.connect) return;
+    if (!m) return;
+    if (m.is_host && P2P.host && P2P.host.matchId === m.match_id) {
+      UI.status("you are hosting this P2P battle locally");
+      return;
+    }
+    if (!m.connect) return;
     if (!Bridge.ready) {
       UI.status("no game bridge — run: password " + (m.password || "") + " ; connect " + m.connect);
       return;
@@ -668,11 +751,288 @@ const Actions = {
     }
   },
 
+  async confirmResult() {
+    const pending = State.pendingResult;
+    if (!State.connected || !pending || State.resultConfirmed) return;
+    try {
+      await GC.post("/api/v1/client/confirm-result", {
+        match_id: pending.match_id,
+        outcome: pending.outcome,
+        red_score: pending.red_score,
+        blu_score: pending.blu_score,
+      }, true);
+      State.resultConfirmed = true;
+      UI.renderPendingResult(pending);
+      UI.status("P2P result confirmed — waiting for quorum");
+    } catch (e) {
+      UI.status("could not confirm P2P result: " + e.message, true);
+    }
+  },
+
   async leave() {
     if (!State.connected) return;
+    if (P2P.host && State.match && P2P.host.matchId === State.match.match_id) {
+      await P2P.failHost("host left the battle");
+    }
     try { await GC.post("/api/v1/client/leave", {}, true); } catch (e) { /* nothing to leave */ }
     State.match = null;
+    State.pendingResult = null;
+    State.resultConfirmed = false;
     UI.renderMatch(null);
+    UI.renderPendingResult(null);
+  },
+};
+
+// ---------------------------------------------------------------------------
+// P2P host lifecycle
+// ---------------------------------------------------------------------------
+const P2P = {
+  host: null,
+  heartbeatTimer: null,
+  gameWatchTimer: null,
+  watchBusy: false,
+
+  sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); },
+
+  cleanConsole(value) {
+    return String(value === undefined || value === null ? "" : value)
+      .replace(/[\r\n;]/g, " ");
+  },
+
+  quote(value) {
+    return '"' + this.cleanConsole(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+  },
+
+  parseBridgeJSON(raw) {
+    try { return JSON.parse(raw || "{}"); } catch (e) { return {}; }
+  },
+
+  async acceptHost(offer) {
+    if (!offer || !offer.match_id || this.host) return;
+    if (!State.settings.p2pHost || !Bridge.ready) {
+      UI.status("P2P host offer ignored: local game bridge is unavailable", true);
+      return;
+    }
+
+    try {
+      UI.status("accepting P2P host for " + offer.map + "…");
+      const reg = await GC.post("/api/v1/client/host-register", {
+        match_id: offer.match_id,
+        name: State.settings.name + " P2P",
+        capacity: Math.max(offer.max_players || 0, State.settings.p2pMaxPlayers || 0),
+        game_version: "greyline-test-ui",
+      }, true);
+
+      this.host = {
+        matchId: offer.match_id,
+        map: offer.map,
+        serverId: reg.server_id,
+        serverToken: reg.server_token,
+        assignment: null,
+        startedAt: Date.now(),
+        baselineGameOverSeq: 0,
+        resultReported: false,
+        ready: false,
+      };
+      this.startHeartbeat();
+
+      // ConfirmHost puts the assignment straight into this one-battle server's
+      // command mailbox, so the first poll should return immediately.
+      const cmd = await GC.serverGet(this.host, "/api/v1/servers/poll?wait=1");
+      if (!cmd || cmd.type !== "assign" || !cmd.assignment) {
+        throw new Error("coordinator registered this host but sent no assignment");
+      }
+      this.host.assignment = cmd.assignment;
+      await this.launch(cmd.assignment);
+    } catch (e) {
+      UI.status("P2P host failed: " + e.message, true);
+      await this.failHost(e.message);
+    }
+  },
+
+  startHeartbeat() {
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    const beat = async () => {
+      const h = this.host;
+      if (!h) return;
+      try {
+        await GC.serverPost(h, "/api/v1/servers/heartbeat", {
+          status: h.ready ? "live" : "booting",
+          match_id: h.matchId,
+          map: h.map || "",
+          players: 0,
+        });
+      } catch (e) {
+        UI.status("P2P heartbeat failed: " + e.message, true);
+      }
+    };
+    beat();
+    this.heartbeatTimer = setInterval(beat, 5000);
+  },
+
+  modeRules(mode) {
+    switch (String(mode || "").toLowerCase()) {
+      case "5cp": return ["mp_windifference 0", "mp_winlimit 3", "mp_maxrounds 0", "mp_timelimit 30"];
+      case "koth": return ["mp_winlimit 2", "mp_maxrounds 0", "mp_timelimit 30"];
+      case "arena": return ["mp_winlimit 3", "mp_maxrounds 0", "mp_timelimit 0", "tf_arena_use_queue 0"];
+      case "payload": case "attack_defend": case "ad":
+        return ["mp_winlimit 0", "mp_maxrounds 1", "mp_timelimit 0"];
+      case "ctf": return ["mp_winlimit 3", "mp_maxrounds 0", "mp_timelimit 30"];
+      default: return ["mp_winlimit 3", "mp_timelimit 30"];
+    }
+  },
+
+  battleCommands(as) {
+    const b = as.briefing || {};
+    const cmds = [
+      "sv_password " + this.quote(as.password || ""),
+      "mp_autoteambalance 0",
+      "mp_teams_unbalance_limit 0",
+      "sv_pausable 0",
+      "mp_forcecamera 0",
+      "greyline_roster_clear",
+      "greyline_battle_id " + this.quote(as.match_id),
+      "greyline_front_id " + this.quote(b.front_id),
+      "greyline_front_name " + this.quote(b.front_name),
+      "greyline_node_id " + this.quote(b.node_id),
+      "greyline_node_name " + this.quote(b.node_name),
+      "greyline_campaign " + this.quote(b.campaign),
+      "greyline_attacker " + this.quote(b.attacker),
+      "greyline_defender " + this.quote(b.defender),
+      "greyline_stage " + (b.stage || 0),
+      "greyline_stage_count " + (b.stage_count || 0),
+      "greyline_stage_kind " + this.quote(b.stage_kind),
+      "greyline_mobilized " + this.quote(b.mobilized || ""),
+    ];
+    (as.roster || []).forEach(entry => {
+      cmds.push("greyline_roster_add " + entry.steam_id + " " +
+        String(entry.team || "").toUpperCase() + " " +
+        String(entry.side || "").toUpperCase() + " " + (entry.contract ? 1 : 0));
+    });
+    return cmds.concat(this.modeRules(as.mode));
+  },
+
+  async launch(as) {
+    if (!this.host) return;
+    const before = this.parseBridgeJSON(await Bridge.call("state", ""));
+    this.host.baselineGameOverSeq = Number(before.game_over_seq || 0);
+
+    // A listen server does not exist yet, unlike the dedicated agent's srcds.
+    // Set the engine-level knobs first, then `map` creates the server. The
+    // Greyline server commands are deliberately applied *after* the map is up:
+    // on builds that load server.dll lazily those commands do not exist in the
+    // main menu yet, and silently typing them before `map` would leave the
+    // roster/password unset.
+    await Bridge.cmd("sv_lan 0");
+    await Bridge.cmd("maxplayers " + Math.max(2, as.max_players || 12));
+    await Bridge.cmd("map " + this.cleanConsole(as.map));
+    UI.status("starting local P2P server on " + as.map + "…");
+
+    const deadline = Date.now() + Math.max(30000, (as.boot_deadline_s || 90) * 1000);
+    let sawIdentityWithoutAddressAt = 0;
+    let configured = false;
+    while (Date.now() < deadline) {
+      if (!this.host) return;
+      const state = this.parseBridgeJSON(await Bridge.call("state", ""));
+      const endpoint = this.parseBridgeJSON(await Bridge.call("host_address", ""));
+      const level = String(state.level || "").replace(/\\/g, "/").split("/").pop().replace(/\.bsp$/i, "");
+      const onMap = !!state.in_game && level.toLowerCase() === String(as.map || "").toLowerCase();
+
+      if (onMap && !configured) {
+        for (const cmd of this.battleCommands(as)) await Bridge.cmd(cmd);
+        configured = true;
+        // The local host is already on the server by the time these commands
+        // exist, so explicitly show them the same briefing guests get on join.
+        await Bridge.cmd("greyline_announce_briefing");
+      }
+
+      if (endpoint.ready && !endpoint.address) {
+        if (!sawIdentityWithoutAddressAt) sawIdentityWithoutAddressAt = Date.now();
+        if (Date.now() - sawIdentityWithoutAddressAt > 5000) {
+          throw new Error("listen server has no Steam FakeIP; launch the game with -enablefakeip");
+        }
+      }
+
+      if (onMap && configured && endpoint.ready && endpoint.address) {
+        await GC.serverPost(this.host, "/api/v1/servers/address", { connect_address: endpoint.address });
+        await GC.serverPost(this.host, "/api/v1/servers/state", {
+          match_id: as.match_id, state: "ready", players: 1,
+        });
+        this.host.ready = true;
+        await GC.serverPost(this.host, "/api/v1/servers/state", {
+          match_id: as.match_id, state: "live", players: 1,
+        });
+        UI.status("P2P battle live at " + endpoint.address);
+        this.startGameWatch();
+        return;
+      }
+      await this.sleep(500);
+    }
+    throw new Error("P2P listen server did not become ready before the boot deadline");
+  },
+
+  startGameWatch() {
+    if (this.gameWatchTimer) clearInterval(this.gameWatchTimer);
+    this.gameWatchTimer = setInterval(() => this.watchGameOver(), 750);
+  },
+
+  async watchGameOver() {
+    const h = this.host;
+    if (!h || !h.ready || h.resultReported || this.watchBusy || !Bridge.ready) return;
+    this.watchBusy = true;
+    try {
+      const state = this.parseBridgeJSON(await Bridge.call("state", ""));
+      const seq = Number(state.game_over_seq || 0);
+      if (seq <= h.baselineGameOverSeq) return;
+
+      // The server publishes the score once a second. Give the final round one
+      // publish tick after the game-over event before reading it.
+      await this.sleep(1250);
+      const red = Math.max(0, parseInt(await Bridge.call("getcvar", "greyline_score_red"), 10) || 0);
+      const blu = Math.max(0, parseInt(await Bridge.call("getcvar", "greyline_score_blu"), 10) || 0);
+      const outcome = red > blu ? "RED_WIN" : (blu > red ? "BLU_WIN" : "STALEMATE");
+      h.resultReported = true;
+      await GC.serverPost(h, "/api/v1/servers/result", {
+        match_id: h.matchId,
+        outcome: outcome,
+        red_score: red,
+        blu_score: blu,
+        players: (h.assignment && h.assignment.roster ? h.assignment.roster.length : 0),
+        duration_s: Math.max(1, Math.floor((Date.now() - h.startedAt) / 1000)),
+      });
+      UI.status("P2P result reported: RED " + red + " — " + blu + " BLU; waiting for confirmations");
+    } catch (e) {
+      UI.status("could not report P2P result: " + e.message, true);
+    } finally {
+      this.watchBusy = false;
+    }
+  },
+
+  async finishHost(matchId) {
+    const h = this.host;
+    if (!h || (matchId && h.matchId !== matchId)) return;
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    if (this.gameWatchTimer) clearInterval(this.gameWatchTimer);
+    this.heartbeatTimer = this.gameWatchTimer = null;
+    try { await GC.serverPost(h, "/api/v1/servers/deregister", {}); } catch (e) { /* pool will expire it anyway */ }
+    this.host = null;
+    try { if (Bridge.ready) await Bridge.cmd("disconnect"); } catch (e) { /* already disconnected */ }
+  },
+
+  async failHost(reason) {
+    const h = this.host;
+    if (!h) return;
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    if (this.gameWatchTimer) clearInterval(this.gameWatchTimer);
+    this.heartbeatTimer = this.gameWatchTimer = null;
+    try {
+      await GC.serverPost(h, "/api/v1/servers/state", {
+        match_id: h.matchId, state: "failed", players: 0, reason: reason || "P2P host failed",
+      });
+    } catch (e) { /* coordinator may already have aborted it */ }
+    try { await GC.serverPost(h, "/api/v1/servers/deregister", {}); } catch (e) {}
+    this.host = null;
+    try { if (Bridge.ready) await Bridge.cmd("disconnect"); } catch (e) {}
   },
 };
 
@@ -783,10 +1143,17 @@ const Loop = {
         break;
 
       case "match_over": {
+        const finishedMatch = ev.over && ev.over.match_id;
         State.match = null;
         State.queue = null;
+        State.pendingResult = null;
+        State.resultConfirmed = false;
         UI.renderMatch(null);
         UI.renderQueue(null);
+        UI.renderPendingResult(null);
+        if (P2P.host && (!finishedMatch || P2P.host.matchId === finishedMatch)) {
+          P2P.finishHost(finishedMatch);
+        }
         const over = ev.over || {};
         const update = over.war_update || {};
         UI.banner(update.headline || over.message || "battle over",
@@ -802,6 +1169,19 @@ const Loop = {
 
       case "contract_offer":
         if (ev.contract) UI.banner(ev.contract.message, "Deploy and you may be given that side for one battle.");
+        break;
+
+      case "host_offer":
+        if (ev.host) P2P.acceptHost(ev.host);
+        break;
+
+      case "result_pending":
+        if (ev.pending) {
+          State.pendingResult = ev.pending;
+          State.resultConfirmed = false;
+          UI.renderPendingResult(ev.pending);
+          UI.status("P2P host reported a result — compare it with the scoreboard and confirm");
+        }
         break;
 
       case "notice":
@@ -821,10 +1201,14 @@ const Loop = {
   UI.el("playerName").value = State.settings.name;
   UI.el("sidePick").value = State.settings.side;
   UI.el("autoJoin").checked = State.settings.autoJoin !== false;
+  UI.el("p2pHost").checked = State.settings.p2pHost !== false;
+  UI.el("p2pUpload").value = State.settings.p2pUploadKbps || 10000;
+  UI.el("p2pSlots").value = State.settings.p2pMaxPlayers || 12;
 
   UI.el("connectBtn").onclick = () => Actions.connect();
   UI.el("deployBtn").onclick = () => Actions.deploy("");
   UI.el("joinBtn").onclick = () => Actions.join();
+  UI.el("confirmResultBtn").onclick = () => Actions.confirmResult();
   UI.el("leaveBtn").onclick = () => Actions.leave();
   UI.el("randomIdBtn").onclick = () => {
     // A throwaway account number. Dev auth trusts whatever is claimed, which is

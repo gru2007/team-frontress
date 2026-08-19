@@ -49,7 +49,7 @@ public:
 	// Sends one JSON-RPC reply frame: {"i":nID,"r":"<escaped pszResult>"}.
 	// Public because the async fetch callback (a free function, so it can be
 	// handed to greyline::CGreylineHTTP::Send as a plain function pointer)
-	// needs to complete a reply well after DispatchMessage returned.
+	// needs to complete a reply well after DispatchRPCMessage returned.
 	void Reply( int nID, const char *pszResult );
 
 private:
@@ -79,7 +79,7 @@ private:
 	bool ExtractOneFrame( CUtlBuffer &buf, int &opcode, CUtlBuffer &payloadOut );
 	void SendFrame( int opcode, const void *pData, int nLen );
 
-	void DispatchMessage( int nID, const char *pszMethod, const char *pszParams );
+	void DispatchRPCMessage( int nID, const char *pszMethod, const char *pszParams );
 
 	void HandleFetch( int nID, const char *pszParamsJSON );
 

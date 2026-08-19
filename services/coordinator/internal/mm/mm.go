@@ -932,6 +932,12 @@ func (m *Matchmaker) ServerResult(serverID string, res war.BattleResult) (*war.U
 		return nil, nil
 	}
 
+	// Keep the literal scoreboard report as well as the translated war result.
+	// Non-host players corroborate what they actually saw in the game; the
+	// confirmation endpoint performs this same translation before comparing it
+	// with PendingResult.
+	rawOutcome, rawRedScore, rawBluScore := res.Outcome, res.RedScore, res.BluScore
+
 	// The server reports what its scoreboard said, in in-game teams. On a
 	// directional map the attacking side played as BLU, so the scoreline has to
 	// be read back into the war's own sides before it can move anything. The
@@ -948,6 +954,18 @@ func (m *Matchmaker) ServerResult(serverID string, res war.BattleResult) (*war.U
 	srv, _ := m.pool.Get(serverID)
 	if srv == nil || !srv.Trusted {
 		match.PendingResult = &res
+		notice := &ResultPendingNotice{
+			MatchID: match.ID, Outcome: rawOutcome,
+			RedScore: rawRedScore, BluScore: rawBluScore,
+		}
+		for _, slot := range match.Slots {
+			if slot.SteamID == match.HostSteamID {
+				continue // the host is never allowed to corroborate itself
+			}
+			if p := m.players[slot.SteamID]; p != nil {
+				p.push(Event{Type: EventResultPending, Pending: notice})
+			}
+		}
 		m.log.Info("battle result reported by an untrusted host; waiting for the roster to corroborate it",
 			"match", match.ID, "host_steam_id", match.HostSteamID, "outcome", res.Outcome)
 		return nil, nil
