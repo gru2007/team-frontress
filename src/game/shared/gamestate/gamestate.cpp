@@ -650,11 +650,12 @@ bool CGameStateManager::Init()
 
 	RegisterMethod( "cmd", std::function( []( const std::string& params, int64_t iRpcId )
 	{
-		std::string str;
 		// security check: no multiple commands
-		size_t iSemicolonPos = params.find(';');
-		if (iSemicolonPos != std::string::npos)
-			return std::make_pair( true, str );
+		if ( params.find(';') != std::string::npos || params.find('\r') != std::string::npos ||
+			params.find('\n') != std::string::npos )
+		{
+			return std::make_pair( true, std::string( "{\"ok\":false,\"error\":\"multiple commands are not allowed\"}" ) );
+		}
 		std::string cmdName;
 		size_t iSpacePos = params.find(' ');
 		if (iSpacePos == std::string::npos)
@@ -665,17 +666,17 @@ bool CGameStateManager::Init()
 		ConCommandBase* pCmd = g_pCVar->FindCommandBase(cmdName.c_str());
 		if (!pCmd)
 		{
-			return std::make_pair( true, str );
+			return std::make_pair( true, std::string( "{\"ok\":false,\"error\":\"unknown command\"}" ) );
 		}
 
 		// security check: no restricted flags
 		if (pCmd->IsFlagSet(FCVAR_CHEAT) || pCmd->IsFlagSet(FCVAR_DEVELOPMENTONLY))
 		{
-			return std::make_pair( true, str );
+			return std::make_pair( true, std::string( "{\"ok\":false,\"error\":\"restricted command\"}" ) );
 		}
 
 		engine->ClientCmd_Unrestricted(params.c_str());
-		return std::make_pair( true, str );
+		return std::make_pair( true, std::string( "{\"ok\":true}" ) );
 	}));
 
 	RegisterMethod( "getmodes", std::function( []( const std::string& params, int64_t iRpcId )

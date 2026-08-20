@@ -194,7 +194,7 @@ type Assignment struct {
 
 // RosterEntry is one player's place in the battle.
 type RosterEntry struct {
-	SteamID uint64 `json:"steam_id"`
+	SteamID uint64 `json:"steam_id,string"`
 	Name    string `json:"name,omitempty"`
 	// Side is the war allegiance: RED or BLU in the campaign.
 	Side string `json:"side"`

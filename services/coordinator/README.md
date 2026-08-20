@@ -93,7 +93,7 @@ coordinator never dials into anybody's network.
 
 | | |
 | --- | --- |
-| `POST /api/v1/client/hello` | `{steam_id, ticket, name, side, region, client_version}` → session token |
+| `POST /api/v1/client/hello` | `{steam_id, ticket, name, side, region, client_version, protocol_version}` → session token; `steam_id` is a decimal string |
 | `POST /api/v1/client/deploy` | `{front_id?, accept_contract}` — empty `front_id` is the DEPLOY button |
 | `POST /api/v1/client/cancel` | leave the queue |
 | `POST /api/v1/client/side` | change allegiance between battles |
@@ -101,7 +101,6 @@ coordinator never dials into anybody's network.
 | `GET  /api/v1/client/poll?since=N&wait=25` | queue, assignment, result, world events |
 | `GET  /api/v1/client/self` | current player, queue and battle — for a client that lost its stream |
 | `POST /api/v1/client/host-register` | accept a `host_offer`: register your own machine into the server pool for exactly this battle |
-| `POST /api/v1/client/confirm-result` | corroborate a P2P host's reported result |
 
 Poll events: `queue`, `match_state`, `match_ready` (connect address, password,
 side, in-game team, front, stage), `match_over` (result plus the war update),
@@ -125,18 +124,18 @@ receive it. From there the protocol is identical to a dedicated server's: the
 game's own listen-server code applies the hosting contract, loads the map, and
 reports `ready`/`live`/`result` over the same `/api/v1/servers/*` routes.
 
-Two differences from a dedicated server, both about trust:
+Two differences from a dedicated server:
 
 - A player-hosted server does not know its own address at registration —
   its engine has not finished allocating a Steam FakeIP yet — so it patches it
   in with `POST /api/v1/servers/address` once `TryPublishAddress` succeeds.
   `servers/state ready` refuses to proceed without one, rather than sending a
   roster to an empty connect string.
-- A player-hosted server's reported result is **not** recorded on its own.
-  It is held until enough of the non-host roster corroborates it with
-  `client/confirm-result` — `match.ResultQuorum` of them, rounded up, minimum
-  one — because nothing stops an elected host from reporting a win for
-  themselves the way a dedicated server's operator has no reason to.
+- A player-hosted result currently finishes immediately. The earlier hidden
+  quorum was removed because the shipped client had no complete vote/dispute
+  flow and could leave a played battle live indefinitely. This is an explicit
+  MVP trust limitation: replace it with authenticated match evidence before
+  treating player-hosted results as adversarially secure.
 
 Two things keep an elected host that cannot deliver from taking the front
 with it. A host that is still loading its map is not judged by the heartbeat

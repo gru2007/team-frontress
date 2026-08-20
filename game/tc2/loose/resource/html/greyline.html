@@ -62,6 +62,8 @@
   header .spacer { flex: 1; }
   header .stat { color: var(--dim); font-size: 13px; }
   header .stat b { color: var(--ink); font-weight: 600; }
+  .menu-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .menu-actions button { padding: 5px 9px; font-size: 12px; }
 
   main { flex: 1; display: flex; min-height: 0; }
   .left { flex: 1.2; padding: 18px; display: flex; flex-direction: column; min-width: 0; }
@@ -147,6 +149,17 @@
   .mono { font-family: "Consolas", "Menlo", monospace; }
   .err { color: #d9705c; }
   .hidden { display: none !important; }
+  .diag { display: grid; grid-template-columns: 110px 1fr; gap: 5px 10px; font-size: 12px; }
+  .diag .key { color: var(--dim); text-transform: uppercase; letter-spacing: .08em; }
+  .diag .value { min-width: 0; overflow-wrap: anywhere; }
+  @media (max-width: 900px) {
+    body { overflow: auto; }
+    header { align-items: center; flex-wrap: wrap; }
+    header .spacer { display: none; }
+    main { display: block; }
+    .left { min-height: 55vh; }
+    .right { width: auto; border-left: 0; border-top: 1px solid var(--line); }
+  }
 </style>
 </head>
 <body>
@@ -159,6 +172,16 @@
   <span class="stat">online <b id="population">0</b></span>
   <span class="stat">servers <b id="servers">0/0</b></span>
   <span class="stat">rev <b id="revision">0</b></span>
+  <nav class="menu-actions">
+    <button data-menu-action="resume">RESUME</button>
+    <button data-menu-action="loadout">LOADOUT</button>
+    <button data-menu-action="armory">ARMORY</button>
+    <button data-menu-action="settings">TC2 SETTINGS</button>
+    <button data-menu-action="legacy_settings">LEGACY SETTINGS</button>
+    <button data-menu-action="servers">SERVERS</button>
+    <button data-menu-action="disconnect">DISCONNECT</button>
+    <button data-menu-action="quit">QUIT</button>
+  </nav>
 </header>
 
 <main>
@@ -192,12 +215,22 @@
         <div id="battleWhat" style="font-weight: 600;"></div>
         <div class="muted" id="battleWhy" style="margin: 4px 0 10px;"></div>
         <div class="mono muted" id="battleWhere" style="font-size: 13px;"></div>
-        <div id="pendingResult" class="muted" style="margin-top: 10px; font-size: 13px; display: none;"></div>
         <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
           <button class="primary" id="joinBtn" disabled>JOIN BATTLE</button>
-          <button class="primary" id="confirmResultBtn" style="display: none;">CONFIRM RESULT</button>
           <button id="leaveBtn">LEAVE</button>
         </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin: 14px 14px 0;">
+      <h2>System status</h2>
+      <div class="body diag">
+        <span class="key">Steam</span><span class="value" id="diagSteam">not checked</span>
+        <span class="key">Auth</span><span class="value" id="diagAuth">offline</span>
+        <span class="key">Queue</span><span class="value" id="diagQueue">not deployed</span>
+        <span class="key">Battle</span><span class="value" id="diagBattle">none</span>
+        <span class="key">Game</span><span class="value" id="diagGame">main menu</span>
+        <span class="key">P2P host</span><span class="value" id="diagHost">idle</span>
       </div>
     </div>
 
@@ -220,7 +253,7 @@
             <input id="gcUrl" placeholder="http://127.0.0.1:27100">
           </div>
           <div class="full">
-            <label for="steamId">SteamID64 (dev auth trusts this)</label>
+            <label for="steamId">SteamID64 (read from Steam in game)</label>
             <input id="steamId" placeholder="76561198000000000">
           </div>
           <div>
@@ -244,7 +277,7 @@
           </div>
           <div class="full" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
             <button id="connectBtn">CONNECT</button>
-            <button id="randomIdBtn">RANDOM ID</button>
+            <button id="steamIdBtn">USE STEAM ID</button>
             <label style="text-transform: none; letter-spacing: 0; margin: 0; display: flex; align-items: center; gap: 6px;">
               <input type="checkbox" id="autoJoin" style="width: auto;" checked> auto-join
             </label>
@@ -303,6 +336,8 @@ const Bridge = {
     this.ws.onclose = () => {
       this.ready = false;
       UI.setDot("dotGame", false);
+      for (const waiter of this.pending.values()) waiter.reject(new Error("game bridge disconnected"));
+      this.pending.clear();
       // The panel outlives a reconnect; keep trying quietly.
       setTimeout(() => this.connect(), 3000);
     };
@@ -314,7 +349,7 @@ const Bridge = {
       const waiter = this.pending.get(msg.i);
       if (!waiter) return;
       this.pending.delete(msg.i);
-      waiter(msg.r === undefined ? "" : msg.r);
+      waiter.resolve(msg.r === undefined ? "" : msg.r);
     };
   },
 
@@ -322,7 +357,7 @@ const Bridge = {
     return new Promise((resolve, reject) => {
       if (!this.ready) { reject(new Error("game bridge is not connected")); return; }
       const id = this.nextId++;
-      this.pending.set(id, resolve);
+      this.pending.set(id, { resolve, reject });
       // A reply that never comes must not leak a pending promise forever.
       setTimeout(() => {
         if (this.pending.has(id)) { this.pending.delete(id); reject(new Error(method + " timed out")); }
@@ -332,7 +367,13 @@ const Bridge = {
   },
 
   // The console rejects anything with a semicolon, so commands go one at a time.
-  cmd(line) { return this.call("cmd", line); },
+  async cmd(line) {
+    const raw = await this.call("cmd", line);
+    let reply = null;
+    try { reply = JSON.parse(raw); } catch (e) { return raw; }
+    if (reply && reply.ok === false) throw new Error(line.split(" ")[0] + ": " + (reply.error || "rejected"));
+    return raw;
+  },
 
   async waitReady(timeoutMs) {
     const deadline = Date.now() + (timeoutMs || 0);
@@ -426,8 +467,8 @@ const State = {
   fronts: [],
   match: null,
   queue: null,
-  pendingResult: null,
-  resultConfirmed: false,
+  identity: null,
+  authMode: "offline",
   polling: false,
 
   load() {
@@ -571,6 +612,7 @@ const UI = {
       btn.disabled = true;
       btn.textContent = "DEPLOY";
       hint.textContent = "not connected to a coordinator";
+      this.el("diagQueue").textContent = "not deployed";
       return;
     }
     btn.disabled = false;
@@ -579,16 +621,23 @@ const UI = {
       btn.classList.remove("primary");
       hint.textContent = queue.message + " · " + queue.front_name +
         " · waited " + queue.waited_s + "s";
+      this.el("diagQueue").textContent = "#" + (queue.position || "?") + " · needs " +
+        (queue.players_needed || 0) + " · " + (queue.players_in_queue || 0) + " queued";
     } else {
       btn.textContent = "DEPLOY";
       btn.classList.add("primary");
       hint.textContent = "the coordinator picks the front that needs you";
+      this.el("diagQueue").textContent = "ready to deploy";
     }
   },
 
   renderMatch(match) {
     const card = this.el("battleCard");
-    if (!match) { card.style.display = "none"; return; }
+    if (!match) {
+      card.style.display = "none";
+      this.el("diagBattle").textContent = "none";
+      return;
+    }
     card.style.display = "";
 
     this.el("battleWhat").innerHTML =
@@ -615,25 +664,22 @@ const UI = {
     const hostingHere = !!(match.is_host && P2P.host && P2P.host.matchId === match.match_id);
     this.el("joinBtn").disabled = !match.connect && !hostingHere;
     this.el("joinBtn").textContent = hostingHere ? "HOSTING" : "JOIN BATTLE";
-    this.renderPendingResult(State.pendingResult);
+    this.el("diagBattle").textContent = match.state + " · " + match.map + " · " +
+      match.red_players + " RED / " + match.blu_players + " BLU";
   },
 
-  renderPendingResult(pending) {
-    const text = this.el("pendingResult");
-    const btn = this.el("confirmResultBtn");
-    if (!pending) {
-      text.style.display = "none";
-      btn.style.display = "none";
-      btn.disabled = false;
-      btn.textContent = "CONFIRM RESULT";
-      return;
-    }
-    text.style.display = "";
-    text.textContent = "P2P host reports: " + pending.outcome + " · RED " +
-      pending.red_score + " — " + pending.blu_score + " BLU. Check the scoreboard before confirming.";
-    btn.style.display = "";
-    btn.disabled = !!State.resultConfirmed;
-    btn.textContent = State.resultConfirmed ? "CONFIRMED" : "CONFIRM RESULT";
+  renderIdentity(identity) {
+    const text = identity && identity.available
+      ? identity.steam_id + (identity.ticket ? " · ticket ready" : " · no auth ticket")
+      : (Bridge.ready ? "Steam is not logged on" : "browser dev mode: manual ID");
+    this.el("diagSteam").textContent = text;
+  },
+
+  renderGame(state) {
+    if (!state) return;
+    const level = String(state.level || "").replace(/\\/g, "/").split("/").pop().replace(/\.bsp$/i, "");
+    this.el("diagGame").textContent = state.background ? "main menu background" :
+      (state.connected ? (level + " · " + (state.players || 0) + " players") : "main menu");
   },
 
   banner(headline, detail) {
@@ -668,7 +714,42 @@ const UI = {
 // Actions
 // ---------------------------------------------------------------------------
 const Actions = {
+  async useSteamIdentity(showError) {
+    if (!Bridge.ready) {
+      if (showError) UI.el("settingsError").textContent = "Steam identity is only available inside the game";
+      return null;
+    }
+    try {
+      const identity = P2P.parseBridgeJSON(await Bridge.call("greyline_identity", ""));
+      State.identity = identity;
+      UI.renderIdentity(identity);
+      if (!identity.available || !/^\d{17}$/.test(String(identity.steam_id || ""))) {
+        throw new Error("Steam is offline or returned no valid SteamID64");
+      }
+      UI.el("steamId").value = String(identity.steam_id);
+      UI.el("steamId").readOnly = true;
+      return identity;
+    } catch (e) {
+      if (showError) UI.el("settingsError").textContent = e.message;
+      return null;
+    }
+  },
+
+  async menuAction(action) {
+    if (!Bridge.ready) {
+      UI.status("this menu action is only available inside the game", true);
+      return;
+    }
+    try {
+      const reply = P2P.parseBridgeJSON(await Bridge.call("greyline_menu_action", action));
+      if (reply.ok === false) throw new Error(reply.error || "action rejected");
+    } catch (e) {
+      UI.status("menu action failed: " + e.message, true);
+    }
+  },
+
   async connect() {
+    if (Bridge.ready) await this.useSteamIdentity(false);
     const s = State.settings;
     s.gc = UI.el("gcUrl").value.trim() || "http://127.0.0.1:27100";
     s.steamId = UI.el("steamId").value.trim();
@@ -683,8 +764,7 @@ const Actions = {
 
     if (!/^\d{17}$/.test(s.steamId)) {
       UI.el("settingsError").textContent =
-        "SteamID64 must be 17 digits. Press RANDOM ID for a throwaway one — the " +
-        "coordinator's dev auth mode accepts whatever you claim.";
+        "SteamID64 must be 17 digits. In game press USE STEAM ID; manual IDs are only for browser dev mode.";
       return;
     }
 
@@ -699,7 +779,8 @@ const Actions = {
       const cores = Math.max(1, navigator.hardwareConcurrency || 4);
       const memoryMB = Math.max(2048, Math.round((navigator.deviceMemory || 8) * 1024));
       const reply = await GC.post("/api/v1/client/hello", {
-        steam_id: Number(s.steamId),
+        steam_id: s.steamId,
+        ticket: State.identity && State.identity.steam_id === s.steamId ? (State.identity.ticket || "") : "",
         name: s.name,
         side: s.side,
         client_version: "greyline-test-ui",
@@ -713,8 +794,10 @@ const Actions = {
       GC.token = reply.token;
       State.connected = true;
       State.seq = 0;
+      State.authMode = reply.auth_mode || "unknown";
       UI.setDot("dotGC", true);
       UI.status("connected as " + s.name + " (" + s.side + ")");
+      UI.el("diagAuth").textContent = State.authMode + " · coordinator accepted " + reply.player.steam_id;
       if (reply.mercenary_contract) {
         UI.banner(reply.mercenary_contract.message,
           "Tick DEPLOY and the coordinator may put you on that side for one battle.");
@@ -723,6 +806,7 @@ const Actions = {
       Loop.start();
     } catch (e) {
       State.connected = false;
+      State.authMode = "offline";
       UI.setDot("dotGC", false);
       UI.el("settingsError").textContent = "could not reach the coordinator: " + e.message;
       UI.status("not connected", true);
@@ -806,7 +890,9 @@ const Actions = {
       } catch (e) {
         return; // mid-load the bridge does not answer; that is progress, not failure
       }
-      if (state.in_game) {
+      UI.renderGame(state);
+      const level = String(state.level || "").replace(/\\/g, "/").split("/").pop().replace(/\.bsp$/i, "");
+      if (state.connected && level.toLowerCase() === String(m.map || "").toLowerCase()) {
         clearInterval(this.joinWatch);
         this.joinWatch = null;
         UI.status("in the battle at " + m.connect);
@@ -830,24 +916,6 @@ const Actions = {
     }, 8000);
   },
 
-  async confirmResult() {
-    const pending = State.pendingResult;
-    if (!State.connected || !pending || State.resultConfirmed) return;
-    try {
-      await GC.post("/api/v1/client/confirm-result", {
-        match_id: pending.match_id,
-        outcome: pending.outcome,
-        red_score: pending.red_score,
-        blu_score: pending.blu_score,
-      }, true);
-      State.resultConfirmed = true;
-      UI.renderPendingResult(pending);
-      UI.status("P2P result confirmed — waiting for quorum");
-    } catch (e) {
-      UI.status("could not confirm P2P result: " + e.message, true);
-    }
-  },
-
   async leave(reason) {
     if (!State.connected) return;
     const why = reason || "left from the menu";
@@ -860,10 +928,7 @@ const Actions = {
       await GC.post("/api/v1/client/leave", { reason: why }, true);
     } catch (e) { /* nothing to leave */ }
     State.match = null;
-    State.pendingResult = null;
-    State.resultConfirmed = false;
     UI.renderMatch(null);
-    UI.renderPendingResult(null);
   },
 };
 
@@ -919,6 +984,7 @@ const P2P = {
         resultReported: false,
         ready: false,
       };
+      UI.el("diagHost").textContent = "accepted · waiting for assignment";
       this.startHeartbeat();
 
       // ConfirmHost puts the assignment straight into this one-battle server's
@@ -928,6 +994,7 @@ const P2P = {
         throw new Error("coordinator registered this host but sent no assignment");
       }
       this.host.assignment = cmd.assignment;
+      UI.el("diagHost").textContent = "booting " + cmd.assignment.map;
       await this.launch(cmd.assignment);
     } catch (e) {
       UI.status("P2P host failed: " + e.message, true);
@@ -964,6 +1031,7 @@ const P2P = {
     if (!Bridge.ready) return 0;
     try {
       const state = this.parseBridgeJSON(await Bridge.call("greyline_state", ""));
+      UI.renderGame(state);
       return Math.max(0, Number(state.players || 0));
     } catch (e) {
       // Mid map load the bridge does not answer; it will next beat.
@@ -1007,6 +1075,9 @@ const P2P = {
           String(e.side || "").toUpperCase() + " " + (e.contract ? 1 : 0));
       }
       if (entries.length) {
+        if (this.host.assignment && this.host.assignment.roster) {
+          this.host.assignment.roster.push(...entries);
+        }
         UI.status(entries.length + " more " +
           (entries.length === 1 ? "mercenary joined" : "mercenaries joined") + " this battle");
       }
@@ -1019,14 +1090,21 @@ const P2P = {
   },
 
   modeRules(mode) {
+    const rules = [
+      "mp_windifference 0",
+      "mp_winlimit 0",
+      "mp_maxrounds 0",
+      "mp_timelimit 0",
+      "tf_arena_use_queue 0",
+    ];
     switch (String(mode || "").toLowerCase()) {
-      case "5cp": return ["mp_windifference 0", "mp_winlimit 3", "mp_maxrounds 0", "mp_timelimit 30"];
-      case "koth": return ["mp_winlimit 2", "mp_maxrounds 0", "mp_timelimit 30"];
-      case "arena": return ["mp_winlimit 3", "mp_maxrounds 0", "mp_timelimit 0", "tf_arena_use_queue 0"];
+      case "5cp": return rules.concat(["mp_winlimit 3", "mp_timelimit 30"]);
+      case "koth": return rules.concat(["mp_winlimit 2", "mp_timelimit 30"]);
+      case "arena": return rules.concat(["mp_winlimit 3"]);
       case "payload": case "attack_defend": case "ad":
-        return ["mp_winlimit 0", "mp_maxrounds 1", "mp_timelimit 0"];
-      case "ctf": return ["mp_winlimit 3", "mp_maxrounds 0", "mp_timelimit 30"];
-      default: return ["mp_winlimit 3", "mp_timelimit 30"];
+        return rules.concat(["mp_maxrounds 1"]);
+      case "ctf": return rules.concat(["mp_winlimit 3", "mp_timelimit 30"]);
+      default: return rules.concat(["mp_winlimit 3", "mp_timelimit 30"]);
     }
   },
 
@@ -1038,6 +1116,11 @@ const P2P = {
       "mp_teams_unbalance_limit 0",
       "sv_pausable 0",
       "mp_forcecamera 0",
+      "mp_tournament 0",
+      "sv_allow_votes 0",
+      "sv_allow_server_adverisement_to_master_server 0",
+      "mp_chattime 15",
+      "nextlevel " + this.cleanConsole(as.map),
       // Turn people away for not being on the roster only when the roster names
       // accounts this server will actually see. Under the coordinator's dev
       // auth a client states whichever SteamID it likes, so the roster can be
@@ -1082,6 +1165,8 @@ const P2P = {
     // main menu yet, and silently typing them before `map` would leave the
     // roster/password unset.
     await Bridge.cmd("sv_lan 0");
+    await Bridge.cmd("sv_password " + this.quote(as.password || ""));
+    await Bridge.cmd("sv_allow_server_adverisement_to_master_server 0");
     // Who may join this battle is the coordinator's roster and its password,
     // not the host's Steam friend list. Set here rather than assumed: a
     // listen server left on friends-only refuses every mercenary the war sent
@@ -1100,11 +1185,13 @@ const P2P = {
       const state = this.parseBridgeJSON(await Bridge.call("greyline_state", ""));
       const endpoint = this.parseBridgeJSON(await Bridge.call("greyline_host_address", ""));
       const level = String(state.level || "").replace(/\\/g, "/").split("/").pop().replace(/\.bsp$/i, "");
-      const onMap = !!state.in_game && level.toLowerCase() === String(as.map || "").toLowerCase();
+      UI.renderGame(state);
+      const onMap = !!state.connected && level.toLowerCase() === String(as.map || "").toLowerCase();
 
       if (onMap && !configured) {
         for (const cmd of this.battleCommands(as)) await Bridge.cmd(cmd);
         configured = true;
+        UI.el("diagHost").textContent = "map loaded · applying roster and policy";
         // The local host is already on the server by the time these commands
         // exist, so explicitly show them the same briefing guests get on join.
         await Bridge.cmd("greyline_announce_briefing");
@@ -1118,6 +1205,9 @@ const P2P = {
       }
 
       if (onMap && configured && endpoint.ready && endpoint.address) {
+        await this.drainCommands();
+        if (!this.host) return;
+        this.startCommandWatch();
         await GC.serverPost(this.host, "/api/v1/servers/address", { connect_address: endpoint.address });
         const players = Math.max(1, Number(state.players || 0));
         await GC.serverPost(this.host, "/api/v1/servers/state", {
@@ -1128,8 +1218,8 @@ const P2P = {
           match_id: as.match_id, state: "live", players: players,
         });
         UI.status("P2P battle live at " + endpoint.address);
+        UI.el("diagHost").textContent = "live · " + endpoint.address;
         this.startGameWatch();
-        this.startCommandWatch();
         return;
       }
       await this.sleep(500);
@@ -1140,6 +1230,14 @@ const P2P = {
   startGameWatch() {
     if (this.gameWatchTimer) clearInterval(this.gameWatchTimer);
     this.gameWatchTimer = setInterval(() => this.watchGameOver(), 750);
+  },
+
+  async drainCommands() {
+    for (let i = 0; i < 8 && this.host; i++) {
+      const cmd = await GC.serverGet(this.host, "/api/v1/servers/poll?wait=1");
+      if (!cmd) return;
+      await this.applyCommand(cmd);
+    }
   },
 
   async watchGameOver() {
@@ -1157,16 +1255,18 @@ const P2P = {
       const red = Math.max(0, parseInt(await Bridge.call("getcvar", "greyline_score_red"), 10) || 0);
       const blu = Math.max(0, parseInt(await Bridge.call("getcvar", "greyline_score_blu"), 10) || 0);
       const outcome = red > blu ? "RED_WIN" : (blu > red ? "BLU_WIN" : "STALEMATE");
-      h.resultReported = true;
+      const players = await this.playerCount();
       await GC.serverPost(h, "/api/v1/servers/result", {
         match_id: h.matchId,
         outcome: outcome,
         red_score: red,
         blu_score: blu,
-        players: (h.assignment && h.assignment.roster ? h.assignment.roster.length : 0),
+        players: players,
         duration_s: Math.max(1, Math.floor((Date.now() - h.startedAt) / 1000)),
       });
-      UI.status("P2P result reported: RED " + red + " — " + blu + " BLU; waiting for confirmations");
+      h.resultReported = true;
+      UI.status("P2P result accepted: RED " + red + " — " + blu + " BLU");
+      UI.el("diagHost").textContent = "result accepted · waiting for match close";
     } catch (e) {
       UI.status("could not report P2P result: " + e.message, true);
     } finally {
@@ -1183,6 +1283,7 @@ const P2P = {
     this.commandWatch = false;
     try { await GC.serverPost(h, "/api/v1/servers/deregister", {}); } catch (e) { /* pool will expire it anyway */ }
     this.host = null;
+    UI.el("diagHost").textContent = "idle";
     try { if (Bridge.ready) await Bridge.cmd("disconnect"); } catch (e) { /* already disconnected */ }
   },
 
@@ -1200,6 +1301,7 @@ const P2P = {
     } catch (e) { /* coordinator may already have aborted it */ }
     try { await GC.serverPost(h, "/api/v1/servers/deregister", {}); } catch (e) {}
     this.host = null;
+    UI.el("diagHost").textContent = "failed · " + (reason || "unknown error");
     try { if (Bridge.ready) await Bridge.cmd("disconnect"); } catch (e) {}
   },
 };
@@ -1244,6 +1346,7 @@ const Loop = {
     State.seq = self.seq || State.seq;
     State.queue = self.queue;
     State.match = self.match || null;
+    UI.el("diagAuth").textContent = State.authMode + " · " + self.player.steam_id + " · " + self.player.state;
     UI.renderQueue(State.queue);
     UI.renderMatch(State.match);
   },
@@ -1314,11 +1417,8 @@ const Loop = {
         const finishedMatch = ev.over && ev.over.match_id;
         State.match = null;
         State.queue = null;
-        State.pendingResult = null;
-        State.resultConfirmed = false;
         UI.renderMatch(null);
         UI.renderQueue(null);
-        UI.renderPendingResult(null);
         if (P2P.host && (!finishedMatch || P2P.host.matchId === finishedMatch)) {
           P2P.finishHost(finishedMatch);
         }
@@ -1350,15 +1450,6 @@ const Loop = {
         if (ev.host) P2P.acceptHost(ev.host);
         break;
 
-      case "result_pending":
-        if (ev.pending) {
-          State.pendingResult = ev.pending;
-          State.resultConfirmed = false;
-          UI.renderPendingResult(ev.pending);
-          UI.status("P2P host reported a result — compare it with the scoreboard and confirm");
-        }
-        break;
-
       case "notice":
         UI.status(ev.message || "");
         break;
@@ -1381,32 +1472,28 @@ const Loop = {
   UI.el("p2pSlots").value = State.settings.p2pMaxPlayers || 12;
 
   UI.el("connectBtn").onclick = () => Actions.connect();
+  UI.el("steamIdBtn").onclick = () => Actions.useSteamIdentity(true);
   UI.el("deployBtn").onclick = () => Actions.deploy("");
   UI.el("joinBtn").onclick = () => Actions.join();
-  UI.el("confirmResultBtn").onclick = () => Actions.confirmResult();
   UI.el("leaveBtn").onclick = () => Actions.leave();
-  UI.el("randomIdBtn").onclick = () => {
-    // A throwaway account number. Dev auth trusts whatever is claimed, which is
-    // the whole reason this button can exist.
-    const account = Math.floor(Math.random() * 90000000) + 10000000;
-    UI.el("steamId").value = String(76561197960265728 + account);
-  };
+  document.querySelectorAll("[data-menu-action]").forEach(btn => {
+    btn.onclick = () => Actions.menuAction(btn.getAttribute("data-menu-action"));
+  });
 
   Bridge.connect();
 
-  // Borrow the player's own name from the game when it is there to ask.
-  setTimeout(async () => {
-    if (!Bridge.ready) return;
+  if (await Bridge.waitReady(2500)) {
     try {
       const name = await Bridge.call("getcvar", "name");
-      if (name && !State.settings.name) UI.el("playerName").value = name;
+      if (name && (!State.settings.name || State.settings.name === "mercenary")) UI.el("playerName").value = name;
     } catch (e) { /* not important enough to report */ }
-  }, 800);
-
-  if (State.settings.steamId) {
+    const identity = await Actions.useSteamIdentity(false);
+    if (identity) await Actions.connect();
+  } else if (State.settings.steamId) {
     Actions.connect();
   } else {
-    UI.status("set a SteamID and press CONNECT");
+    UI.renderIdentity(null);
+    UI.status("browser dev mode: set a SteamID and press CONNECT");
   }
 })();
 </script>

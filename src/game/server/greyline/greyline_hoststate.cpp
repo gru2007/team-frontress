@@ -96,6 +96,7 @@ public:
 		m_bIdentityPublished = false;
 		m_flNextIdentityCheck = 0.0f;
 		m_flNextScorePublish = 0.0f;
+		m_flNextPolicyCheck = 0.0f;
 	}
 
 	virtual void LevelInitPostEntity() OVERRIDE
@@ -103,6 +104,7 @@ public:
 		m_bIdentityPublished = false;
 		m_flNextIdentityCheck = 0.0f;
 		m_flNextScorePublish = 0.0f;
+		m_flNextPolicyCheck = 0.0f;
 		greyline_server_id.SetValue( "0" );
 		greyline_server_addr.SetValue( "" );
 		greyline_score_red.SetValue( 0 );
@@ -119,6 +121,12 @@ public:
 
 	virtual void FrameUpdatePostEntityThink() OVERRIDE
 	{
+		if ( gpGlobals->curtime >= m_flNextPolicyCheck )
+		{
+			m_flNextPolicyCheck = gpGlobals->curtime + 1.0f;
+			EnforceBattlePolicy();
+		}
+
 		// Only a listen server shares this process with the client the
 		// coordinator link runs on. A dedicated server is joined to the pool
 		// by greyline-agent instead — see cmd/greyline-agent.
@@ -146,6 +154,47 @@ public:
 	}
 
 private:
+	void EnforceBattlePolicy()
+	{
+		ConVarRef battleID( "greyline_battle_id", true );
+		if ( !battleID.IsValid() || !battleID.GetString()[0] )
+		{
+			return;
+		}
+
+		struct Setting
+		{
+			const char *name;
+			int value;
+		};
+		static const Setting settings[] =
+		{
+			{ "sv_allow_votes", 0 },
+			{ "mp_autoteambalance", 0 },
+			{ "mp_teams_unbalance_limit", 0 },
+			{ "sv_pausable", 0 },
+			{ "mp_forcecamera", 0 },
+			{ "mp_tournament", 0 },
+		};
+		for ( int i = 0; i < ARRAYSIZE( settings ); ++i )
+		{
+			ConVarRef var( settings[i].name, true );
+			if ( var.IsValid() && var.GetInt() != settings[i].value )
+			{
+				var.SetValue( settings[i].value );
+			}
+		}
+
+		if ( !engine->IsDedicatedServer() )
+		{
+			ConVarRef advertise( "sv_allow_server_adverisement_to_master_server", true );
+			if ( advertise.IsValid() && advertise.GetInt() != 0 )
+			{
+				advertise.SetValue( 0 );
+			}
+		}
+	}
+
 	void PublishScore()
 	{
 		CTeam *pRed = GetGlobalTeam( TF_TEAM_RED );
@@ -232,6 +281,7 @@ private:
 	bool	m_bIdentityPublished;
 	float	m_flNextIdentityCheck;
 	float	m_flNextScorePublish;
+	float	m_flNextPolicyCheck;
 };
 
 static CGreylineHostState g_GreylineHostState;

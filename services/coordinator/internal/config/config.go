@@ -179,9 +179,6 @@ type MatchConfig struct {
 	AbandonBanDuration Duration `json:"abandon_ban_duration"`
 	// MaxMigrations before the match is abandoned instead of migrated again.
 	MaxMigrations int `json:"max_migrations"`
-	// ResultQuorum is the fraction of non-host players that must corroborate
-	// the host's reported result for it to count towards the war.
-	ResultQuorum float64 `json:"result_quorum"`
 	// WidenAfter is how long a queued player waits before the coordinator
 	// starts favouring a front that already has people queued over one that
 	// merely matches their preference. Zero disables widening.
@@ -305,10 +302,9 @@ func Default() *Config {
 			TeamSizes:             []int{2, 3, 4, 6},
 			MinTeamSize:           2,
 			FormWait:              Duration(30 * time.Second),
-			MaxConcurrentPerFront: 2,
+			MaxConcurrentPerFront: 1,
 			AbandonBanDuration:    Duration(10 * time.Minute),
 			MaxMigrations:         3,
-			ResultQuorum:          0.5,
 			WidenAfter:            Duration(30 * time.Second),
 			WidenStepBonus:        0.4,
 			WidenMaxSteps:         6,
@@ -414,8 +410,8 @@ func (c *Config) Validate() error {
 	if c.Match.MinTeamSize <= 0 {
 		return errors.New("match.min_team_size must be positive")
 	}
-	if c.Match.ResultQuorum < 0 || c.Match.ResultQuorum > 1 {
-		return errors.New("match.result_quorum must be within [0,1]")
+	if c.Match.MaxConcurrentPerFront > 1 {
+		return errors.New("match.max_concurrent_per_front must be 1 until same-front results are revisioned")
 	}
 	if c.Match.MaxMigrations < 0 {
 		return errors.New("match.max_migrations must not be negative")

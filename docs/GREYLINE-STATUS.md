@@ -45,13 +45,13 @@ but a compiler has not seen it. Treat a first build as the real test.
 | Forming battles, team sizes, contracts | tested |
 | Dedicated server pool: register, assign, heartbeat, result | tested |
 | P2P host election when nothing dedicated is free | tested |
-| A P2P host's result held for the roster to corroborate | tested |
+| A P2P host's result closes immediately; no hidden quorum | tested — `TestP2PHostResultFinishesWithoutHiddenQuorum` |
 | Battles growing while they run or boot (lobby expansion) | tested — `lobby_test.go` |
 | A failed host sitting out a cooldown instead of being re-elected | tested — `hostloop_test.go` |
 | A booting server judged by the boot deadline, not the heartbeat rule | tested — `pool_test.go` |
 | DEPLOY leaving a battle that never started | tested |
 | Allegiance fixed for the length of a battle, on hello as well as SetSide | tested — `hostloop_test.go` |
-| Steam ticket auth (`auth.mode=webapi`) | built — the testbed runs `dev` |
+| SteamID and auth ticket sourced from Steam in the active client | written; HTTP round-trip tested |
 
 ## The game (C++)
 
@@ -70,7 +70,7 @@ build says otherwise.
 | Refusing a connection from an account not on the roster | written — **off unless the coordinator runs verified Steam auth**, see below |
 | Holding the round until the roster is on the server (muster) | written |
 | Publishing a P2P host's own address and score | built |
-| The menu's web RPC (`greyline_state`, `greyline_host_address`) | written |
+| Menu RPC for state, Steam identity and native menu actions | written |
 | Player **models** drawn in the war's colours | written — see below |
 | `sv_friends_only` no longer forced on at launch | written |
 
@@ -106,50 +106,52 @@ coordinator's public HTTP API.
 | War map, fronts, DEPLOY, queue, joining a battle | built |
 | Standing up a P2P battle when elected host | built |
 | Retrying a connect that does not take, then giving the slot up | written |
-| Applying roster additions to a running battle | written |
+| Applying roster additions to a running battle, with delivery failure rollback | tested — `lobby_test.go` |
 | Reporting the real player count and the battle's progress | written |
 
 Only its syntax is checked automatically (`node --check`). Nothing tests its
 behaviour.
 
-### Everything roster-shaped depends on the SteamID being the same on both sides
+### Steam identity
 
-The coordinator's roster names accounts; the game server matches them against
-the Steam identity of whoever connects. Under `auth.mode=dev` — which is what
-the testbed runs — a client simply states whichever SteamID it likes, so those
-two are only the same when every player typed their **real** SteamID64 into the
-menu.
+The active in-game menu obtains SteamID64 and an auth session ticket from
+`ISteamUser`. SteamID is serialized as a decimal JSON string end to end; it is
+never converted to JavaScript `Number`, which cannot represent SteamID64.
+Browser-only development still permits manual identity under `auth.mode=dev`.
 
-When they do not match:
+If a non-game client claims an identity that does not match the connecting
+Steam account:
 
 - team assignment does nothing, silently. The player is not on the roster as
   far as the server is concerned, so nothing moves them;
 - the briefing has no side to describe for them;
 - and the roster gate, if it were on, would turn away the entire battle.
 
-The gate is therefore off unless the assignment says `verified_identities` —
-which only `auth.mode=webapi` sets. This is a real limit of dev auth rather
-than a bug to fix: the fix is to run verified auth, or to have everybody enter
-their own SteamID64.
+The roster gate remains off unless the assignment says `verified_identities`,
+which only `auth.mode=webapi` sets. Dev auth is still intentionally not proof of
+identity, but the shipped game client no longer invents or rounds the ID.
 
 ## Known gaps, roughly in the order they will bite
 
 1. **Nothing game-side from the current round has been compiled.** Assume a
    first build fails somewhere and budget for it.
-2. **Under dev auth, the roster only works if people type their real SteamID64**
-   (above). Team assignment is the part that fails quietly.
-3. **Particle effects ignore the uniform swap** (above).
-4. **`timing.migration_hold` does nothing.** It is validated in config and read
+2. **The terminal match lifecycle is still split between game C++, the menu and
+   the agent.** There is no single authoritative C++ terminal record yet.
+3. **P2P results are trusted immediately.** The unusable quorum is gone, but
+   signed or independently witnessed result evidence is not implemented yet.
+4. **Particle effects ignore the uniform swap** (above).
+5. **`timing.migration_hold` does nothing.** It is validated in config and read
    only by the retired `internal/legacy/gc`. Host migration is not implemented
    in the current matchmaker: a host that disappears aborts the battle and
    re-queues the roster.
-5. **Host reputation is per-process.** `hostelect.History` and the failure
+6. **Host reputation is per-process.** `hostelect.History` and the failure
    cooldown live in memory and reset when the coordinator restarts.
-6. **No latency in host election.** `hostelect` accepts a `LatencyOracle` and
+7. **No latency in host election.** `hostelect` accepts a `LatencyOracle` and
    is given `nil`; every candidate scores an equal zero on that term. Election
    works on upload, CPU, memory and hosting history.
-7. **The war map screen is the test page.** There is no real menu yet.
-8. **Steam peer-to-peer joins can fail on the handshake** — the transport
+8. **Coordinator and host networking still lives mostly in the web page.** Steam
+   identity and native menu actions moved to C++, but the host FSM has not.
+9. **Steam peer-to-peer joins can fail on the handshake** — the transport
    flapping between ICE and relay invalidates the connect challenge. The menu
    retries and then releases the slot; there is nothing else we can do from
    this side.

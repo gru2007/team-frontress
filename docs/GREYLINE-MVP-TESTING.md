@@ -230,9 +230,10 @@ the active fronts, and a DEPLOY button. It is a plain page —
 `greyline_menu_page`. Set that convar to `ui/index.html` to get the stock menu
 back.
 
-**2.** In the menu: point **Coordinator** at the machine running it, put in a
-SteamID64 (dev auth trusts whatever is claimed — the RANDOM ID button makes a
-throwaway one), pick a side, press **CONNECT**, then **DEPLOY**.
+**2.** In the game menu, SteamID64 is read from the logged-on Steam account;
+**USE STEAM ID** refreshes it explicitly. Point **Coordinator** at the machine
+running it, pick a side, press **CONNECT**, then **DEPLOY**. Manual SteamID input
+exists only when the page is opened in a normal browser for development.
 
 With **auto-join** ticked, the page runs `password` and `connect` for you the
 moment the battle server is up. Untick it to press JOIN BATTLE yourself.

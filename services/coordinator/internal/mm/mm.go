@@ -15,7 +15,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"math"
 	"sort"
 	"sync"
 	"time"
@@ -80,10 +79,6 @@ type Config struct {
 	// assignment, because a game server cannot otherwise know whether the
 	// roster it was handed names accounts it will actually see.
 	VerifiedIdentities bool
-	// ResultQuorum is the fraction of non-host roster members who must
-	// corroborate a P2P host's reported result before it counts towards the
-	// war. A dedicated server's result is never held for a vote.
-	ResultQuorum float64
 }
 
 // DefaultConfig is tuned for the MVP: small battles, one front, a handful of
@@ -93,7 +88,7 @@ func DefaultConfig() Config {
 		TeamSizes:          []int{2, 3, 4, 6},
 		MinTeamSize:        2,
 		FormWait:           45 * time.Second,
-		MaxBattlesPerFront: 2,
+		MaxBattlesPerFront: 1,
 		BootDeadline:       90 * time.Second,
 		JoinDeadline:       120 * time.Second,
 		MatchTimeout:       75 * time.Minute,
@@ -112,7 +107,6 @@ func DefaultConfig() Config {
 		},
 		HostAcceptDeadline:  20 * time.Second,
 		HostFailureCooldown: 2 * time.Minute,
-		ResultQuorum:        0.5,
 	}
 }
 
@@ -584,6 +578,19 @@ func (m *Matchmaker) topUpLocked(f war.Front) {
 			}); err != nil {
 				m.log.Warn("could not send a roster update to a battle in progress",
 					"match", match.ID, "server", match.ServerID, "err", err)
+				// Do not send a player to a roster-gated server that never
+				// received their identity. Seating is still local at this point,
+				// so roll it back and leave them in their original queue position.
+				match.Slots = match.Slots[:len(match.Slots)-len(seated)]
+				for _, s := range seated {
+					s.player.State = StateQueued
+					s.player.MatchID = ""
+					if s.slot.Contract {
+						s.player.Contracts--
+						m.stats.Contracts--
+					}
+				}
+				continue
 			}
 		}
 		for _, s := range seated {
@@ -1160,13 +1167,10 @@ func (m *Matchmaker) ServerState(serverID, matchID, state string, players int, r
 }
 
 // ServerResult records a finished battle: the one place a game result becomes
-// a war event — unless the server reporting it is untrusted, in which case it
-// is held for the roster to corroborate. See ConfirmResult.
-//
-// Dedicated servers are the coordinator's own infrastructure and their word is
-// taken as it stands. A P2P host is an ordinary player: nothing stops an
-// elected host from reporting a win for themselves, so their report only
-// counts once enough of the rest of the roster says the same thing.
+// a war event. The current client has no complete vote/dispute interface, so a
+// P2P report follows the same immediate path as a dedicated report. P2P result
+// hardening belongs in authenticated server-side evidence, not a hidden quorum
+// that can leave a completed battle live forever.
 func (m *Matchmaker) ServerResult(serverID string, res war.BattleResult) (*war.Update, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -1183,12 +1187,6 @@ func (m *Matchmaker) ServerResult(serverID string, res war.BattleResult) (*war.U
 		return nil, nil
 	}
 
-	// Keep the literal scoreboard report as well as the translated war result.
-	// Non-host players corroborate what they actually saw in the game; the
-	// confirmation endpoint performs this same translation before comparing it
-	// with PendingResult.
-	rawOutcome, rawRedScore, rawBluScore := res.Outcome, res.RedScore, res.BluScore
-
 	// The server reports what its scoreboard said, in in-game teams. On a
 	// directional map the attacking side played as BLU, so the scoreline has to
 	// be read back into the war's own sides before it can move anything. The
@@ -1198,96 +1196,18 @@ func (m *Matchmaker) ServerResult(serverID string, res war.BattleResult) (*war.U
 	res.FrontID = match.FrontID
 	res.Map = match.Plan.Map
 	res.Mode = match.Plan.Mode
-	if res.Players == 0 {
-		res.Players = len(match.Slots)
-	}
+	// Until servers report an authenticated presence set, strategic weight is
+	// derived from the coordinator-owned roster. A P2P host must not be able to
+	// move a front farther by inventing a player count in its HTTP report.
+	res.Players = len(match.Slots)
 
-	srv, _ := m.pool.Get(serverID)
-	if srv == nil || !srv.Trusted {
-		match.PendingResult = &res
-		notice := &ResultPendingNotice{
-			MatchID: match.ID, Outcome: rawOutcome,
-			RedScore: rawRedScore, BluScore: rawBluScore,
-		}
-		for _, slot := range match.Slots {
-			if slot.SteamID == match.HostSteamID {
-				continue // the host is never allowed to corroborate itself
-			}
-			if p := m.players[slot.SteamID]; p != nil {
-				p.push(Event{Type: EventResultPending, Pending: notice})
-			}
-		}
-		m.log.Info("battle result reported by an untrusted host; waiting for the roster to corroborate it",
-			"match", match.ID, "host_steam_id", match.HostSteamID, "outcome", res.Outcome)
-		return nil, nil
-	}
 	return m.finalizeResultLocked(match, res), nil
 }
 
-// ConfirmResult is a roster member corroborating a P2P host's reported
-// result. Once enough of the non-host roster agrees — Config.ResultQuorum,
-// rounded up, of however many of them there are — the result is recorded the
-// same way a trusted dedicated server's report is. A vote that disagrees with
-// the pending result is logged and otherwise ignored: the MVP has no dispute
-// process yet, only visibility for an operator to notice a pattern.
-func (m *Matchmaker) ConfirmResult(p *Player, matchID string, outcome war.Outcome, redScore, bluScore uint32) (*war.Update, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	match, ok := m.matches[matchID]
-	if !ok {
-		return nil, fmt.Errorf("mm: unknown battle %q", matchID)
-	}
-	if match.over() {
-		return nil, nil
-	}
-	if match.PendingResult == nil {
-		return nil, fmt.Errorf("mm: battle %q has no result to corroborate yet", matchID)
-	}
-	if match.HostSteamID != 0 && p.SteamID == match.HostSteamID {
-		return nil, fmt.Errorf("mm: the host's own report needs corroboration, not another vote from the host")
-	}
-	if match.slot(p.SteamID) == nil {
-		return nil, fmt.Errorf("mm: you were not on this battle's roster")
-	}
-
-	outcome, redScore, bluScore = match.Plan.TranslateResult(outcome, redScore, bluScore)
-	if outcome != match.PendingResult.Outcome || redScore != match.PendingResult.RedScore || bluScore != match.PendingResult.BluScore {
-		m.log.Warn("a roster member's result confirmation disagrees with the host's report",
-			"match", match.ID, "steam_id", p.SteamID)
-		return nil, nil
-	}
-
-	if match.confirms == nil {
-		match.confirms = map[uint64]bool{}
-	}
-	match.confirms[p.SteamID] = true
-
-	nonHost := 0
-	for _, s := range match.Slots {
-		if s.SteamID != match.HostSteamID {
-			nonHost++
-		}
-	}
-	needed := int(math.Ceil(m.cfg.ResultQuorum * float64(nonHost)))
-	if needed < 1 {
-		needed = 1
-	}
-	if needed > nonHost {
-		needed = nonHost
-	}
-	if len(match.confirms) < needed {
-		return nil, nil
-	}
-	return m.finalizeResultLocked(match, *match.PendingResult), nil
-}
-
 // finalizeResultLocked is the one place a game result actually becomes a war
-// event, reached either straight from a trusted server's report or once a P2P
-// host's report has been corroborated. Called with the lock held.
+// event. Called with the lock held.
 func (m *Matchmaker) finalizeResultLocked(match *Match, res war.BattleResult) *war.Update {
 	match.Result = &res
-	match.PendingResult = nil
 	match.RedScore, match.BluScore = res.RedScore, res.BluScore
 	match.setState(MatchFinished, m.now())
 	m.stats.Finished++

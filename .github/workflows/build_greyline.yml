@@ -16,6 +16,7 @@ on:
       - "src/game/server/greyline/**"
       - "src/game/client/greyline/**"
       - "game/tc2/loose/resource/greyline_*.txt"
+      - "game/tc2/loose/resource/html/greyline.html"
       - ".github/workflows/build_greyline.yml"
   pull_request:
     paths:
@@ -24,8 +25,12 @@ on:
       - "src/game/server/greyline/**"
       - "src/game/client/greyline/**"
       - "game/tc2/loose/resource/greyline_*.txt"
+      - "game/tc2/loose/resource/html/greyline.html"
       - ".github/workflows/build_greyline.yml"
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   coordinator:
@@ -38,7 +43,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          token: ${{ secrets.REPO_TOKEN || github.token }}
+          persist-credentials: false
 
       - name: Setup Go
         uses: actions/setup-go@v6
@@ -116,7 +121,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          token: ${{ secrets.REPO_TOKEN || github.token }}
+          persist-credentials: false
+
+      - name: Check the menu script syntax
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const html = fs.readFileSync('game/tc2/loose/resource/html/greyline.html', 'utf8');
+          const script = html.match(/<script>([\s\S]*?)<\/script>/);
+          if (!script) throw new Error('greyline.html has no script');
+          new Function(script[1]);
+          NODE
 
       # greyline_briefing_logic.cpp includes nothing from Source on purpose, so
       # the half of the game code worth testing builds here in about a second —
@@ -146,7 +161,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          token: ${{ secrets.REPO_TOKEN || github.token }}
+          persist-credentials: false
 
       # The game compiles greyline.proto with the protoc bundled in the tree —
       # 2.6.1, not whatever a runner happens to have installed. Running that

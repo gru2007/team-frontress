@@ -31,7 +31,7 @@ const (
 
 // Slot is one player's place in a battle.
 type Slot struct {
-	SteamID uint64   `json:"steam_id"`
+	SteamID uint64   `json:"steam_id,string"`
 	Name    string   `json:"name,omitempty"`
 	Side    war.Side `json:"side"`
 	Team    war.Side `json:"team"`
@@ -55,20 +55,14 @@ type Match struct {
 	// HostSteamID is set when this battle's server is a player's own machine,
 	// elected rather than reserved from the dedicated pool. Zero means an
 	// ordinary dedicated server is hosting it.
-	HostSteamID uint64 `json:"host_steam_id,omitempty"`
+	HostSteamID uint64 `json:"host_steam_id,omitempty,string"`
 
 	CreatedAt  time.Time `json:"created_at"`
 	StateSince time.Time `json:"state_since"`
-	// Result is set once, when the result is actually recorded — for a
-	// dedicated server that is the moment it is reported; for a P2P host it is
-	// the moment the roster has corroborated it. PendingResult holds a P2P
-	// host's report in the meantime, and confirms tracks who on the roster has
-	// agreed with it.
-	Result        *war.BattleResult `json:"result,omitempty"`
-	PendingResult *war.BattleResult `json:"-"`
-	confirms      map[uint64]bool
-	RedScore      uint32 `json:"red_score"`
-	BluScore      uint32 `json:"blu_score"`
+	// Result is set once, when the server's result is applied.
+	Result   *war.BattleResult `json:"result,omitempty"`
+	RedScore uint32            `json:"red_score"`
+	BluScore uint32            `json:"blu_score"`
 }
 
 func (m *Match) setState(s MatchState, now time.Time) {

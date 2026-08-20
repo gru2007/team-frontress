@@ -951,7 +951,9 @@ void CTeamplayRoundBasedRules::SetInWaitingForPlayers( bool bWaitingForPlayers  
 	if( m_bInWaitingForPlayers == bWaitingForPlayers  )
 		return;
 
-	if ( IsInArenaMode() && ( m_flWaitingForPlayersTimeEnds < 0 ) && !IsInTournamentMode() )
+	ConVarRef greylineBattle( "greyline_battle_id", true );
+	const bool bGreylineBattle = greylineBattle.IsValid() && greylineBattle.GetString()[0];
+	if ( IsInArenaMode() && ( m_flWaitingForPlayersTimeEnds < 0 ) && !IsInTournamentMode() && !bGreylineBattle )
 	{
 		m_bInWaitingForPlayers = false;
 		return;

@@ -74,10 +74,11 @@ class Player:
         self.side = side
         self.seq = 0
         reply = gc.call("POST", "/api/v1/client/hello", {
-            "steam_id": steam_id,
+            "steam_id": str(steam_id),
             "name": f"merc{steam_id}",
             "side": side,
             "client_version": "sim",
+            "protocol_version": 2,
         })
         self.token = reply["token"]
 

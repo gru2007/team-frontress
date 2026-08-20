@@ -52,8 +52,9 @@ func newHarness(t *testing.T) *harness {
 	maker := mm.New(cfg, slog.New(slog.DiscardHandler), engine, servers)
 
 	api := New(slog.New(slog.DiscardHandler), steam.DevAuthenticator{}, engine, maker, servers, Options{
-		PoolKey:     testPoolKey,
-		MaxPollWait: time.Second,
+		PoolKey:         testPoolKey,
+		MaxPollWait:     time.Second,
+		ProtocolVersion: 2,
 	})
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
@@ -103,7 +104,8 @@ func (h *harness) newClient(steamID uint64, side string) *client {
 	h.t.Helper()
 	var resp helloResponse
 	code := h.do("POST", "/api/v1/client/hello", "", map[string]any{
-		"steam_id": steamID, "name": fmt.Sprintf("merc%d", steamID), "side": side,
+		"steam_id": fmt.Sprintf("%d", steamID), "name": fmt.Sprintf("merc%d", steamID), "side": side,
+		"protocol_version": 2,
 	}, &resp)
 	if code != http.StatusOK {
 		h.t.Fatalf("hello for %d: status %d", steamID, code)
@@ -176,8 +178,9 @@ func (h *harness) newHostCapableClient(steamID uint64, side string) *client {
 	h.t.Helper()
 	var resp helloResponse
 	code := h.do("POST", "/api/v1/client/hello", "", map[string]any{
-		"steam_id": steamID, "name": fmt.Sprintf("merc%d", steamID), "side": side,
-		"host_capable": true, "upload_kbps": 5000, "cpu_score": 80, "memory_mb": 8192,
+		"steam_id": fmt.Sprintf("%d", steamID), "name": fmt.Sprintf("merc%d", steamID), "side": side,
+		"protocol_version": 2,
+		"host_capable":     true, "upload_kbps": 5000, "cpu_score": 80, "memory_mb": 8192,
 	}, &resp)
 	if code != http.StatusOK {
 		h.t.Fatalf("hello for %d: status %d", steamID, code)
@@ -197,18 +200,6 @@ func (c *client) hostRegister(matchID string) (serverID, serverToken string) {
 		c.h.t.Fatalf("host-register for %d: status %d", c.steamID, code)
 	}
 	return out.ServerID, out.ServerToken
-}
-
-func (c *client) confirmResult(matchID, outcome string, red, blu uint32) map[string]any {
-	c.h.t.Helper()
-	var out map[string]any
-	code := c.h.do("POST", "/api/v1/client/confirm-result", c.token, map[string]any{
-		"match_id": matchID, "outcome": outcome, "red_score": red, "blu_score": blu,
-	}, &out)
-	if code != http.StatusOK {
-		c.h.t.Fatalf("confirm-result for %d: status %d (%v)", c.steamID, code, out)
-	}
-	return out
 }
 
 // agentFromToken wraps an already-issued server id/token — what a P2P host
@@ -281,6 +272,32 @@ func (a *agent) result(matchID, outcome string, red, blu uint32) map[string]any 
 // TestOneBattleMovesTheWar is the MVP acceptance test, end to end over HTTP:
 // four people deploy, a dedicated server runs the battle it is given, and the
 // front they were fighting on has moved by the time they are back on the map.
+func TestSteamID64RoundTripsAsAString(t *testing.T) {
+	h := newHarness(t)
+	const steamID uint64 = 76561198317961869
+	c := h.newClient(steamID, "RED")
+	var self struct {
+		Player mm.PlayerView `json:"player"`
+	}
+	if code := h.do("GET", "/api/v1/client/self", c.token, nil, &self); code != http.StatusOK {
+		t.Fatalf("self: status %d", code)
+	}
+	if self.Player.SteamID != steamID {
+		t.Fatalf("SteamID64 changed in JSON round trip: got %d, want %d", self.Player.SteamID, steamID)
+	}
+}
+
+func TestHelloRequiresProtocolVersion(t *testing.T) {
+	h := newHarness(t)
+	var out map[string]any
+	code := h.do("POST", "/api/v1/client/hello", "", map[string]any{
+		"steam_id": "76561198317961869", "name": "old client", "side": "RED",
+	}, &out)
+	if code != http.StatusBadRequest {
+		t.Fatalf("hello without protocol_version returned %d, want %d", code, http.StatusBadRequest)
+	}
+}
+
 func TestOneBattleMovesTheWar(t *testing.T) {
 	h := newHarness(t)
 	server := h.newAgent("test-node", "10.0.0.5:27015")
@@ -726,7 +743,7 @@ func TestPartyDeployLandsTogether(t *testing.T) {
 // reported result only counts once enough of the rest of the roster agrees —
 // the corroboration an untrusted, player-run host needs that a dedicated
 // server's word does not.
-func TestP2PHostElectedAndCorroborated(t *testing.T) {
+func TestP2PHostResultFinishesWithoutHiddenQuorum(t *testing.T) {
 	h := newHarness(t)
 
 	host := h.newHostCapableClient(1, "RED")
@@ -801,63 +818,23 @@ func TestP2PHostElectedAndCorroborated(t *testing.T) {
 
 	selfAgent.state(matchID, "live")
 
-	// The host reports a result. Because this server is untrusted, it must not
-	// move the war on its own.
+	// Until a complete dispute UI exists, a P2P result finishes immediately;
+	// there is no hidden quorum that can leave a played battle stuck live.
 	out := selfAgent.result(matchID, "RED_WIN", 3, 1)
-	if out["war_update"] != nil {
-		t.Fatalf("an uncorroborated P2P host's result moved the war: %v", out)
+	if out["war_update"] == nil {
+		t.Fatalf("P2P result did not move the war: %v", out)
 	}
 	match, ok := h.maker.Match(matchID)
 	if !ok {
-		t.Fatal("the match vanished after an uncorroborated result")
+		t.Fatal("the match vanished after its result")
 	}
-	if match.PendingResult == nil {
-		t.Fatal("the result was not held for corroboration")
-	}
-	if match.State == mm.MatchFinished {
-		t.Fatal("the match finished on an uncorroborated report")
-	}
-
-	// Every non-host receives the literal in-game scoreboard report. The real
-	// client shows this and asks the player to compare it with the scoreboard
-	// before confirming; it must not silently trust the elected host.
-	for _, c := range others {
-		ev := c.waitFor(mm.EventResultPending)
-		if ev.Pending == nil || ev.Pending.MatchID != matchID ||
-			ev.Pending.Outcome.String() != "RED_WIN" ||
-			ev.Pending.RedScore != 3 || ev.Pending.BluScore != 1 {
-			t.Fatalf("client %d got the wrong pending P2P result: %+v", c.steamID, ev.Pending)
-		}
-	}
-
-	// The host cannot corroborate its own report.
-	var hostVoteOut map[string]any
-	if code := h.do("POST", "/api/v1/client/confirm-result", host.token,
-		map[string]any{"match_id": matchID, "outcome": "RED_WIN", "red_score": 3, "blu_score": 1},
-		&hostVoteOut); code == http.StatusOK {
-		t.Fatal("the elected host was allowed to corroborate its own result")
-	}
-
-	// One vote is not, by default, a quorum of three non-host roster members
-	// (ceil(0.5*3) = 2).
-	firstVote := others[0].confirmResult(matchID, "RED_WIN", 3, 1)
-	if firstVote["war_update"] != nil {
-		t.Fatalf("a single corroboration was enough to move the war: %v", firstVote)
-	}
-
-	secondVote := others[1].confirmResult(matchID, "RED_WIN", 3, 1)
-	if secondVote["war_update"] == nil {
-		t.Fatalf("two of three non-host roster members agreeing was not enough: %v", secondVote)
-	}
-
-	match, _ = h.maker.Match(matchID)
 	if match.State != mm.MatchFinished {
 		t.Fatalf("match state = %s, want finished", match.State)
 	}
 	for _, c := range allClients {
 		ev := c.waitFor(mm.EventMatchOver)
 		if ev.Over == nil || !ev.Over.Counted {
-			t.Fatalf("client %d was not told the corroborated battle counted: %+v", c.steamID, ev.Over)
+			t.Fatalf("client %d was not told the battle counted: %+v", c.steamID, ev.Over)
 		}
 	}
 }

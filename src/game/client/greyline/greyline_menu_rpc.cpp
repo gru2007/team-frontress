@@ -26,7 +26,9 @@
 #include "cbase.h"
 #include "gamestate/gamestate.h"
 #include "GameEventListener.h"
+#include "clientmode_tf.h"
 #include "tier1/fmtstr.h"
+#include "steam/steam_api.h"
 
 #include <string>
 
@@ -35,6 +37,39 @@
 // both of which look like in_game:false a moment later. File scope so the
 // method lambdas below, which take no captures, can read it.
 static int g_nGreylineGameOverSeq = 0;
+
+static bool RunMenuAction( const std::string &action )
+{
+	if ( !GetClientModeTFNormal() || !GetClientModeTFNormal()->GameUI() )
+	{
+		return false;
+	}
+
+	const char *pszCommand = NULL;
+	if ( action == "settings" )
+		pszCommand = "engine opentf2options";
+	else if ( action == "legacy_settings" )
+		pszCommand = "OpenOptionsDialog";
+	else if ( action == "loadout" )
+		pszCommand = "engine open_charinfo";
+	else if ( action == "armory" )
+		pszCommand = "engine open_charinfo_armory";
+	else if ( action == "servers" )
+		pszCommand = "OpenServerBrowser";
+	else if ( action == "resume" )
+		pszCommand = "ResumeGame";
+	else if ( action == "disconnect" )
+		pszCommand = "engine disconnect";
+	else if ( action == "quit" )
+		pszCommand = "Quit";
+
+	if ( !pszCommand )
+	{
+		return false;
+	}
+	GetClientModeTFNormal()->GameUI()->SendMainMenuCommand( pszCommand );
+	return true;
+}
 
 // CountConnectedPlayers is how many people are actually on this server right
 // now. When this client is hosting a battle it is the number the coordinator
@@ -65,6 +100,8 @@ class CGreylineMenuRPC : public CAutoGameSystem, public CGameEventListener
 public:
 	CGreylineMenuRPC() : CAutoGameSystem( "CGreylineMenuRPC" )
 	{
+		m_hAuthTicket = k_HAuthTicketInvalid;
+		m_cbAuthTicket = 0;
 	}
 
 	virtual bool Init() OVERRIDE
@@ -89,13 +126,31 @@ public:
 		pManager->RegisterMethod( "greyline_state", std::function( []( const std::string &params, int64_t iRpcId )
 		{
 			const bool bInGame = engine->IsInGame();
+			const bool bBackground = bInGame && engine->IsLevelMainMenuBackground();
+			const bool bConnected = bInGame && !bBackground;
 			const char *pszLevel = bInGame ? engine->GetLevelName() : NULL;
-			CFmtStr1024 strJSON( "{\"in_game\":%s,\"level\":\"%s\",\"players\":%d,\"game_over_seq\":%d}",
+			CFmtStr1024 strJSON( "{\"in_game\":%s,\"connected\":%s,\"background\":%s,\"level\":\"%s\",\"players\":%d,\"game_over_seq\":%d}",
 				bInGame ? "true" : "false",
+				bConnected ? "true" : "false",
+				bBackground ? "true" : "false",
 				pszLevel ? pszLevel : "",
-				bInGame ? CountConnectedPlayers() : 0,
+				bConnected ? CountConnectedPlayers() : 0,
 				g_nGreylineGameOverSeq );
 			return std::make_pair( true, std::string( strJSON.Get() ) );
+		} ) );
+
+		pManager->RegisterMethod( "greyline_identity", std::function( [this]( const std::string &params, int64_t iRpcId )
+		{
+			return std::make_pair( true, BuildIdentityJSON() );
+		} ) );
+
+		pManager->RegisterMethod( "greyline_menu_action", std::function( []( const std::string &params, int64_t iRpcId )
+		{
+			if ( !RunMenuAction( params ) )
+			{
+				return std::make_pair( true, std::string( "{\"ok\":false,\"error\":\"unknown or unavailable menu action\"}" ) );
+			}
+			return std::make_pair( true, std::string( "{\"ok\":true}" ) );
 		} ) );
 
 		pManager->RegisterMethod( "greyline_host_address", std::function( []( const std::string &params, int64_t iRpcId )
@@ -116,11 +171,19 @@ public:
 	virtual void Shutdown() OVERRIDE
 	{
 		StopListeningForAllEvents();
+		if ( m_hAuthTicket != k_HAuthTicketInvalid && steamapicontext && steamapicontext->SteamUser() )
+		{
+			steamapicontext->SteamUser()->CancelAuthTicket( m_hAuthTicket );
+			m_hAuthTicket = k_HAuthTicketInvalid;
+			m_cbAuthTicket = 0;
+		}
 
 		CGameStateManager *pManager = GetGameStateManager();
 		if ( pManager )
 		{
 			pManager->UnregisterMethod( "greyline_state" );
+			pManager->UnregisterMethod( "greyline_identity" );
+			pManager->UnregisterMethod( "greyline_menu_action" );
 			pManager->UnregisterMethod( "greyline_host_address" );
 		}
 	}
@@ -137,6 +200,53 @@ public:
 			++g_nGreylineGameOverSeq;
 		}
 	}
+
+private:
+	std::string BuildIdentityJSON()
+	{
+		if ( !steamapicontext || !steamapicontext->SteamUser() || !steamapicontext->SteamUser()->BLoggedOn() )
+		{
+			return "{\"available\":false,\"logged_on\":false,\"steam_id\":\"\",\"ticket\":\"\"}";
+		}
+
+		const CSteamID steamID = steamapicontext->SteamUser()->GetSteamID();
+		if ( !steamID.IsValid() )
+		{
+			return "{\"available\":false,\"logged_on\":true,\"steam_id\":\"\",\"ticket\":\"\"}";
+		}
+
+		if ( m_cbAuthTicket == 0 )
+		{
+			m_hAuthTicket = steamapicontext->SteamUser()->GetAuthSessionTicket(
+				m_AuthTicket, sizeof( m_AuthTicket ), &m_cbAuthTicket, NULL );
+			if ( m_hAuthTicket == k_HAuthTicketInvalid )
+			{
+				m_cbAuthTicket = 0;
+			}
+		}
+
+		char szSteamID[32];
+		V_snprintf( szSteamID, sizeof( szSteamID ), "%llu", steamID.ConvertToUint64() );
+		static const char s_Hex[] = "0123456789abcdef";
+		std::string ticket;
+		ticket.reserve( m_cbAuthTicket * 2 );
+		for ( uint32 i = 0; i < m_cbAuthTicket; ++i )
+		{
+			ticket.push_back( s_Hex[( m_AuthTicket[i] >> 4 ) & 0x0f] );
+			ticket.push_back( s_Hex[m_AuthTicket[i] & 0x0f] );
+		}
+
+		std::string json = "{\"available\":true,\"logged_on\":true,\"steam_id\":\"";
+		json += szSteamID;
+		json += "\",\"ticket\":\"";
+		json += ticket;
+		json += "\"}";
+		return json;
+	}
+
+	HAuthTicket m_hAuthTicket;
+	uint32 m_cbAuthTicket;
+	uint8 m_AuthTicket[1024];
 };
 
 static CGreylineMenuRPC g_GreylineMenuRPC;

@@ -70,7 +70,7 @@ type Player struct {
 
 // PlayerView is a player as the API serves them.
 type PlayerView struct {
-	SteamID        uint64      `json:"steam_id"`
+	SteamID        uint64      `json:"steam_id,string"`
 	Name           string      `json:"name"`
 	Side           war.Side    `json:"side"`
 	State          PlayerState `json:"state"`
@@ -179,11 +179,6 @@ const (
 	// AcceptDeadlineS; doing nothing lets the coordinator fall back to waiting
 	// for a server the ordinary way.
 	EventHostOffer EventType = "host_offer"
-	// EventResultPending asks non-host roster members to corroborate what an
-	// untrusted P2P host reported. The values are the raw in-game scoreboard
-	// values, not war-side values: ConfirmResult performs the same side/team
-	// translation as ServerResult before it compares them.
-	EventResultPending EventType = "result_pending"
 	// EventNotice is a plain message.
 	EventNotice EventType = "notice"
 )
@@ -194,14 +189,13 @@ type Event struct {
 	At   time.Time `json:"at"`
 	Type EventType `json:"type"`
 
-	Queue    *QueueStatus         `json:"queue,omitempty"`
-	Match    *MatchInfo           `json:"match,omitempty"`
-	Over     *MatchOver           `json:"over,omitempty"`
-	World    *WorldNotice         `json:"world,omitempty"`
-	Contract *ContractOffer       `json:"contract,omitempty"`
-	Host     *HostOffer           `json:"host,omitempty"`
-	Pending  *ResultPendingNotice `json:"pending,omitempty"`
-	Message  string               `json:"message,omitempty"`
+	Queue    *QueueStatus   `json:"queue,omitempty"`
+	Match    *MatchInfo     `json:"match,omitempty"`
+	Over     *MatchOver     `json:"over,omitempty"`
+	World    *WorldNotice   `json:"world,omitempty"`
+	Contract *ContractOffer `json:"contract,omitempty"`
+	Host     *HostOffer     `json:"host,omitempty"`
+	Message  string         `json:"message,omitempty"`
 }
 
 // QueueStatus is what the DEPLOY screen shows while waiting.
@@ -236,14 +230,10 @@ type MatchInfo struct {
 	Contract bool     `json:"contract"`
 	// IsHost means this client's own machine is running the battle — see the
 	// coordinator README's "when nothing dedicated is free" section. A host
-	// must call servers/result once the battle ends; everyone else on the
-	// roster only ever calls client/confirm-result.
+	// must call servers/result once the battle ends.
 	IsHost bool `json:"is_host,omitempty"`
 	// IsP2P means *some* roster member is running this battle on their own
 	// machine — true for every slot in a P2P match, not just the host's own.
-	// A client uses this to know whether it is worth watching for a result to
-	// corroborate at all: a dedicated server's battle never needs a client-side
-	// vote, since the dedicated agent reports the result on its own.
 	IsP2P bool `json:"is_p2p,omitempty"`
 
 	FrontID    string        `json:"front_id"`
@@ -302,17 +292,6 @@ type HostOffer struct {
 	MaxPlayers      int    `json:"max_players"`
 	FrontName       string `json:"front_name"`
 	AcceptDeadlineS int    `json:"accept_deadline_s"`
-}
-
-// ResultPendingNotice is what non-host players see after a P2P host reports a
-// finished battle. It deliberately carries the scoreboard as the game saw it,
-// so the player can compare it with the scoreboard before confirming it. A
-// client must never auto-confirm this merely because the host said it.
-type ResultPendingNotice struct {
-	MatchID  string      `json:"match_id"`
-	Outcome  war.Outcome `json:"outcome"`
-	RedScore uint32      `json:"red_score"`
-	BluScore uint32      `json:"blu_score"`
 }
 
 func randHex(n int) string {

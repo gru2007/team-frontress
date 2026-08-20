@@ -242,7 +242,9 @@ void CGreylineBriefing::EnforceTeams()
 		const greyline::RosterEntry_t *pEntry = FindEntry( pPlayer );
 		if ( !pEntry )
 		{
-			if ( greyline_roster_kick_strangers.GetBool() && !pPlayer->IsFakeClient() )
+			const uint64 ulSteamID = pPlayer->GetSteamIDAsUInt64();
+			if ( ( greyline_roster_gate.GetBool() || greyline_roster_kick_strangers.GetBool() ) &&
+				ulSteamID != 0 && !pPlayer->IsFakeClient() )
 			{
 				engine->ServerCommand( UTIL_VarArgs( "kickid %d %s\n",
 					pPlayer->GetUserID(), "not on this battle's roster" ) );
@@ -418,6 +420,11 @@ namespace greyline
 bool BattleHasRoster()
 {
 	return g_GreylineBriefing.RosterCount() > 0;
+}
+
+bool IsRosterMember( unsigned long long ulSteamID )
+{
+	return ulSteamID != 0 && g_GreylineBriefing.IsOnRoster( ulSteamID );
 }
 
 bool MayJoinBattle( unsigned long long ulSteamID, const char **ppszReason )

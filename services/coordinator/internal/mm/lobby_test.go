@@ -130,6 +130,28 @@ func TestARunningBattleTakesTheNextPlayerWhoDeploys(t *testing.T) {
 	}
 }
 
+func TestRosterDeliveryFailureLeavesLatecomerQueued(t *testing.T) {
+	m, servers := newTestMaker(t)
+	match, serverID, _ := runningBattle(t, m, servers)
+	before := len(match.Slots)
+
+	// Fill the bounded mailbox so the next roster update cannot be queued.
+	for i := 0; i < 4; i++ {
+		if err := servers.Send(serverID, pool.Command{Type: pool.CommandRoster, MatchID: match.ID}); err != nil {
+			t.Fatalf("fill mailbox %d: %v", i, err)
+		}
+	}
+
+	late := deploy(t, m, 50, war.SideRed, true)
+	m.Tick()
+	if late.State != StateQueued || late.MatchID != "" {
+		t.Fatalf("latecomer was sent despite failed roster delivery: state=%s match=%q", late.State, late.MatchID)
+	}
+	if len(match.Slots) != before {
+		t.Fatalf("failed roster delivery changed slots from %d to %d", before, len(match.Slots))
+	}
+}
+
 // TestARunningBattleStopsTakingPlayersAtCapacity keeps expansion honest: the
 // battlefield's own limit is the limit.
 func TestARunningBattleStopsTakingPlayersAtCapacity(t *testing.T) {

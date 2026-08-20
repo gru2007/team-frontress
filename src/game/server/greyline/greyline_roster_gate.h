@@ -33,6 +33,9 @@ namespace greyline
 // for. Everything below is inert when it is false.
 bool BattleHasRoster();
 
+// Whether this identified account is in the active coordinator roster.
+bool IsRosterMember( unsigned long long ulSteamID );
+
 // Whether this account may join the battle this server is running.
 //
 // ppszReason is filled in with what to tell them when the answer is no. A

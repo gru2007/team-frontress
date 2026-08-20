@@ -106,6 +106,7 @@ step_coordinator_service() {
 
   local unit_dir="$HOME/.config/systemd/user"
   local secret_file="$HOME/.config/greyline/secret"
+  local pool_key_file="$HOME/.config/greyline/pool-key"
   mkdir -p "$unit_dir" "$(dirname -- "$secret_file")"
 
   # One secret, generated once and kept. Regenerating it on every run would
@@ -114,6 +115,11 @@ step_coordinator_service() {
     head -c 32 /dev/urandom | base64 > "$secret_file"
     chmod 600 "$secret_file"
     say "generated a coordinator secret at $secret_file"
+  fi
+  if [ ! -s "$pool_key_file" ]; then
+    head -c 32 /dev/urandom | base64 > "$pool_key_file"
+    chmod 600 "$pool_key_file"
+    say "generated a server-pool key at $pool_key_file"
   fi
 
   cat > "$unit_dir/greyline-coordinator.service" <<EOF
@@ -124,9 +130,8 @@ After=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=$REPO_ROOT/services/coordinator
-Environment=GREYLINE_STATE_PATH=%h/.local/share/greyline/players.json
 EnvironmentFile=%h/.config/greyline/env
-ExecStart=$REPO_ROOT/services/coordinator/bin/coordinator -config gc.test.json -world world.test.json -log-level debug
+ExecStart=$REPO_ROOT/services/coordinator/bin/coordinator -config gc.test.json -log-level debug
 Restart=on-failure
 RestartSec=5
 
@@ -135,12 +140,13 @@ WantedBy=default.target
 EOF
 
   # systemd's EnvironmentFile cannot read a bare secret, so mirror it as KEY=value.
-  printf 'GREYLINE_GC_SECRET=%s\n' "$(cat -- "$secret_file")" > "$HOME/.config/greyline/env"
+  printf 'GREYLINE_GC_SECRET=%s\nGREYLINE_POOL_KEY=%s\n' \
+    "$(cat -- "$secret_file")" "$(cat -- "$pool_key_file")" > "$HOME/.config/greyline/env"
   chmod 600 "$HOME/.config/greyline/env"
   mkdir -p "$HOME/.local/share/greyline"
 
   systemctl --user daemon-reload
-  systemctl --user enable --now greyline-coordinator.service || true
+  systemctl --user enable --now greyline-coordinator.service
 
   # Survive logout, or the coordinator dies when the session ends.
   if command -v loginctl >/dev/null; then

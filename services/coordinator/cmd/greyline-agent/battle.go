@@ -18,6 +18,11 @@ type battle struct {
 	mapLoaded bool
 	live      bool
 	reported  bool
+	// A finished result remains attached to the battle until the coordinator
+	// acknowledges it. A transient HTTP failure must not erase a played match.
+	pendingResult     map[string]any
+	resultAttempts    int
+	nextResultAttempt time.Time
 	// scores are the in-game team scores, exactly as the log stated them. The
 	// coordinator translates them back into war sides, because on a payload or
 	// attack/defend map the attacking side is playing as BLU.
@@ -140,6 +145,11 @@ func (a *Agent) startBattle(ctx context.Context, as *pool.Assignment) {
 // battleCommands is the whole console-side contract for one battle. It is a
 // list rather than a script so a failure names the command that failed.
 func (a *Agent) battleCommands(as *pool.Assignment) []string {
+	cmds := a.battleSetupCommands(as)
+	return append(cmds, fmt.Sprintf("changelevel %s", as.Map))
+}
+
+func (a *Agent) battleSetupCommands(as *pool.Assignment) []string {
 	cmds := []string{
 		// Only the roster gets in. The coordinator handed each of them this
 		// password with their assignment.
@@ -148,6 +158,10 @@ func (a *Agent) battleCommands(as *pool.Assignment) []string {
 		// machine's Steam account happens to be friends with. A no-op on a
 		// dedicated server that has never heard of the convar.
 		"sv_friends_only 0",
+		// Coordinator battles are private assignments, not public servers, and
+		// stock votes must not replace the assigned map or alter win conditions.
+		"sv_allow_server_adverisement_to_master_server 0",
+		"sv_allow_votes 0",
 		// Turn people away for not being on the roster only when the roster
 		// names accounts this server will actually see — see
 		// Assignment.VerifiedIdentities. Otherwise the password is the gate.
@@ -158,6 +172,9 @@ func (a *Agent) battleCommands(as *pool.Assignment) []string {
 		"mp_teams_unbalance_limit 0",
 		"sv_pausable 0",
 		"mp_forcecamera 0",
+		"mp_tournament 0",
+		"mp_chattime 15",
+		fmt.Sprintf("nextlevel %s", a.cfg.IdleMap),
 
 		// The war context, replicated so the game announces it to players.
 		"greyline_roster_clear",
@@ -193,7 +210,6 @@ func (a *Agent) battleCommands(as *pool.Assignment) []string {
 			e.SteamID, strings.ToUpper(e.Team), strings.ToUpper(e.Side), contract))
 	}
 	cmds = append(cmds, modeRules(as.Mode)...)
-	cmds = append(cmds, fmt.Sprintf("changelevel %s", as.Map))
 	return cmds
 }
 
@@ -208,21 +224,28 @@ func boolToConVar(b bool) int {
 // them a battle would run until the coordinator's timeout, and the war would
 // wait on it.
 func modeRules(mode string) []string {
+	rules := []string{
+		"mp_windifference 0",
+		"mp_winlimit 0",
+		"mp_maxrounds 0",
+		"mp_timelimit 0",
+		"tf_arena_use_queue 0",
+	}
 	switch strings.ToLower(mode) {
 	case "5cp":
-		return []string{"mp_windifference 0", "mp_winlimit 3", "mp_maxrounds 0", "mp_timelimit 30"}
+		return append(rules, "mp_winlimit 3", "mp_timelimit 30")
 	case "koth":
-		return []string{"mp_winlimit 2", "mp_maxrounds 0", "mp_timelimit 30"}
+		return append(rules, "mp_winlimit 2", "mp_timelimit 30")
 	case "arena":
-		return []string{"mp_winlimit 3", "mp_maxrounds 0", "mp_timelimit 0", "tf_arena_use_queue 0"}
+		return append(rules, "mp_winlimit 3")
 	case "payload", "attack_defend", "ad":
 		// One round decides it: the attackers either take the objective or run
 		// out of time.
-		return []string{"mp_winlimit 0", "mp_maxrounds 1", "mp_timelimit 0"}
+		return append(rules, "mp_maxrounds 1")
 	case "ctf":
-		return []string{"mp_winlimit 3", "mp_maxrounds 0", "mp_timelimit 30"}
+		return append(rules, "mp_winlimit 3", "mp_timelimit 30")
 	default:
-		return []string{"mp_winlimit 3", "mp_timelimit 30"}
+		return append(rules, "mp_winlimit 3", "mp_timelimit 30")
 	}
 }
 
@@ -237,6 +260,17 @@ func (a *Agent) handleLog(ctx context.Context, ev srclog.Event) {
 		if !b.mapLoaded && strings.EqualFold(ev.Map, b.as.Map) {
 			b.mapLoaded = true
 			a.log.Info("battle map up", "match", b.as.MatchID, "map", ev.Map)
+			// Map and mode cfgs run during changelevel and may overwrite the
+			// assignment. Reapply the complete contract before advertising ready.
+			for _, cmd := range a.battleSetupCommands(b.as) {
+				if _, err := a.exec("%s", cmd); err != nil {
+					a.log.Error("could not reapply battle configuration after map load",
+						"match", b.as.MatchID, "cmd", firstWord(cmd), "err", err)
+					a.reportState(ctx, b.as.MatchID, "failed")
+					a.battle = nil
+					return
+				}
+			}
 			a.reportState(ctx, b.as.MatchID, "ready")
 			a.announceBriefing()
 		}
@@ -269,10 +303,9 @@ func (a *Agent) handleLog(ctx context.Context, ev srclog.Event) {
 // finishBattle reports the result and puts the server back in the pool.
 func (a *Agent) finishBattle(ctx context.Context, reason string) {
 	b := a.battle
-	if b == nil || b.reported {
+	if b == nil || b.reported || b.pendingResult != nil {
 		return
 	}
-	b.reported = true
 
 	red, blu := b.finalScores()
 	outcome := "STALEMATE"
@@ -287,20 +320,34 @@ func (a *Agent) finishBattle(ctx context.Context, reason string) {
 
 	// These are in-game team scores. The coordinator turns them back into war
 	// sides, because on a directional map the attacker played as BLU.
-	err := a.post(ctx, "/api/v1/servers/result", map[string]any{
+	b.pendingResult = map[string]any{
 		"match_id":   b.as.MatchID,
 		"outcome":    outcome,
 		"red_score":  red,
 		"blu_score":  blu,
 		"players":    len(b.joined),
 		"duration_s": int(time.Since(b.startedAt).Seconds()),
-	}, nil)
-	if err != nil {
-		// The war did not hear about this battle. Nothing local can fix that,
-		// but it must be loud: it is the one failure that loses a result.
-		a.log.Error("could not report the result to the coordinator",
-			"match", b.as.MatchID, "outcome", outcome, "err", err)
 	}
+	a.reportPendingResult(ctx)
+}
+
+func (a *Agent) reportPendingResult(ctx context.Context) {
+	b := a.battle
+	if b == nil || b.reported || b.pendingResult == nil || time.Now().Before(b.nextResultAttempt) {
+		return
+	}
+
+	err := a.post(ctx, "/api/v1/servers/result", b.pendingResult, nil)
+	if err != nil {
+		b.resultAttempts++
+		delay := time.Second << min(b.resultAttempts-1, 5)
+		b.nextResultAttempt = time.Now().Add(delay)
+		a.log.Error("could not report the result to the coordinator",
+			"match", b.as.MatchID, "attempt", b.resultAttempts, "retry_in", delay, "err", err)
+		return
+	}
+	b.reported = true
+	b.pendingResult = nil
 	a.goIdle(ctx)
 }
 
@@ -343,7 +390,14 @@ func (a *Agent) announceBriefing() {
 // checkDeadlines catches a server that never came up.
 func (a *Agent) checkDeadlines(ctx context.Context) {
 	b := a.battle
-	if b == nil || b.mapLoaded || b.reported {
+	if b == nil || b.reported {
+		return
+	}
+	if b.pendingResult != nil {
+		a.reportPendingResult(ctx)
+		return
+	}
+	if b.mapLoaded {
 		return
 	}
 	if time.Since(b.startedAt) > b.bootDeadline() {

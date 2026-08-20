@@ -41,7 +41,7 @@
     "team_sizes": [2, 3, 4, 6],
     "min_team_size": 2,
     "form_wait": "10s",
-    "max_concurrent_per_front": 2
+    "max_concurrent_per_front": 1
   },
   "security": {
     "secret": "testbed-secret-change-me"

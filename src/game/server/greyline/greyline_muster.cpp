@@ -26,6 +26,7 @@
 #include "igamesystem.h"
 #include "tf_gamerules.h"
 #include "tf_player.h"
+#include "greyline/greyline_roster_gate.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -108,7 +109,8 @@ int CGreylineMuster::CountHumans()
 	for ( int i = 1; i <= gpGlobals->maxClients; ++i )
 	{
 		CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
-		if ( pPlayer && pPlayer->IsConnected() && !pPlayer->IsFakeClient() )
+		if ( pPlayer && pPlayer->IsConnected() && !pPlayer->IsFakeClient() &&
+			( !greyline::BattleHasRoster() || greyline::IsRosterMember( pPlayer->GetSteamIDAsUInt64() ) ) )
 		{
 			++nHumans;
 		}

@@ -15,6 +15,9 @@ on:
       - "docs/**"
       - "**.md"
   workflow_dispatch:
+
+permissions:
+  contents: read
 # https://github.com/SoopMod/source-sdk-tf-soop/commit/d244e93b5888074e53e1f2f6daba3f14383b575e
 jobs:
   build_win:
@@ -30,6 +33,7 @@ jobs:
           sparse-checkout: |
             .github
           token: ${{ secrets.REPO_TOKEN || github.token }}
+          persist-credentials: false
 
       # Support incremental builds by caching (almost) the entire workspace.
       #
@@ -72,6 +76,7 @@ jobs:
         with:
           clean: false
           token: ${{ secrets.REPO_TOKEN || github.token }}
+          persist-credentials: false
           submodules: recursive
 
       - name: Add msbuild

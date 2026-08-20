@@ -184,9 +184,6 @@ func matchmakingConfig(cfg *config.Config) mm.Config {
 	if cfg.Match.WidenMaxSteps > 0 {
 		c.WidenMaxSteps = cfg.Match.WidenMaxSteps
 	}
-	if cfg.Match.ResultQuorum > 0 {
-		c.ResultQuorum = cfg.Match.ResultQuorum
-	}
 	if cfg.Timing.HostAcceptDeadline > 0 {
 		c.HostAcceptDeadline = cfg.Timing.HostAcceptDeadline.D()
 	}

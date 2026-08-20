@@ -72,7 +72,6 @@ func newHarnessWithWorld(t *testing.T, worldJSON string, tune func(*config.Confi
 	cfg.Match.TeamSizes = []int{1}
 	cfg.Match.MinTeamSize = 1
 	cfg.Match.FormWait = 0
-	cfg.Match.ResultQuorum = 1.0
 	cfg.Timing.TickInterval = config.Duration(20 * time.Millisecond)
 	cfg.Timing.HostBootDeadline = config.Duration(2 * time.Second)
 	cfg.Timing.ClientConnectDeadline = config.Duration(2 * time.Second)

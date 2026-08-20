@@ -90,10 +90,8 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/client/side", a.withPlayer(a.setSide))
 	mux.HandleFunc("GET /api/v1/client/poll", a.withPlayer(a.poll))
 	mux.HandleFunc("GET /api/v1/client/self", a.withPlayer(a.self))
-	// An elected host accepting a host_offer, and the roster corroborating a
-	// P2P host's result — see internal/mm's election and corroboration.
+	// An elected host accepting a host_offer.
 	mux.HandleFunc("POST /api/v1/client/host-register", a.withPlayer(a.hostRegister))
-	mux.HandleFunc("POST /api/v1/client/confirm-result", a.withPlayer(a.confirmResult))
 
 	// The server pool.
 	mux.HandleFunc("POST /api/v1/servers/register", a.serverRegister)
@@ -157,7 +155,7 @@ func (a *API) AdminHandler() http.Handler {
 // ---------------------------------------------------------------------------
 
 type helloRequest struct {
-	SteamID         uint64 `json:"steam_id"`
+	SteamID         uint64 `json:"steam_id,string"`
 	Ticket          string `json:"ticket"`
 	Name            string `json:"name"`
 	Side            string `json:"side"`
@@ -194,7 +192,7 @@ func (a *API) hello(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &req) {
 		return
 	}
-	if req.ProtocolVersion != 0 && req.ProtocolVersion != a.opts.ProtocolVersion {
+	if req.ProtocolVersion != a.opts.ProtocolVersion {
 		fail(w, http.StatusBadRequest, fmt.Sprintf(
 			"this coordinator speaks protocol %d, the client speaks %d",
 			a.opts.ProtocolVersion, req.ProtocolVersion))
@@ -380,33 +378,6 @@ func (a *API) hostRegister(w http.ResponseWriter, r *http.Request, p *mm.Player)
 		"heartbeat_s":  15,
 		"poll_wait_s":  int(a.opts.MaxPollWait.Seconds()),
 	})
-}
-
-type confirmResultRequest struct {
-	MatchID  string `json:"match_id"`
-	Outcome  string `json:"outcome"`
-	RedScore uint32 `json:"red_score"`
-	BluScore uint32 `json:"blu_score"`
-}
-
-// confirmResult is a roster member corroborating a P2P host's reported
-// result — see mm.ConfirmResult for the quorum rule.
-func (a *API) confirmResult(w http.ResponseWriter, r *http.Request, p *mm.Player) {
-	var req confirmResultRequest
-	if !readJSON(w, r, &req) {
-		return
-	}
-	outcome, err := war.ParseOutcome(req.Outcome)
-	if err != nil {
-		fail(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	update, err := a.mm.ConfirmResult(p, req.MatchID, outcome, req.RedScore, req.BluScore)
-	if err != nil {
-		fail(w, http.StatusConflict, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "war_update": update})
 }
 
 // ---------------------------------------------------------------------------
@@ -602,8 +573,8 @@ type serverResultRequest struct {
 }
 
 // serverResult is the single point where a game result becomes war history.
-// Dedicated servers are the coordinator's own infrastructure and hold the pool
-// key, so their word is taken as it stands — there is no player vote here.
+// There is no player vote in the current protocol; P2P reports therefore have
+// an explicit MVP trust limitation until authenticated result evidence exists.
 func (a *API) serverResult(w http.ResponseWriter, r *http.Request, s *pool.Server) {
 	var req serverResultRequest
 	if !readJSON(w, r, &req) {

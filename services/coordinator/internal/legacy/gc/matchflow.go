@@ -1,7 +1,6 @@
 package gc
 
 import (
-	"math"
 	"sort"
 	"time"
 
@@ -423,10 +422,7 @@ func (s *Server) tryResolve(m *Match) {
 		return
 	}
 	witnesses := m.nonHostPresent()
-	needed := int(math.Ceil(s.cfg.Match.ResultQuorum * float64(witnesses)))
-	if needed < 1 && witnesses > 0 {
-		needed = 1
-	}
+	needed := witnesses
 	if len(m.Attestations) < needed && time.Since(m.ResultAt) < resultGrace {
 		return
 	}
