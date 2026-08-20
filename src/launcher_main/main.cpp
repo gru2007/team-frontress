@@ -163,7 +163,9 @@ static bool LoadSteam( const char *pRootDir )
 		return false;
 	}
 
-	// Make a steam_appid.txt now, of just eg. Source SDK 2013 MP for this.
+	// Point SteamAPI_Init at our own AppID (Team Frontress Playtest when built
+	// with MOD_LAUNCHER, see launcher_main_tc2.vpc). Written unconditionally so
+	// a stale file from an older build cannot win over the AppID we ship with.
 	FILE *pFile = fopen( "steam_appid.txt", "w" );
 	if ( pFile )
 	{

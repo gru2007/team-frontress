@@ -622,6 +622,8 @@ struct Source1AppidInfo_t
 	{ 550, "Left 4 Dead 2" },
 	{ 630, "Alien Swarm" },
 
+	{ 5147520, "Team Frontress Playtest" },
+
 	{ 243750, "Source SDK Base 2013 Multiplayer" },
 	{ 243730, "Source SDK Base 2013 Singleplayer" },
 	{ 218, "Source SDK Base 2007" },

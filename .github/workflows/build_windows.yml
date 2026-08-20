@@ -25,6 +25,10 @@ jobs:
     env:
       VCPKG_ROOT: ${{ github.workspace }}/../vcpkg
       VCPKG_DEFAULT_TRIPLET: x64-windows
+      # Steam publishing is gated on both of these being true. Secrets aren't
+      # readable from a step `if:`, so the config.vdf is lifted into env here.
+      PUBLISH_REF: ${{ github.repository_owner == 'gru2007' && github.event_name == 'push' && (github.ref == 'refs/heads/gf-mod' || github.ref == 'refs/heads/campus-fortress' || startsWith(github.ref, 'refs/heads/release/')) }}
+      STEAM_CONFIG_VDF: ${{ secrets.STEAM_CONFIG_VDF }}
     steps:
       # checkout the github actions / workflow
       - name: Checkout actions
@@ -56,6 +60,7 @@ jobs:
             !${{ github.workspace }}/game_clean/**
             !${{ github.workspace }}/game_dist/**
             !${{ github.workspace }}/game_dist_debug/**
+            !${{ github.workspace }}/steam_build/**
             !${{ github.workspace }}/team-comtress-2.png
             !${{ github.workspace }}/.gitattributes
             !${{ github.workspace }}/.gitignore
@@ -151,6 +156,21 @@ jobs:
         shell: bash
         env:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+
+      - name: Push to Steam (playtest)
+        id: steam-playtest
+        if: ${{ env.PUBLISH_REF == 'true' && env.STEAM_CONFIG_VDF != '' }}
+        run: |
+          ./game_clean/steampipe.sh game_dist
+        shell: bash
+        env:
+          STEAM_APPID: ${{ vars.STEAM_APPID }}
+          STEAM_DEPOT_WIN: ${{ vars.STEAM_DEPOT_WIN }}
+          # Unset means "upload the build but leave it for a human to set live".
+          STEAM_BRANCH: ${{ vars.STEAM_PLAYTEST_BRANCH }}
+          STEAM_USERNAME: ${{ secrets.STEAM_USERNAME }}
+          STEAM_CONFIG_VDF: ${{ secrets.STEAM_CONFIG_VDF }}
+          BUILD_PLATFORM: win
 
       - name: Push Release
         id: create-rel

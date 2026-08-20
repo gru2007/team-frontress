@@ -22,8 +22,12 @@
 
 	FileSystem
 	{
+		// Dedicated servers stay on Source SDK Base 2013 Dedicated Server: they
+		// log in anonymously through steamcmd and cannot mount the playtest app
+		// (5147520), which requires an account that owns it. Only the client is
+		// published under the playtest AppID -- see docs/STEAMPIPE.md.
 		SteamAppId				243750
-		
+
 		SearchPaths
 		{
 			// First, mount all user customizations.  This will search for VPKs and subfolders
