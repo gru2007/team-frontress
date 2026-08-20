@@ -57,7 +57,7 @@ cd services/coordinator && go test -race ./...
 ```
 
 Covers the coordinator half against a real listener: two clients deploy, a
-battle forms, a host is elected, a result is corroborated and the front
+battle forms, a host is elected, automatic non-host evidence verifies the result and the front
 advances; plus disputed results, forged signatures, a host contradicting its own
 scoreline, host migration carrying the snapshot and sending the survivors to the
 new host's address, migration hold times, a fatal client cheat convar,

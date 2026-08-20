@@ -42,6 +42,8 @@ type Config struct {
 	// MatchTimeout is the longest a battle may run before the coordinator gives
 	// up waiting for a result.
 	MatchTimeout time.Duration
+	// ResultEvidenceTimeout bounds automatic non-host P2P result evidence.
+	ResultEvidenceTimeout time.Duration
 	// SessionTimeout is how long a client may go without polling before it is
 	// treated as gone.
 	SessionTimeout time.Duration
@@ -85,18 +87,19 @@ type Config struct {
 // people online.
 func DefaultConfig() Config {
 	return Config{
-		TeamSizes:          []int{2, 3, 4, 6},
-		MinTeamSize:        2,
-		FormWait:           45 * time.Second,
-		MaxBattlesPerFront: 1,
-		BootDeadline:       90 * time.Second,
-		JoinDeadline:       120 * time.Second,
-		MatchTimeout:       75 * time.Minute,
-		SessionTimeout:     90 * time.Second,
-		HeartbeatInterval:  10 * time.Second,
-		WidenAfter:         30 * time.Second,
-		WidenStepBonus:     0.4,
-		WidenMaxSteps:      6,
+		TeamSizes:             []int{2, 3, 4, 6},
+		MinTeamSize:           2,
+		FormWait:              45 * time.Second,
+		MaxBattlesPerFront:    1,
+		BootDeadline:          90 * time.Second,
+		JoinDeadline:          120 * time.Second,
+		MatchTimeout:          75 * time.Minute,
+		ResultEvidenceTimeout: 20 * time.Second,
+		SessionTimeout:        90 * time.Second,
+		HeartbeatInterval:     10 * time.Second,
+		WidenAfter:            30 * time.Second,
+		WidenStepBonus:        0.4,
+		WidenMaxSteps:         6,
 		HostElection: hostelect.Weights{
 			Upload: 0.30, Latency: 0.35, CPU: 0.15, Stability: 0.20,
 			DedicatedBonus: 0.50, PublicIPBonus: 0.10, AbandonPenalty: 0.35,
@@ -530,7 +533,7 @@ func (m *Matchmaker) tryForm() {
 // it more lopsided than it already was. Called with the lock held.
 func (m *Matchmaker) topUpLocked(f war.Front) {
 	for _, match := range m.matches {
-		if match.FrontID != f.ID || match.over() {
+		if match.FrontID != f.ID || match.over() || match.State == MatchAwaitingResult {
 			continue
 		}
 		// Sending somebody to a running battle with no address is sending them
@@ -869,7 +872,18 @@ func (m *Matchmaker) hostHistoryLocked(steamID uint64) hostelect.History {
 // changes. It is in-memory only, which is right for the MVP: it exists to
 // make repeated elections within one session smarter, not to be a persistent
 // reputation system.
-func (m *Matchmaker) recordHostOutcomeLocked(steamID uint64, hostedOK, hostedFailed, abandoned bool) {
+type hostOutcome int
+
+const (
+	hostOutcomeOK hostOutcome = iota
+	hostOutcomeBootFailure
+	hostOutcomeAbandon
+	hostOutcomeResultMismatch
+	hostOutcomePolicyTaint
+	hostOutcomeResultTimeout
+)
+
+func (m *Matchmaker) recordHostOutcomeLocked(steamID uint64, outcome hostOutcome) {
 	if steamID == 0 {
 		return
 	}
@@ -878,14 +892,22 @@ func (m *Matchmaker) recordHostOutcomeLocked(steamID uint64, hostedOK, hostedFai
 		h = &hostelect.History{}
 		m.hostHistory[steamID] = h
 	}
-	if hostedOK {
+	switch outcome {
+	case hostOutcomeOK:
 		h.HostedOK++
-	}
-	if hostedFailed {
+	case hostOutcomeBootFailure:
 		h.HostedFailed++
-	}
-	if abandoned {
+	case hostOutcomeAbandon:
 		h.Abandons++
+	case hostOutcomeResultMismatch:
+		h.ResultMismatches++
+	case hostOutcomePolicyTaint:
+		h.PolicyTaints++
+	case hostOutcomeResultTimeout:
+		h.ResultTimeouts++
+	}
+	if outcome != hostOutcomeOK {
+		h.LastPenaltyAt = m.now().Unix()
 	}
 }
 
@@ -1142,7 +1164,7 @@ func (m *Matchmaker) ServerState(serverID, matchID, state string, players int, r
 			m.sendToBattle(match)
 		}
 	case "live":
-		if !match.over() {
+		if !match.over() && match.State != MatchAwaitingResult {
 			if match.State != MatchLive {
 				m.stats.Live++
 			}
@@ -1166,11 +1188,8 @@ func (m *Matchmaker) ServerState(serverID, matchID, state string, players int, r
 	return nil
 }
 
-// ServerResult records a finished battle: the one place a game result becomes
-// a war event. The current client has no complete vote/dispute interface, so a
-// P2P report follows the same immediate path as a dedicated report. P2P result
-// hardening belongs in authenticated server-side evidence, not a hidden quorum
-// that can leave a completed battle live forever.
+// ServerResult records a finished battle. Dedicated infrastructure is accepted
+// immediately; a P2P host is held briefly for automatic non-host evidence.
 func (m *Matchmaker) ServerResult(serverID string, res war.BattleResult) (*war.Update, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -1186,22 +1205,212 @@ func (m *Matchmaker) ServerResult(serverID string, res war.BattleResult) (*war.U
 		// A retrying agent must not move the war twice.
 		return nil, nil
 	}
+	if match.State != MatchReady && match.State != MatchLive && match.State != MatchAwaitingResult {
+		return nil, fmt.Errorf("mm: battle %q cannot report a result from state %q", match.ID, match.State)
+	}
 
-	// The server reports what its scoreboard said, in in-game teams. On a
-	// directional map the attacking side played as BLU, so the scoreline has to
-	// be read back into the war's own sides before it can move anything. The
-	// plan is the only place that mapping lives, so the translation happens
-	// here rather than in every agent.
-	res.Outcome, res.RedScore, res.BluScore = match.Plan.TranslateResult(res.Outcome, res.RedScore, res.BluScore)
 	res.FrontID = match.FrontID
 	res.Map = match.Plan.Map
 	res.Mode = match.Plan.Mode
-	// Until servers report an authenticated presence set, strategic weight is
-	// derived from the coordinator-owned roster. A P2P host must not be able to
-	// move a front farther by inventing a player count in its HTTP report.
 	res.Players = len(match.Slots)
 
-	return m.finalizeResultLocked(match, res), nil
+	srv, _ := m.pool.Get(serverID)
+	if srv != nil && srv.Trusted {
+		res.Outcome, res.RedScore, res.BluScore = match.Plan.TranslateResult(res.Outcome, res.RedScore, res.BluScore)
+		return m.finalizeResultLocked(match, res), nil
+	}
+
+	if !resultIsConsistent(res.Outcome, res.RedScore, res.BluScore) {
+		m.taintResultLocked(match, "host reported an outcome that contradicts its score", hostOutcomeResultMismatch)
+		return nil, nil
+	}
+	if match.HostResult != nil {
+		if !sameRawResult(*match.HostResult, res) {
+			m.taintResultLocked(match, "host changed its result after reporting it", hostOutcomeResultMismatch)
+			return nil, nil
+		}
+		return m.tryResolveP2PResultLocked(match, false), nil
+	}
+
+	copy := res
+	match.HostResult = &copy
+	m.beginResultEvidenceLocked(match)
+	return m.tryResolveP2PResultLocked(match, false), nil
+}
+
+// RecordResultEvidence stores the scoreboard an authenticated non-host client
+// observed. It is automatic telemetry, not a manual vote.
+func (m *Matchmaker) RecordResultEvidence(p *Player, evidence ResultEvidence) (*war.Update, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	match, ok := m.matches[evidence.MatchID]
+	if !ok {
+		return nil, fmt.Errorf("mm: unknown battle %q", evidence.MatchID)
+	}
+	if match.over() {
+		return nil, nil
+	}
+	if match.HostSteamID == 0 {
+		return nil, fmt.Errorf("mm: dedicated battles do not accept client result evidence")
+	}
+	if p.SteamID == match.HostSteamID {
+		return nil, fmt.Errorf("mm: the P2P host cannot witness its own result")
+	}
+	if match.slot(p.SteamID) == nil {
+		return nil, fmt.Errorf("mm: player was not on battle %q", match.ID)
+	}
+	if match.State != MatchReady && match.State != MatchLive && match.State != MatchAwaitingResult {
+		return nil, fmt.Errorf("mm: battle %q cannot accept result evidence from state %q", match.ID, match.State)
+	}
+
+	evidence.SteamID = p.SteamID
+	evidence.At = m.now()
+	if !evidence.PolicyViolation && !resultIsConsistent(evidence.Outcome, evidence.RedScore, evidence.BluScore) {
+		return nil, fmt.Errorf("mm: result evidence outcome contradicts its score")
+	}
+	if match.Evidence == nil {
+		match.Evidence = make(map[uint64]ResultEvidence)
+	}
+	if old, exists := match.Evidence[p.SteamID]; exists {
+		if old.Outcome != evidence.Outcome || old.RedScore != evidence.RedScore ||
+			old.BluScore != evidence.BluScore || old.PolicyViolation != evidence.PolicyViolation {
+			return nil, fmt.Errorf("mm: result evidence from %d changed after submission", p.SteamID)
+		}
+		return m.tryResolveP2PResultLocked(match, false), nil
+	}
+	match.Evidence[p.SteamID] = evidence
+	m.beginResultEvidenceLocked(match)
+	return m.tryResolveP2PResultLocked(match, false), nil
+}
+
+func (m *Matchmaker) beginResultEvidenceLocked(match *Match) {
+	if match.State != MatchAwaitingResult {
+		match.setState(MatchAwaitingResult, m.now())
+		m.pushMatchState(match, "battle ended; verifying the P2P result")
+	}
+	if match.ResultDeadline.IsZero() {
+		timeout := m.cfg.ResultEvidenceTimeout
+		if timeout <= 0 {
+			timeout = 20 * time.Second
+		}
+		match.ResultDeadline = m.now().Add(timeout)
+	}
+}
+
+func (m *Matchmaker) tryResolveP2PResultLocked(match *Match, deadline bool) *war.Update {
+	if match.over() {
+		return nil
+	}
+	if match.Tainted {
+		m.finishUncountedLocked(match, "tainted", match.TaintReason)
+		return nil
+	}
+
+	matching := 0
+	for _, evidence := range match.Evidence {
+		if evidence.PolicyViolation {
+			reason := evidence.ViolationReason
+			if reason == "" {
+				reason = "a protected server setting changed during the battle"
+			}
+			m.taintResultLocked(match, reason, hostOutcomePolicyTaint)
+			return nil
+		}
+		if match.HostResult == nil {
+			continue
+		}
+		if evidence.Outcome != match.HostResult.Outcome || evidence.RedScore != match.HostResult.RedScore ||
+			evidence.BluScore != match.HostResult.BluScore {
+			m.taintResultLocked(match, "host result did not match an authenticated player's scoreboard", hostOutcomeResultMismatch)
+			return nil
+		}
+		matching++
+	}
+
+	if match.HostResult != nil && matching > 0 {
+		res := *match.HostResult
+		res.Outcome, res.RedScore, res.BluScore = match.Plan.TranslateResult(res.Outcome, res.RedScore, res.BluScore)
+		match.Resolution = "witnessed"
+		return m.finalizeResultLocked(match, res)
+	}
+	if !deadline {
+		return nil
+	}
+	if match.HostResult == nil {
+		if !match.HostOutcomeRecorded {
+			m.recordHostOutcomeLocked(match.HostSteamID, hostOutcomeResultTimeout)
+			match.HostOutcomeRecorded = true
+		}
+		m.finishUncountedLocked(match, "host_timeout", "the host did not report the finished battle")
+		return nil
+	}
+	if !match.HostOutcomeRecorded {
+		m.recordHostOutcomeLocked(match.HostSteamID, hostOutcomeResultTimeout)
+		match.HostOutcomeRecorded = true
+	}
+	m.finishUncountedLocked(match, "unwitnessed", "no non-host client returned result evidence")
+	return nil
+}
+
+func (m *Matchmaker) taintResultLocked(match *Match, reason string, penalty hostOutcome) {
+	match.Tainted = true
+	match.TaintReason = reason
+	if match.HostSteamID != 0 && !match.HostOutcomeRecorded {
+		m.recordHostOutcomeLocked(match.HostSteamID, penalty)
+		match.HostOutcomeRecorded = true
+	}
+	m.finishUncountedLocked(match, "tainted", reason)
+}
+
+func (m *Matchmaker) finishUncountedLocked(match *Match, resolution, reason string) {
+	if match.over() {
+		return
+	}
+	match.Resolution = resolution
+	match.setState(MatchFinished, m.now())
+	m.stats.Finished++
+	var outcome war.Outcome
+	var red, blu uint32
+	if match.HostResult != nil {
+		outcome, red, blu = match.Plan.TranslateResult(match.HostResult.Outcome,
+			match.HostResult.RedScore, match.HostResult.BluScore)
+		match.RedScore, match.BluScore = red, blu
+	}
+	for _, slot := range match.Slots {
+		if p := m.players[slot.SteamID]; p != nil {
+			p.State = StateIdle
+			p.MatchID = ""
+			p.Battles++
+			p.push(Event{Type: EventMatchOver, Over: &MatchOver{
+				MatchID: match.ID, Outcome: outcome, Won: outcome.Winner() == slot.Side,
+				RedScore: red, BluScore: blu, Counted: false, Message: reason,
+				Tainted: match.Tainted, Reason: reason, Resolution: resolution,
+			}})
+		}
+	}
+	if match.ServerID != "" {
+		m.pool.Release(match.ServerID, false)
+	}
+	m.log.Warn("P2P battle result was not counted", "match", match.ID,
+		"resolution", resolution, "reason", reason)
+}
+
+func sameRawResult(a, b war.BattleResult) bool {
+	return a.Outcome == b.Outcome && a.RedScore == b.RedScore && a.BluScore == b.BluScore
+}
+
+func resultIsConsistent(outcome war.Outcome, red, blu uint32) bool {
+	switch outcome {
+	case war.OutcomeRedWin:
+		return red > blu
+	case war.OutcomeBluWin:
+		return blu > red
+	case war.OutcomeStalemate:
+		return red == blu
+	default:
+		return false
+	}
 }
 
 // finalizeResultLocked is the one place a game result actually becomes a war
@@ -1209,11 +1418,11 @@ func (m *Matchmaker) ServerResult(serverID string, res war.BattleResult) (*war.U
 func (m *Matchmaker) finalizeResultLocked(match *Match, res war.BattleResult) *war.Update {
 	match.Result = &res
 	match.RedScore, match.BluScore = res.RedScore, res.BluScore
+	if match.Resolution == "" {
+		match.Resolution = "trusted"
+	}
 	match.setState(MatchFinished, m.now())
 	m.stats.Finished++
-	if match.HostSteamID != 0 {
-		m.recordHostOutcomeLocked(match.HostSteamID, true, false, false)
-	}
 
 	var update *war.Update
 	counted := false
@@ -1226,6 +1435,10 @@ func (m *Matchmaker) finalizeResultLocked(match *Match, res war.BattleResult) *w
 		m.stats.Counted++
 		m.log.Info("battle recorded", "match", match.ID, "front", match.FrontID,
 			"outcome", res.Outcome, "headline", up.Headline)
+		if match.HostSteamID != 0 && !match.HostOutcomeRecorded {
+			m.recordHostOutcomeLocked(match.HostSteamID, hostOutcomeOK)
+			match.HostOutcomeRecorded = true
+		}
 	}
 
 	for _, s := range match.Slots {
@@ -1237,14 +1450,15 @@ func (m *Matchmaker) finalizeResultLocked(match *Match, res war.BattleResult) *w
 		p.MatchID = ""
 		p.Battles++
 		over := &MatchOver{
-			MatchID:  match.ID,
-			Outcome:  res.Outcome,
-			Won:      res.Outcome.Winner() == s.Side,
-			RedScore: res.RedScore,
-			BluScore: res.BluScore,
-			Counted:  counted,
-			Update:   update,
-			Message:  resultMessage(counted, update),
+			MatchID:    match.ID,
+			Outcome:    res.Outcome,
+			Won:        res.Outcome.Winner() == s.Side,
+			RedScore:   res.RedScore,
+			BluScore:   res.BluScore,
+			Counted:    counted,
+			Update:     update,
+			Message:    resultMessage(counted, update),
+			Resolution: match.Resolution,
 		}
 		p.push(Event{Type: EventMatchOver, Over: over})
 	}
@@ -1340,10 +1554,10 @@ func (m *Matchmaker) abort(match *Match, reason string) {
 	if match.HostSteamID != 0 {
 		switch match.State {
 		case MatchReady, MatchLive:
-			m.recordHostOutcomeLocked(match.HostSteamID, false, false, true)
+			m.recordHostOutcomeLocked(match.HostSteamID, hostOutcomeAbandon)
 			hostFailed = true
 		case MatchAwaitingHost, MatchBooting:
-			m.recordHostOutcomeLocked(match.HostSteamID, false, true, false)
+			m.recordHostOutcomeLocked(match.HostSteamID, hostOutcomeBootFailure)
 			hostFailed = true
 		}
 		if hostFailed && m.cfg.HostFailureCooldown > 0 {
@@ -1479,6 +1693,10 @@ func (m *Matchmaker) Tick() {
 		case MatchLive:
 			if now.Sub(match.StateSince) > m.cfg.MatchTimeout {
 				m.abort(match, "battle ran past its time limit without a result")
+			}
+		case MatchAwaitingResult:
+			if !match.ResultDeadline.IsZero() && !now.Before(match.ResultDeadline) {
+				m.tryResolveP2PResultLocked(match, true)
 			}
 		case MatchFinished, MatchAborted:
 			if now.Sub(match.StateSince) > 5*time.Minute {

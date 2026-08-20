@@ -64,10 +64,9 @@ func TestRegisterElectedHostRequiresAMatchID(t *testing.T) {
 	}
 }
 
-// TestReservePrefersDedicatedOverP2P is the other half of "dedicated first,
-// P2P as fallback": when both are idle, Reserve must not pick the player's
-// machine just because it happens to sort first.
-func TestReservePrefersDedicatedOverP2P(t *testing.T) {
+// TestCompletedP2PHostIsNotReused ensures a one-battle listen server cannot be
+// assigned a new roster while its owner is returning to the menu.
+func TestCompletedP2PHostIsNotReused(t *testing.T) {
 	p := New(45 * time.Second)
 	now := time.Now()
 
@@ -93,13 +92,12 @@ func TestReservePrefersDedicatedOverP2P(t *testing.T) {
 		t.Fatalf("Reserve picked %q (kind %q), want the dedicated server %q", best.ID, best.Kind, dedicatedID)
 	}
 
-	// With the dedicated server taken, the idle P2P host is the fallback.
-	second, err := p.Reserve("another-match", "", now)
-	if err != nil {
-		t.Fatal(err)
+	// With the dedicated server taken there must be no reusable P2P member.
+	if _, err := p.Reserve("another-match", "", now); err != ErrNoServer {
+		t.Fatalf("completed P2P host was reusable: got %v, want ErrNoServer", err)
 	}
-	if second.ID != p2pID {
-		t.Fatalf("Reserve did not fall back to the idle P2P host: got %q", second.ID)
+	if _, ok := p.Get(p2pID); ok {
+		t.Fatal("completed one-battle P2P server remained in the pool")
 	}
 }
 

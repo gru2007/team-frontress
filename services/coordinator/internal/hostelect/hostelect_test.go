@@ -185,6 +185,19 @@ func TestStabilityBeatsRawSpecs(t *testing.T) {
 	}
 }
 
+func TestResultAndPolicyFailuresLowerStability(t *testing.T) {
+	cleanUnknown := stability(History{})
+	for name, history := range map[string]History{
+		"result mismatch": {ResultMismatches: 1},
+		"policy taint":    {PolicyTaints: 1},
+		"result timeout":  {ResultTimeouts: 1},
+	} {
+		if got := stability(history); got >= cleanUnknown {
+			t.Errorf("%s stability = %.3f, want below unknown %.3f", name, got, cleanUnknown)
+		}
+	}
+}
+
 func TestRankingIsDeterministic(t *testing.T) {
 	e := testElector(fixedOracle{base: 30})
 	cands := []Candidate{

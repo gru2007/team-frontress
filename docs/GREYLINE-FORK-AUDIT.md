@@ -29,7 +29,7 @@
 | P0 | SteamID64 округлялся в JS | ID идет decimal string через HTTP, roster и player views; добавлен round-trip test на `76561198317961869` |
 | P0 | Игра использовала ручной или случайный ID | `greyline_identity` получает ID из `ISteamUser`; RANDOM ID удален |
 | P0 | `auth.mode=webapi` не получал ticket | C++ создает Steam auth session ticket, отдает его активному menu client и отменяет при shutdown |
-| P0 | P2P-результат вечно ждал скрытый quorum | quorum, endpoint, event и UI подтверждения удалены; result завершает бой сразу |
+| P0 | P2P-результат вечно ждал скрытый quorum | ручной quorum удален; result подтверждается автоматическим non-host evidence с 20-секундным deadline |
 | P0 | Одна HTTP-ошибка навсегда теряла dedicated result | agent хранит pending result и повторяет POST с backoff до ACK |
 | P0 | P2P result помечался отправленным до HTTP ACK | `resultReported` выставляется только после успешного POST |
 | P0 | Map cfg перезаписывал win conditions | agent повторно применяет полный battle contract после `KindMapStarted` и только затем сообщает `ready` |
@@ -67,14 +67,12 @@ P2P все еще зависит от client event counter в
 оставят бой в неправильном состоянии. `nextlevel` и retries уменьшают риск, но
 не заменяют state machine.
 
-### 2. P2P result сейчас доверенный
+### 2. P2P evidence еще не подписан
 
-Quorum удален намеренно: без полноценного UI, reconnect recovery, отрицательных
-голосов и immutable witness set он только замораживал завершенные матчи. Теперь
-владелец P2P-сервера может подделать outcome/score.
-
-Нужное решение: server-generated result digest, Steam-authenticated participant
-evidence или trusted relay/plugin. Нельзя возвращать старый скрытый quorum.
+Ручной quorum удален намеренно. Текущий MVP автоматически сравнивает host report
+со scoreboard evidence non-host клиента, отклоняет tainted result и штрафует
+host reputation. Evidence защищен player session, но не отдельной подписью
+бинарника, поэтому модифицированный client остается вне threat model MVP.
 
 ### 3. Server command mailbox остается at-most-once
 
@@ -111,13 +109,12 @@ event. В `internal/war/log.go` fsync ambiguity также способна да
 | Presence | `Slot.Connected` не обновляется, authenticated participant set отсутствует | `internal/mm/match.go`, `mm.go` |
 | Pool | Deregister/re-register server ID может потерять active match/generation | `internal/pool/pool.go` |
 | Pool | Race Send против close(mailbox) может panic | `internal/pool/pool.go` |
-| Pool | P2P server после Release временно попадает в reusable free pool | `internal/pool/pool.go`, `internal/mm/mm.go` |
 | Pool | `Server.Capacity` не участвует в обычном Reserve/top-up | `internal/pool/pool.go`, `internal/mm/mm.go` |
 | State | Result принимается до строгого terminal transition; повторный `live` может двигать timeout | `internal/mm/mm.go` |
 | Join | Join проверяет назначенную map, но еще не проверяет фактический remote endpoint/server SteamID | `greyline_menu_rpc.cpp`, `greyline.html` |
 | P2P boot | Host capability заявляется до Steam/FakeIP preflight | `greyline.html`, `greyline_hoststate.cpp` |
 | Races | Player/Public и Pool/Get возвращают данные с непоследовательной mutex ownership | `internal/mm/player.go`, `internal/pool/pool.go` |
-| Security | `security.*`, signed results и integrity policy подключены только к retired legacy path | `internal/security`, `internal/legacy/gc`, `cmd/coordinator` |
+| Security | Active MVP имеет hardcoded protected-convar latch; configurable signed policy из `security.*` по-прежнему подключен только к retired legacy path | `internal/security`, `internal/legacy/gc`, `cmd/coordinator` |
 | Security | HTTP API не имеет встроенного TLS; pool/session/password tokens идут plaintext без reverse proxy | `internal/httpapi`, deployment docs |
 | Security | Non-loopback admin listener разрешен без admin key и содержит write endpoint drain | `internal/config`, `internal/httpapi` |
 

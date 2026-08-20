@@ -6,12 +6,9 @@
 <!--
   GREYLINE FRONTRESS — the test menu.
 
-  This is the whole client for the MVP: the war map, DEPLOY, the queue, and the
-  jump into a battle. It is deliberately one plain file with no build step and
-  no assets, because it exists to test the coordinator, not to be the game's
-  real interface. When the real menu is built this can be deleted without
-  anything else noticing: everything it does goes through the coordinator's
-  public HTTP API.
+  This is the field-command client for the MVP: war map, DEPLOY, P2P boot,
+  automatic result evidence and the operation dispatch. It stays one plain
+  file with no build step, using only assets already shipped by TC2.
 
   It runs in two places:
 
@@ -26,152 +23,170 @@
   only asks it questions and presses DEPLOY.
 -->
 <style>
+  @font-face { font-family: "TF2 Build"; src: url("./fonts/TF2Build.woff2") format("woff2"); }
+  @font-face { font-family: "TF2 Secondary"; src: url("./fonts/TF2Secondary.woff2") format("woff2"); }
+  @font-face { font-family: "TF2"; src: url("./fonts/TF2.woff2") format("woff2"); }
   :root {
-    --bg: #14100e;
-    --panel: #1d1815;
-    --panel-2: #262019;
-    --line: #3a3029;
-    --ink: #e8dcc8;
-    --dim: #9a8b78;
-    --red: #b8383b;
-    --blu: #5885a2;
-    --neutral: #6b6259;
-    --gold: #d8a038;
-    --ok: #7ea04d;
+    --steel: #292725; --steel-hi: #3a3732; --paper: #ddd2b7; --paper-hi: #eee5cf;
+    --paper-deep: #c8b99a; --ink: #312d29; --faded: #746b5d; --rule: #8b7d69;
+    --red: #b45c4d; --red-deep: #7d352f; --blu: #687c9b; --blu-deep: #3d506d;
+    --gold: #d0934b; --green: #4c6b22; --danger: #8e3129;
   }
   * { box-sizing: border-box; }
-  html, body {
-    margin: 0; height: 100%;
-    background: var(--bg);
-    color: var(--ink);
-    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-    font-size: 15px;
+  html, body { margin: 0; width: 100%; height: 100%; }
+  body {
+    display: flex; flex-direction: column; overflow: hidden; color: var(--ink);
+    font: 15px/1.28 "TF2 Secondary", Arial, sans-serif;
+    background-color: var(--steel);
+    background-image: linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px),
+      linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px);
+    background-size: 5px 5px;
   }
-  body { display: flex; flex-direction: column; overflow: hidden; }
-
   header {
-    display: flex; align-items: baseline; gap: 18px;
-    padding: 14px 22px; border-bottom: 1px solid var(--line);
-    background: linear-gradient(180deg, #241d18, #191411);
+    min-height: 72px; display: grid; grid-template-columns: auto minmax(180px,1fr) auto;
+    align-items: center; gap: 20px; padding: 10px 20px 9px 24px; color: #e8dec7;
+    background: linear-gradient(#383530, #252321); border-bottom: 4px solid #151412;
+    box-shadow: 0 3px 12px #0008; position: relative; z-index: 5;
   }
-  header h1 {
-    margin: 0; font-size: 20px; letter-spacing: .18em;
-    color: var(--gold); font-weight: 700;
+  header::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2px; border-bottom: 1px dashed #71695b; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-mark { width: 42px; height: 42px; object-fit: contain; filter: sepia(1) saturate(.45) brightness(1.7); opacity: .9; }
+  header h1 { margin: 0; font: 25px/.88 "TF2 Build"; letter-spacing: .055em; color: #f0dfb8; text-shadow: 2px 2px #171513; }
+  header h1 small { display: block; margin-top: 5px; font: 10px "TF2 Secondary"; letter-spacing: .28em; color: #a89d87; }
+  .campaign-strip { align-self: stretch; display: flex; align-items: center; gap: 17px; padding: 0 17px; border-left: 1px solid #171513; border-right: 1px solid #514c44; }
+  header .campaign { font: 16px "TF2 Build"; color: var(--gold); }
+  header .stat { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: #918778; }
+  header .stat b { display: block; margin-top: 2px; font: 14px "TF2"; color: #ddd1b9; }
+  .menu-actions { display: flex; justify-content: flex-end; gap: 5px; flex-wrap: wrap; max-width: 510px; }
+  .menu-actions button { padding: 5px 8px; border-color: #5b554c; background: #201f1d; color: #c8bda8; font-size: 10px; box-shadow: none; }
+
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(520px,1fr) 420px; gap: 0; }
+  .left { min-width: 0; min-height: 0; padding: 19px 16px 18px 21px; display: flex; flex-direction: column; position: relative; }
+  .right { min-height: 0; overflow-y: auto; padding: 17px 16px 20px; background: #1d1c1a; border-left: 5px solid #11100f; box-shadow: inset 2px 0 #4a463f; }
+
+  .map-board { flex: 1; min-height: 0; position: relative; padding: 17px; background: #655d50; border: 1px solid #111; box-shadow: 0 9px 22px #0009, inset 0 0 0 5px #827766, inset 0 0 0 7px #322e29; }
+  .map-board::before, .map-board::after { content: ""; position: absolute; z-index: 4; width: 16px; height: 16px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #d0c3a5 0 10%, #716554 17% 42%, #292622 48% 100%); box-shadow: 1px 2px 3px #0008; }
+  .map-board::before { left: 8px; top: 8px; } .map-board::after { right: 8px; bottom: 8px; }
+  .map-heading { position: absolute; z-index: 3; left: 34px; top: 28px; pointer-events: none; }
+  .map-heading b { display: block; font: 20px "TF2 Build"; letter-spacing: .08em; }
+  .map-heading span { font-size: 10px; letter-spacing: .2em; color: var(--faded); }
+  #map {
+    width: 100%; height: 100%; min-height: 380px; position: relative; overflow: hidden;
+    background-color: var(--paper);
+    background-image: linear-gradient(rgba(78,67,53,.09) 1px, transparent 1px), linear-gradient(90deg, rgba(78,67,53,.09) 1px, transparent 1px),
+      radial-gradient(circle at 30% 20%, #f2ead5aa, transparent 47%), radial-gradient(circle at 82% 78%, #9a876744, transparent 42%);
+    background-size: 22px 22px, 22px 22px, auto, auto;
+    border: 1px solid #756b59; box-shadow: inset 0 0 45px #725f3d44;
   }
-  header .campaign { color: var(--ink); font-size: 14px; }
-  header .spacer { flex: 1; }
-  header .stat { color: var(--dim); font-size: 13px; }
-  header .stat b { color: var(--ink); font-weight: 600; }
-  .menu-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-  .menu-actions button { padding: 5px 9px; font-size: 12px; }
+  #map::after { content: "EYES ONLY"; position: absolute; right: 26px; top: 24px; padding: 4px 9px 2px; border: 3px double #8a4239; color: #8a4239; font: 13px "TF2 Build"; letter-spacing: .12em; transform: rotate(3deg); opacity: .72; }
+  svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 1px 0 #fff6); }
+  .link { stroke: #756b5c; stroke-width: .48; stroke-dasharray: 1.4 .8; opacity: .72; }
+  .link.front { stroke: #8e3c32; stroke-width: 1.35; stroke-dasharray: 2.4 1.1; opacity: 1; animation: march 12s linear infinite; }
+  .node { transform-box: fill-box; transform-origin: center; }
+  .node circle { stroke: #302c27; stroke-width: .8; cursor: pointer; filter: drop-shadow(.6px 1px .5px #0007); transition: r .16s ease, stroke-width .16s ease; }
+  .node:hover circle { r: 4.2px; stroke-width: 1.25; }
+  .node text { font: 2.5px "TF2 Build"; letter-spacing: .05em; fill: #302c27; text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: #e5dbc3; stroke-width: .5px; }
+  .node text.sub { font: 1.9px "TF2 Secondary"; fill: #645a4e; }
+  .node.hq circle { stroke: #27231e; stroke-width: 1.25; }
+  .node.contested { animation: contested 1.8s steps(2,end) infinite; }
+  .node.contested circle { stroke: var(--gold); stroke-width: 1.5; }
+  .node.changed { animation: territoryChange 1.2s cubic-bezier(.2,.8,.2,1); }
+  .map-legend { position: absolute; z-index: 3; left: 35px; bottom: 31px; display: flex; gap: 14px; padding: 5px 8px; background: #e4dac2d9; border: 1px solid #958873; font-size: 10px; letter-spacing: .08em; }
+  .legend-chip::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-right: 5px; vertical-align: -1px; background: var(--chip); border: 1px solid #332f2b; }
+  .intel-photo { position: absolute; z-index: 2; right: 32px; bottom: 31px; width: min(25%,220px); padding: 6px 6px 17px; background: #e9dfc7; box-shadow: 1px 4px 10px #33291d88; transform: rotate(-2.1deg); pointer-events: none; }
+  .intel-photo img { display: block; width: 100%; filter: sepia(.28) contrast(.92) saturate(.75); }
+  .intel-photo span { position: absolute; bottom: 3px; left: 8px; font-size: 8px; letter-spacing: .18em; color: #685e50; }
 
-  main { flex: 1; display: flex; min-height: 0; }
-  .left { flex: 1.2; padding: 18px; display: flex; flex-direction: column; min-width: 0; }
-  .right { width: 430px; border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+  .card { margin: 0 0 11px; color: var(--ink); background: var(--paper); border: 1px solid #766b59; box-shadow: 2px 3px 0 #0c0b0a99; position: relative; }
+  .card:nth-child(even) { transform: rotate(.12deg); }
+  .card h2, .card > summary { margin: 0; padding: 8px 12px 6px; color: #e8dec8; background: #4a443a; border-bottom: 2px solid #2a2722; font: 13px "TF2 Build"; letter-spacing: .13em; text-transform: uppercase; }
+  .card > summary { cursor: pointer; list-style: none; }
+  .card > summary::-webkit-details-marker { display: none; }
+  .card > summary::after { content: "+"; float: right; }
+  .card[open] > summary::after { content: "–"; }
+  .card .body { padding: 11px 13px 12px; }
+  .order-card { border-top: 5px solid var(--gold); }
+  .battle-card { border-top: 5px solid var(--red); background: var(--paper-hi); }
+  .battle-card::after { content: "ASSIGNED"; position: absolute; right: 12px; top: 42px; color: #9a463b88; border: 2px solid #9a463b88; padding: 2px 5px; font: 11px "TF2 Build"; transform: rotate(-5deg); }
+  .assignment-line { margin: 9px 0 8px; padding: 7px 8px; border: 1px solid #8d806b; background: #d6c9ab; font-size: 12px; }
+  .assignment-line strong { font: 14px "TF2 Build"; }
+  .assignment-line.swap { border-left: 6px solid var(--gold); }
+  .utility-card { opacity: .9; }
 
-  .card {
-    background: var(--panel); border: 1px solid var(--line);
-    border-radius: 3px; margin-bottom: 14px;
-  }
-  .card h2 {
-    margin: 0; padding: 9px 14px; font-size: 12px; letter-spacing: .16em;
-    text-transform: uppercase; color: var(--dim);
-    border-bottom: 1px solid var(--line); background: var(--panel-2);
-  }
-  .card .body { padding: 12px 14px; }
-
-  #map { flex: 1; min-height: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 3px; }
-  svg { width: 100%; height: 100%; display: block; }
-  .link { stroke: #4a3f36; stroke-width: .5; }
-  .link.front { stroke: var(--gold); stroke-width: 1.1; stroke-dasharray: 2 1.4; }
-  .node circle { stroke: #0d0a08; stroke-width: .7; cursor: pointer; }
-  .node text { font-size: 2.6px; fill: var(--ink); text-anchor: middle; pointer-events: none; }
-  .node text.sub { font-size: 2.1px; fill: var(--dim); }
-  .node.hq circle { stroke: var(--gold); stroke-width: 1; }
-  .node.contested circle { stroke: var(--gold); stroke-width: 1.2; }
-
-  .front { border-top: 1px solid var(--line); padding: 11px 14px; }
-  .front:first-child { border-top: none; }
-  .front .name { font-weight: 600; letter-spacing: .05em; }
-  .front .meta { color: var(--dim); font-size: 13px; margin-top: 3px; }
-  .front .row { display: flex; align-items: center; gap: 10px; }
+  .front { border-top: 1px dashed #92846e; padding: 10px 12px; background: linear-gradient(90deg,#fff2,transparent); }
+  .front:first-child { border-top: 0; }
+  .front .name { font: 15px "TF2 Build"; letter-spacing: .04em; }
+  .front .meta { color: var(--faded); font-size: 12px; margin-top: 3px; }
+  .front .row { display: flex; align-items: center; gap: 9px; }
   .front .row .grow { flex: 1; min-width: 0; }
-
-  .pips { display: inline-flex; gap: 3px; vertical-align: middle; margin-left: 6px; }
-  .pip { width: 16px; height: 5px; background: #3a3029; border-radius: 1px; }
+  .pips { display: inline-flex; gap: 2px; vertical-align: middle; margin-left: 5px; }
+  .pip { width: 14px; height: 6px; background: #aaa087; border: 1px solid #796e5d; }
   .pip.done { background: var(--gold); }
 
-  button {
-    font: inherit; color: var(--ink); background: var(--panel-2);
-    border: 1px solid var(--line); border-radius: 2px;
-    padding: 7px 14px; cursor: pointer; letter-spacing: .08em;
-  }
-  button:hover:not(:disabled) { background: #33291f; border-color: var(--gold); }
-  button:disabled { opacity: .45; cursor: default; }
-  button.primary {
-    background: var(--gold); color: #1a1206; border-color: var(--gold); font-weight: 700;
-  }
-  button.primary:hover:not(:disabled) { background: #edb44a; }
-  button.big { width: 100%; padding: 13px; font-size: 16px; letter-spacing: .22em; }
+  button { padding: 7px 12px 5px; cursor: pointer; color: #e9dfcb; background: #4b463e; border: 1px solid #201e1b; font: 12px "TF2 Build"; letter-spacing: .08em; box-shadow: inset 0 1px #827a6d, 1px 2px 0 #0005; }
+  button:hover:not(:disabled) { color: #fff2d3; background: #5c5549; transform: translateY(-1px); }
+  button:active:not(:disabled) { transform: translateY(1px); box-shadow: inset 0 1px #2a2723; }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary { color: #f4e9d0; background: var(--red-deep); border-color: #4c211e; box-shadow: inset 0 1px #c16d5e, 2px 3px 0 #0006; }
+  button.primary:hover:not(:disabled) { background: var(--red); }
+  button.big { width: 100%; padding: 14px 12px 11px; font-size: 21px; letter-spacing: .2em; position: relative; overflow: hidden; }
+  button.big::after { content: ""; position: absolute; inset: 3px; border: 1px dashed #f5d9bd66; }
+  button.big:not(:disabled) { animation: readyLamp 2.8s steps(2,end) infinite; }
 
-  input, select {
-    font: inherit; color: var(--ink); background: #120e0c;
-    border: 1px solid var(--line); border-radius: 2px; padding: 6px 8px; width: 100%;
-  }
-  label { display: block; font-size: 12px; color: var(--dim); margin: 0 0 3px; letter-spacing: .1em; text-transform: uppercase; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  input, select { width: 100%; padding: 6px 7px; color: var(--ink); background: #f0e7d2; border: 0; border-bottom: 2px solid #817563; border-radius: 0; font: 13px "TF2 Secondary"; }
+  label { display: block; margin: 0 0 3px; color: var(--faded); font-size: 10px; letter-spacing: .11em; text-transform: uppercase; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
   .grid .full { grid-column: 1 / -1; }
+  .side-RED { color: var(--red-deep); font-family: "TF2 Build"; }
+  .side-BLU { color: var(--blu-deep); font-family: "TF2 Build"; }
+  .side-NONE { color: var(--faded); }
 
-  .side-RED { color: var(--red); font-weight: 700; }
-  .side-BLU { color: var(--blu); font-weight: 700; }
-  .side-NONE { color: var(--neutral); }
-
-  #feed { flex: 1; overflow-y: auto; padding: 4px 0; min-height: 80px; }
-  #feed .line { padding: 5px 14px; border-bottom: 1px solid #241e19; font-size: 13px; display: flex; gap: 9px; }
-  #feed .line time { color: var(--dim); font-variant-numeric: tabular-nums; }
-  #feed .line.capture { color: var(--gold); }
-  #feed .line.campaign { color: var(--ok); }
-
-  #banner {
-    padding: 12px 14px; border: 1px solid var(--gold); background: #2b2113;
-    border-radius: 3px; margin-bottom: 14px; display: none;
-  }
+  #feed { flex: 1; min-height: 90px; max-height: 190px; overflow-y: auto; background: #e8dec8; }
+  #feed .line { display: grid; grid-template-columns: 53px 1fr; gap: 7px; padding: 5px 11px; border-bottom: 1px dotted #9f9178; font-size: 11px; }
+  #feed .line time { color: #8d3e35; font-family: "TF2"; }
+  #feed .line.capture { background: #d0934b22; font-family: "TF2 Build"; }
+  #feed .line.campaign { background: #4c6b2222; }
+  #banner { display: none; position: absolute; z-index: 8; left: 7%; right: 7%; top: 8%; padding: 17px 21px 14px; color: #332c23; background: #eee2c5; border: 3px double #8e3d34; box-shadow: 4px 7px 18px #0008; transform: rotate(-.35deg); animation: dispatchIn .34s cubic-bezier(.2,.9,.25,1.15); }
   #banner.show { display: block; }
-  #banner .headline { font-size: 17px; color: var(--gold); font-weight: 700; }
-
-  .status { display: flex; gap: 14px; font-size: 12px; color: var(--dim); padding: 8px 22px; border-top: 1px solid var(--line); background: #100d0b; }
-  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #6b3030; margin-right: 5px; }
-  .dot.on { background: var(--ok); }
-  .muted { color: var(--dim); }
-  /* Ground held into the next stage of an offensive, or lost out of it. */
-  .gained { color: var(--ok); }
-  .pushed { color: #d9705c; }
-  .mono { font-family: "Consolas", "Menlo", monospace; }
-  .err { color: #d9705c; }
+  #banner .headline { color: var(--red-deep); font: 22px "TF2 Build"; text-transform: uppercase; letter-spacing: .05em; }
+  #banner::before { content: "OPERATION DISPATCH"; display: block; margin-bottom: 5px; color: #7b705e; font-size: 9px; letter-spacing: .25em; }
+  .status { min-height: 30px; display: flex; align-items: center; gap: 18px; padding: 5px 20px; color: #a69b87; background: #171614; border-top: 1px solid #4b473f; font-size: 10px; letter-spacing: .08em; }
+  .dot { display: inline-block; width: 8px; height: 8px; margin-right: 5px; border-radius: 50%; background: #7e3029; box-shadow: 0 0 0 1px #0d0c0b, inset 0 1px #fff3; }
+  .dot.on { background: #71913f; box-shadow: 0 0 6px #8cac54, 0 0 0 1px #0d0c0b; }
+  .muted { color: var(--faded); }
+  .gained { color: var(--green); font-family: "TF2 Build"; }
+  .pushed, .err { color: var(--danger); }
+  .mono { font-family: "TF2", monospace; }
   .hidden { display: none !important; }
-  .diag { display: grid; grid-template-columns: 110px 1fr; gap: 5px 10px; font-size: 12px; }
-  .diag .key { color: var(--dim); text-transform: uppercase; letter-spacing: .08em; }
+  .diag { display: grid; grid-template-columns: 90px 1fr; gap: 4px 8px; font-size: 11px; }
+  .diag .key { color: var(--faded); text-transform: uppercase; letter-spacing: .07em; }
   .diag .value { min-width: 0; overflow-wrap: anywhere; }
-  @media (max-width: 900px) {
-    body { overflow: auto; }
-    header { align-items: center; flex-wrap: wrap; }
-    header .spacer { display: none; }
-    main { display: block; }
-    .left { min-height: 55vh; }
-    .right { width: auto; border-left: 0; border-top: 1px solid var(--line); }
+  @keyframes march { to { stroke-dashoffset: -35; } }
+  @keyframes contested { 50% { filter: drop-shadow(0 0 2px #d0934b); } }
+  @keyframes territoryChange { 0% { transform: scale(.35) rotate(-12deg); opacity: .2; } 55% { transform: scale(1.55) rotate(4deg); } }
+  @keyframes readyLamp { 50% { filter: brightness(1.08); } }
+  @keyframes dispatchIn { from { opacity: 0; transform: translateY(-22px) rotate(-2deg) scale(.96); } }
+  @media (max-width: 980px) {
+    body { overflow: auto; } header { grid-template-columns: 1fr; } .campaign-strip { display: none; }
+    .menu-actions { justify-content: flex-start; max-width: none; } main { display: block; }
+    .left { height: 65vh; min-height: 520px; } .right { border-left: 0; border-top: 5px solid #111; }
   }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>GREYLINE FRONTRESS</h1>
-  <span class="campaign" id="campaign">—</span>
-  <span class="spacer"></span>
-  <span class="stat">theater <b id="theater">—</b></span>
-  <span class="stat">online <b id="population">0</b></span>
-  <span class="stat">servers <b id="servers">0/0</b></span>
-  <span class="stat">rev <b id="revision">0</b></span>
+  <div class="brand">
+    <img class="brand-mark" src="./img/logo-tc2.png" alt="">
+    <h1>GREYLINE<small>FIELD COMMAND</small></h1>
+  </div>
+  <div class="campaign-strip">
+    <span class="campaign" id="campaign">—</span>
+    <span class="stat">theater <b id="theater">—</b></span>
+    <span class="stat">mercenaries <b id="population">0</b></span>
+    <span class="stat">field servers <b id="servers">0/0</b></span>
+    <span class="stat">dispatch <b id="revision">0</b></span>
+  </div>
   <nav class="menu-actions">
     <button data-menu-action="resume">RESUME</button>
     <button data-menu-action="loadout">LOADOUT</button>
@@ -190,17 +205,26 @@
       <div class="headline" id="bannerHeadline"></div>
       <div class="muted" id="bannerDetail"></div>
     </div>
-    <div id="map">
-      <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
-        <g id="links"></g>
-        <g id="nodes"></g>
-      </svg>
+    <div class="map-board">
+      <div class="map-heading"><b>THEATER OPERATIONS</b><span>LIVE FRONT DISPOSITION / COORDINATOR COPY</span></div>
+      <div id="map">
+        <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+          <g id="links"></g>
+          <g id="nodes"></g>
+        </svg>
+      </div>
+      <div class="map-legend">
+        <span class="legend-chip" style="--chip:var(--red)">RED CONTROL</span>
+        <span class="legend-chip" style="--chip:var(--blu)">BLU CONTROL</span>
+        <span>--- ACTIVE FRONT</span>
+      </div>
+      <div class="intel-photo"><img src="./img/cards/explore.png" alt=""><span>FIELD INTELLIGENCE / FILE 04-A</span></div>
     </div>
   </div>
 
   <div class="right">
-    <div class="card" style="margin: 14px 14px 0;">
-      <h2>Deploy</h2>
+    <div class="card order-card">
+      <h2>Mobilization order</h2>
       <div class="body">
         <button class="primary big" id="deployBtn" disabled>DEPLOY</button>
         <div class="muted" id="deployHint" style="margin-top: 8px; font-size: 13px;">
@@ -209,8 +233,8 @@
       </div>
     </div>
 
-    <div class="card" id="battleCard" style="margin: 14px 14px 0; display: none;">
-      <h2>Your battle</h2>
+    <div class="card battle-card" id="battleCard" style="display: none;">
+      <h2>Your field assignment</h2>
       <div class="body">
         <div id="battleWhat" style="font-weight: 600;"></div>
         <div class="muted" id="battleWhy" style="margin: 4px 0 10px;"></div>
@@ -222,8 +246,8 @@
       </div>
     </div>
 
-    <div class="card" style="margin: 14px 14px 0;">
-      <h2>System status</h2>
+    <details class="card utility-card">
+      <summary>Communications status</summary>
       <div class="body diag">
         <span class="key">Steam</span><span class="value" id="diagSteam">not checked</span>
         <span class="key">Auth</span><span class="value" id="diagAuth">offline</span>
@@ -232,20 +256,20 @@
         <span class="key">Game</span><span class="value" id="diagGame">main menu</span>
         <span class="key">P2P host</span><span class="value" id="diagHost">idle</span>
       </div>
-    </div>
+    </details>
 
-    <div class="card" id="frontsCard" style="margin: 14px 14px 0;">
-      <h2>Active fronts</h2>
+    <div class="card" id="frontsCard">
+      <h2>Active operation files</h2>
       <div id="fronts"></div>
     </div>
 
-    <div class="card" style="margin: 14px 14px 0; flex: 1; display: flex; flex-direction: column; min-height: 120px;">
-      <h2>War log</h2>
+    <div class="card" style="min-height: 120px;">
+      <h2>Field teletype</h2>
       <div id="feed"></div>
     </div>
 
-    <div class="card" style="margin: 14px;">
-      <h2>Test settings</h2>
+    <details class="card utility-card">
+      <summary>Field radio configuration</summary>
       <div class="body">
         <div class="grid">
           <div class="full">
@@ -288,7 +312,7 @@
         </div>
         <div id="settingsError" class="err" style="margin-top: 8px; font-size: 13px;"></div>
       </div>
-    </div>
+    </details>
   </div>
 </main>
 
@@ -373,6 +397,11 @@ const Bridge = {
     try { reply = JSON.parse(raw); } catch (e) { return raw; }
     if (reply && reply.ok === false) throw new Error(line.split(" ")[0] + ": " + (reply.error || "rejected"));
     return raw;
+  },
+
+  sound(path) {
+    if (!this.ready) return;
+    this.call("playsound", path).catch(() => {});
   },
 
   async waitReady(timeoutMs) {
@@ -469,6 +498,7 @@ const State = {
   queue: null,
   identity: null,
   authMode: "offline",
+  nodeOwners: {},
   polling: false,
 
   load() {
@@ -501,9 +531,9 @@ const UI = {
   },
 
   colourOf(side) {
-    if (side === "RED") return "#b8383b";
-    if (side === "BLU") return "#5885a2";
-    return "#6b6259";
+    if (side === "RED") return "#b45c4d";
+    if (side === "BLU") return "#687c9b";
+    return "#8d826f";
   },
 
   renderHeader(status) {
@@ -549,6 +579,7 @@ const UI = {
       const classes = ["node"];
       if (n.hq && n.hq !== "NONE") classes.push("hq");
       if (n.contested) classes.push("contested");
+      if (State.nodeOwners[n.id] && State.nodeOwners[n.id] !== n.owner) classes.push("changed");
       const r = (n.hq && n.hq !== "NONE") ? 4.2 : 3.4;
       markers += '<g class="' + classes.join(" ") + '">' +
         '<circle cx="' + n.x + '" cy="' + n.y + '" r="' + r + '" fill="' + this.colourOf(n.owner) + '"></circle>' +
@@ -559,6 +590,7 @@ const UI = {
         "</g>";
     });
     this.el("nodes").innerHTML = markers;
+    nodes.forEach(n => { State.nodeOwners[n.id] = n.owner; });
   },
 
   renderFronts(fronts, queued) {
@@ -646,7 +678,9 @@ const UI = {
       " · " + this.escape(match.map);
 
     let why = match.reason || "";
-    if (match.side && match.team && match.side !== match.team) {
+    const role = match.side === match.attacker ? "ATTACK" : "DEFEND";
+    const swapped = match.side && match.team && match.side !== match.team;
+    if (swapped) {
       // The thing a player would otherwise think is a bug. Payload and
       // attack/defend maps are built for BLU to attack and cannot be changed,
       // so the attacking side wears BLU in every battle — a rule, not a
@@ -655,7 +689,11 @@ const UI = {
              " colours: the attacking side always wears " + match.team + ".";
     }
     if (match.contract) why += " (mercenary contract)";
-    this.el("battleWhy").innerHTML = this.escape(why);
+    this.el("battleWhy").innerHTML =
+      '<div class="assignment-line' + (swapped ? ' swap' : '') + '">' +
+      'WAR SIDE <strong class="side-' + this.escape(match.side) + '">' + this.escape(match.side) + '</strong> · ' +
+      'GAME TEAM <strong class="side-' + this.escape(match.team) + '">' + this.escape(match.team) + '</strong> · ' +
+      '<strong>' + role + '</strong></div>' + this.escape(why);
 
     const where = match.connect
       ? match.connect + (match.password ? "  password " + match.password : "")
@@ -686,6 +724,10 @@ const UI = {
     this.el("bannerHeadline").textContent = headline;
     this.el("bannerDetail").textContent = detail || "";
     this.el("banner").classList.add("show");
+    this.el("banner").onclick = () => this.el("banner").classList.remove("show");
+    clearTimeout(this.bannerTimer);
+    this.bannerTimer = setTimeout(() => this.el("banner").classList.remove("show"), 12000);
+    Bridge.sound("ui/quest_alert.wav");
   },
 
   feed(events) {
@@ -748,6 +790,17 @@ const Actions = {
     }
   },
 
+  async operationResult(over) {
+    if (!Bridge.ready || !over) return;
+    const update = over.war_update || {};
+    const verdict = over.tainted ? "RESULT REJECTED" :
+      (over.counted_towards_war ? (over.won ? "VICTORY" : "DEFEAT") : "BATTLE UNCOUNTED");
+    const detail = update.headline || over.reason || over.message || "operation unchanged";
+    const message = verdict + " · WAR SCORE RED " + (over.red_score || 0) + " : " +
+      (over.blu_score || 0) + " BLU · " + detail;
+    try { await Bridge.call("greyline_operation_result", message); } catch (e) { /* menu banner remains */ }
+  },
+
   async connect() {
     if (Bridge.ready) await this.useSteamIdentity(false);
     const s = State.settings;
@@ -784,7 +837,7 @@ const Actions = {
         name: s.name,
         side: s.side,
         client_version: "greyline-test-ui",
-        protocol_version: 2,
+        protocol_version: 3,
         host_capable: canHost,
         upload_kbps: canHost ? s.p2pUploadKbps : 0,
         cpu_score: canHost ? Math.max(40, Math.min(100, cores * 10)) : 0,
@@ -831,6 +884,7 @@ const Actions = {
       State.queue = reply.queue;
       UI.renderQueue(State.queue);
       UI.status("deployed: " + (reply.queue.front_name || "searching"));
+      Bridge.sound("ui/trade_up_apply_sticker.wav");
     } catch (e) {
       UI.status(e.message, true);
     }
@@ -1008,6 +1062,14 @@ const P2P = {
       const h = this.host;
       if (!h) return;
       try {
+        if (h.ready && Bridge.ready) {
+          const local = this.parseBridgeJSON(await Bridge.call("greyline_state", ""));
+          const level = String(local.level || "").replace(/\\/g, "/").split("/").pop().replace(/\.bsp$/i, "");
+          if (!local.connected || level.toLowerCase() !== String(h.map || "").toLowerCase()) {
+            await this.failHost("assigned map was left while the battle was active");
+            return;
+          }
+        }
         await GC.serverPost(h, "/api/v1/servers/heartbeat", {
           status: h.ready ? "live" : "booting",
           match_id: h.matchId,
@@ -1119,6 +1181,13 @@ const P2P = {
       "mp_tournament 0",
       "sv_allow_votes 0",
       "sv_allow_server_adverisement_to_master_server 0",
+      "sv_cheats 0",
+      "tf_weapon_criticals 0",
+      "tf_weapon_criticals_melee 0",
+      "tf_use_fixed_weaponspreads 1",
+      "tf_damage_disablespread 1",
+      "mp_friendlyfire 0",
+      "mp_disable_respawn_times 0",
       "mp_chattime 15",
       "nextlevel " + this.cleanConsole(as.map),
       // Turn people away for not being on the roster only when the roster names
@@ -1150,7 +1219,7 @@ const P2P = {
         String(entry.team || "").toUpperCase() + " " +
         String(entry.side || "").toUpperCase() + " " + (entry.contract ? 1 : 0));
     });
-    return cmds.concat(this.modeRules(as.mode));
+    return cmds.concat(this.modeRules(as.mode)).concat(["greyline_policy_armed 1"]);
   },
 
   async launch(as) {
@@ -1265,8 +1334,8 @@ const P2P = {
         duration_s: Math.max(1, Math.floor((Date.now() - h.startedAt) / 1000)),
       });
       h.resultReported = true;
-      UI.status("P2P result accepted: RED " + red + " — " + blu + " BLU");
-      UI.el("diagHost").textContent = "result accepted · waiting for match close";
+      UI.status("P2P host report submitted: RED " + red + " — " + blu + " BLU");
+      UI.el("diagHost").textContent = "result submitted · awaiting client evidence";
     } catch (e) {
       UI.status("could not report P2P result: " + e.message, true);
     } finally {
@@ -1303,6 +1372,93 @@ const P2P = {
     this.host = null;
     UI.el("diagHost").textContent = "failed · " + (reason || "unknown error");
     try { if (Bridge.ready) await Bridge.cmd("disconnect"); } catch (e) {}
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Automatic non-host result evidence. This is telemetry from the scoreboard
+// the client actually observed, not a button or a player vote.
+// ---------------------------------------------------------------------------
+const Evidence = {
+  match: null,
+  timer: null,
+  busy: false,
+  terminalSeen: false,
+  reported: false,
+  baseline: 0,
+  tainted: false,
+  violation: "",
+
+  async start(match) {
+    if (!match || !match.is_p2p || match.is_host || !Bridge.ready) {
+      this.stop();
+      return;
+    }
+    if (this.match && this.match.match_id === match.match_id) {
+      this.match = match;
+      if (match.state === "awaiting_result") this.terminalSeen = true;
+      return;
+    }
+    this.stop();
+    this.match = match;
+    try {
+      const state = P2P.parseBridgeJSON(await Bridge.call("greyline_state", ""));
+      this.baseline = Number(state.game_over_seq || 0);
+    } catch (e) {
+      this.baseline = 0;
+    }
+    this.terminalSeen = match.state === "awaiting_result";
+    this.timer = setInterval(() => this.tick(), 1000);
+    this.tick();
+  },
+
+  stop() {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+    this.match = null;
+    this.busy = false;
+    this.terminalSeen = false;
+    this.reported = false;
+    this.tainted = false;
+    this.violation = "";
+  },
+
+  async tick() {
+    if (!this.match || this.busy || this.reported || !Bridge.ready) return;
+    this.busy = true;
+    try {
+      const integrity = P2P.parseBridgeJSON(await Bridge.call("greyline_integrity", ""));
+      const state = P2P.parseBridgeJSON(await Bridge.call("greyline_state", ""));
+      UI.renderGame(state);
+      if (integrity.tainted) {
+        this.tainted = true;
+        this.violation = integrity.violation || "protected server policy changed";
+        UI.el("diagGame").textContent += " · INTEGRITY VIOLATION: " + this.violation;
+      }
+      if (Number(state.game_over_seq || 0) > this.baseline) this.terminalSeen = true;
+      if (!this.terminalSeen) return;
+
+      await P2P.sleep(1250);
+      const red = Math.max(0, parseInt(await Bridge.call("getcvar", "greyline_score_red"), 10) || 0);
+      const blu = Math.max(0, parseInt(await Bridge.call("getcvar", "greyline_score_blu"), 10) || 0);
+      const outcome = red > blu ? "RED_WIN" : (blu > red ? "BLU_WIN" : "STALEMATE");
+      await GC.post("/api/v1/client/result-evidence", {
+        match_id: this.match.match_id,
+        outcome: outcome,
+        red_score: red,
+        blu_score: blu,
+        policy_violation: this.tainted,
+        violation_reason: this.violation,
+      }, true);
+      this.reported = true;
+      UI.status(this.tainted
+        ? "result rejected: host changed protected server policy"
+        : "scoreboard evidence accepted; operation result is being recorded");
+    } catch (e) {
+      UI.status("result evidence retrying: " + e.message, true);
+    } finally {
+      this.busy = false;
+    }
   },
 };
 
@@ -1349,6 +1505,7 @@ const Loop = {
     UI.el("diagAuth").textContent = State.authMode + " · " + self.player.steam_id + " · " + self.player.state;
     UI.renderQueue(State.queue);
     UI.renderMatch(State.match);
+    Evidence.start(State.match);
   },
 
   async refreshTimeline() {
@@ -1401,6 +1558,7 @@ const Loop = {
         State.match = ev.match;
         UI.renderQueue(null);
         UI.renderMatch(ev.match);
+        Evidence.start(ev.match);
         UI.status(ev.message || "battle forming");
         break;
 
@@ -1409,7 +1567,9 @@ const Loop = {
         State.match = ev.match;
         UI.renderQueue(null);
         UI.renderMatch(ev.match);
+        Evidence.start(ev.match);
         UI.status("battle ready at " + ev.match.connect);
+        Bridge.sound("ui/system_message_alert.wav");
         if (State.settings.autoJoin) Actions.join();
         break;
 
@@ -1419,13 +1579,16 @@ const Loop = {
         State.queue = null;
         UI.renderMatch(null);
         UI.renderQueue(null);
-        if (P2P.host && (!finishedMatch || P2P.host.matchId === finishedMatch)) {
-          P2P.finishHost(finishedMatch);
-        }
+        Evidence.stop();
         const over = ev.over || {};
+        const nativeNotice = Actions.operationResult(over);
+        if (P2P.host && (!finishedMatch || P2P.host.matchId === finishedMatch)) {
+          nativeNotice.finally(() => P2P.finishHost(finishedMatch));
+        }
         const update = over.war_update || {};
         const worth = Number(update.weight || 0);
-        let line = over.won ? "Your side won it." : "Your side lost it.";
+        let line = over.tainted ? "The result was rejected: " + (over.reason || "server policy violation") :
+          (over.won ? "Your side won it." : "Your side lost it.");
         if (worth > 0 && worth < 1) {
           // A battle counts for what it was: saying so is the difference
           // between "we won and nothing moved" and understanding why.
@@ -1433,6 +1596,7 @@ const Loop = {
             "% of a stage — the offensive moves when a stage's worth is fought.";
         }
         UI.banner(update.headline || over.message || "battle over", line);
+        if (over.counted_towards_war && update.node_captured) Bridge.sound("music/capture_stinger.mp3");
         this.refreshWorld();
         break;
       }
@@ -1478,6 +1642,12 @@ const Loop = {
   UI.el("leaveBtn").onclick = () => Actions.leave();
   document.querySelectorAll("[data-menu-action]").forEach(btn => {
     btn.onclick = () => Actions.menuAction(btn.getAttribute("data-menu-action"));
+  });
+  document.addEventListener("mouseover", ev => {
+    if (ev.target && ev.target.tagName === "BUTTON") Bridge.sound("ui/buttonrollover.wav");
+  });
+  document.addEventListener("click", ev => {
+    if (ev.target && ev.target.tagName === "BUTTON") Bridge.sound("ui/buttonclickrelease.wav");
   });
 
   Bridge.connect();

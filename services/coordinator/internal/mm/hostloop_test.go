@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/greyline-frontress/coordinator/internal/hostelect"
+	"github.com/greyline-frontress/coordinator/internal/pool"
 	"github.com/greyline-frontress/coordinator/internal/war"
 )
 
@@ -44,6 +45,39 @@ func awaitingHost(t *testing.T, m *Matchmaker) *Match {
 	}
 	t.Fatal("no host was offered when the pool had nothing free")
 	return nil
+}
+
+func p2pAwaitingEvidence(t *testing.T, m *Matchmaker, servers *pool.Pool) (*Match, *Player, string, string) {
+	t.Helper()
+	match := awaitingHost(t, m)
+	host := m.players[match.HostSteamID]
+	serverID, token, err := m.ConfirmHost(host, match.ID, pool.Registration{
+		Name: "test host", Capacity: 12, GameVersion: "test",
+	})
+	if err != nil {
+		t.Fatalf("confirm host: %v", err)
+	}
+	if err := servers.SetConnectAddress(serverID, token, "169.254.2.3:27015"); err != nil {
+		t.Fatalf("set address: %v", err)
+	}
+	if err := m.ServerState(serverID, match.ID, "ready", 4, ""); err != nil {
+		t.Fatalf("ready: %v", err)
+	}
+	if err := m.ServerState(serverID, match.ID, "live", 4, ""); err != nil {
+		t.Fatalf("live: %v", err)
+	}
+	if update, err := m.ServerResult(serverID, war.BattleResult{
+		BattleID: match.ID, Outcome: war.OutcomeRedWin, RedScore: 3, BluScore: 1,
+	}); err != nil || update != nil {
+		t.Fatalf("host result: update=%v err=%v", update, err)
+	}
+	for _, slot := range match.Slots {
+		if slot.SteamID != match.HostSteamID {
+			return match, m.players[slot.SteamID], serverID, token
+		}
+	}
+	t.Fatal("P2P battle had no non-host witness")
+	return nil, nil, "", ""
 }
 
 // TestAHostThatIgnoresAnOfferIsNotOfferedTheNextOne is the loop the testbed
@@ -161,5 +195,79 @@ func TestReconnectingCannotChangeSidesMidBattle(t *testing.T) {
 	m.abort(match, "test")
 	if again := m.Hello(p.SteamID, p.Name, other, "", hostelect.Capabilities{}); again.Side != other {
 		t.Fatalf("allegiance stayed %s after the battle ended; it is a choice between battles", again.Side)
+	}
+}
+
+func TestPolicyViolationTaintsP2PResultAndPenalizesHost(t *testing.T) {
+	m, servers := newTestMaker(t)
+	match, witness, _, _ := p2pAwaitingEvidence(t, m, servers)
+	revision := m.war.Revision()
+	if update, err := m.RecordResultEvidence(witness, ResultEvidence{
+		MatchID: match.ID, Outcome: war.OutcomeRedWin, RedScore: 3, BluScore: 1,
+		PolicyViolation: true, ViolationReason: "sv_cheats",
+	}); err != nil || update != nil {
+		t.Fatalf("tainted evidence: update=%v err=%v", update, err)
+	}
+	if match.State != MatchFinished || !match.Tainted || match.Resolution != "tainted" {
+		t.Fatalf("tainted match did not finish safely: state=%s tainted=%v resolution=%q",
+			match.State, match.Tainted, match.Resolution)
+	}
+	if m.war.Revision() != revision {
+		t.Fatal("tainted P2P result changed the war")
+	}
+	if got := m.hostHistoryLocked(match.HostSteamID).PolicyTaints; got != 1 {
+		t.Fatalf("host policy taints = %d, want 1", got)
+	}
+}
+
+func TestMismatchedP2PResultIsRejectedAndPenalizesHost(t *testing.T) {
+	m, servers := newTestMaker(t)
+	match, witness, serverID, _ := p2pAwaitingEvidence(t, m, servers)
+	revision := m.war.Revision()
+
+	if update, err := m.RecordResultEvidence(witness, ResultEvidence{
+		MatchID: match.ID, Outcome: war.OutcomeBluWin, RedScore: 1, BluScore: 3,
+	}); err != nil || update != nil {
+		t.Fatalf("mismatched evidence: update=%v err=%v", update, err)
+	}
+	if match.State != MatchFinished || !match.Tainted || match.Resolution != "tainted" {
+		t.Fatalf("mismatch did not finish safely: state=%s tainted=%v resolution=%q",
+			match.State, match.Tainted, match.Resolution)
+	}
+	if m.war.Revision() != revision {
+		t.Fatal("mismatched P2P result changed the war")
+	}
+	if got := m.hostHistoryLocked(match.HostSteamID).ResultMismatches; got != 1 {
+		t.Fatalf("host result mismatches = %d, want 1", got)
+	}
+	if _, exists := servers.Get(serverID); exists {
+		t.Fatal("finished P2P server remained reusable in the pool")
+	}
+}
+
+func TestP2PResultWithoutWitnessTimesOutUncounted(t *testing.T) {
+	m, servers := newTestMaker(t)
+	now := time.Now()
+	m.now = func() time.Time { return now }
+	match, _, serverID, token := p2pAwaitingEvidence(t, m, servers)
+	revision := m.war.Revision()
+
+	now = match.ResultDeadline.Add(time.Second)
+	if err := servers.Heartbeat(serverID, token, pool.StatusLive, match.ID, match.Plan.Map, 4, now); err != nil {
+		t.Fatalf("keep P2P host alive through evidence deadline: %v", err)
+	}
+	m.Tick()
+	if match.State != MatchFinished || match.Tainted || match.Resolution != "unwitnessed" {
+		t.Fatalf("unwitnessed result did not finish safely: state=%s tainted=%v resolution=%q",
+			match.State, match.Tainted, match.Resolution)
+	}
+	if m.war.Revision() != revision {
+		t.Fatal("unwitnessed P2P result changed the war")
+	}
+	if got := m.hostHistoryLocked(match.HostSteamID).ResultTimeouts; got != 1 {
+		t.Fatalf("host result timeouts = %d, want 1", got)
+	}
+	if _, exists := servers.Get(serverID); exists {
+		t.Fatal("timed-out P2P server remained reusable in the pool")
 	}
 }

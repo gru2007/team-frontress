@@ -290,6 +290,10 @@ connect <the address>
 
 plus one line in the middle of the screen, once.
 
+The field assignment also states that the team is fixed for this battle. In the
+main menu assignment card, verify the three separate fields: war side, game
+team, and ATTACK/DEFEND role.
+
 ### The colours
 
 On payload and attack/defend maps the map itself decides that **BLU attacks**.
@@ -316,6 +320,13 @@ BLU-coloured RED team and confirming the post-match headline says RED.
   them back within a second.
 - Somebody without the password cannot get in.
 - After the battle everyone is back on the map, and the front has moved.
+- No confirmation button appears. A non-host client automatically sends the
+  scoreboard it observed; the P2P host report remains `awaiting_result` until
+  that evidence arrives, bounded to 20 seconds.
+- Changing `sv_cheats`, `host_timescale`, votes, crit/spread, friendly fire,
+  team balance or the policy arm marks the battle tainted. A tainted result does
+  not move the front, tells every player why, and lowers that host's future
+  election stability.
 - Two players deploying again should get the *next stage* of the same offensive.
 
 ---
@@ -345,6 +356,8 @@ BLU-coloured RED team and confirming the post-match headline says RED.
 | `battle aborted ... stopped responding` after it was live | the host's menu page stopped heartbeating — the game was closed, alt-tabbed into a state where the panel does not tick, or it hung. Nothing on the coordinator side went wrong |
 | A player quietly disappears from a battle | look for `player left` with a reason: `could not reach <address> after N attempts` is the menu giving up on a connect that never took, which is a fault; `left from the menu` is not |
 | Battle runs forever, no result | the mode's win conditions did not end it; check `mp_winlimit` / `mp_maxrounds` after the changelevel |
+| Battle ends as `unwitnessed` | no non-host client returned automatic result evidence within 20 seconds; check that its menu bridge stayed connected during game-over |
+| Battle ends as `tainted` | a non-host observed `greyline_policy_tainted`; the result is intentionally excluded from the war and the named convar is the first violation |
 | Result reported but the war does not move | coordinator logs `battle did not advance the war` with a reason — usually a front that was already decided |
 | Briefing shows raw `#Greyline_...` tokens | `resource/greyline_%language%.txt` is not being loaded on the client |
 | Menu is blank or shows the stock TC2 menu | `greyline_menu_page` — it must be `ui/greyline.html`, and the file must be in `tc2/loose/resource/html/` |

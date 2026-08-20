@@ -25,7 +25,7 @@
   "auth": {
     "mode": "dev"
   },
-  "protocol_version": 2,
+  "protocol_version": 3,
   "timing": {
     "heartbeat_interval": "5s",
     "_comment_session_timeout": "Long enough to cover a map load: a client in the middle of one is not polling, and dropping it there would take it out of the battle it is loading into.",

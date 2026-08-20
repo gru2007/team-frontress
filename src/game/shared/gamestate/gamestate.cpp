@@ -152,8 +152,6 @@ public:
 	m_UnprivilegedMethods{
 		"localize",
 		"getcvar",
-		"setcvar",
-		"cmd",
 		"getmodes",
 		"getmode",
 		"playsound",

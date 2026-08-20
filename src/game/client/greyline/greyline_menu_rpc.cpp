@@ -27,6 +27,9 @@
 #include "gamestate/gamestate.h"
 #include "GameEventListener.h"
 #include "clientmode_tf.h"
+#include "hud.h"
+#include "hudelement.h"
+#include "hud_chat.h"
 #include "tier1/fmtstr.h"
 #include "steam/steam_api.h"
 
@@ -153,6 +156,34 @@ public:
 			return std::make_pair( true, std::string( "{\"ok\":true}" ) );
 		} ) );
 
+		pManager->RegisterMethod( "greyline_integrity", std::function( []( const std::string &params, int64_t iRpcId )
+		{
+			ConVarRef tainted( "greyline_policy_tainted", true );
+			ConVarRef violation( "greyline_policy_violation", true );
+			const bool bTainted = tainted.IsValid() && tainted.GetBool();
+			CFmtStr1024 strJSON( "{\"ok\":%s,\"tainted\":%s,\"violation\":\"%s\"}",
+				bTainted ? "false" : "true", bTainted ? "true" : "false",
+				violation.IsValid() ? violation.GetString() : "" );
+			return std::make_pair( true, std::string( strJSON.Get() ) );
+		} ) );
+
+		pManager->RegisterMethod( "greyline_operation_result", std::function( []( const std::string &params, int64_t iRpcId )
+		{
+			std::string message = params.substr( 0, 480 );
+			for ( size_t i = 0; i < message.size(); ++i )
+			{
+				if ( message[i] == '\r' || message[i] == '\n' )
+					message[i] = ' ';
+			}
+			CBaseHudChat *pHudChat = (CBaseHudChat *)GET_HUDELEMENT( CHudChat );
+			if ( !pHudChat )
+			{
+				return std::make_pair( true, std::string( "{\"ok\":false}" ) );
+			}
+			pHudChat->ChatPrintf( 0, CHAT_FILTER_NONE, "%c[GREYLINE] %s", COLOR_NORMAL, message.c_str() );
+			return std::make_pair( true, std::string( "{\"ok\":true}" ) );
+		} ) );
+
 		pManager->RegisterMethod( "greyline_host_address", std::function( []( const std::string &params, int64_t iRpcId )
 		{
 			// Ignore-missing: both live in the server dll, which is not
@@ -184,6 +215,8 @@ public:
 			pManager->UnregisterMethod( "greyline_state" );
 			pManager->UnregisterMethod( "greyline_identity" );
 			pManager->UnregisterMethod( "greyline_menu_action" );
+			pManager->UnregisterMethod( "greyline_integrity" );
+			pManager->UnregisterMethod( "greyline_operation_result" );
 			pManager->UnregisterMethod( "greyline_host_address" );
 		}
 	}

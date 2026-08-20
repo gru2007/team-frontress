@@ -17399,6 +17399,13 @@ bool CTFGameRules::ShouldSwitchTeams( void )
 	if ( IsPVEModeActive() )
 		return false;
 
+#ifdef GAME_DLL
+	// A Greyline assignment fixes war-side to game-team mapping for the entire
+	// battle. Stock halftime switching also swaps scores, corrupting the result.
+	if ( greyline::BattleHasRoster() )
+		return false;
+#endif
+
 	return BaseClass::ShouldSwitchTeams();
 }
 

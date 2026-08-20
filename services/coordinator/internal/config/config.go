@@ -264,7 +264,7 @@ func Default() *Config {
 		AdminListen:     "127.0.0.1:27101",
 		TheaterPath:     "theater.industrial.json",
 		WarLogPath:      "war-events.jsonl",
-		ProtocolVersion: 2,
+		ProtocolVersion: 3,
 		Pool: PoolConfig{
 			OfflineAfter:    Duration(45 * time.Second),
 			OfflineAfterP2P: Duration(20 * time.Second),

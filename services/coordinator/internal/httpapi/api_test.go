@@ -54,7 +54,7 @@ func newHarness(t *testing.T) *harness {
 	api := New(slog.New(slog.DiscardHandler), steam.DevAuthenticator{}, engine, maker, servers, Options{
 		PoolKey:         testPoolKey,
 		MaxPollWait:     time.Second,
-		ProtocolVersion: 2,
+		ProtocolVersion: 3,
 	})
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
@@ -105,7 +105,7 @@ func (h *harness) newClient(steamID uint64, side string) *client {
 	var resp helloResponse
 	code := h.do("POST", "/api/v1/client/hello", "", map[string]any{
 		"steam_id": fmt.Sprintf("%d", steamID), "name": fmt.Sprintf("merc%d", steamID), "side": side,
-		"protocol_version": 2,
+		"protocol_version": 3,
 	}, &resp)
 	if code != http.StatusOK {
 		h.t.Fatalf("hello for %d: status %d", steamID, code)
@@ -179,7 +179,7 @@ func (h *harness) newHostCapableClient(steamID uint64, side string) *client {
 	var resp helloResponse
 	code := h.do("POST", "/api/v1/client/hello", "", map[string]any{
 		"steam_id": fmt.Sprintf("%d", steamID), "name": fmt.Sprintf("merc%d", steamID), "side": side,
-		"protocol_version": 2,
+		"protocol_version": 3,
 		"host_capable":     true, "upload_kbps": 5000, "cpu_score": 80, "memory_mb": 8192,
 	}, &resp)
 	if code != http.StatusOK {
@@ -200,6 +200,19 @@ func (c *client) hostRegister(matchID string) (serverID, serverToken string) {
 		c.h.t.Fatalf("host-register for %d: status %d", c.steamID, code)
 	}
 	return out.ServerID, out.ServerToken
+}
+
+func (c *client) resultEvidence(matchID, outcome string, red, blu uint32, violation bool, reason string) map[string]any {
+	c.h.t.Helper()
+	var out map[string]any
+	code := c.h.do("POST", "/api/v1/client/result-evidence", c.token, map[string]any{
+		"match_id": matchID, "outcome": outcome, "red_score": red, "blu_score": blu,
+		"policy_violation": violation, "violation_reason": reason,
+	}, &out)
+	if code != http.StatusOK {
+		c.h.t.Fatalf("result-evidence for %d: status %d (%v)", c.steamID, code, out)
+	}
+	return out
 }
 
 // agentFromToken wraps an already-issued server id/token — what a P2P host
@@ -743,7 +756,7 @@ func TestPartyDeployLandsTogether(t *testing.T) {
 // reported result only counts once enough of the rest of the roster agrees —
 // the corroboration an untrusted, player-run host needs that a dedicated
 // server's word does not.
-func TestP2PHostResultFinishesWithoutHiddenQuorum(t *testing.T) {
+func TestP2PHostResultFinishesWithAutomaticEvidence(t *testing.T) {
 	h := newHarness(t)
 
 	host := h.newHostCapableClient(1, "RED")
@@ -818,13 +831,22 @@ func TestP2PHostResultFinishesWithoutHiddenQuorum(t *testing.T) {
 
 	selfAgent.state(matchID, "live")
 
-	// Until a complete dispute UI exists, a P2P result finishes immediately;
-	// there is no hidden quorum that can leave a played battle stuck live.
+	// The host report is held for automatic evidence, without a manual vote.
 	out := selfAgent.result(matchID, "RED_WIN", 3, 1)
-	if out["war_update"] == nil {
-		t.Fatalf("P2P result did not move the war: %v", out)
+	if out["war_update"] != nil {
+		t.Fatalf("unwitnessed P2P result moved the war: %v", out)
 	}
 	match, ok := h.maker.Match(matchID)
+	if !ok || match.State != mm.MatchAwaitingResult {
+		t.Fatalf("match did not wait for automatic evidence: %+v", match)
+	}
+
+	// One authenticated non-host independently reports the scoreboard it saw.
+	evidenceOut := others[0].resultEvidence(matchID, "RED_WIN", 3, 1, false, "")
+	if evidenceOut["war_update"] == nil {
+		t.Fatalf("matching automatic evidence did not move the war: %v", evidenceOut)
+	}
+	match, ok = h.maker.Match(matchID)
 	if !ok {
 		t.Fatal("the match vanished after its result")
 	}

@@ -114,6 +114,7 @@ public:
 	{
 		m_flNextEnforce = 0.0f;
 		m_bAnnouncedThisLevel = false;
+		V_memset( m_bAssignmentAnnounced, 0, sizeof( m_bAssignmentAnnounced ) );
 	}
 
 	virtual bool Init() OVERRIDE
@@ -132,6 +133,7 @@ public:
 	{
 		m_bAnnouncedThisLevel = false;
 		m_flNextEnforce = 0.0f;
+		V_memset( m_bAssignmentAnnounced, 0, sizeof( m_bAssignmentAnnounced ) );
 	}
 
 	virtual void FrameUpdatePostEntityThink() OVERRIDE;
@@ -140,6 +142,7 @@ public:
 	void ClearRoster()
 	{
 		m_Roster.Clear();
+		V_memset( m_bAssignmentAnnounced, 0, sizeof( m_bAssignmentAnnounced ) );
 		greyline::RecomputeUniformSwap();
 	}
 	bool AddToRoster( uint64 ulSteamID, int iTeam, int iWarSide, bool bContract )
@@ -186,6 +189,7 @@ private:
 	greyline::CRoster	m_Roster;
 	float				m_flNextEnforce;
 	bool				m_bAnnouncedThisLevel;
+	bool				m_bAssignmentAnnounced[MAX_PLAYERS + 1];
 };
 
 static CGreylineBriefing g_GreylineBriefing;
@@ -256,6 +260,10 @@ void CGreylineBriefing::EnforceTeams()
 		// whose SteamID had not reached the server yet when they activated —
 		// gets the class menu too rather than a silent yank.
 		SeatPlayer( pPlayer );
+		if ( i <= MAX_PLAYERS && !m_bAssignmentAnnounced[i] )
+		{
+			AnnounceToPlayer( pPlayer, false );
+		}
 	}
 }
 
@@ -333,7 +341,8 @@ void CGreylineBriefing::AnnounceToPlayer( CBasePlayer *pPlayer, bool bIncludeHUD
 		return;
 
 	greyline::Briefing_t briefing;
-	greyline::BuildBriefing( CurrentContext(), FindEntry( pPlayer ), bIncludeHUD, &briefing );
+	const greyline::RosterEntry_t *pEntry = FindEntry( pPlayer );
+	greyline::BuildBriefing( CurrentContext(), pEntry, bIncludeHUD, &briefing );
 
 	for ( int i = 0; i < briefing.m_nLines; ++i )
 	{
@@ -345,6 +354,12 @@ void CGreylineBriefing::AnnounceToPlayer( CBasePlayer *pPlayer, bool bIncludeHUD
 		ClientPrint( pPlayer, iDest, line.m_pszToken,
 			line.m_pszParams[0], line.m_pszParams[1],
 			line.m_pszParams[2], line.m_pszParams[3] );
+	}
+	if ( pEntry )
+	{
+		const int iIndex = pPlayer->entindex();
+		if ( iIndex > 0 && iIndex <= MAX_PLAYERS )
+			m_bAssignmentAnnounced[iIndex] = true;
 	}
 }
 

@@ -82,7 +82,7 @@ type Server struct {
 	// Kind and Trusted are set only by the registration path itself, never by
 	// anything in the request body a caller controls — see Register vs.
 	// RegisterElectedHost. Trusted governs whether a reported result is
-	// recorded immediately or held for roster corroboration.
+	// recorded immediately or held for automatic non-host evidence.
 	Kind    Kind `json:"kind"`
 	Trusted bool `json:"trusted"`
 
@@ -574,6 +574,12 @@ func (p *Pool) Release(id string, hosted bool) {
 	defer p.mu.Unlock()
 	s, ok := p.servers[id]
 	if !ok {
+		return
+	}
+	// An elected listen server is leased for exactly one battle. Returning it to
+	// the free pool can assign a new roster while its owner is disconnecting.
+	if s.Kind == KindP2P {
+		delete(p.servers, id)
 		return
 	}
 	if hosted {

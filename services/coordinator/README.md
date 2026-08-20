@@ -100,6 +100,7 @@ coordinator never dials into anybody's network.
 | `POST /api/v1/client/leave` | left the battle |
 | `GET  /api/v1/client/poll?since=N&wait=25` | queue, assignment, result, world events |
 | `GET  /api/v1/client/self` | current player, queue and battle — for a client that lost its stream |
+| `POST /api/v1/client/result-evidence` | automatic non-host P2P scoreboard and integrity evidence |
 | `POST /api/v1/client/host-register` | accept a `host_offer`: register your own machine into the server pool for exactly this battle |
 
 Poll events: `queue`, `match_state`, `match_ready` (connect address, password,
@@ -131,11 +132,12 @@ Two differences from a dedicated server:
   in with `POST /api/v1/servers/address` once `TryPublishAddress` succeeds.
   `servers/state ready` refuses to proceed without one, rather than sending a
   roster to an empty connect string.
-- A player-hosted result currently finishes immediately. The earlier hidden
-  quorum was removed because the shipped client had no complete vote/dispute
-  flow and could leave a played battle live indefinitely. This is an explicit
-  MVP trust limitation: replace it with authenticated match evidence before
-  treating player-hosted results as adversarially secure.
+- A player-hosted result waits up to 20 seconds for automatic evidence from an
+  authenticated non-host client. There is no button and no manual quorum: the
+  client reports the scoreboard it observed. A mismatch or protected-convar
+  violation marks the battle tainted, does not move the war, and lowers future
+  host-election stability. A one-battle P2P server is removed from the pool
+  after resolution and cannot receive another roster while disconnecting.
 
 Two things keep an elected host that cannot deliver from taking the front
 with it. A host that is still loading its map is not judged by the heartbeat

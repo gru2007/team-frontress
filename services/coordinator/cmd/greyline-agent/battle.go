@@ -173,6 +173,13 @@ func (a *Agent) battleSetupCommands(as *pool.Assignment) []string {
 		"sv_pausable 0",
 		"mp_forcecamera 0",
 		"mp_tournament 0",
+		"sv_cheats 0",
+		"tf_weapon_criticals 0",
+		"tf_weapon_criticals_melee 0",
+		"tf_use_fixed_weaponspreads 1",
+		"tf_damage_disablespread 1",
+		"mp_friendlyfire 0",
+		"mp_disable_respawn_times 0",
 		"mp_chattime 15",
 		fmt.Sprintf("nextlevel %s", a.cfg.IdleMap),
 
@@ -210,6 +217,7 @@ func (a *Agent) battleSetupCommands(as *pool.Assignment) []string {
 			e.SteamID, strings.ToUpper(e.Team), strings.ToUpper(e.Side), contract))
 	}
 	cmds = append(cmds, modeRules(as.Mode)...)
+	cmds = append(cmds, "greyline_policy_armed 1")
 	return cmds
 }
 
@@ -364,6 +372,7 @@ func (b *battle) finalScores() (red, blu uint32) {
 func (a *Agent) goIdle(ctx context.Context) {
 	a.battle = nil
 	for _, cmd := range []string{
+		"greyline_policy_armed 0",
 		`sv_password ""`,
 		"greyline_roster_clear",
 		`greyline_battle_id ""`,

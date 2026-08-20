@@ -238,7 +238,14 @@ void BuildBriefing( const BattleContext_t &ctx, const RosterEntry_t *pEntry,
 			 pszStageToken, pOut->m_szStage, pOut->m_szStageCount,
 			 SideTokenFromName( ctx.m_pszAttacker ) );
 
-	// Line 3, the one that stops a player thinking the game is broken. Payload
+	// Line 3: make the fixed assignment explicit even when war side and game
+	// team use the same colour. This is the rule behind blocking jointeam.
+	if ( pEntry )
+	{
+		AddLine( pOut, kDestChat, "#Greyline_Chat_TeamIsAssigned" );
+	}
+
+	// The line that stops a player thinking the game is broken. Payload
 	// and attack/defend maps are built for BLU to attack, so a RED offensive is
 	// fought as the BLU team. Which half of that a player can see depends on
 	// whether the uniforms have been put back into the war's colours, so there

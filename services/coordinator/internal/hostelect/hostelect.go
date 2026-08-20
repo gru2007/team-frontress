@@ -28,11 +28,14 @@ type Capabilities struct {
 // History is what the coordinator has learned about a player over time. It is
 // the difference between "looks good on paper" and "actually finishes matches".
 type History struct {
-	HostedOK      int // matches hosted through to a reported result
-	HostedFailed  int // assigned host that never came up
-	Abandons      int // left a live match they were hosting
-	AvgServerFPS  float64
-	LastPenaltyAt int64 // unix seconds; recent failures weigh more
+	HostedOK         int // matches hosted through to a reported result
+	HostedFailed     int // assigned host that never came up
+	Abandons         int // left a live match they were hosting
+	ResultMismatches int // host result contradicted an authenticated client
+	PolicyTaints     int // protected server policy was violated
+	ResultTimeouts   int // game ended but the host never reported a result
+	AvgServerFPS     float64
+	LastPenaltyAt    int64 // unix seconds; recent failures weigh more
 }
 
 // Candidate is one roster member under consideration.
@@ -271,7 +274,8 @@ func (e *Elector) latencies(host Candidate, roster []Candidate) (mean, worst int
 // stability rewards a track record of finishing matches and decays quickly with
 // failures, since a host that flakes twice will very likely flake again.
 func stability(h History) float64 {
-	attempts := h.HostedOK + h.HostedFailed + h.Abandons
+	attempts := h.HostedOK + h.HostedFailed + h.Abandons +
+		h.ResultMismatches + h.PolicyTaints + h.ResultTimeouts
 	if attempts == 0 {
 		return 0.5 // unknown host: neither trusted nor punished
 	}

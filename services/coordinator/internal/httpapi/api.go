@@ -61,7 +61,7 @@ func New(log *slog.Logger, auth steam.Authenticator, engine *war.Engine, maker *
 		opts.MaxPollWait = 25 * time.Second
 	}
 	if opts.ProtocolVersion == 0 {
-		opts.ProtocolVersion = 2
+		opts.ProtocolVersion = 3
 	}
 	return &API{log: log, auth: auth, war: engine, mm: maker, pool: servers, opts: opts}
 }
@@ -90,6 +90,7 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/client/side", a.withPlayer(a.setSide))
 	mux.HandleFunc("GET /api/v1/client/poll", a.withPlayer(a.poll))
 	mux.HandleFunc("GET /api/v1/client/self", a.withPlayer(a.self))
+	mux.HandleFunc("POST /api/v1/client/result-evidence", a.withPlayer(a.resultEvidence))
 	// An elected host accepting a host_offer.
 	mux.HandleFunc("POST /api/v1/client/host-register", a.withPlayer(a.hostRegister))
 
@@ -378,6 +379,40 @@ func (a *API) hostRegister(w http.ResponseWriter, r *http.Request, p *mm.Player)
 		"heartbeat_s":  15,
 		"poll_wait_s":  int(a.opts.MaxPollWait.Seconds()),
 	})
+}
+
+type resultEvidenceRequest struct {
+	MatchID         string `json:"match_id"`
+	Outcome         string `json:"outcome"`
+	RedScore        uint32 `json:"red_score"`
+	BluScore        uint32 `json:"blu_score"`
+	PolicyViolation bool   `json:"policy_violation"`
+	ViolationReason string `json:"violation_reason"`
+}
+
+func (a *API) resultEvidence(w http.ResponseWriter, r *http.Request, p *mm.Player) {
+	var req resultEvidenceRequest
+	if !readJSON(w, r, &req) {
+		return
+	}
+	outcome, err := war.ParseOutcome(req.Outcome)
+	if err != nil {
+		fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	reason := strings.TrimSpace(req.ViolationReason)
+	if len(reason) > 256 {
+		reason = reason[:256]
+	}
+	update, err := a.mm.RecordResultEvidence(p, mm.ResultEvidence{
+		MatchID: req.MatchID, Outcome: outcome, RedScore: req.RedScore, BluScore: req.BluScore,
+		PolicyViolation: req.PolicyViolation, ViolationReason: reason,
+	})
+	if err != nil {
+		fail(w, http.StatusConflict, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "war_update": update})
 }
 
 // ---------------------------------------------------------------------------

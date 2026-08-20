@@ -78,7 +78,7 @@ class Player:
             "name": f"merc{steam_id}",
             "side": side,
             "client_version": "sim",
-            "protocol_version": 2,
+            "protocol_version": 3,
         })
         self.token = reply["token"]
 

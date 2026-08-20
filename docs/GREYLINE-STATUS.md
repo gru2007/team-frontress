@@ -45,7 +45,9 @@ but a compiler has not seen it. Treat a first build as the real test.
 | Forming battles, team sizes, contracts | tested |
 | Dedicated server pool: register, assign, heartbeat, result | tested |
 | P2P host election when nothing dedicated is free | tested |
-| A P2P host's result closes immediately; no hidden quorum | tested — `TestP2PHostResultFinishesWithoutHiddenQuorum` |
+| P2P result verified automatically by a non-host client; no manual quorum | tested — `TestP2PHostResultFinishesWithAutomaticEvidence` |
+| P2P mismatch, policy taint and missing-witness timeout leave the war unchanged and penalize the host | tested — `hostloop_test.go` |
+| A released P2P host is never returned to the reusable server pool | tested — `pool_test.go`, `hostloop_test.go` |
 | Battles growing while they run or boot (lobby expansion) | tested — `lobby_test.go` |
 | A failed host sitting out a cooldown instead of being re-elected | tested — `hostloop_test.go` |
 | A booting server judged by the boot deadline, not the heartbeat rule | tested — `pool_test.go` |
@@ -71,6 +73,9 @@ build says otherwise.
 | Holding the round until the roster is on the server (muster) | written |
 | Publishing a P2P host's own address and score | built |
 | Menu RPC for state, Steam identity and native menu actions | written |
+| Protected battle settings restored and latched as tainted after assignment | written |
+| Fixed team assignment and operation result repeated in game chat | logic tested; native delivery written |
+| Stock halftime team swap disabled while a Greyline roster is active | written |
 | Player **models** drawn in the war's colours | written — see below |
 | `sv_friends_only` no longer forced on at launch | written |
 
@@ -97,17 +102,20 @@ which is which. `greyline_uniform_by_war_side 0` turns the whole thing off.
 
 ## The menu (`game/tc2/loose/resource/html/greyline.html`)
 
-It is a test UI, not the game's menu — one plain file, no build step, deletable
-without anything else noticing. Everything it does goes through the
-coordinator's public HTTP API.
+It is the in-game command-board page: a TF2-styled paper theater map, live front
+lines, dispatches, deployment controls and collapsible diagnostics in one file
+with no build step. Coordinator traffic still goes through the public HTTP API;
+Steam identity, engine state and game actions go through native menu RPC.
 
 | Thing | State |
 | --- | --- |
-| War map, fronts, DEPLOY, queue, joining a battle | built |
+| War map, animated front movement, operation dispatches, DEPLOY, queue and joining | built; JavaScript syntax tested |
 | Standing up a P2P battle when elected host | built |
 | Retrying a connect that does not take, then giving the slot up | written |
 | Applying roster additions to a running battle, with delivery failure rollback | tested — `lobby_test.go` |
 | Reporting the real player count and the battle's progress | written |
+| Automatic non-host scoreboard evidence and policy-taint reporting | coordinator tested; menu watcher written |
+| Explicit war side, game team and ATTACK/DEFEND assignment card | written |
 
 Only its syntax is checked automatically (`node --check`). Nothing tests its
 behaviour.
@@ -137,8 +145,9 @@ identity, but the shipped game client no longer invents or rounds the ID.
    first build fails somewhere and budget for it.
 2. **The terminal match lifecycle is still split between game C++, the menu and
    the agent.** There is no single authoritative C++ terminal record yet.
-3. **P2P results are trusted immediately.** The unusable quorum is gone, but
-   signed or independently witnessed result evidence is not implemented yet.
+3. **P2P evidence is session-authenticated, not cryptographically signed.** A
+   non-host witness and policy taint protect the MVP, but a modified client can
+   still lie; dedicated servers remain the authoritative target.
 4. **Particle effects ignore the uniform swap** (above).
 5. **`timing.migration_hold` does nothing.** It is validated in config and read
    only by the retired `internal/legacy/gc`. Host migration is not implemented

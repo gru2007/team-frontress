@@ -290,12 +290,12 @@ GREYLINE_TEST( Briefing_on_a_symmetric_map_is_front_stage_reason_and_the_hud )
 	std::vector<std::string> want;
 	want.push_back( "#Greyline_Chat_Front" );
 	want.push_back( "#Greyline_Chat_Stage" );
+	want.push_back( "#Greyline_Chat_TeamIsAssigned" );
 	want.push_back( "#Greyline_Reason_breakthrough" );
 	want.push_back( "#Greyline_Hud_Briefing" );
 	CHECK_EQ( Joined( Tokens( b ) ), Joined( want ) );
 
-	// No colours line: the uniform and the side agree, so there is nothing to
-	// explain and saying it anyway would train players to ignore the line.
+	// No colours warning: the fixed-assignment line is enough when both agree.
 	CHECK_EQ( HasToken( b, "#Greyline_Chat_Colours" ), false );
 }
 
@@ -441,10 +441,10 @@ GREYLINE_TEST( Briefing_never_exceeds_what_it_can_hold )
 	Briefing_t b;
 	BuildBriefing( ctx, &entry, true, &b );
 
-	// front, stage, colours, reason, contract, mobilization, and the one HUD
-	// line — the most a player can ever be told at once.
+	// front, stage, assignment, colours, reason, contract, mobilization, and the
+	// one HUD line — the most a player can ever be told at once.
 	CHECK( b.m_nLines <= (int)kMaxBriefingLines );
-	CHECK_EQ( b.m_nLines, 7 );
+	CHECK_EQ( b.m_nLines, 8 );
 	for ( int i = 0; i < b.m_nLines; ++i )
 	{
 		CHECK( b.m_Lines[i].m_nParams <= (int)kMaxParams );

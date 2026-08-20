@@ -58,6 +58,14 @@ ConVar greyline_score_blu( "greyline_score_blu", "0",
 ConVar greyline_rounds_played( "greyline_rounds_played", "0",
 	FCVAR_REPLICATED | FCVAR_HIDDEN,
 	"Rounds completed in the running P2P battle." );
+ConVar greyline_policy_armed( "greyline_policy_armed", "0", FCVAR_GAMEDLL,
+	"Enable Greyline's protected battle convar watchdog after assignment setup completes." );
+ConVar greyline_policy_tainted( "greyline_policy_tainted", "0",
+	FCVAR_REPLICATED | FCVAR_HIDDEN,
+	"Set permanently for this battle when a protected server setting changes." );
+ConVar greyline_policy_violation( "greyline_policy_violation", "",
+	FCVAR_REPLICATED | FCVAR_HIDDEN,
+	"First protected server setting changed during this battle." );
 
 //-----------------------------------------------------------------------------
 // Purpose: is this mode's state actually the team scoreline?
@@ -97,6 +105,9 @@ public:
 		m_flNextIdentityCheck = 0.0f;
 		m_flNextScorePublish = 0.0f;
 		m_flNextPolicyCheck = 0.0f;
+		m_bPolicyWasArmed = false;
+		m_bPolicyTainted = false;
+		m_szPolicyViolation[0] = '\0';
 	}
 
 	virtual void LevelInitPostEntity() OVERRIDE
@@ -105,6 +116,18 @@ public:
 		m_flNextIdentityCheck = 0.0f;
 		m_flNextScorePublish = 0.0f;
 		m_flNextPolicyCheck = 0.0f;
+		ConVarRef battleID( "greyline_battle_id", true );
+		const bool bAssignedTransition = battleID.IsValid() && battleID.GetString()[0]
+			&& greyline_policy_armed.GetBool();
+		m_bPolicyWasArmed = bAssignedTransition;
+		if ( !bAssignedTransition )
+		{
+			m_bPolicyTainted = false;
+			m_szPolicyViolation[0] = '\0';
+			greyline_policy_armed.SetValue( 0 );
+			greyline_policy_tainted.SetValue( 0 );
+			greyline_policy_violation.SetValue( "" );
+		}
 		greyline_server_id.SetValue( "0" );
 		greyline_server_addr.SetValue( "" );
 		greyline_score_red.SetValue( 0 );
@@ -157,9 +180,35 @@ private:
 	void EnforceBattlePolicy()
 	{
 		ConVarRef battleID( "greyline_battle_id", true );
-		if ( !battleID.IsValid() || !battleID.GetString()[0] )
+		if ( !battleID.IsValid() )
 		{
 			return;
+		}
+		if ( !battleID.GetString()[0] )
+		{
+			if ( m_bPolicyWasArmed && greyline_policy_armed.GetBool() )
+			{
+				MarkPolicyTainted( "greyline_battle_id" );
+			}
+			return;
+		}
+		if ( greyline_policy_armed.GetBool() )
+		{
+			m_bPolicyWasArmed = true;
+		}
+		if ( !m_bPolicyWasArmed )
+		{
+			return;
+		}
+		if ( m_bPolicyTainted )
+		{
+			greyline_policy_tainted.SetValue( 1 );
+			greyline_policy_violation.SetValue( m_szPolicyViolation );
+		}
+		if ( !greyline_policy_armed.GetBool() )
+		{
+			MarkPolicyTainted( "greyline_policy_armed" );
+			greyline_policy_armed.SetValue( 1 );
 		}
 
 		struct Setting
@@ -175,12 +224,20 @@ private:
 			{ "sv_pausable", 0 },
 			{ "mp_forcecamera", 0 },
 			{ "mp_tournament", 0 },
+			{ "sv_cheats", 0 },
+			{ "tf_weapon_criticals", 0 },
+			{ "tf_weapon_criticals_melee", 0 },
+			{ "tf_use_fixed_weaponspreads", 1 },
+			{ "tf_damage_disablespread", 1 },
+			{ "mp_friendlyfire", 0 },
+			{ "mp_disable_respawn_times", 0 },
 		};
 		for ( int i = 0; i < ARRAYSIZE( settings ); ++i )
 		{
 			ConVarRef var( settings[i].name, true );
 			if ( var.IsValid() && var.GetInt() != settings[i].value )
 			{
+				MarkPolicyTainted( settings[i].name );
 				var.SetValue( settings[i].value );
 			}
 		}
@@ -190,9 +247,33 @@ private:
 			ConVarRef advertise( "sv_allow_server_adverisement_to_master_server", true );
 			if ( advertise.IsValid() && advertise.GetInt() != 0 )
 			{
+				MarkPolicyTainted( "sv_allow_server_adverisement_to_master_server" );
 				advertise.SetValue( 0 );
 			}
 		}
+		ConVarRef hostTimescale( "host_timescale", true );
+		if ( hostTimescale.IsValid() && hostTimescale.GetFloat() != 1.0f )
+		{
+			MarkPolicyTainted( "host_timescale" );
+			hostTimescale.SetValue( 1.0f );
+		}
+		if ( TFGameRules() && TFGameRules()->HaveCheatsBeenEnabledDuringLevel() )
+		{
+			MarkPolicyTainted( "sv_cheats" );
+		}
+	}
+
+	void MarkPolicyTainted( const char *pszSetting )
+	{
+		if ( !m_bPolicyTainted )
+		{
+			m_bPolicyTainted = true;
+			V_strncpy( m_szPolicyViolation, pszSetting ? pszSetting : "protected setting",
+				sizeof( m_szPolicyViolation ) );
+			Warning( "[greyline/security] battle tainted: %s changed\n", m_szPolicyViolation );
+		}
+		greyline_policy_tainted.SetValue( 1 );
+		greyline_policy_violation.SetValue( m_szPolicyViolation );
 	}
 
 	void PublishScore()
@@ -282,6 +363,9 @@ private:
 	float	m_flNextIdentityCheck;
 	float	m_flNextScorePublish;
 	float	m_flNextPolicyCheck;
+	bool	m_bPolicyWasArmed;
+	bool	m_bPolicyTainted;
+	char	m_szPolicyViolation[64];
 };
 
 static CGreylineHostState g_GreylineHostState;

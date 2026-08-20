@@ -23,6 +23,9 @@ const (
 	MatchReady MatchState = "ready"
 	// MatchLive is being played.
 	MatchLive MatchState = "live"
+	// MatchAwaitingResult has ended in game and is waiting briefly for an
+	// independent non-host client to report the scoreboard it observed.
+	MatchAwaitingResult MatchState = "awaiting_result"
 	// MatchFinished produced a result.
 	MatchFinished MatchState = "finished"
 	// MatchAborted ended without one and never touches the war.
@@ -63,6 +66,27 @@ type Match struct {
 	Result   *war.BattleResult `json:"result,omitempty"`
 	RedScore uint32            `json:"red_score"`
 	BluScore uint32            `json:"blu_score"`
+
+	HostResult          *war.BattleResult         `json:"-"`
+	Evidence            map[uint64]ResultEvidence `json:"-"`
+	ResultDeadline      time.Time                 `json:"result_deadline,omitzero"`
+	Tainted             bool                      `json:"tainted,omitempty"`
+	TaintReason         string                    `json:"taint_reason,omitempty"`
+	Resolution          string                    `json:"resolution,omitempty"`
+	HostOutcomeRecorded bool                      `json:"-"`
+}
+
+// ResultEvidence is the game-team scoreboard observed by one authenticated
+// non-host client. It is automatic telemetry, not a player vote.
+type ResultEvidence struct {
+	MatchID         string
+	SteamID         uint64
+	Outcome         war.Outcome
+	RedScore        uint32
+	BluScore        uint32
+	PolicyViolation bool
+	ViolationReason string
+	At              time.Time
 }
 
 func (m *Match) setState(s MatchState, now time.Time) {

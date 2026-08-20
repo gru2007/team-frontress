@@ -255,14 +255,17 @@ type MatchInfo struct {
 
 // MatchOver is the post-match screen: the result, and what it did to the war.
 type MatchOver struct {
-	MatchID  string      `json:"match_id"`
-	Outcome  war.Outcome `json:"outcome"`
-	Won      bool        `json:"won"`
-	RedScore uint32      `json:"red_score"`
-	BluScore uint32      `json:"blu_score"`
-	Counted  bool        `json:"counted_towards_war"`
-	Update   *war.Update `json:"war_update,omitempty"`
-	Message  string      `json:"message"`
+	MatchID    string      `json:"match_id"`
+	Outcome    war.Outcome `json:"outcome"`
+	Won        bool        `json:"won"`
+	RedScore   uint32      `json:"red_score"`
+	BluScore   uint32      `json:"blu_score"`
+	Counted    bool        `json:"counted_towards_war"`
+	Update     *war.Update `json:"war_update,omitempty"`
+	Message    string      `json:"message"`
+	Tainted    bool        `json:"tainted,omitempty"`
+	Reason     string      `json:"reason,omitempty"`
+	Resolution string      `json:"resolution,omitempty"`
 }
 
 // WorldNotice tells a client the map changed under it.

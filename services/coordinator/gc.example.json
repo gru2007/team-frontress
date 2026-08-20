@@ -28,7 +28,7 @@
     "require_ownership": true,
     "ticket_cache_ttl": "10m0s"
   },
-  "protocol_version": 2,
+  "protocol_version": 3,
   "accepted_client_versions": null,
   "timing": {
     "heartbeat_interval": "10s",
