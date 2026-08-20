@@ -189,9 +189,9 @@ What happened on the first real run:
 
 `EResult 15` is `k_EResultAccessDenied`. For `CreateLobby`, Valve documents it as
 the app not being configured for lobbies, or the user lacking access to it —
-a **Steamworks setting on the AppID**, not a bug in the caller. This mod runs
-under an AppID it does not own (`gameinfo.txt` still declares 243750), so that
-setting is not ours to change, and every match died in the same place:
+a **Steamworks setting on the AppID**, not a bug in the caller. At the time, the
+mod ran under an AppID it did not own (`gameinfo.txt` declared Valve's 243750),
+so that setting was not ours to change, and every match died in the same place:
 
 ```
 match formed → host elected → CreateLobby → AccessDenied → host never reports

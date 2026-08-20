@@ -577,6 +577,9 @@ version.txt
 game_dist
 game_dist_debug
 
+# SteamPipe build scripts, upload logs and depot chunks (game_clean/steampipe.sh)
+steam_build
+
 enc_temp_folder
 
 /build/

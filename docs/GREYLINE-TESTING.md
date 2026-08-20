@@ -109,7 +109,9 @@ C++ and its generated protobuf. Until that has run green once, treat the C++ as
 unverified.
 
 Release publishing is gated on `github.repository_owner == 'gru2007'` and the
-`campus-fortress` branch, so forks build but do not publish. The Windows job
+`campus-fortress` branch, so forks build but do not publish. Steam publishing is
+gated the same way plus `gf-mod`, and additionally on the `STEAM_CONFIG_VDF`
+secret being set — see `docs/STEAMPIPE.md`. The Windows job
 needs a runner with Visual Studio 2026 because `createallprojects.bat` passes
 `/define:VS2026`; if yours is labelled differently, set the `WINDOWS_RUNNER`
 repository variable.
@@ -411,9 +413,10 @@ so a host's scoreline is only checked against what the other players report.
 Turning it on requires the HMAC half on the C++ side, which is not written.
 
 **Auth is `dev` mode.** The coordinator trusts the SteamID a client claims.
-Real ticket validation needs a publisher Web API key, which needs the project's
-own AppID; `gameinfo.txt` still declares Valve's 243750. Test on a network you
-control.
+Real ticket validation needs a publisher Web API key. We now have an AppID of
+our own to issue one against — `gameinfo.txt` declares 5147520, Team Frontress
+Playtest (`docs/STEAMPIPE.md`) — but the key is not wired up yet, so until it
+is, test on a network you control.
 
 **The C++ has never been compiled.** It was written against the tree's own APIs
 and cross-checked against the SDK headers, but this machine cannot build the
