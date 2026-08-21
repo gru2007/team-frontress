@@ -226,7 +226,7 @@ bool CGCClientSystem::BSendMessageComtress( const GCSDK::CProtoBufMsgBase& msg, 
 	if ( !GetSteamHTTP() )
 		return false;
 
-	HTTPRequestHandle hRequest = GetSteamHTTP()->CreateHTTPRequest( k_EHTTPMethodPOST, "https://api.teamcomtress.com/webapi/ISDK/SendMessage/v1" );
+	HTTPRequestHandle hRequest = GetSteamHTTP()->CreateHTTPRequest( k_EHTTPMethodPOST, "https://www.teamfortress.com/webapi/ISDK/SendMessage/v1" );
 	if ( hRequest == INVALID_HTTPREQUEST_HANDLE )
 	{
 		return false;
