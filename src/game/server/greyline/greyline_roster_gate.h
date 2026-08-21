@@ -25,9 +25,21 @@
 #endif
 
 class CBasePlayer;
+class CCommand;
 
 namespace greyline
 {
+
+// One console command a player in a battle can type: "greyline_briefing", to
+// be told again what this battle is, which side the war put them on and what
+// it is still waiting for. Returns true when it handled the command.
+//
+// It lives here, behind CTFPlayer::ClientCommand's one-line call, for the same
+// reason the rest of this header does — the alternative is a second edit
+// inside Valve's dispatch chain. A briefing that is printed once, at the exact
+// moment a player is staring at a loading screen, is a briefing most players
+// never read; there has to be a way to ask again.
+bool HandleClientCommand( CBasePlayer *pPlayer, const CCommand &args );
 
 // True when this server is running a battle the coordinator gave it a roster
 // for. Everything below is inert when it is false.

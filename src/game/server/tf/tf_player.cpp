@@ -8111,6 +8111,11 @@ bool CTFPlayer::ClientCommand( const CCommand &args )
 	
 	m_flLastAction = gpGlobals->curtime;
 
+	// GREYLINE: "what is this battle and what am I doing in it" — see
+	// greyline_roster_gate.h. A no-op on a server that is not running one.
+	if ( greyline::HandleClientCommand( this, args ) )
+		return true;
+
 	if ( FStrEq( pcmd, "addcond" ) )
 	{
 		if ( sv_cheats->GetBool() && args.ArgC() >= 2 )

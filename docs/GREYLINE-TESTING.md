@@ -339,6 +339,10 @@ That stands the battle back up here and resumes at RED 2 – BLU 1 after 3 round
 | host reports ready with no address | launched without `-enablefakeip`, or `sv_use_steam_networking 0` |
 | `host reported ready without an address or a game server identity` | the host's engine never produced either; the coordinator re-elects someone else |
 | the link reconnects every ~45 seconds | fixed: an idle client now pings inside the coordinator's `session_timeout`. If it comes back, the two `session_timeout` and `heartbeat_interval` settings have been configured so that the second is not comfortably below the first |
+| joining loops forever: the host log shows `connected / has joined / dropped` over and over | fixed: the menu page used to re-issue `connect` on a timer shorter than a map load, so every retry threw away the load in progress. It now only retries a client the engine reports as idle — not connecting, not loading — and no more than once every 15 seconds |
+| guest is refused with `Server is full.` while the scoreboard shows one player | bots. A listen server whose owner ever ran offline practice still has `tf_bot_quota` set, and quota mode `fill` takes every slot on spawn. Fixed on both sides: the assignment clears the quota and kicks bots, and the host keeps them out for as long as a battle id is set |
+| a battle is tainted at map spawn, before anyone plays | fixed: the game's own mode config (`Executing server arena config file`) rewrites `mp_teams_unbalance_limit` and friends after the assignment set them. Protected settings are now put back without tainting for `greyline_policy_settle` seconds after a level starts, and a taint no longer outlives the battle it belongs to |
+| a player has no idea what battle they are in | `greyline_briefing` in the console re-prints the briefing, which side the war put them on, how much of the roster arrived and the score |
 | migrated battle resumes 0-0 | the host died before ever sending a heartbeat with a snapshot, or `greyline_restore_score` fired before the teams existed — the coordinator log shows which |
 
 Useful spew:

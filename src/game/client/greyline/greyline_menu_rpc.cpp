@@ -30,6 +30,7 @@
 #include "hud.h"
 #include "hudelement.h"
 #include "hud_chat.h"
+#include "inetchannelinfo.h"
 #include "tier1/fmtstr.h"
 #include "steam/steam_api.h"
 
@@ -131,11 +132,26 @@ public:
 			const bool bInGame = engine->IsInGame();
 			const bool bBackground = bInGame && engine->IsLevelMainMenuBackground();
 			const bool bConnected = bInGame && !bBackground;
+			// A connection this client is still in the middle of making. The
+			// handshake, the map download and the map load all live here, and
+			// all three of them take longer than any sane retry interval: the
+			// page has to be able to tell "this is going nowhere" apart from
+			// "this is working", because issuing `connect` again during any of
+			// them throws the attempt away and starts it over — forever.
+			const bool bLoading = engine->IsDrawingLoadingImage();
+			const bool bConnecting = ( engine->IsConnected() && !bInGame ) || bLoading;
+			INetChannelInfo *pChannel = engine->GetNetChannelInfo();
+			const char *pszServer = pChannel ? pChannel->GetAddress() : NULL;
 			const char *pszLevel = bInGame ? engine->GetLevelName() : NULL;
-			CFmtStr1024 strJSON( "{\"in_game\":%s,\"connected\":%s,\"background\":%s,\"level\":\"%s\",\"players\":%d,\"game_over_seq\":%d}",
+			CFmtStr1024 strJSON( "{\"in_game\":%s,\"connected\":%s,\"background\":%s,"
+				"\"connecting\":%s,\"loading\":%s,\"server\":\"%s\","
+				"\"level\":\"%s\",\"players\":%d,\"game_over_seq\":%d}",
 				bInGame ? "true" : "false",
 				bConnected ? "true" : "false",
 				bBackground ? "true" : "false",
+				bConnecting ? "true" : "false",
+				bLoading ? "true" : "false",
+				pszServer ? pszServer : "",
 				pszLevel ? pszLevel : "",
 				bConnected ? CountConnectedPlayers() : 0,
 				g_nGreylineGameOverSeq );

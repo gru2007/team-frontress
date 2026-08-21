@@ -37,6 +37,7 @@
 #include "igamesystem.h"
 #include "GameEventListener.h"
 #include "eiface.h"
+#include "team.h"
 #include "tf_player.h"
 #include "tf_shareddefs.h"
 
@@ -178,6 +179,11 @@ public:
 
 	int RosterCount() const { return m_Roster.Count(); }
 	void PrintRoster() const;
+
+	// The one-line answer to "what is going on" for a player who asks in the
+	// middle of a battle: how much of the roster made it, and the score the
+	// war will be given.
+	void PrintStatusTo( CBasePlayer *pPlayer ) const;
 	bool IsOnRoster( uint64 ulSteamID ) const { return m_Roster.Find( ulSteamID ) != NULL; }
 
 private:
@@ -364,6 +370,35 @@ void CGreylineBriefing::AnnounceToPlayer( CBasePlayer *pPlayer, bool bIncludeHUD
 }
 
 //-----------------------------------------------------------------------------
+// Purpose: the standing of the battle, in the asking player's own language.
+//-----------------------------------------------------------------------------
+void CGreylineBriefing::PrintStatusTo( CBasePlayer *pPlayer ) const
+{
+	if ( !pPlayer || pPlayer->IsFakeClient() )
+		return;
+
+	int nPresent = 0;
+	for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+	{
+		CBasePlayer *pOther = UTIL_PlayerByIndex( i );
+		if ( pOther && pOther->IsConnected() && !pOther->IsFakeClient() )
+			++nPresent;
+	}
+
+	CTeam *pRed = GetGlobalTeam( TF_TEAM_RED );
+	CTeam *pBlu = GetGlobalTeam( TF_TEAM_BLUE );
+
+	char szPresent[16], szRoster[16], szRed[16], szBlu[16];
+	V_snprintf( szPresent, sizeof( szPresent ), "%d", nPresent );
+	V_snprintf( szRoster, sizeof( szRoster ), "%d", m_Roster.Count() );
+	V_snprintf( szRed, sizeof( szRed ), "%d", pRed ? pRed->GetScore() : 0 );
+	V_snprintf( szBlu, sizeof( szBlu ), "%d", pBlu ? pBlu->GetScore() : 0 );
+
+	ClientPrint( pPlayer, HUD_PRINTTALK, "#Greyline_Status_Roster",
+		szPresent, szRoster, szRed, szBlu );
+}
+
+//-----------------------------------------------------------------------------
 // Purpose: what this server thinks the battle is, for whoever is looking at a
 //			disconnect box that says they are not on the roster.
 //-----------------------------------------------------------------------------
@@ -431,6 +466,22 @@ void CGreylineBriefing::SeatPlayer( CBasePlayer *pPlayer )
 //-----------------------------------------------------------------------------
 namespace greyline
 {
+
+bool HandleClientCommand( CBasePlayer *pPlayer, const CCommand &args )
+{
+	if ( !pPlayer || args.ArgC() < 1 || !FStrEq( args[0], "greyline_briefing" ) )
+		return false;
+
+	if ( !g_GreylineBriefing.HasBattle() )
+	{
+		ClientPrint( pPlayer, HUD_PRINTTALK, "#Greyline_Status_NoBattle" );
+		return true;
+	}
+
+	g_GreylineBriefing.AnnounceToPlayer( pPlayer, true );
+	g_GreylineBriefing.PrintStatusTo( pPlayer );
+	return true;
+}
 
 bool BattleHasRoster()
 {

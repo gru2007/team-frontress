@@ -25,6 +25,7 @@
 #include "eiface.h"
 #include "iserver.h"
 #include "team.h"
+#include "player.h"
 #include "tf_shareddefs.h"
 #include "tf_gamerules.h"
 
@@ -60,6 +61,14 @@ ConVar greyline_rounds_played( "greyline_rounds_played", "0",
 	"Rounds completed in the running P2P battle." );
 ConVar greyline_policy_armed( "greyline_policy_armed", "0", FCVAR_GAMEDLL,
 	"Enable Greyline's protected battle convar watchdog after assignment setup completes." );
+ConVar greyline_policy_settle( "greyline_policy_settle", "20", FCVAR_GAMEDLL,
+	"Seconds after a level starts during which a protected setting is put back without "
+	"tainting the battle.\n"
+	"The game resets these itself: a map's own cfg and the mode config the engine runs "
+	"on spawn (\"Executing server arena config file\") both write mp_teams_unbalance_limit "
+	"and friends after the assignment set them. Tainting for that voids a battle before "
+	"a shot is fired, which is a far worse failure than the one the watchdog exists to "
+	"catch — and nobody is playing yet, so there is nothing to gain in the window." );
 ConVar greyline_policy_tainted( "greyline_policy_tainted", "0",
 	FCVAR_REPLICATED | FCVAR_HIDDEN,
 	"Set permanently for this battle when a protected server setting changes." );
@@ -105,9 +114,12 @@ public:
 		m_flNextIdentityCheck = 0.0f;
 		m_flNextScorePublish = 0.0f;
 		m_flNextPolicyCheck = 0.0f;
+		m_flNextBotKick = 0.0f;
+		m_flPolicySettleUntil = 0.0f;
 		m_bPolicyWasArmed = false;
 		m_bPolicyTainted = false;
 		m_szPolicyViolation[0] = '\0';
+		m_szArmedBattleID[0] = '\0';
 	}
 
 	virtual void LevelInitPostEntity() OVERRIDE
@@ -116,6 +128,8 @@ public:
 		m_flNextIdentityCheck = 0.0f;
 		m_flNextScorePublish = 0.0f;
 		m_flNextPolicyCheck = 0.0f;
+		m_flNextBotKick = 0.0f;
+		m_flPolicySettleUntil = gpGlobals->curtime + MAX( 0.0f, greyline_policy_settle.GetFloat() );
 		ConVarRef battleID( "greyline_battle_id", true );
 		const bool bAssignedTransition = battleID.IsValid() && battleID.GetString()[0]
 			&& greyline_policy_armed.GetBool();
@@ -124,6 +138,7 @@ public:
 		{
 			m_bPolicyTainted = false;
 			m_szPolicyViolation[0] = '\0';
+			m_szArmedBattleID[0] = '\0';
 			greyline_policy_armed.SetValue( 0 );
 			greyline_policy_tainted.SetValue( 0 );
 			greyline_policy_violation.SetValue( "" );
@@ -192,6 +207,29 @@ private:
 			}
 			return;
 		}
+		// A taint belongs to one battle. Without this it outlives its own:
+		// greyline_battle_id is only overwritten once the *next* battle's map
+		// is up, so at that map's LevelInit the id still reads as the old
+		// battle's, the watchdog stays armed across the transition, and the
+		// verdict on the last battle is applied to a battle that has not
+		// started. Re-latching on the id changing is what scopes it.
+		if ( V_strcmp( m_szArmedBattleID, battleID.GetString() ) != 0 )
+		{
+			V_strncpy( m_szArmedBattleID, battleID.GetString(), sizeof( m_szArmedBattleID ) );
+			m_bPolicyTainted = false;
+			m_szPolicyViolation[0] = '\0';
+			m_bPolicyWasArmed = greyline_policy_armed.GetBool();
+			greyline_policy_tainted.SetValue( 0 );
+			greyline_policy_violation.SetValue( "" );
+		}
+
+		// Before anything else about policy: a battle's slots belong to the
+		// roster. Enforced from the moment there is a battle id rather than
+		// from the moment policy is armed, because the quota fills the server
+		// while the map is still spawning — long before the assignment
+		// commands finish arriving.
+		KeepBotsOut();
+
 		if ( greyline_policy_armed.GetBool() )
 		{
 			m_bPolicyWasArmed = true;
@@ -263,8 +301,57 @@ private:
 		}
 	}
 
+	// A listen server whose owner has ever run offline practice still carries
+	// tf_bot_quota in their config, and quota mode "fill" takes every free slot
+	// the moment a map is up. The roster then meets "Server is full." and the
+	// player is told nothing at all — which is how both P2P test sessions
+	// ended. This is not treated as tampering: it is somebody's leftover
+	// setting, so it is corrected quietly rather than tainting their battle.
+	void KeepBotsOut()
+	{
+		ConVarRef botQuota( "tf_bot_quota", true );
+		if ( botQuota.IsValid() && botQuota.GetInt() != 0 )
+		{
+			botQuota.SetValue( 0 );
+		}
+		ConVarRef botVacate( "tf_bot_auto_vacate", true );
+		if ( botVacate.IsValid() && botVacate.GetInt() != 1 )
+		{
+			botVacate.SetValue( 1 );
+		}
+
+		if ( gpGlobals->curtime < m_flNextBotKick )
+		{
+			return;
+		}
+		m_flNextBotKick = gpGlobals->curtime + 5.0f;
+
+		for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+		{
+			CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+			if ( pPlayer && pPlayer->IsConnected() && pPlayer->IsFakeClient() )
+			{
+				Msg( "[greyline] removing bots: a battle's slots are for the roster it was formed from\n" );
+				engine->ServerCommand( "tf_bot_kick all\n" );
+				return;
+			}
+		}
+	}
+
 	void MarkPolicyTainted( const char *pszSetting )
 	{
+		// Still settling after a level start. The caller puts the setting back
+		// either way; all this skips is calling it cheating.
+		if ( gpGlobals->curtime < m_flPolicySettleUntil )
+		{
+			if ( greyline_hoststate_debug.GetBool() )
+			{
+				Msg( "[greyline] put %s back during the level's settle window; not a violation\n",
+					pszSetting ? pszSetting : "a protected setting" );
+			}
+			return;
+		}
+
 		if ( !m_bPolicyTainted )
 		{
 			m_bPolicyTainted = true;
@@ -363,7 +450,10 @@ private:
 	float	m_flNextIdentityCheck;
 	float	m_flNextScorePublish;
 	float	m_flNextPolicyCheck;
+	float	m_flNextBotKick;
+	float	m_flPolicySettleUntil;
 	bool	m_bPolicyWasArmed;
+	char	m_szArmedBattleID[64];
 	bool	m_bPolicyTainted;
 	char	m_szPolicyViolation[64];
 };

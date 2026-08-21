@@ -153,6 +153,21 @@
   .status { min-height: 30px; display: flex; align-items: center; gap: 18px; padding: 5px 20px; color: #a69b87; background: #171614; border-top: 1px solid #4b473f; font-size: 10px; letter-spacing: .08em; }
   .dot { display: inline-block; width: 8px; height: 8px; margin-right: 5px; border-radius: 50%; background: #7e3029; box-shadow: 0 0 0 1px #0d0c0b, inset 0 1px #fff3; }
   .dot.on { background: #71913f; box-shadow: 0 0 6px #8cac54, 0 0 0 1px #0d0c0b; }
+  /* The last frame the player sees before the engine takes the screen. A map
+     load freezes this panel for anything from ten seconds to a minute, so
+     whatever is painted here is what "the game froze" looks like — it had
+     better say what is happening. */
+  #busy { position: fixed; inset: 0; z-index: 40; display: none; flex-direction: column;
+    align-items: center; justify-content: center; gap: 10px; text-align: center;
+    padding: 40px; background: rgba(12, 11, 10, .94); }
+  #busy.show { display: flex; }
+  #busy .what { color: #d8cbb2; font: 26px "TF2 Build"; text-transform: uppercase; letter-spacing: .06em; }
+  #busy .where { color: var(--faded); font-size: 15px; }
+  #busy .note { max-width: 620px; color: #8d826f; font-size: 12px; letter-spacing: .06em; }
+  #busy .dismiss { margin-top: 14px; color: #6d6457; font-size: 10px; letter-spacing: .2em; }
+  #busy .bar { width: 240px; height: 4px; margin-top: 6px; background: #2a2724; overflow: hidden; }
+  #busy .bar i { display: block; width: 40%; height: 100%; background: var(--red); animation: busyBar 1.4s linear infinite; }
+  @keyframes busyBar { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
   .muted { color: var(--faded); }
   .gained { color: var(--green); font-family: "TF2 Build"; }
   .pushed, .err { color: var(--danger); }
@@ -315,6 +330,14 @@
     </details>
   </div>
 </main>
+
+<div id="busy">
+  <div class="what" id="busyWhat"></div>
+  <div class="where" id="busyWhere"></div>
+  <div class="bar"><i></i></div>
+  <div class="note" id="busyNote"></div>
+  <div class="dismiss">CLICK TO DISMISS</div>
+</div>
 
 <div class="status">
   <span><span class="dot" id="dotGC"></span>coordinator</span>
@@ -716,8 +739,36 @@ const UI = {
   renderGame(state) {
     if (!state) return;
     const level = String(state.level || "").replace(/\\/g, "/").split("/").pop().replace(/\.bsp$/i, "");
-    this.el("diagGame").textContent = state.background ? "main menu background" :
-      (state.connected ? (level + " · " + (state.players || 0) + " players") : "main menu");
+    const where = state.background ? "main menu background" :
+      (state.connected ? (level + " · " + (state.players || 0) + " players") :
+        (state.loading ? "loading a map" : (state.connecting ? "connecting" : "main menu")));
+    this.el("diagGame").textContent = state.server ? where + " · " + state.server : where;
+  },
+
+  // A full-panel notice for the one thing this page cannot animate through:
+  // the engine loading a map. Call with no arguments to take it down.
+  busy(what, where, note) {
+    const el = this.el("busy");
+    if (!what) {
+      el.classList.remove("show");
+      return;
+    }
+    this.el("busyWhat").textContent = what;
+    this.el("busyWhere").textContent = where || "";
+    this.el("busyNote").textContent = note || "";
+    el.classList.add("show");
+    // Nothing behind this is reachable while it is up, and it is up during the
+    // one operation that can hang. Let it be dismissed.
+    el.onclick = () => el.classList.remove("show");
+  },
+
+  // Let the panel actually put a frame on screen before handing the console a
+  // command that blocks the whole process. Without this the notice above is
+  // written into a DOM nobody ever sees.
+  paint() {
+    return new Promise(resolve => {
+      requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 120)));
+    });
   },
 
   banner(headline, detail) {
@@ -893,6 +944,21 @@ const Actions = {
   // Joining is the one thing that needs the game itself. In a browser there is
   // nothing to drive, so the console line is shown to copy instead.
   joinWatch: null,
+  joinWatchMatch: null,
+  joining: null,
+
+  // Is this client already where this battle is? Being on the right server is
+  // the answer even when the level name has not settled yet — mid-load the
+  // engine still reports the previous map, and a client that is loading the
+  // battle's map is not a client that needs another `connect`.
+  onBattleServer(state, m) {
+    if (!state || !m) return false;
+    const level = String(state.level || "").replace(/\\/g, "/").split("/").pop().replace(/\.bsp$/i, "");
+    if (state.connected && level.toLowerCase() === String(m.map || "").toLowerCase()) return true;
+    const here = P2P.cleanConsole(state.server || "").trim();
+    const there = P2P.cleanConsole(m.connect || "").trim();
+    return !!here && !!there && here === there;
+  },
 
   async join() {
     const m = State.match;
@@ -906,6 +972,26 @@ const Actions = {
       UI.status("no game bridge — run: password " + (m.password || "") + " ; connect " + m.connect);
       return;
     }
+    // Already in it, or already on the way into it. Both used to issue another
+    // `connect`, and `connect` tears down whatever connection this client had
+    // — which is how a client that was thirty seconds into loading the battle
+    // ended up back at the start of loading the battle, every time the page
+    // heard about the battle again.
+    let state = null;
+    try {
+      state = P2P.parseBridgeJSON(await Bridge.call("greyline_state", ""));
+    } catch (e) { /* the bridge is busy loading; treat that as in-flight below */ }
+    if (state && this.onBattleServer(state, m)) {
+      UI.renderGame(state);
+      this.watchJoin(m);
+      UI.status(state.connected ? "in the battle at " + m.connect : "loading the battle at " + m.connect);
+      return;
+    }
+    if (!state || state.connecting) {
+      this.watchJoin(m);
+      UI.status("connecting to " + m.connect + "…");
+      return;
+    }
     try {
       await this.attemptConnect(m);
       this.watchJoin(m);
@@ -915,6 +1001,14 @@ const Actions = {
   },
 
   async attemptConnect(m) {
+    this.joining = { matchId: m.match_id, at: Date.now() };
+    // The last thing the player sees before the engine takes the screen for
+    // half a minute should say what it is doing. The panel is what stays on
+    // screen while the map loads, so paint it before handing the console over.
+    UI.busy("JOINING THE BATTLE",
+      m.front_name ? m.front_name + " — " + m.map : m.map,
+      "connecting to " + m.connect + " · loading the map takes a while, the game is not stuck");
+    await UI.paint();
     if (m.password) await Bridge.cmd("password " + P2P.quote(m.password));
     await Bridge.cmd("connect " + P2P.cleanConsole(m.connect));
     UI.status("joining " + m.connect);
@@ -923,19 +1017,39 @@ const Actions = {
   // A connect that does not take is the failure mode this whole design is
   // most exposed to: over Steam's peer-to-peer transport the handshake can be
   // dropped while the relay is still settling ("did not have the correct
-  // challenge"), and nothing about that tells the player anything. One quiet
-  // retry costs a few seconds; not retrying costs the battle.
+  // challenge"), and nothing about that tells the player anything.
+  //
+  // The retry is therefore only ever aimed at a client that is doing nothing:
+  // not in a game, not connected, not loading. Retrying on a timer regardless
+  // of that — which is what this used to do — cannot succeed at all on a map
+  // that takes longer to load than the timer, because every retry throws the
+  // load away and starts a new one. That is the reconnect storm the host log
+  // shows: "connected / has joined / dropped" over and over, and a player who
+  // is in a battle they can never enter.
   watchJoin(m) {
+    // The coordinator repeats itself — a battle going ready, then live, then a
+    // latecomer being seated all arrive as events about the same battle. One
+    // watch per battle, or the deadline it is counting down never runs out.
+    if (this.joinWatch && this.joinWatchMatch === m.match_id) return;
     if (this.joinWatch) clearInterval(this.joinWatch);
+    this.joinWatchMatch = m.match_id;
     let attempts = 1;
-    const startedAt = Date.now();
-    const deadline = startedAt + Math.max(30000, (m.deadline_s || 60) * 1000);
+    let lastAttempt = Date.now();
+    let idleSince = 0;
+    const deadline = Date.now() + Math.max(60000, (m.deadline_s || 60) * 1000);
+
+    const stop = () => {
+      clearInterval(this.joinWatch);
+      this.joinWatch = null;
+      this.joinWatchMatch = null;
+      this.joining = null;
+      UI.busy(null);
+    };
 
     this.joinWatch = setInterval(async () => {
       const current = State.match;
       if (!current || current.match_id !== m.match_id || !Bridge.ready) {
-        clearInterval(this.joinWatch);
-        this.joinWatch = null;
+        stop();
         return;
       }
       let state;
@@ -945,16 +1059,38 @@ const Actions = {
         return; // mid-load the bridge does not answer; that is progress, not failure
       }
       UI.renderGame(state);
-      const level = String(state.level || "").replace(/\\/g, "/").split("/").pop().replace(/\.bsp$/i, "");
-      if (state.connected && level.toLowerCase() === String(m.map || "").toLowerCase()) {
-        clearInterval(this.joinWatch);
-        this.joinWatch = null;
+
+      if (state.connected && this.onBattleServer(state, m)) {
+        stop();
         UI.status("in the battle at " + m.connect);
         return;
       }
-      if (Date.now() > deadline) {
-        clearInterval(this.joinWatch);
-        this.joinWatch = null;
+
+      // Loading, downloading the map, or still shaking hands. Leave it alone
+      // and say so: this is the state a player spends most of a join in.
+      if (state.connecting || this.onBattleServer(state, m)) {
+        idleSince = 0;
+        UI.status((state.loading ? "loading the battle map " : "connecting to ") + m.connect +
+          " — this takes a while on a first join");
+        return;
+      }
+
+      // Genuinely idle: back at the menu with nothing in flight. Give it a
+      // couple of seconds to be sure it is not between two phases of a load,
+      // then try again, no more than once every 15 seconds.
+      //
+      // The loading notice comes down here rather than at the end of the
+      // watch: a player who has bounced back to the menu is a player who needs
+      // the menu — LEAVE included — not a full-screen panel telling them to be
+      // patient for another minute.
+      UI.busy(null);
+      const now = Date.now();
+      if (!idleSince) {
+        idleSince = now;
+        return;
+      }
+      if (now > deadline) {
+        stop();
         UI.status("could not reach the battle server at " + m.connect +
           " after " + attempts + " attempts — leaving the battle", true);
         // Holding a slot in a battle this client cannot reach helps nobody,
@@ -964,10 +1100,15 @@ const Actions = {
         this.leave("could not reach " + m.connect + " after " + attempts + " attempts");
         return;
       }
+      if (now - idleSince < 2500 || now - lastAttempt < 15000) {
+        return;
+      }
       attempts++;
-      UI.status("still not in — retrying " + m.connect + " (attempt " + attempts + ")");
+      lastAttempt = now;
+      idleSince = 0;
+      UI.status("the connection did not take — retrying " + m.connect + " (attempt " + attempts + ")");
       try { await this.attemptConnect(m); } catch (e) { /* reported by the next tick */ }
-    }, 8000);
+    }, 1000);
   },
 
   async leave(reason) {
@@ -1015,11 +1156,14 @@ const P2P = {
     if (!offer || !offer.match_id || this.host) return;
     if (!State.settings.p2pHost || !Bridge.ready) {
       UI.status("P2P host offer ignored: local game bridge is unavailable", true);
+      UI.busy(null);
       return;
     }
 
     try {
       UI.status("accepting P2P host for " + offer.map + "…");
+      UI.busy("YOU ARE HOSTING THIS BATTLE", offer.map,
+        "registering with the coordinator, then loading the map");
       const reg = await GC.post("/api/v1/client/host-register", {
         match_id: offer.match_id,
         name: State.settings.name + " P2P",
@@ -1051,6 +1195,7 @@ const P2P = {
       UI.el("diagHost").textContent = "booting " + cmd.assignment.map;
       await this.launch(cmd.assignment);
     } catch (e) {
+      UI.busy(null);
       UI.status("P2P host failed: " + e.message, true);
       await this.failHost(e.message);
     }
@@ -1189,6 +1334,17 @@ const P2P = {
       "mp_friendlyfire 0",
       "mp_disable_respawn_times 0",
       "mp_chattime 15",
+      // Bots are not a setting a battle can be left holding: a listen server
+      // whose owner ever ran offline practice still has tf_bot_quota set, and
+      // the quota fills every free slot the moment the map is up. The roster
+      // then arrives at a server that answers "Server is full." — which is
+      // exactly what both P2P test logs end in. Clear the quota and remove
+      // whatever already joined; a coordinator battle is people or nothing.
+      "tf_bot_quota 0",
+      "tf_bot_quota_mode normal",
+      "tf_bot_join_after_player 0",
+      "tf_bot_auto_vacate 1",
+      "tf_bot_kick all",
       "nextlevel " + this.cleanConsole(as.map),
       // Turn people away for not being on the roster only when the roster names
       // accounts this server will actually see. Under the coordinator's dev
@@ -1242,9 +1398,27 @@ const P2P = {
     // who does not happen to know the host, and says only "You are not
     // permitted to join this server!" about it.
     await Bridge.cmd("sv_friends_only 0");
-    await Bridge.cmd("maxplayers " + Math.max(2, as.max_players || 12));
-    await Bridge.cmd("map " + this.cleanConsole(as.map));
+    // Set before `map` as well as after it: tf_bot_quota_mode "fill" adds bots
+    // as the server spawns, and a slot a bot took is a slot a mercenary the
+    // war sent is refused at.
+    await Bridge.cmd("tf_bot_quota 0");
+    await Bridge.cmd("tf_bot_quota_mode normal");
+    await Bridge.cmd("tf_bot_join_after_player 0");
+    await Bridge.cmd("tf_bot_auto_vacate 1");
+    // Two slots of headroom over the roster. A P2P battle is joined while it
+    // runs — latecomers, and a player whose connection dropped reconnecting —
+    // and being one slot short of that reads to the player as "the game will
+    // not let me in" with nothing said about why.
+    await Bridge.cmd("maxplayers " + Math.min(24, Math.max(2, (as.max_players || 12)) + 2));
     UI.status("starting local P2P server on " + as.map + "…");
+    UI.el("diagHost").textContent = "loading " + as.map;
+    // The map load freezes this panel for as long as it takes. Say what is
+    // happening first, so the frozen frame is an explanation rather than a
+    // hang — this is the "server start is a frozen screen" the testing found.
+    UI.busy("STANDING UP THE BATTLE", as.map,
+      "you were picked to host this battle. The game is loading the map — this can take a minute, it has not crashed.");
+    await UI.paint();
+    await Bridge.cmd("map " + this.cleanConsole(as.map));
 
     const deadline = Date.now() + Math.max(30000, (as.boot_deadline_s || 90) * 1000);
     let sawIdentityWithoutAddressAt = 0;
@@ -1258,6 +1432,7 @@ const P2P = {
       const onMap = !!state.connected && level.toLowerCase() === String(as.map || "").toLowerCase();
 
       if (onMap && !configured) {
+        UI.busy("STANDING UP THE BATTLE", as.map, "map loaded — applying the roster and the battle rules");
         for (const cmd of this.battleCommands(as)) await Bridge.cmd(cmd);
         configured = true;
         UI.el("diagHost").textContent = "map loaded · applying roster and policy";
@@ -1288,11 +1463,13 @@ const P2P = {
         });
         UI.status("P2P battle live at " + endpoint.address);
         UI.el("diagHost").textContent = "live · " + endpoint.address;
+        UI.busy(null);
         this.startGameWatch();
         return;
       }
       await this.sleep(500);
     }
+    UI.busy(null);
     throw new Error("P2P listen server did not become ready before the boot deadline");
   },
 
@@ -1346,6 +1523,7 @@ const P2P = {
   async finishHost(matchId) {
     const h = this.host;
     if (!h || (matchId && h.matchId !== matchId)) return;
+    UI.busy(null);
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     if (this.gameWatchTimer) clearInterval(this.gameWatchTimer);
     this.heartbeatTimer = this.gameWatchTimer = null;
@@ -1358,6 +1536,7 @@ const P2P = {
 
   async failHost(reason) {
     const h = this.host;
+    UI.busy(null);
     if (!h) return;
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     if (this.gameWatchTimer) clearInterval(this.gameWatchTimer);
