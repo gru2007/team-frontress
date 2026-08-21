@@ -48,7 +48,7 @@ typedef int socklen_t;
 // means the stream has desynchronised and cannot be recovered.
 #define GREYLINE_MAX_FRAME				( 1 * 1024 * 1024 )
 
-ConVar greyline_gc_address( "greyline_gc_address", "127.0.0.1:27100", FCVAR_CLIENTDLL | FCVAR_ARCHIVE,
+ConVar greyline_gc_address( "greyline_gc_address", "coordinator.r-artemev.ru:44974", FCVAR_CLIENTDLL | FCVAR_ARCHIVE,
 	"Address of the Greyline Game Coordinator." );
 
 ConVar greyline_gc_enable( "greyline_gc_enable", "0", FCVAR_CLIENTDLL | FCVAR_ARCHIVE,
