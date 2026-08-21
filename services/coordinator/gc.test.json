@@ -4,6 +4,8 @@
   "admin_listen": "127.0.0.1:27101",
   "theater_path": "theater.industrial.json",
   "war_log_path": "war-events.jsonl",
+  "_comment_bans_path": "Bans survive a restart of the testbed coordinator. Delete the file to clear them.",
+  "bans_path": "bans.jsonl",
   "pool": {
     "key": "testbed-pool-key-change-me",
     "admin_key": "",

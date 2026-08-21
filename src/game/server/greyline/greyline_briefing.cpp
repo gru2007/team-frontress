@@ -152,6 +152,13 @@ public:
 		greyline::RecomputeUniformSwap();
 		return true;
 	}
+	bool RemoveFromRoster( uint64 ulSteamID )
+	{
+		if ( !m_Roster.Remove( ulSteamID ) )
+			return false;
+		greyline::RecomputeUniformSwap();
+		return true;
+	}
 
 	// Whether this battle puts the war's sides in each other's in-game
 	// colours. The rule itself lives in the logic layer, where it is unit
@@ -535,6 +542,33 @@ CON_COMMAND_F( greyline_roster_add,
 		Msg( "[greyline] roster: %llu -> team %d, war side %d%s\n",
 			ulSteamID, iTeam, iWarSide, bContract ? " (contract)" : "" );
 	}
+}
+
+CON_COMMAND_F( greyline_roster_remove,
+	"greyline_roster_remove <steamid64> — take one player off the battle roster. "
+	"The coordinator sends this with a kick when a player is banned mid-battle: "
+	"a kick on its own only sends them to the connect screen they came in through.",
+	FCVAR_GAMEDLL )
+{
+	if ( args.ArgC() < 2 )
+	{
+		Msg( "usage: greyline_roster_remove <steamid64>\n" );
+		return;
+	}
+
+	const uint64 ulSteamID = V_atoui64( args[1] );
+	if ( !g_GreylineBriefing.RemoveFromRoster( ulSteamID ) )
+	{
+		// Not a warning: the coordinator sends this for a player who may
+		// already have left, and that is the outcome it wanted anyway.
+		if ( greyline_briefing_debug.GetBool() )
+		{
+			Msg( "[greyline] %llu was not on the roster\n", ulSteamID );
+		}
+		return;
+	}
+
+	Msg( "[greyline] %llu removed from the battle roster\n", ulSteamID );
 }
 
 CON_COMMAND_F( greyline_roster_status,

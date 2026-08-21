@@ -580,6 +580,10 @@ game_dist_debug
 # SteamPipe build scripts, upload logs and depot chunks (game_clean/steampipe.sh)
 steam_build
 
+# A coordinator's ban list is real accounts and real reasons. The war log is
+# committed as an example world; this must never be.
+services/coordinator/bans.jsonl
+
 enc_temp_folder
 
 /build/

@@ -127,6 +127,11 @@ const (
 	// being played join it rather than wait for the next one, and the server
 	// has to be told who they are before they arrive.
 	CommandRoster CommandType = "roster"
+	// CommandKick throws one player out of the battle that is running and takes
+	// them off its roster. This is what a ban does to a game already in
+	// progress: without the roster half the player walks straight back in
+	// through the connect screen the kick sent them to.
+	CommandKick CommandType = "kick"
 	// CommandIdle sends it back to its idle map.
 	CommandIdle CommandType = "idle"
 	// CommandShutdown asks the agent to leave the pool.
@@ -145,6 +150,8 @@ type Command struct {
 	// whole roster: adding somebody who is already on it is harmless, but
 	// re-sending everybody on every join is noise the server has to re-apply.
 	Roster []RosterEntry `json:"roster,omitempty"`
+	// SteamID is who CommandKick is about, and is unset for everything else.
+	SteamID uint64 `json:"steam_id,string,omitempty"`
 }
 
 // Assignment is the whole contract for one battle, in the form the agent needs

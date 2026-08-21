@@ -37,6 +37,10 @@ type Config struct {
 	// WarLogPath is the append-only war event log. It is the world: deleting it
 	// starts a new war, and keeping it lets one be replayed.
 	WarLogPath string `json:"war_log_path"`
+	// BansPath is the append-only ban log. Empty means bans live only as long
+	// as the process, which is fine for a test coordinator and wrong for a real
+	// one: a ban that a restart undoes is not a ban.
+	BansPath string `json:"bans_path"`
 
 	Pool PoolConfig `json:"pool"`
 	War  WarConfig  `json:"war"`
@@ -67,8 +71,14 @@ type Config struct {
 
 type AuthConfig struct {
 	Mode AuthMode `json:"mode"`
-	// AppID the auth tickets are issued for.
+	// AppID the auth tickets are issued for. This is the app the *client* runs
+	// as — Team Frontress Playtest — not the Source SDK base it is built on.
 	AppID uint32 `json:"app_id"`
+	// Identity must match the string the client passed to
+	// ISteamUser::GetAuthTicketForWebApi. Steam binds the ticket to it, and
+	// validating with the wrong one fails as surely as a forged ticket. Empty
+	// means the client passed no identity either.
+	Identity string `json:"identity"`
 	// WebAPIKey is a publisher key. Prefer the GREYLINE_STEAM_WEBAPI_KEY env
 	// var over putting it in the config file.
 	WebAPIKey string `json:"web_api_key"`
@@ -264,6 +274,7 @@ func Default() *Config {
 		AdminListen:     "127.0.0.1:27101",
 		TheaterPath:     "theater.industrial.json",
 		WarLogPath:      "war-events.jsonl",
+		BansPath:        "bans.jsonl",
 		ProtocolVersion: 3,
 		Pool: PoolConfig{
 			OfflineAfter:    Duration(45 * time.Second),
@@ -281,8 +292,12 @@ func Default() *Config {
 			MinBattleWeight:     0.25,
 		},
 		Auth: AuthConfig{
-			Mode:             AuthDev,
-			AppID:            0,
+			Mode: AuthDev,
+			// Team Frontress Playtest. Harmless under auth.mode=dev, and the
+			// right answer the moment an operator switches to webapi — see
+			// docs/STEAM-SETUP.md.
+			AppID:            5147520,
+			Identity:         "greyline",
 			RejectVACBanned:  true,
 			RequireOwnership: true,
 			TicketCacheTTL:   Duration(10 * time.Minute),
@@ -366,6 +381,9 @@ func Load(path string) (*Config, error) {
 	}
 	if v := os.Getenv("GREYLINE_STEAM_WEBAPI_KEY"); v != "" {
 		cfg.Auth.WebAPIKey = v
+	}
+	if v := os.Getenv("GREYLINE_BANS"); v != "" {
+		cfg.BansPath = v
 	}
 	if v := os.Getenv("GREYLINE_GC_SECRET"); v != "" {
 		cfg.Security.Secret = v

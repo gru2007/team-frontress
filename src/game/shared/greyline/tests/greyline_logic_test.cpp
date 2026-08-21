@@ -234,6 +234,52 @@ GREYLINE_TEST( Roster_survives_more_players_than_a_server_has_slots )
 	CHECK( roster.Find( 1000ull + kMaxRoster ) == 0 );
 }
 
+GREYLINE_TEST( Roster_remove_takes_one_player_off )
+{
+	CRoster roster;
+	roster.Add( 111, kTeamRed, kTeamRed, false );
+	roster.Add( 222, kTeamBlu, kTeamBlu, false );
+	roster.Add( 333, kTeamRed, kTeamRed, false );
+
+	CHECK( roster.Remove( 222 ) );
+	CHECK_EQ( roster.Count(), 2 );
+	CHECK( roster.Find( 222 ) == 0 );
+	// The survivors are untouched: the hole is filled by the last entry, so a
+	// removal in the middle must not lose the tail.
+	CHECK( roster.Find( 111 ) != 0 );
+	CHECK( roster.Find( 333 ) != 0 );
+}
+
+GREYLINE_TEST( Roster_remove_misses_report_nothing_was_removed )
+{
+	CRoster roster;
+	roster.Add( 111, kTeamRed, kTeamRed, false );
+
+	CHECK( !roster.Remove( 222 ) );
+	CHECK( !roster.Remove( 0 ) );
+	CHECK_EQ( roster.Count(), 1 );
+
+	// A player removed twice — a coordinator retrying a kick — is not an error
+	// the second time, just a miss.
+	CHECK( roster.Remove( 111 ) );
+	CHECK( !roster.Remove( 111 ) );
+	CHECK_EQ( roster.Count(), 0 );
+}
+
+GREYLINE_TEST( Roster_can_be_refilled_after_a_removal )
+{
+	CRoster roster;
+	for ( int i = 0; i < (int)kMaxRoster; ++i )
+		roster.Add( 1000ull + i, kTeamRed, kTeamRed, false );
+
+	CHECK( roster.Remove( 1000 ) );
+	// The slot the removal freed is usable again, rather than the roster being
+	// permanently one short for the rest of the battle.
+	CHECK( roster.Add( 9999, kTeamBlu, kTeamBlu, false ) );
+	CHECK_EQ( roster.Count(), (int)kMaxRoster );
+	CHECK( roster.Find( 9999 ) != 0 );
+}
+
 GREYLINE_TEST( Roster_clear_empties_it )
 {
 	CRoster roster;

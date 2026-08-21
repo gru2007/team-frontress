@@ -87,6 +87,8 @@ func (a *Agent) handleCommand(ctx context.Context, cmd pool.Command) {
 		}
 	case pool.CommandRoster:
 		a.addToRoster(cmd)
+	case pool.CommandKick:
+		a.kickFromBattle(cmd)
 	case pool.CommandIdle:
 		a.goIdle(ctx)
 	case pool.CommandShutdown:
@@ -122,6 +124,73 @@ func (a *Agent) addToRoster(cmd pool.Command) {
 	}
 	a.log.Info("roster extended", "match", cmd.MatchID, "added", len(cmd.Roster),
 		"roster", len(a.battle.as.Roster))
+}
+
+// kickFromBattle throws a banned player out of the running battle.
+//
+// Two console commands, and both are needed. greyline_roster_remove is what
+// makes it stick — the roster gate is the thing that decides who may be on
+// this server, so a player still on it reconnects through the same connect
+// screen the kick sent them to. kickid is what makes it immediate.
+func (a *Agent) kickFromBattle(cmd pool.Command) {
+	if cmd.SteamID == 0 {
+		a.log.Warn("kick command with no SteamID", "match", cmd.MatchID)
+		return
+	}
+	if a.battle == nil || (cmd.MatchID != "" && a.battle.as.MatchID != cmd.MatchID) {
+		a.log.Warn("kick for a battle this server is not running",
+			"match", cmd.MatchID, "steam_id", cmd.SteamID)
+		return
+	}
+
+	if _, err := a.exec("greyline_roster_remove %d", cmd.SteamID); err != nil {
+		a.log.Error("could not take a kicked player off the roster",
+			"steam_id", cmd.SteamID, "err", err)
+	}
+	for i, e := range a.battle.as.Roster {
+		if e.SteamID == cmd.SteamID {
+			a.battle.as.Roster = append(a.battle.as.Roster[:i], a.battle.as.Roster[i+1:]...)
+			break
+		}
+	}
+
+	reason := cmd.Reason
+	if reason == "" {
+		reason = "removed by the coordinator"
+	}
+	// kickid takes a SteamID and the rest of the line as the reason, so the
+	// reason must not carry a quote or a newline into the console.
+	if _, err := a.exec("kickid %d %s", cmd.SteamID, sanitizeConsoleArg(reason)); err != nil {
+		a.log.Error("could not kick a player", "steam_id", cmd.SteamID, "err", err)
+		return
+	}
+	a.log.Info("player kicked from the battle", "match", a.battle.as.MatchID,
+		"steam_id", cmd.SteamID, "reason", reason)
+}
+
+// sanitizeConsoleArg makes a coordinator-supplied string safe to put on an
+// RCON command line. The reason travels from an operator through the ban list
+// to here, so it is the one part of a console command this agent does not
+// write itself.
+func sanitizeConsoleArg(s string) string {
+	s = strings.Map(func(r rune) rune {
+		switch r {
+		case '"', ';', '\n', '\r':
+			return ' '
+		}
+		if r < 0x20 {
+			return ' '
+		}
+		return r
+	}, s)
+	s = strings.TrimSpace(s)
+	if len(s) > 120 {
+		s = s[:120]
+	}
+	if s == "" {
+		s = "removed by the coordinator"
+	}
+	return s
 }
 
 // startBattle applies the assignment to the game server: lock it to this
