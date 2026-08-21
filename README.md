@@ -1,6 +1,6 @@
 <div align="center">
 
-# GREYLINE FRONTRESS
+# TEAM FRONTRESS
 
 ### ONE WAR. THOUSANDS OF BATTLES.
 
@@ -17,15 +17,17 @@
 
 > **The war does not count matches. It decides what the next match is.**
 
-GREYLINE FRONTRESS is an experimental multiplayer project built from **Team Comtress 2** and the Source 1 SDK.
+**Team Frontress** is an experimental multiplayer project built from **Team Comtress 2** and the Source 1 SDK.
 
 The gunplay is intentionally familiar. The layer around it is not.
 
-Instead of treating every match as an isolated round that disappears when the scoreboard closes, GREYLINE connects battles into a **single persistent campaign**. RED and BLU fight across a strategic theater. A victory advances an offensive, a defeat can push it back, capturing a region moves the front, and the new state of the war determines what battle should happen next.
+Instead of treating every match as an isolated round that disappears when the scoreboard closes, Team Frontress connects battles into a **single persistent campaign**. RED and BLU fight across a strategic theater. A victory advances an offensive, a defeat can push it back, capturing a region moves the front, and the new state of the war determines what battle should happen next.
 
 ```text
 GLOBAL STRATEGY ── decides ──▶ NEXT BATTLE ── result ──▶ GLOBAL STRATEGY
 ```
+
+The current strategic implementation is still named **Greyline** internally and in the technical documentation. Greyline is the war/theater layer inside Team Frontress, not the public name of the game.
 
 ## The idea
 
@@ -76,7 +78,7 @@ If the defender wins, the offensive can be pushed back a stage or collapse entir
 
 ## Designed for a small population first
 
-GREYLINE is not designed around the assumption that hundreds of people are online.
+Team Frontress is not designed around the assumption that hundreds of people are online.
 
 The coordinator changes the **width of the war** according to the active population:
 
@@ -145,7 +147,7 @@ SERVER POOL / P2P HOST ──────┘
 
 ## The Second Gravel War
 
-GREYLINE FRONTRESS begins with a simple premise.
+The first Team Frontress campaign begins with a simple premise.
 
 After the Mann vs. Machine conflict, Mann Co. loses control of large parts of its industrial and logistical network. RED and BLU move in to claim what remains.
 
@@ -155,7 +157,7 @@ The result is a new corporate conflict:
 
 ### **THE SECOND GRAVEL WAR**
 
-The first version focuses on RED and BLU. Story systems, machine incursions, PvE operations and the stranger parts of Greyline are intentionally **not required for the initial war loop**.
+The first version focuses on RED and BLU. Story systems, machine incursions, PvE operations and the stranger parts of the Greyline network are intentionally **not required for the initial war loop**.
 
 The foundation has to work first:
 
@@ -166,7 +168,7 @@ The foundation has to work first:
 ## Project status
 
 > [!WARNING]
-> **GREYLINE FRONTRESS is in early development.** Some systems are tested, some are only exercised manually, and several game-side C++ changes are still unverified in a complete build. Do not read this repository as a finished release.
+> **Team Frontress is in early development.** Some systems are tested, some are only exercised manually, and several game-side C++ changes are still unverified in a complete build. Do not read this repository as a finished release.
 
 The current repository already contains substantially more than a design document, but confidence differs by subsystem.
 
@@ -226,7 +228,7 @@ The MVP exists to answer one question:
 
 ## Technology
 
-GREYLINE FRONTRESS currently combines:
+Team Frontress currently combines:
 
 - **Source 1 / Source SDK** game code;
 - **Team Comtress 2** fixes, performance work and quality-of-life improvements as the gameplay foundation;
@@ -276,7 +278,7 @@ If you want to understand the project rather than just browse code:
 
 ## Development philosophy
 
-This project previously accumulated large systems faster than they could be validated. GREYLINE is being developed under a simpler rule:
+This project previously accumulated large systems faster than they could be validated. Team Frontress is being developed under a simpler rule:
 
 ### **Build one real loop, prove it works, then generalize it.**
 
@@ -297,7 +299,7 @@ The war should create gameplay — **not merely count gameplay**.
 This is an active experimental fork. Useful contributions include:
 
 - reproducing and fixing Source / TC2 regressions;
-- building and testing game-side Greyline changes;
+- building and testing game-side Team Frontress changes;
 - coordinator tests and failure-case coverage;
 - dedicated-server and Steam networking validation;
 - UI work for the war command board;
@@ -310,15 +312,15 @@ Before opening a large feature PR, please read the current status and war design
 
 ## Credits
 
-GREYLINE FRONTRESS is built on the work of **Valve**, the **Source SDK** and the **Team Comtress 2** community.
+Team Frontress is built on the work of **Valve**, the **Source SDK** and the **Team Comtress 2** community.
 
-Team Comtress 2 exists to fix bugs, improve performance and add quality-of-life improvements to Team Fortress 2. GREYLINE uses that work as its technical gameplay foundation while developing a separate persistent-war multiplayer layer on top.
+Team Comtress 2 exists to fix bugs, improve performance and add quality-of-life improvements to Team Fortress 2. Team Frontress uses that work as its technical gameplay foundation while developing a separate persistent-war multiplayer layer on top.
 
 ## Legal
 
 Valve, Steam, Source, Team Fortress and related names, logos and assets are trademarks and/or registered trademarks of Valve Corporation.
 
-GREYLINE FRONTRESS is a community project and is **not sponsored, endorsed, licensed by, or affiliated with Valve Corporation**.
+Team Frontress is a community project and is **not sponsored, endorsed, licensed by, or affiliated with Valve Corporation**.
 
 Source SDK-derived code in this repository is distributed under the terms in [`LICENSE`](LICENSE) and the accompanying third-party notices.
 
@@ -326,7 +328,7 @@ Source SDK-derived code in this repository is distributed under the terms in [`L
 
 <div align="center">
 
-### GREYLINE FRONTRESS
+### TEAM FRONTRESS
 
 **ONE WAR. THOUSANDS OF BATTLES.**
 
