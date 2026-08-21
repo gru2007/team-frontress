@@ -9,18 +9,20 @@ and what has to exist in Steamworks for either half to work.
 | AppID | What it is | Who needs it |
 | --- | --- | --- |
 | `5147520` | Team Frontress Playtest — the app we publish under | every player |
+| `5150320` | Team Frontress Dedicated Server — who our servers *are* to Steam | dedicated servers |
 | `440` | Team Fortress 2 — engine binaries and game content | every player |
-| `243750` | Source SDK Base 2013 Multiplayer | Windows dedicated servers |
-| `244310` | Source SDK Base 2013 Dedicated Server | Linux dedicated servers |
+| `232250` | Team Fortress 2 Dedicated Server — where server binaries and content come *from* | dedicated servers |
 
 We ship the mod's own DLLs, tools and paks; the engine itself is loaded out of
 the player's TF2 install (`GetGameInstallDir` in `src/launcher_main/main.cpp`),
 and TF2's VPKs are mounted through `|appid_440|` search paths. TF2 remains a
 hard requirement — the launcher shows an error and exits without it.
 
-Dedicated servers stay on the SDK 2013 apps. They log into Steam anonymously,
-which cannot mount a playtest app, so `gameinfo_server.txt` still declares
-`243750`.
+Dedicated servers are their own app, 5150320. That is a Steam identity, not a
+place files come from: the binaries and TF2 content still arrive through
+steamcmd as 232250. The identity is what makes a 5147520 client ticket
+validate on our servers — see `docs/STEAM-SETUP.md` step 6, which also covers
+the login token each server machine needs.
 
 ## What binds the client to 5147520
 

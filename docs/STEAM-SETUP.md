@@ -35,8 +35,8 @@ forged ticket gets:
 ## Step 1 — the AppID
 
 Already done: the client runs as **Team Frontress Playtest, 5147520**. See
-`docs/STEAMPIPE.md` for the four files that decide this and why dedicated
-servers stay on 243750/244310.
+`docs/STEAMPIPE.md` for the four files that decide this. Dedicated servers are
+their own app — step 6.
 
 The coordinator defaults `auth.app_id` to the same number. If you point a
 coordinator at a different app, change it in both places.
@@ -123,7 +123,7 @@ There are two kinds, they do different jobs, and both are worth having.
 | | Coordinator ban | Steam game ban (*игровая блокировка*) |
 | --- | --- | --- |
 | Where it lives | `bans_path`, our file | the account's Steam profile |
-| Who enforces it | us, instantly | Steam, but only on secure servers of the same AppID — **not ours**, see below |
+| Who enforces it | us, instantly | Steam, on secure servers of the same AppID — ours once step 6 is done |
 | Visible to | operators | everyone, through `GetPlayerBans` |
 | Undone by | a lift, cleanly | a lift removes it, but the record stays public forever |
 | Works when Steam is down | yes | no |
@@ -159,36 +159,96 @@ exits non-zero. That combination matters: the player is kept out either way,
 but an operator who thinks an account is game-banned when it is not will make
 decisions on it later.
 
-### Why Steam will not enforce a game ban for us
+## Step 6 — dedicated servers under our own AppID
 
-Valve's rule is that a game ban stops the account joining **secure servers for
-the AppID the ban is on**. Ours are not those servers:
+A Steam game ban, and Steam's own client↔server authentication, both work off
+one question: *is this server a server of the app the client is running?* Until
+we had a dedicated-server app the answer was no, and neither worked. Now there
+is one: **Team Frontress Dedicated Server, 5150320**.
 
-- the client runs as 5147520 (Team Frontress Playtest);
-- our dedicated servers register with Steam as 244310 (Source SDK Base 2013
-  DS), because that is the app steamcmd installs and can log into anonymously.
+### What the numbers are for
 
-To Steam, our server is not a secure server of 5147520, so a ban on 5147520
-means nothing to it. Enforcement is the coordinator's, which is what steps 1–4
-were for.
+The thing to keep straight is that a server has two AppIDs and they mean
+different things:
 
-The same mismatch affects the ordinary Steam client↔server authentication. The
-old pair — client 243750, server 244310 — is a client/dedicated-server pair
-Valve configured, and 243750 is free, so the licence check passed for
-everybody. Moving the client to 5147520 breaks that pairing. Three ways out:
+| | AppID | What it is |
+| --- | --- | --- |
+| Identity | **5150320** | who the server *is* to Steam. `ServerAppID` in `tc2/steam.inf` and `SteamAppId` in `tc2/gameinfo_server.txt` |
+| Files | **232250** | where the engine binaries and TF2 content come *from*. What `steamcmd_update.sh` installs into `../tf2` |
 
-1. **Get a dedicated-server app for 5147520** in Steamworks and put it in
-   `steam.inf`'s `ServerAppID`. This is the real fix and it is a Steamworks
-   request, not a code change.
-2. **Move the client back to 243750.** Server auth works again immediately, and
-   ticket validation becomes impossible: a ticket is issued for the app the
-   client is running, and our publisher key cannot validate one for Valve's
-   app. Everything in steps 1–4 goes with it.
-3. **Do not use Steam auth on the game connection** (`sv_lan 1`) and rely on
-   the coordinator plus the roster gate, which already do this job. No VAC, no
-   Steam-side enforcement of anything.
+Changing the identity does not change where files come from, and 5150320 needs
+no depots for any of this to work. That is why `steamcmd_update.sh` is
+unchanged and why the launcher still looks for the SDK binaries where it always
+did.
 
-(3) is what works today. (1) is where this should end up.
+### In Steamworks, once
+
+1. **5150320 must be the dedicated-server app of 5147520.** This is the whole
+   point: it is what makes Steam accept a 5147520 client ticket on this
+   server. If the two apps are not associated, `BeginAuthSession` refuses
+   every client and nothing below will help. Check it on the app's landing
+   page; if it is not linked, that is a Steamworks support request, not
+   something configuration can fix.
+2. **Publish the app.** A dedicated-server app that has never had its changes
+   published does not exist as far as the login servers are concerned.
+3. **Issue a login token per server machine.** Either through
+   [steamcommunity.com/dev/managegameservers](https://steamcommunity.com/dev/managegameservers),
+   or with the publisher key:
+
+   ```bash
+   curl -s -XPOST "https://partner.steam-api.com/IGameServersService/CreateAccount/v1/" \
+     -d key="$GREYLINE_STEAM_WEBAPI_KEY" -d appid=5150320 -d memo="frontress-eu-1"
+   ```
+
+   It comes back with a `steamid` and a `login_token`. One per machine — a
+   token shared between two running servers logs the second one out.
+
+   To see what already exists:
+
+   ```bash
+   curl -s "https://partner.steam-api.com/IGameServersService/GetAccountList/v1/?key=$GREYLINE_STEAM_WEBAPI_KEY"
+   ```
+
+### On each server machine
+
+```bash
+GSLT=<login_token> ./start_dedicated_tc2.sh +map ctf_2fort +maxplayers 24 \
+    +rcon_password "$RCON" +sv_lan 0 +ip 0.0.0.0 -port 27015
+```
+
+`start_dedicated_tc2.sh` turns `$GSLT` into `+sv_setsteamaccount`, which has to
+be on the command line — Steam logs the server on during startup, long before
+RCON exists to set anything. Without it the server logs on anonymously, the
+script says so on stderr, and an anonymous server is not a server of our app.
+
+`sv_lan 0` is required. On `sv_lan 1` the server never talks to Steam at all.
+
+### Checking it actually worked
+
+In order, because each one depends on the last:
+
+| Check | Where | What you want |
+| --- | --- | --- |
+| The server logged in | server console at startup | a successful Steam logon, and no "unable to log on" loop |
+| It logged in as *us* | `status` over RCON | it reports secure rather than insecure |
+| Client tickets validate | coordinator log | `hello` succeeds on `auth.mode=webapi` instead of "steam authentication failed" |
+| Rosters are enforceable | an assignment | `verified_identities: true` |
+
+If the first passes and the third still fails, the two apps are not associated
+in Steamworks — step 1 above. That is the one failure this repository cannot
+fix.
+
+### What this does not change
+
+Steam still only enforces a game ban on a secure server of the banned AppID.
+Bans go on 5147520, the account the player plays under, so once 5150320 is
+properly the dedicated-server app of 5147520 those bans are enforced on our
+servers too. The coordinator's own ban list stays the thing that acts first
+and the thing that works when Steam does not — keep both.
+
+VAC is separate again, and not something this configuration turns on: it is
+enabled per app by Valve, and a mod running on another game's engine binaries
+is not a likely candidate.
 
 A coordinator ban does four things, and the last two are what make it stick:
 
