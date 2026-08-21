@@ -14,9 +14,14 @@
 //     spoofed, a forged identity cannot complete a match.
 //
 // Ticket validation needs a *publisher* Web API key for the AppID the game
-// ships under. Until the project has its own AppID (the mod currently runs on
-// Source SDK Base 2013, 243750, which is Valve's), run auth_mode=dev on a
-// trusted network and rely on check 2.
+// ships under — Team Frontress Playtest, 5147520. Without one, run
+// auth_mode=dev on a trusted network and rely on check 2.
+//
+// The ticket has to come from ISteamUser::GetAuthTicketForWebApi. Steam's own
+// header says a GetAuthSessionTicket ticket is "not to be used for
+// ISteamUserAuth\AuthenticateUserTicket - it will fail", and it fails with the
+// same rejection a forged ticket gets, so a client on the wrong call looks
+// exactly like an attack. See docs/STEAM-SETUP.md.
 package steam
 
 import (
@@ -76,8 +81,13 @@ func (DevAuthenticator) Authenticate(_ context.Context, claimed uint64, _ []byte
 // WebAPIAuthenticator validates tickets through
 // ISteamUserAuth/AuthenticateUserTicket.
 type WebAPIAuthenticator struct {
-	Key              string
-	AppID            uint32
+	Key   string
+	AppID uint32
+	// Identity is the string the client passed to
+	// ISteamUser::GetAuthTicketForWebApi. Steam binds the ticket to it, so a
+	// mismatch here is rejected exactly like a forged ticket — and the failure
+	// looks identical, which is why both halves are configured from one place.
+	Identity         string
 	RejectBanned     bool
 	RequireOwnership bool
 	HTTP             *http.Client
@@ -94,10 +104,11 @@ type cacheEntry struct {
 	expires time.Time
 }
 
-func NewWebAPIAuthenticator(key string, appID uint32, rejectBanned, requireOwnership bool, cacheTTL time.Duration) *WebAPIAuthenticator {
+func NewWebAPIAuthenticator(key string, appID uint32, identity string, rejectBanned, requireOwnership bool, cacheTTL time.Duration) *WebAPIAuthenticator {
 	return &WebAPIAuthenticator{
 		Key:              key,
 		AppID:            appID,
+		Identity:         identity,
 		RejectBanned:     rejectBanned,
 		RequireOwnership: requireOwnership,
 		HTTP:             &http.Client{Timeout: 8 * time.Second},
@@ -158,6 +169,9 @@ func (a *WebAPIAuthenticator) validate(ctx context.Context, hexTicket string) (*
 	q.Set("key", a.Key)
 	q.Set("appid", strconv.FormatUint(uint64(a.AppID), 10))
 	q.Set("ticket", hexTicket)
+	if a.Identity != "" {
+		q.Set("identity", a.Identity)
+	}
 
 	endpoint := a.BaseURL + "/ISteamUserAuth/AuthenticateUserTicket/v1/?" + q.Encode()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)

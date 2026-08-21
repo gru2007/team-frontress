@@ -13,6 +13,7 @@ package mm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -23,6 +24,11 @@ import (
 	"github.com/greyline-frontress/coordinator/internal/pool"
 	"github.com/greyline-frontress/coordinator/internal/war"
 )
+
+// ErrBanned is a banned account trying to deploy. The API turns it into a 403
+// rather than the 409 an ordinary queueing conflict gets, so the client can
+// tell "not right now" from "not at all".
+var ErrBanned = errors.New("mm: you are banned from the war")
 
 // Config is the matchmaker's half of the coordinator configuration.
 type Config struct {
@@ -81,6 +87,12 @@ type Config struct {
 	// assignment, because a game server cannot otherwise know whether the
 	// roster it was handed names accounts it will actually see.
 	VerifiedIdentities bool
+
+	// AbandonBan is how long a player who walks out of a live battle is kept
+	// out of the war. Zero switches the rule off, which is the default: it is
+	// only worth turning on once identities are verified, since under dev auth
+	// the banned player reconnects under another SteamID.
+	AbandonBan time.Duration
 }
 
 // DefaultConfig is tuned for the MVP: small battles, one front, a handful of
@@ -154,8 +166,39 @@ type Matchmaker struct {
 	// front.
 	hostCooldown map[uint64]time.Time
 
+	// bans is where conduct the matchmaker witnesses is recorded, and what
+	// Deploy checks before it puts anyone in a queue. Nil is a coordinator that
+	// only bans by hand, which is what every test builds.
+	bans Banner
+
 	lastRevision uint64
 	stats        Stats
+}
+
+// Banner is the ban list, as much of it as the matchmaker needs: it records
+// what it saw a player do, and it asks whether a player is allowed to deploy.
+// The list itself lives in package bans, which owns the file the bans survive
+// a restart in.
+type Banner interface {
+	// Issue records a ban the coordinator decided on itself. A non-positive
+	// duration means the rule is switched off and nothing is recorded.
+	Issue(steamID uint64, source, reason string, d time.Duration) error
+	// Banned reports whether an account is currently barred.
+	Banned(steamID uint64) bool
+}
+
+// SetBanner wires the ban list in. Call it before Run: the matchmaker treats a
+// nil Banner as "this coordinator does not ban", not as an error, so a missed
+// call is silent.
+func (m *Matchmaker) SetBanner(b Banner) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.bans = b
+}
+
+// banned reports whether an account may not play. Called with the lock.
+func (m *Matchmaker) bannedLocked(steamID uint64) bool {
+	return m.bans != nil && m.bans.Banned(steamID)
 }
 
 // New builds a matchmaker.
@@ -315,6 +358,14 @@ func (m *Matchmaker) Deploy(p *Player, frontID string, acceptContract bool, part
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	now := m.now()
+
+	// hello is where a ban is normally caught, but a ban can land on a player
+	// who is already connected — an operator acting mid-session, or their own
+	// abandon ban from the battle they just walked out of. DEPLOY is the one
+	// thing a banned player must not be able to do.
+	if m.bannedLocked(p.SteamID) {
+		return QueueStatus{}, ErrBanned
+	}
 
 	if p.State == StateAssigned || p.State == StatePlaying {
 		// A battle nobody has been sent to yet is not somewhere to be stuck.
@@ -1606,9 +1657,15 @@ func (m *Matchmaker) abort(match *Match, reason string) {
 	}
 }
 
-// Leave takes a player out of whatever they are in. A player who leaves a live
-// battle is not punished yet; the MVP has no reputation system to punish them
-// with, and a wrong penalty is worse than none.
+// Leave takes a player out of whatever they are in.
+//
+// Walking out of a live battle is the one thing here that costs something: it
+// ruins the game for the other nine people, and with AbandonBan set the player
+// is kept out of the war for a while. Leaving a queue, or a battle that never
+// got going, costs nothing — the coordinator cannot tell an impatient player
+// from one whose host never came up, and punishing the second is worse than
+// letting the first go.
+//
 // reason is what the client said it was leaving for, and may be empty. It is
 // logged and nothing else: a player who could not reach a battle and one who
 // walked out of it look identical from here otherwise, and the first of those
@@ -1629,6 +1686,7 @@ func (m *Matchmaker) Leave(p *Player, reason string) {
 		return
 	}
 	match := m.matches[p.MatchID]
+	wasPlaying := p.State == StatePlaying
 	p.State = StateIdle
 	p.MatchID = ""
 	if match == nil || match.over() {
@@ -1637,6 +1695,68 @@ func (m *Matchmaker) Leave(p *Player, reason string) {
 	if s := match.slot(p.SteamID); s != nil {
 		s.Connected = false
 	}
+	if wasPlaying && match.live() {
+		m.banForAbandonLocked(p, match)
+	}
+}
+
+// banForAbandonLocked records the abandon ban, if the rule is on at all.
+func (m *Matchmaker) banForAbandonLocked(p *Player, match *Match) {
+	if m.bans == nil || m.cfg.AbandonBan <= 0 {
+		return
+	}
+	if err := m.bans.Issue(p.SteamID, "abandon",
+		"left a battle that was still being played", m.cfg.AbandonBan); err != nil {
+		m.log.Error("could not record an abandon ban", "steam_id", p.SteamID, "err", err)
+		return
+	}
+	m.log.Warn("player banned for abandoning a live battle",
+		"steam_id", p.SteamID, "match", match.ID, "for", m.cfg.AbandonBan)
+	p.push(Event{Type: EventNotice, Message: "you left a battle that was still being fought — " +
+		"you are out of the war for " + m.cfg.AbandonBan.String()})
+}
+
+// Kick ends a banned player's session: the enforcement half of a ban.
+//
+// It takes them out of whatever they are in, tells them why, throws them off
+// the game server if a battle of theirs is running, and drops their token so
+// their next call is a 401 and the client goes back to the menu. It reports
+// whether there was a session to end — a ban on somebody who is not online is
+// perfectly ordinary and takes effect at their next hello.
+func (m *Matchmaker) Kick(steamID uint64, message string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	p, ok := m.players[steamID]
+	if !ok {
+		return false
+	}
+
+	// The game server first: it is the only part of this that a client cannot
+	// simply ignore, and it has to happen while the roster still names them.
+	if match := m.matches[p.MatchID]; match != nil && !match.over() && match.ServerID != "" {
+		if err := m.pool.Send(match.ServerID, pool.Command{
+			Type: pool.CommandKick, MatchID: match.ID, SteamID: steamID, Reason: message,
+		}); err != nil {
+			m.log.Warn("could not reach the battle server to kick a banned player",
+				"steam_id", steamID, "match", match.ID, "err", err)
+		}
+		if s := match.slot(steamID); s != nil {
+			s.Connected = false
+		}
+	}
+
+	// Told before the token goes: a long-poll that is parked right now is the
+	// last chance this client has to hear anything.
+	p.push(Event{Type: EventNotice, Message: message})
+
+	p.State = StateIdle
+	p.FrontID = ""
+	p.MatchID = ""
+	delete(m.byToken, p.token)
+	delete(m.players, steamID)
+	m.log.Warn("banned player removed", "steam_id", steamID, "reason", message)
+	return true
 }
 
 // ---------------------------------------------------------------------------

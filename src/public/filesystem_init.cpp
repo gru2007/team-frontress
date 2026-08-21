@@ -623,9 +623,11 @@ struct Source1AppidInfo_t
 	{ 630, "Alien Swarm" },
 
 	{ 5147520, "Team Frontress Playtest" },
+	{ 5150320, "Team Frontress Dedicated Server" },
 
 	{ 243750, "Source SDK Base 2013 Multiplayer" },
 	{ 243730, "Source SDK Base 2013 Singleplayer" },
+	{ 244310, "Source SDK Base 2013 Dedicated Server" },
 	{ 218, "Source SDK Base 2007" },
 	{ 215, "Source SDK Base 2006" },
 	{ 211, "Source SDK (Legacy)" },

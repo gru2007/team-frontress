@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/greyline-frontress/coordinator/internal/bans"
 	"github.com/greyline-frontress/coordinator/internal/hostelect"
 	"github.com/greyline-frontress/coordinator/internal/mm"
 	"github.com/greyline-frontress/coordinator/internal/pool"
@@ -47,12 +48,14 @@ type Options struct {
 
 // API holds everything the handlers need.
 type API struct {
-	log  *slog.Logger
-	auth steam.Authenticator
-	war  *war.Engine
-	mm   *mm.Matchmaker
-	pool *pool.Pool
-	opts Options
+	log    *slog.Logger
+	auth   steam.Authenticator
+	war    *war.Engine
+	mm     *mm.Matchmaker
+	pool   *pool.Pool
+	bans   *bans.List
+	cheats *steam.CheatReporter
+	opts   Options
 }
 
 // New builds the API.
@@ -65,6 +68,16 @@ func New(log *slog.Logger, auth steam.Authenticator, engine *war.Engine, maker *
 	}
 	return &API{log: log, auth: auth, war: engine, mm: maker, pool: servers, opts: opts}
 }
+
+// SetBans wires the ban list in. Without one the coordinator serves the admin
+// ban routes as 501 and lets everybody in, which is the right behaviour for a
+// coordinator an operator deliberately started without a ban file.
+func (a *API) SetBans(list *bans.List) { a.bans = list }
+
+// SetCheatReporter wires up Steam game bans. Without one — or without a
+// publisher key — a ban is still recorded and still enforced here; it just
+// does not appear on the account's Steam profile.
+func (a *API) SetCheatReporter(c *steam.CheatReporter) { a.cheats = c }
 
 // Handler returns the router.
 func (a *API) Handler() http.Handler {
@@ -148,7 +161,207 @@ func (a *API) AdminHandler() http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"battles": a.mm.LiveBattles()})
 	})
 	mux.HandleFunc("POST /servers/drain", a.adminDrain)
+	mux.HandleFunc("GET /bans", a.adminBanList)
+	mux.HandleFunc("POST /bans", a.adminBan)
+	mux.HandleFunc("POST /bans/lift", a.adminLift)
 	return a.adminAuth(mux)
+}
+
+// ---------------------------------------------------------------------------
+// Bans
+// ---------------------------------------------------------------------------
+
+// banView is a ban as the API serves it. Remaining time is computed here
+// rather than left to the reader: an operator reading a list, and a player
+// being turned away, both want "another 4h12m" and not a timestamp.
+type banView struct {
+	SteamID    uint64      `json:"steam_id,string"`
+	Reason     string      `json:"reason"`
+	Source     bans.Source `json:"source"`
+	IssuedBy   string      `json:"issued_by,omitempty"`
+	IssuedAt   time.Time   `json:"issued_at"`
+	ExpiresAt  time.Time   `json:"expires_at,omitzero"`
+	Permanent  bool        `json:"permanent"`
+	RemainingS int         `json:"remaining_s,omitempty"`
+	// SteamGameBan says this ban is also on the account's Steam profile.
+	SteamGameBan  bool   `json:"steam_game_ban"`
+	SteamReportID uint64 `json:"steam_report_id,string,omitempty"`
+}
+
+func newBanView(b bans.Ban) banView {
+	return banView{
+		SteamID: b.SteamID, Reason: b.Reason, Source: b.Source,
+		IssuedBy: b.IssuedBy, IssuedAt: b.IssuedAt, ExpiresAt: b.ExpiresAt,
+		Permanent:     b.Permanent(),
+		RemainingS:    int(b.Remaining(time.Now()).Seconds()),
+		SteamGameBan:  b.OnSteam(),
+		SteamReportID: b.SteamReportID,
+	}
+}
+
+func (a *API) adminBanList(w http.ResponseWriter, r *http.Request) {
+	if a.bans == nil {
+		fail(w, http.StatusNotImplemented, "this coordinator was started without a ban list")
+		return
+	}
+	list := a.bans.Active()
+	out := make([]banView, 0, len(list))
+	for _, b := range list {
+		out = append(out, newBanView(b))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"bans": out})
+}
+
+type banRequest struct {
+	SteamID uint64 `json:"steam_id,string"`
+	Reason  string `json:"reason"`
+	// Duration is a Go duration string. Empty or "0" is a permanent ban — an
+	// operator typing this endpoint by hand means forever when they say
+	// nothing, which is the opposite of what an automatic ban means by zero.
+	Duration string `json:"duration,omitempty"`
+	// IssuedBy is who is doing the banning, for the record. The admin key says
+	// somebody is allowed to ban, not which of them it was.
+	IssuedBy string `json:"issued_by,omitempty"`
+	// Steam also puts a game ban on the account's Steam profile, for the same
+	// Duration. Off by default and deliberately so: a game ban is public and
+	// permanent as a record even after it is lifted, which is the right
+	// weight for cheating and far too much for walking out of a battle.
+	Steam bool `json:"steam,omitempty"`
+}
+
+func (a *API) adminBan(w http.ResponseWriter, r *http.Request) {
+	if a.bans == nil {
+		fail(w, http.StatusNotImplemented, "this coordinator was started without a ban list")
+		return
+	}
+	var req banRequest
+	if !readJSON(w, r, &req) {
+		return
+	}
+	if req.SteamID == 0 {
+		fail(w, http.StatusBadRequest, "steam_id is required")
+		return
+	}
+
+	ban := bans.Ban{
+		SteamID:  req.SteamID,
+		Reason:   req.Reason,
+		Source:   bans.SourceManual,
+		IssuedBy: strings.TrimSpace(req.IssuedBy),
+	}
+	var duration time.Duration
+	if d := strings.TrimSpace(req.Duration); d != "" && d != "0" {
+		parsed, err := time.ParseDuration(d)
+		if err != nil {
+			fail(w, http.StatusBadRequest, "duration must be a Go duration like 30m, 12h or 168h: "+err.Error())
+			return
+		}
+		if parsed <= 0 {
+			fail(w, http.StatusBadRequest, "duration must be positive; omit it for a permanent ban")
+			return
+		}
+		duration = parsed
+		ban.ExpiresAt = time.Now().Add(parsed)
+	}
+
+	// Steam first. A game ban that failed must not leave the operator thinking
+	// it landed, and the local ban is the half that actually keeps the player
+	// out — so it is worth recording either way, with the failure reported.
+	var steamErr string
+	if req.Steam {
+		if !a.cheats.Available() {
+			fail(w, http.StatusNotImplemented,
+				"this coordinator has no publisher web api key or app id, so it cannot issue Steam game bans")
+			return
+		}
+		reportID, err := a.cheats.Ban(r.Context(), steam.GameBanRequest{
+			SteamID:     req.SteamID,
+			Description: req.Reason,
+			Duration:    duration,
+		})
+		ban.SteamReportID = reportID
+		if err != nil {
+			steamErr = err.Error()
+			a.log.Error("steam game ban failed", "steam_id", req.SteamID,
+				"report_id", reportID, "err", err)
+		}
+	}
+
+	stored, err := a.bans.Ban(ban)
+	if err != nil {
+		fail(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Recording the ban is only half of it: somebody banned mid-battle has to
+	// actually leave, and the client has to be told why rather than silently
+	// stop working.
+	kicked := a.mm.Kick(req.SteamID, stored.Describe(time.Now()))
+	a.log.Warn("account banned", "steam_id", req.SteamID, "by", ban.IssuedBy,
+		"permanent", stored.Permanent(), "kicked", kicked,
+		"steam_game_ban", stored.OnSteam(), "reason", stored.Reason)
+
+	out := map[string]any{
+		"ban":           newBanView(stored),
+		"session_ended": kicked,
+	}
+	if steamErr != "" {
+		out["steam_error"] = steamErr
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+type liftRequest struct {
+	SteamID uint64 `json:"steam_id,string"`
+	By      string `json:"by,omitempty"`
+	Reason  string `json:"reason,omitempty"`
+}
+
+func (a *API) adminLift(w http.ResponseWriter, r *http.Request) {
+	if a.bans == nil {
+		fail(w, http.StatusNotImplemented, "this coordinator was started without a ban list")
+		return
+	}
+	var req liftRequest
+	if !readJSON(w, r, &req) {
+		return
+	}
+	if req.SteamID == 0 {
+		fail(w, http.StatusBadRequest, "steam_id is required")
+		return
+	}
+
+	// Read the record before it goes, so the Steam half can be undone too. A
+	// lift that leaves a game ban on the profile is the failure an operator
+	// finds out about weeks later, from the player.
+	existing, wasBanned := a.bans.Check(req.SteamID)
+
+	lifted, err := a.bans.Lift(req.SteamID, strings.TrimSpace(req.By), req.Reason)
+	if err != nil {
+		fail(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !lifted {
+		// Not an error: the operator wanted this account unbanned and it is.
+		writeJSON(w, http.StatusOK, map[string]any{"lifted": false,
+			"message": "that account was not banned"})
+		return
+	}
+
+	out := map[string]any{"lifted": true}
+	if wasBanned && existing.OnSteam() {
+		if err := a.cheats.Unban(r.Context(), req.SteamID); err != nil {
+			// The local ban is gone either way — the operator asked for that
+			// and got it — but they have to be told the profile still shows a
+			// game ban, or they will believe otherwise.
+			out["steam_error"] = err.Error()
+			a.log.Error("steam game ban not removed", "steam_id", req.SteamID, "err", err)
+		} else {
+			out["steam_game_ban_removed"] = true
+		}
+	}
+	a.log.Info("ban lifted", "steam_id", req.SteamID, "by", req.By)
+	writeJSON(w, http.StatusOK, out)
 }
 
 // ---------------------------------------------------------------------------
@@ -218,6 +431,21 @@ func (a *API) hello(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The door. Checked against the identity Steam returned, never against the
+	// one the client claimed — otherwise a banned player edits one number in
+	// their own hello and is somebody else.
+	if a.bans != nil {
+		if ban, banned := a.bans.Check(ident.SteamID); banned {
+			a.log.Info("banned account turned away", "steam_id", ident.SteamID,
+				"source", ban.Source, "reason", ban.Reason)
+			writeJSON(w, http.StatusForbidden, map[string]any{
+				"error": ban.Describe(time.Now()),
+				"ban":   newBanView(ban),
+			})
+			return
+		}
+	}
+
 	side, _ := war.ParseSide(req.Side)
 	caps := hostelect.Capabilities{
 		CanHost:             req.HostCapable,
@@ -267,6 +495,13 @@ func (a *API) deploy(w http.ResponseWriter, r *http.Request, p *mm.Player) {
 	}
 	status, err := a.mm.Deploy(p, req.FrontID, req.AcceptContract, req.PartyID)
 	if err != nil {
+		if errors.Is(err, mm.ErrBanned) {
+			// A ban that landed while this client was connected. Say so with
+			// the same status the door uses, so the menu shows the same thing
+			// either way.
+			fail(w, http.StatusForbidden, err.Error())
+			return
+		}
 		fail(w, http.StatusConflict, err.Error())
 		return
 	}

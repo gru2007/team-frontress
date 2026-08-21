@@ -22,11 +22,15 @@
 
 	FileSystem
 	{
-		// Dedicated servers stay on Source SDK Base 2013 Dedicated Server: they
-		// log in anonymously through steamcmd and cannot mount the playtest app
-		// (5147520), which requires an account that owns it. Only the client is
-		// published under the playtest AppID -- see docs/STEAMPIPE.md.
-		SteamAppId				5147520
+		// Our own dedicated-server app. It is what makes a server of ours a
+		// server *of this game* to Steam: client auth tickets are issued for
+		// 5147520, and Steam only accepts them on a game server registered as
+		// that app's dedicated-server app.
+		//
+		// This is a Steam identity, not a place files come from. The engine
+		// binaries and the TF2 content still arrive through steamcmd as app
+		// 232250 and are mounted from ../../tf2 below. See docs/STEAM-SETUP.md.
+		SteamAppId				5150320
 
 		SearchPaths
 		{

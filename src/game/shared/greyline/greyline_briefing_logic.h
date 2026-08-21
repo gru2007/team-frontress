@@ -104,6 +104,12 @@ public:
 	// a server that is not hosting one.
 	const RosterEntry_t *Find( unsigned long long ulSteamID ) const;
 
+	// Takes one mercenary off the roster, so the gate stops letting them back
+	// in. Returns false when they were not on it. This is what a coordinator
+	// ban does to a battle already in progress: kicking alone would only send
+	// the player to the connect screen they can walk straight back through.
+	bool Remove( unsigned long long ulSteamID );
+
 private:
 	RosterEntry_t	m_Entries[kMaxRoster];
 	int				m_nCount;

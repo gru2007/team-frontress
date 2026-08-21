@@ -27,6 +27,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/greyline-frontress/coordinator/internal/bans"
 	"github.com/greyline-frontress/coordinator/internal/config"
 	"github.com/greyline-frontress/coordinator/internal/hostelect"
 	"github.com/greyline-frontress/coordinator/internal/httpapi"
@@ -101,6 +102,22 @@ func main() {
 		fail(err)
 	}
 
+	banList, err := bans.Open(cfg.BansPath)
+	if err != nil {
+		fail(err)
+	}
+	defer banList.Close()
+	if cfg.BansPath == "" {
+		log.Warn("no bans_path: bans will not survive a restart of this coordinator")
+	}
+	if cfg.Auth.Mode != config.AuthWebAPI && len(banList.Active()) > 0 {
+		// Worth saying out loud rather than leaving an operator to wonder why
+		// a ban did nothing: under dev auth the banned player types a
+		// different SteamID into their own hello and is somebody else.
+		log.Warn("bans are in force but auth_mode is not webapi: a banned player "+
+			"can simply claim another SteamID", "bans", len(banList.Active()))
+	}
+
 	servers := pool.New(cfg.Pool.OfflineAfter.D())
 	servers.SetP2POfflineAfter(cfg.Pool.OfflineAfterP2P.D())
 	// A server still loading its map is judged by the battle's own boot
@@ -110,6 +127,7 @@ func main() {
 	// rather than the pool declaring the host gone a moment earlier.
 	servers.SetBootGrace(cfg.Timing.HostBootDeadline.D() + time.Minute)
 	maker := mm.New(matchmakingConfig(cfg), log, engine, servers)
+	maker.SetBanner(banList)
 	api := httpapi.New(log, auth, engine, maker, servers, httpapi.Options{
 		PoolKey:         cfg.Pool.Key,
 		AdminKey:        cfg.Pool.AdminKey,
@@ -117,6 +135,10 @@ func main() {
 		ClientVersions:  cfg.AcceptedClientVersions,
 		ProtocolVersion: int(cfg.ProtocolVersion),
 	})
+	api.SetBans(banList)
+	// Steam game bans reuse the publisher key the ticket validation needs, so
+	// a coordinator on auth.mode=dev simply has none and says so when asked.
+	api.SetCheatReporter(steam.NewCheatReporter(cfg.Auth.WebAPIKey, cfg.Auth.AppID))
 
 	snap := engine.Snapshot()
 	log.Info("war loaded",
@@ -190,6 +212,12 @@ func matchmakingConfig(cfg *config.Config) mm.Config {
 	if cfg.Timing.HostFailureCooldown > 0 {
 		c.HostFailureCooldown = cfg.Timing.HostFailureCooldown.D()
 	}
+	// Only bite when identities are proven. Under dev auth an abandon ban costs
+	// the player one reconnect under a different SteamID, and costs an honest
+	// player whose game crashed ten real minutes.
+	if cfg.Auth.Mode == config.AuthWebAPI {
+		c.AbandonBan = cfg.Match.AbandonBanDuration.D()
+	}
 	// Only verified Steam auth produces a roster a game server can turn people
 	// away against. See pool.Assignment.VerifiedIdentities.
 	c.VerifiedIdentities = cfg.Auth.Mode == config.AuthWebAPI
@@ -213,6 +241,7 @@ func buildAuthenticator(cfg *config.Config, log *slog.Logger) (steam.Authenticat
 		return steam.NewWebAPIAuthenticator(
 			cfg.Auth.WebAPIKey,
 			cfg.Auth.AppID,
+			cfg.Auth.Identity,
 			cfg.Auth.RejectVACBanned,
 			cfg.Auth.RequireOwnership,
 			cfg.Auth.TicketCacheTTL.D(),

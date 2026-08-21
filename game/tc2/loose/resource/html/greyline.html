@@ -813,7 +813,15 @@ const Actions = {
       return null;
     }
     try {
-      const identity = P2P.parseBridgeJSON(await Bridge.call("greyline_identity", ""));
+      // The auth ticket arrives asynchronously from Steam, so the first answer
+      // usually carries the SteamID and ticket_pending rather than a ticket.
+      // Connecting without it fails against a coordinator on auth_mode=webapi,
+      // and the wait is a few hundred milliseconds once, so it is worth taking.
+      let identity = P2P.parseBridgeJSON(await Bridge.call("greyline_identity", ""));
+      for (let i = 0; i < 20 && identity.ticket_pending && !identity.ticket; i++) {
+        await new Promise((done) => setTimeout(done, 150));
+        identity = P2P.parseBridgeJSON(await Bridge.call("greyline_identity", ""));
+      }
       State.identity = identity;
       UI.renderIdentity(identity);
       if (!identity.available || !/^\d{17}$/.test(String(identity.steam_id || ""))) {

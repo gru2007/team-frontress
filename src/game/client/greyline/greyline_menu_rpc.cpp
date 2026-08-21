@@ -42,6 +42,17 @@
 // method lambdas below, which take no captures, can read it.
 static int g_nGreylineGameOverSeq = 0;
 
+// The identity Steam binds the coordinator's auth tickets to. It has to be the
+// same string on both sides — auth.identity in the coordinator config —
+// because Steam validates the ticket against it and a mismatch is refused
+// exactly like a forgery. See docs/STEAM-SETUP.md.
+static const char *const kGreylineTicketIdentity = "greyline";
+
+// How long a ticket is reused before a fresh one is asked for. Steam expires
+// them on its own schedule and an expired ticket is refused like a bad one, so
+// this is deliberately far shorter than any lifetime Valve documents.
+static const float kGreylineTicketMaxAge = 300.0f;
+
 static bool RunMenuAction( const std::string &action )
 {
 	if ( !GetClientModeTFNormal() || !GetClientModeTFNormal()->GameUI() )
@@ -102,10 +113,14 @@ static int CountConnectedPlayers()
 class CGreylineMenuRPC : public CAutoGameSystem, public CGameEventListener
 {
 public:
-	CGreylineMenuRPC() : CAutoGameSystem( "CGreylineMenuRPC" )
+	CGreylineMenuRPC()
+		: CAutoGameSystem( "CGreylineMenuRPC" ),
+		  m_CallbackWebApiTicket( this, &CGreylineMenuRPC::OnWebApiTicket )
 	{
 		m_hAuthTicket = k_HAuthTicketInvalid;
 		m_cbAuthTicket = 0;
+		m_bTicketPending = false;
+		m_flTicketIssuedAt = 0.0f;
 	}
 
 	virtual bool Init() OVERRIDE
@@ -218,12 +233,7 @@ public:
 	virtual void Shutdown() OVERRIDE
 	{
 		StopListeningForAllEvents();
-		if ( m_hAuthTicket != k_HAuthTicketInvalid && steamapicontext && steamapicontext->SteamUser() )
-		{
-			steamapicontext->SteamUser()->CancelAuthTicket( m_hAuthTicket );
-			m_hAuthTicket = k_HAuthTicketInvalid;
-			m_cbAuthTicket = 0;
-		}
+		CancelTicket();
 
 		CGameStateManager *pManager = GetGameStateManager();
 		if ( pManager )
@@ -251,27 +261,74 @@ public:
 	}
 
 private:
+	// OnWebApiTicket is where the ticket actually arrives. GetAuthTicketForWebApi
+	// is asynchronous — unlike GetAuthSessionTicket, whose bytes are filled in
+	// before it returns — so the page asks for the identity, gets ticket_pending
+	// back, and asks again a moment later.
+	STEAM_CALLBACK( CGreylineMenuRPC, OnWebApiTicket, GetTicketForWebApiResponse_t, m_CallbackWebApiTicket );
+
+	// RequestTicket asks Steam for a ticket the coordinator can validate.
+	//
+	// It must be GetAuthTicketForWebApi and not GetAuthSessionTicket: Steam's
+	// own header says a session ticket is "not to be used for
+	// ISteamUserAuth\AuthenticateUserTicket - it will fail", and it fails with
+	// the same rejection a forged ticket gets, so getting this wrong looks from
+	// the coordinator's side exactly like somebody attacking it.
+	void RequestTicket()
+	{
+		if ( m_bTicketPending || !steamapicontext || !steamapicontext->SteamUser() )
+		{
+			return;
+		}
+		CancelTicket();
+
+		m_hAuthTicket = steamapicontext->SteamUser()->GetAuthTicketForWebApi( kGreylineTicketIdentity );
+		if ( m_hAuthTicket == k_HAuthTicketInvalid )
+		{
+			Warning( "[greyline] Steam refused to issue a web API auth ticket\n" );
+			return;
+		}
+		m_bTicketPending = true;
+	}
+
+	void CancelTicket()
+	{
+		if ( m_hAuthTicket != k_HAuthTicketInvalid && steamapicontext && steamapicontext->SteamUser() )
+		{
+			steamapicontext->SteamUser()->CancelAuthTicket( m_hAuthTicket );
+		}
+		m_hAuthTicket = k_HAuthTicketInvalid;
+		m_cbAuthTicket = 0;
+		m_bTicketPending = false;
+		m_flTicketIssuedAt = 0.0f;
+	}
+
+	// A ticket goes stale, and a stale one is refused exactly like a bad one.
+	// Rather than work out Steam's exact lifetime, this asks for a fresh ticket
+	// whenever the page asks for an identity and the one in hand is older than
+	// a few minutes — which in practice means once, right before CONNECT.
+	bool TicketIsStale() const
+	{
+		return m_cbAuthTicket == 0 ||
+			( Plat_FloatTime() - m_flTicketIssuedAt ) > kGreylineTicketMaxAge;
+	}
+
 	std::string BuildIdentityJSON()
 	{
 		if ( !steamapicontext || !steamapicontext->SteamUser() || !steamapicontext->SteamUser()->BLoggedOn() )
 		{
-			return "{\"available\":false,\"logged_on\":false,\"steam_id\":\"\",\"ticket\":\"\"}";
+			return "{\"available\":false,\"logged_on\":false,\"steam_id\":\"\",\"ticket\":\"\",\"ticket_pending\":false}";
 		}
 
 		const CSteamID steamID = steamapicontext->SteamUser()->GetSteamID();
 		if ( !steamID.IsValid() )
 		{
-			return "{\"available\":false,\"logged_on\":true,\"steam_id\":\"\",\"ticket\":\"\"}";
+			return "{\"available\":false,\"logged_on\":true,\"steam_id\":\"\",\"ticket\":\"\",\"ticket_pending\":false}";
 		}
 
-		if ( m_cbAuthTicket == 0 )
+		if ( TicketIsStale() )
 		{
-			m_hAuthTicket = steamapicontext->SteamUser()->GetAuthSessionTicket(
-				m_AuthTicket, sizeof( m_AuthTicket ), &m_cbAuthTicket, NULL );
-			if ( m_hAuthTicket == k_HAuthTicketInvalid )
-			{
-				m_cbAuthTicket = 0;
-			}
+			RequestTicket();
 		}
 
 		char szSteamID[32];
@@ -285,17 +342,58 @@ private:
 			ticket.push_back( s_Hex[m_AuthTicket[i] & 0x0f] );
 		}
 
+		// The SteamID is available immediately and the ticket is not, so the
+		// identity is "available" either way and ticket_pending is what tells
+		// the page to ask again before it connects. Under auth.mode=dev the
+		// coordinator never looks at the ticket, and this all costs nothing.
 		std::string json = "{\"available\":true,\"logged_on\":true,\"steam_id\":\"";
 		json += szSteamID;
 		json += "\",\"ticket\":\"";
 		json += ticket;
-		json += "\"}";
+		json += "\",\"ticket_pending\":";
+		json += m_bTicketPending ? "true" : "false";
+		json += "}";
 		return json;
 	}
 
 	HAuthTicket m_hAuthTicket;
 	uint32 m_cbAuthTicket;
-	uint8 m_AuthTicket[1024];
+	bool m_bTicketPending;
+	float m_flTicketIssuedAt;
+	uint8 m_AuthTicket[GetTicketForWebApiResponse_t::k_nCubTicketMaxLength];
 };
+
+//-----------------------------------------------------------------------------
+void CGreylineMenuRPC::OnWebApiTicket( GetTicketForWebApiResponse_t *pResponse )
+{
+	if ( !pResponse || pResponse->m_hAuthTicket != m_hAuthTicket )
+	{
+		// A response for a ticket we already cancelled. Ignoring it is right:
+		// adopting it would hand the coordinator a ticket we asked for under a
+		// different identity.
+		return;
+	}
+
+	m_bTicketPending = false;
+	if ( pResponse->m_eResult != k_EResultOK )
+	{
+		Warning( "[greyline] Steam could not issue a web API auth ticket (EResult %d). "
+			"The coordinator will refuse this client unless it is running auth_mode=dev.\n",
+			(int)pResponse->m_eResult );
+		m_hAuthTicket = k_HAuthTicketInvalid;
+		m_cbAuthTicket = 0;
+		return;
+	}
+
+	const int cbTicket = MIN( pResponse->m_cubTicket, (int)sizeof( m_AuthTicket ) );
+	if ( cbTicket <= 0 )
+	{
+		m_cbAuthTicket = 0;
+		return;
+	}
+	V_memcpy( m_AuthTicket, pResponse->m_rgubTicket, cbTicket );
+	m_cbAuthTicket = (uint32)cbTicket;
+	m_flTicketIssuedAt = Plat_FloatTime();
+}
 
 static CGreylineMenuRPC g_GreylineMenuRPC;

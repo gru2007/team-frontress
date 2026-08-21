@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/greyline-frontress/coordinator/internal/bans"
 	"github.com/greyline-frontress/coordinator/internal/mm"
 	"github.com/greyline-frontress/coordinator/internal/pool"
 	"github.com/greyline-frontress/coordinator/internal/steam"
@@ -22,13 +23,23 @@ const testPoolKey = "test-pool-key"
 
 type harness struct {
 	t      *testing.T
+	api    *API
 	srv    *httptest.Server
+	admin  *httptest.Server
 	maker  *mm.Matchmaker
 	engine *war.Engine
 	pool   *pool.Pool
+	bans   *bans.List
 }
 
 func newHarness(t *testing.T) *harness {
+	t.Helper()
+	// No admin key: the admin listener is loopback-only in production, and
+	// every test but the one about the key itself wants to reach it.
+	return newHarnessWithAdminKey(t, "")
+}
+
+func newHarnessWithAdminKey(t *testing.T, adminKey string) *harness {
 	t.Helper()
 	theater, err := war.LoadTheater(filepath.Join("..", "..", "theater.industrial.json"))
 	if err != nil {
@@ -51,14 +62,56 @@ func newHarness(t *testing.T) *harness {
 	cfg.FormWait = 0
 	maker := mm.New(cfg, slog.New(slog.DiscardHandler), engine, servers)
 
+	banList, err := bans.Open(filepath.Join(t.TempDir(), "bans.jsonl"))
+	if err != nil {
+		t.Fatalf("bans: %v", err)
+	}
+	t.Cleanup(func() { _ = banList.Close() })
+	maker.SetBanner(banList)
+
 	api := New(slog.New(slog.DiscardHandler), steam.DevAuthenticator{}, engine, maker, servers, Options{
 		PoolKey:         testPoolKey,
+		AdminKey:        adminKey,
 		MaxPollWait:     time.Second,
 		ProtocolVersion: 3,
 	})
+	api.SetBans(banList)
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
-	return &harness{t: t, srv: srv, maker: maker, engine: engine, pool: servers}
+	// The admin routes live on their own listener in production, so the tests
+	// reach them the same way rather than through the client router.
+	admin := httptest.NewServer(api.AdminHandler())
+	t.Cleanup(admin.Close)
+	return &harness{t: t, api: api, srv: srv, admin: admin, maker: maker, engine: engine, pool: servers, bans: banList}
+}
+
+// doAdmin is do, against the admin listener.
+func (h *harness) doAdmin(method, path string, body any, into any) int {
+	h.t.Helper()
+	var rdr io.Reader
+	if body != nil {
+		raw, err := json.Marshal(body)
+		if err != nil {
+			h.t.Fatal(err)
+		}
+		rdr = bytes.NewReader(raw)
+	}
+	req, err := http.NewRequest(method, h.admin.URL+path, rdr)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := h.admin.Client().Do(req)
+	if err != nil {
+		h.t.Fatalf("%s %s: %v", method, path, err)
+	}
+	defer resp.Body.Close()
+	if into != nil && resp.StatusCode != http.StatusNoContent {
+		if err := json.NewDecoder(resp.Body).Decode(into); err != nil && err != io.EOF {
+			h.t.Fatalf("%s %s: decode: %v", method, path, err)
+		}
+	}
+	return resp.StatusCode
 }
 
 func (h *harness) do(method, path, token string, body any, into any) int {

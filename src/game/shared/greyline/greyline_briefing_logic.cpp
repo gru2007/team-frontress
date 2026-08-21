@@ -166,6 +166,25 @@ const RosterEntry_t *CRoster::Find( unsigned long long ulSteamID ) const
 	return 0;
 }
 
+bool CRoster::Remove( unsigned long long ulSteamID )
+{
+	if ( ulSteamID == 0 )
+		return false;
+
+	for ( int i = 0; i < m_nCount; ++i )
+	{
+		if ( m_Entries[i].m_ulSteamID != ulSteamID )
+			continue;
+
+		// Order carries no meaning here — every lookup is by SteamID — so the
+		// last entry fills the hole rather than shifting the whole tail.
+		m_Entries[i] = m_Entries[m_nCount - 1];
+		--m_nCount;
+		return true;
+	}
+	return false;
+}
+
 //-----------------------------------------------------------------------------
 // The briefing
 //-----------------------------------------------------------------------------
