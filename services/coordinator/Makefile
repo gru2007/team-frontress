@@ -4,9 +4,9 @@ GO      ?= go
 PROTOC  ?= protoc
 MODULE  := github.com/greyline-frontress/coordinator
 
-.PHONY: build coordinator agent test race check check-maps check-seams game-test run fmt vet proto clean
+.PHONY: build coordinator agent ban test race check check-maps check-seams game-test run fmt vet proto clean
 
-build: coordinator agent
+build: coordinator agent ban
 
 coordinator:
 	$(GO) build -o bin/coordinator ./cmd/coordinator
@@ -14,6 +14,10 @@ coordinator:
 # The agent runs next to a dedicated game server and joins it to the pool.
 agent:
 	$(GO) build -o bin/greyline-agent ./cmd/greyline-agent
+
+# The operator's ban console. Talks to the coordinator's admin listener.
+ban:
+	$(GO) build -o bin/greyline-ban ./cmd/greyline-ban
 
 test:
 	$(GO) test ./...

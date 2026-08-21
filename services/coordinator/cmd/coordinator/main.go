@@ -136,6 +136,9 @@ func main() {
 		ProtocolVersion: int(cfg.ProtocolVersion),
 	})
 	api.SetBans(banList)
+	// Steam game bans reuse the publisher key the ticket validation needs, so
+	// a coordinator on auth.mode=dev simply has none and says so when asked.
+	api.SetCheatReporter(steam.NewCheatReporter(cfg.Auth.WebAPIKey, cfg.Auth.AppID))
 
 	snap := engine.Snapshot()
 	log.Info("war loaded",

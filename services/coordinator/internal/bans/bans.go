@@ -50,7 +50,17 @@ type Ban struct {
 	IssuedAt time.Time `json:"issued_at"`
 	// ExpiresAt zero means permanent.
 	ExpiresAt time.Time `json:"expires_at,omitzero"`
+
+	// SteamReportID is set when this ban was also put on the account's Steam
+	// profile as a game ban. It is Valve's own handle on it, the one that
+	// appears in GetCheatingReports, and the reason it is stored here: a lift
+	// has to know there is a second ban to remove, and an operator asking why
+	// an account is banned months later needs the report to point at.
+	SteamReportID uint64 `json:"steam_report_id,string,omitempty"`
 }
+
+// OnSteam reports whether this ban was also issued as a Steam game ban.
+func (b Ban) OnSteam() bool { return b.SteamReportID != 0 }
 
 // Permanent reports whether this ban has no end.
 func (b Ban) Permanent() bool { return b.ExpiresAt.IsZero() }
@@ -218,7 +228,15 @@ func (l *List) Ban(b Ban) (Ban, error) {
 		b.IssuedAt = now
 	}
 	if old, ok := l.active[b.SteamID]; ok && old.Active(now) && longer(old, b) {
-		return old, nil
+		if b.SteamReportID == 0 || old.SteamReportID != 0 {
+			return old, nil
+		}
+		// The standing ban wins on length, but this one carries a Steam game
+		// ban the old record does not know about. Losing the report id would
+		// leave a ban on the account's profile that no lift here can remove.
+		kept := old
+		kept.SteamReportID = b.SteamReportID
+		return kept, l.appendLocked(record{Op: "ban", At: now, Ban: &kept})
 	}
 	return b, l.appendLocked(record{Op: "ban", At: now, Ban: &b})
 }

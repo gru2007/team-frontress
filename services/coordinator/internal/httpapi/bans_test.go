@@ -2,10 +2,13 @@ package httpapi
 
 import (
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/greyline-frontress/coordinator/internal/bans"
 	"github.com/greyline-frontress/coordinator/internal/pool"
+	"github.com/greyline-frontress/coordinator/internal/steam"
 )
 
 // hello is the door. A banned account must not get a session at all.
@@ -235,5 +238,124 @@ func TestBanRoutesNeedTheAdminKey(t *testing.T) {
 	}
 	if code := h.doAdmin("POST", "/bans", map[string]any{"steam_id": "111"}, nil); code != http.StatusUnauthorized {
 		t.Fatalf("ban without the key: status %d, want 401", code)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Steam game bans
+// ---------------------------------------------------------------------------
+
+// fakeSteamAPI stands in for partner.steam-api.com.
+func fakeSteamAPI(t *testing.T, banStatus int) (*steam.CheatReporter, *int) {
+	t.Helper()
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if strings.Contains(r.URL.Path, "ReportPlayerCheating") {
+			w.Write([]byte(`{"response":{"reportid":"4242"}}`))
+			return
+		}
+		if strings.Contains(r.URL.Path, "RequestPlayerGameBan") {
+			w.WriteHeader(banStatus)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+
+	c := steam.NewCheatReporter("publisher-key", 5147520)
+	c.BaseURL = srv.URL
+	return c, &calls
+}
+
+// The default: a ban stays ours and never touches the player's Steam profile.
+func TestBanDoesNotTouchSteamUnlessAsked(t *testing.T) {
+	h := newHarness(t)
+	reporter, calls := fakeSteamAPI(t, http.StatusOK)
+	h.api.SetCheatReporter(reporter)
+
+	var out map[string]any
+	if code := h.doAdmin("POST", "/bans", map[string]any{
+		"steam_id": "76561198000000001", "reason": "griefing",
+	}, &out); code != http.StatusOK {
+		t.Fatalf("ban: status %d", code)
+	}
+	if *calls != 0 {
+		t.Fatalf("Steam was called %d times for a plain ban", *calls)
+	}
+	view, _ := out["ban"].(map[string]any)
+	if on, _ := view["steam_game_ban"].(bool); on {
+		t.Fatal("a plain ban should not be marked as a Steam game ban")
+	}
+}
+
+func TestSteamGameBanIsIssuedAndRemoved(t *testing.T) {
+	h := newHarness(t)
+	reporter, _ := fakeSteamAPI(t, http.StatusOK)
+	h.api.SetCheatReporter(reporter)
+
+	var out map[string]any
+	if code := h.doAdmin("POST", "/bans", map[string]any{
+		"steam_id": "76561198000000001", "reason": "aimbot",
+		"duration": "72h", "steam": true, "issued_by": "gru",
+	}, &out); code != http.StatusOK {
+		t.Fatalf("ban: status %d (%v)", code, out)
+	}
+	if out["steam_error"] != nil {
+		t.Fatalf("steam ban failed: %v", out["steam_error"])
+	}
+	view, _ := out["ban"].(map[string]any)
+	if on, _ := view["steam_game_ban"].(bool); !on {
+		t.Fatalf("the ban is not marked as a Steam game ban: %v", view)
+	}
+	if id, _ := view["steam_report_id"].(string); id != "4242" {
+		t.Fatalf("report id = %q, want 4242 — without it a lift cannot undo the Steam half", id)
+	}
+
+	var lifted map[string]any
+	if code := h.doAdmin("POST", "/bans/lift", map[string]any{
+		"steam_id": "76561198000000001", "by": "gru",
+	}, &lifted); code != http.StatusOK {
+		t.Fatalf("lift: status %d", code)
+	}
+	if removed, _ := lifted["steam_game_ban_removed"].(bool); !removed {
+		t.Fatalf("the Steam game ban was left on the profile: %v", lifted)
+	}
+}
+
+// Steam failing must not cost us the local ban — that is the half that
+// actually keeps the player out — but the operator has to be told.
+func TestLocalBanSurvivesASteamFailure(t *testing.T) {
+	h := newHarness(t)
+	reporter, _ := fakeSteamAPI(t, http.StatusForbidden)
+	h.api.SetCheatReporter(reporter)
+
+	var out map[string]any
+	if code := h.doAdmin("POST", "/bans", map[string]any{
+		"steam_id": "76561198000000001", "reason": "aimbot", "steam": true,
+	}, &out); code != http.StatusOK {
+		t.Fatalf("ban: status %d", code)
+	}
+	if out["steam_error"] == nil {
+		t.Fatal("the operator was not told the Steam game ban failed")
+	}
+	if !h.bans.Banned(76561198000000001) {
+		t.Fatal("the coordinator's own ban should have been recorded anyway")
+	}
+}
+
+// Asking for a Steam ban on a coordinator that has no publisher key must fail
+// loudly rather than record a local ban and call it done.
+func TestSteamBanWithoutAPublisherKeyIsRefused(t *testing.T) {
+	h := newHarness(t)
+	h.api.SetCheatReporter(steam.NewCheatReporter("", 0))
+
+	if code := h.doAdmin("POST", "/bans", map[string]any{
+		"steam_id": "76561198000000001", "reason": "aimbot", "steam": true,
+	}, nil); code != http.StatusNotImplemented {
+		t.Fatalf("status %d, want 501", code)
+	}
+	if h.bans.Banned(76561198000000001) {
+		t.Fatal("nothing should have been recorded: the operator asked for a Steam ban and did not get one")
 	}
 }

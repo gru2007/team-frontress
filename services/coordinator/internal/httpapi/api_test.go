@@ -23,6 +23,7 @@ const testPoolKey = "test-pool-key"
 
 type harness struct {
 	t      *testing.T
+	api    *API
 	srv    *httptest.Server
 	admin  *httptest.Server
 	maker  *mm.Matchmaker
@@ -81,7 +82,7 @@ func newHarnessWithAdminKey(t *testing.T, adminKey string) *harness {
 	// reach them the same way rather than through the client router.
 	admin := httptest.NewServer(api.AdminHandler())
 	t.Cleanup(admin.Close)
-	return &harness{t: t, srv: srv, admin: admin, maker: maker, engine: engine, pool: servers, bans: banList}
+	return &harness{t: t, api: api, srv: srv, admin: admin, maker: maker, engine: engine, pool: servers, bans: banList}
 }
 
 // doAdmin is do, against the admin listener.

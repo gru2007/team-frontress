@@ -118,27 +118,79 @@ Which answer means what:
 
 ## Step 5 — bans
 
-The ban list lives in `bans_path` as an append-only JSON-lines log, replayed on
-start. A ban that a restart undoes is not a ban.
+There are two kinds, they do different jobs, and both are worth having.
+
+| | Coordinator ban | Steam game ban (*игровая блокировка*) |
+| --- | --- | --- |
+| Where it lives | `bans_path`, our file | the account's Steam profile |
+| Who enforces it | us, instantly | Steam, but only on secure servers of the same AppID — **not ours**, see below |
+| Visible to | operators | everyone, through `GetPlayerBans` |
+| Undone by | a lift, cleanly | a lift removes it, but the record stays public forever |
+| Works when Steam is down | yes | no |
+
+The coordinator's list is what actually turns a player away. A game ban is the
+public record, and it follows the account rather than living in one
+coordinator's file. So the game ban is opt-in, per ban.
+
+### The console
 
 ```bash
-# permanent
-curl -XPOST localhost:27101/bans -H 'Content-Type: application/json' \
-  -d '{"steam_id":"765611980…","reason":"aimbot","issued_by":"gru"}'
+make ban                     # builds bin/greyline-ban
 
-# temporary — any Go duration
-curl -XPOST localhost:27101/bans -H 'Content-Type: application/json' \
-  -d '{"steam_id":"765611980…","reason":"griefing","duration":"72h"}'
-
-curl localhost:27101/bans
-curl -XPOST localhost:27101/bans/lift -H 'Content-Type: application/json' \
-  -d '{"steam_id":"765611980…","by":"gru","reason":"appealed"}'
+greyline-ban list
+greyline-ban check 76561198…
+greyline-ban add  76561198… -reason "aimbot" -for 72h -steam -by gru
+greyline-ban add  76561198… -reason "griefing"          # ours only, permanent
+greyline-ban lift 76561198… -by gru -reason "appealed"
 ```
 
-These are on the **admin** listener (`admin_listen`, loopback by default). Bind
-it anywhere else and set `pool.admin_key`.
+`-for` sets the length of both bans; leaving it out means permanent in both.
+`-steam` is what adds the game ban — without it nothing touches Steam. The
+SteamID may go before or after the flags.
 
-A ban does four things, and the last two are what make it stick:
+It talks to the admin listener (`admin_listen`, loopback by default), so it
+normally runs on the coordinator's own machine. `-admin` and `-key`, or
+`$GREYLINE_ADMIN` and `$GREYLINE_ADMIN_KEY`, point it elsewhere. The same three
+routes are plain HTTP if you would rather curl them: `GET /bans`, `POST /bans`,
+`POST /bans/lift`.
+
+If the game ban fails but the local one is recorded, the command says so and
+exits non-zero. That combination matters: the player is kept out either way,
+but an operator who thinks an account is game-banned when it is not will make
+decisions on it later.
+
+### Why Steam will not enforce a game ban for us
+
+Valve's rule is that a game ban stops the account joining **secure servers for
+the AppID the ban is on**. Ours are not those servers:
+
+- the client runs as 5147520 (Team Frontress Playtest);
+- our dedicated servers register with Steam as 244310 (Source SDK Base 2013
+  DS), because that is the app steamcmd installs and can log into anonymously.
+
+To Steam, our server is not a secure server of 5147520, so a ban on 5147520
+means nothing to it. Enforcement is the coordinator's, which is what steps 1–4
+were for.
+
+The same mismatch affects the ordinary Steam client↔server authentication. The
+old pair — client 243750, server 244310 — is a client/dedicated-server pair
+Valve configured, and 243750 is free, so the licence check passed for
+everybody. Moving the client to 5147520 breaks that pairing. Three ways out:
+
+1. **Get a dedicated-server app for 5147520** in Steamworks and put it in
+   `steam.inf`'s `ServerAppID`. This is the real fix and it is a Steamworks
+   request, not a code change.
+2. **Move the client back to 243750.** Server auth works again immediately, and
+   ticket validation becomes impossible: a ticket is issued for the app the
+   client is running, and our publisher key cannot validate one for Valve's
+   app. Everything in steps 1–4 goes with it.
+3. **Do not use Steam auth on the game connection** (`sv_lan 1`) and rely on
+   the coordinator plus the roster gate, which already do this job. No VAC, no
+   Steam-side enforcement of anything.
+
+(3) is what works today. (1) is where this should end up.
+
+A coordinator ban does four things, and the last two are what make it stick:
 
 1. `hello` is refused with 403 and the sentence the player is shown.
 2. `DEPLOY` is refused, for a session that was already open when the ban landed.
@@ -181,3 +233,8 @@ coordinator says so in its log on startup if bans exist and webapi is off.
 - **`security.violation_ban`**, for the reason above.
 - **Ban list compaction.** The log only grows. It is one line per ban and lift,
   so this is a problem for a future with far more players than this one.
+- **Reading game bans back.** Nothing polls `ISteamUser/GetPlayerBans`, so a
+  game ban placed from Steamworks by hand — rather than through
+  `greyline-ban -steam` — is invisible to the coordinator.
+- **A dedicated-server app for 5147520**, which is what would make Steam
+  enforce any of this on our own servers.
