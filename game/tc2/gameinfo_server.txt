@@ -22,15 +22,11 @@
 
 	FileSystem
 	{
-		// Our own dedicated-server app. It is what makes a server of ours a
-		// server *of this game* to Steam: client auth tickets are issued for
-		// 5147520, and Steam only accepts them on a game server registered as
-		// that app's dedicated-server app.
-		//
-		// This is a Steam identity, not a place files come from. The engine
-		// binaries and the TF2 content still arrive through steamcmd as app
-		// 232250 and are mounted from ../../tf2 below. See docs/STEAM-SETUP.md.
-		SteamAppId				5150320
+		// 5150320 is the Steam Tool used to distribute the dedicated package.
+		// The running server itself must use the Playtest game AppID: clients
+		// run as 5147520 and Valve's dedicated-server packaging model puts the
+		// game AppID, not the Tool AppID, into steam_appid.txt.
+		SteamAppId				5147520
 
 		SearchPaths
 		{
@@ -42,7 +38,7 @@
 			// Note that this folder is scanned only when the game is booted.
 			game+mod+custom_mod	|gameinfo_path|custom/*
 			// Enable this if you want to load your TF custom content.
-			game+mod+custom_mod	|gameinfo_path|../../tf2/tf/custom/*
+			game+mod+custom_mod	|gameinfo_path|../tf2/tf/custom/*
 			// Adding pak folder for tc2 specifically
 			game+mod+custom_mod |gameinfo_path|loose
 			game+mod+vgui |gameinfo_path|pak1.vpk
@@ -60,21 +56,21 @@
 			// VPK and we can avoid making thousands of file system calls to attempt to open files
 			// in folders where they don't exist.  (Searching a VPK is much faster than making an operating
 			// system call.)
-			game_lv				|gameinfo_path|../../tf2/tf/tf2_lv.vpk
-			game+mod			|gameinfo_path|../../tf2/tf/tf2_textures.vpk
-			game+mod			|gameinfo_path|../../tf2/tf/tf2_sound_vo_english.vpk
-			game+mod			|gameinfo_path|../../tf2/tf/tf2_sound_misc.vpk
-			game+mod+vgui		|gameinfo_path|../../tf2/tf/tf2_misc.vpk
-			game				|gameinfo_path|../../tf2/hl2/hl2_textures.vpk
-			game				|gameinfo_path|../../tf2/hl2/hl2_sound_vo_english.vpk
-			game				|gameinfo_path|../../tf2/hl2/hl2_sound_misc.vpk
-			game+vgui			|gameinfo_path|../../tf2/hl2/hl2_misc.vpk
-			platform+vgui		|gameinfo_path|../../tf2/platform/platform_misc.vpk
+			game_lv				|gameinfo_path|../tf2/tf/tf2_lv.vpk
+			game+mod			|gameinfo_path|../tf2/tf/tf2_textures.vpk
+			game+mod			|gameinfo_path|../tf2/tf/tf2_sound_vo_english.vpk
+			game+mod			|gameinfo_path|../tf2/tf/tf2_sound_misc.vpk
+			game+mod+vgui		|gameinfo_path|../tf2/tf/tf2_misc.vpk
+			game				|gameinfo_path|../tf2/hl2/hl2_textures.vpk
+			game				|gameinfo_path|../tf2/hl2/hl2_sound_vo_english.vpk
+			game				|gameinfo_path|../tf2/hl2/hl2_sound_misc.vpk
+			game+vgui			|gameinfo_path|../tf2/hl2/hl2_misc.vpk
+			platform+vgui		|gameinfo_path|../tf2/platform/platform_misc.vpk
 
 			// Last, mount in shared HL2 and TF2 loose files
-			game				|gameinfo_path|../../tf2/tf
-			game				|gameinfo_path|../../tf2/hl2
-			platform			|gameinfo_path|../../tf2/platform
+			game				|gameinfo_path|../tf2/tf
+			game				|gameinfo_path|../tf2/hl2
+			platform			|gameinfo_path|../tf2/platform
 
 			// Random files downloaded from gameservers go into a seperate directory, so
 			// that it's easy to keep those files segregated from the official game files
@@ -87,7 +83,7 @@
 			// packed up in the .bsp file so that it will be mounted as a map search pack.
 			// The map search pack is mounted at the top of the search path list,
 			// but only while you are connected that server and on that map.
-			game+download		|gameinfo_path|../../tf2/tf/download
+			game+download		|gameinfo_path|../tf2/tf/download
 			game+download		|gameinfo_path|download
 		}
 	}

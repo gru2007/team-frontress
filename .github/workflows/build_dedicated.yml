@@ -1,0 +1,79 @@
+name: Build - Dedicated Linux
+
+on:
+  push:
+    branches:
+      - "gf-mod"
+      - "campus-fortress"
+      - "release/*"
+    paths-ignore:
+      - "services/**"
+      - "docs/**"
+      - "**.md"
+  pull_request:
+    paths-ignore:
+      - "services/**"
+      - "docs/**"
+      - "**.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dedicated_linux:
+    runs-on: ubuntu-latest
+    env:
+      PUBLISH_REF: ${{ github.repository_owner == 'gru2007' && github.event_name == 'push' && (github.ref == 'refs/heads/gf-mod' || github.ref == 'refs/heads/campus-fortress' || startsWith(github.ref, 'refs/heads/release/')) }}
+      STEAM_CONFIG_VDF: ${{ secrets.STEAM_CONFIG_VDF }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.REPO_TOKEN || github.token }}
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Setup ccache
+        uses: actions/cache@v6
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: ${{ runner.os }}-dedicated-ccache-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-dedicated-ccache-${{ github.ref_name }}-
+            ${{ runner.os }}-ccache-${{ github.ref_name }}-
+
+      - name: Build server artifact
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ccache
+          CCACHE_COMPRESSLEVEL: 6
+        run: |
+          mkdir -p "$CCACHE_DIR"
+          ./src/buildallprojects
+          ./game_clean/copy_server.sh
+          test "$(tr -d '\r\n ' < game_server_dist/steam_appid.txt)" = "5147520"
+          test -f game_server_dist/tc2/bin/linux64/server.so
+          test ! -f game_server_dist/tc2/bin/linux64/client.so
+
+      - name: Archive dedicated server
+        uses: actions/upload-artifact@v7
+        with:
+          name: team-frontress-dedicated-linux
+          path: game_server_dist
+
+      - name: Push dedicated Tool to Steam
+        if: ${{ env.PUBLISH_REF == 'true' && env.STEAM_CONFIG_VDF != '' && vars.STEAM_DS_DEPOT_LINUX != '' }}
+        run: ./game_clean/steampipe_server.sh game_server_dist
+        env:
+          STEAM_DS_APPID: 5150320
+          STEAM_DS_DEPOT_LINUX: ${{ vars.STEAM_DS_DEPOT_LINUX }}
+          STEAM_DS_BRANCH: ${{ vars.STEAM_DS_BRANCH }}
+          STEAM_USERNAME: ${{ secrets.STEAM_USERNAME }}
+          STEAM_CONFIG_VDF: ${{ secrets.STEAM_CONFIG_VDF }}
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf game_dist game_dist_debug game_server_dist steam_build_server
+          git clean -xfd -- game src
