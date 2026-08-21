@@ -392,7 +392,7 @@ jobs:
 
       - name: Publish Linux dedicated server to default
         env:
-          STEAM_DS_BRANCH: default
+          STEAM_DS_BRANCH: prerelease
         run: |
           set -euo pipefail
           DS_DIR="${GITHUB_WORKSPACE}/publish-artifacts/steam-dedicated-linux"
