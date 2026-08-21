@@ -65,7 +65,6 @@ cat > "${BUILD_DIR}/depot_${DEPOT}.vdf" <<EOF
 
     "FileExclusion" "*.pdb"
     "FileExclusion" "*.dbg"
-    "FileExclusion" ".itch.toml"
 }
 EOF
 

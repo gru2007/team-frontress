@@ -1,0 +1,412 @@
+name: Build & publish
+
+on:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "release/*"
+      - "private/*"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: client-linux
+            name: Client / Linux
+            os: ubuntu-latest
+            artifact: steam-client-linux
+            artifact_path: game_dist
+          - target: client-windows
+            name: Client / Windows
+            os: windows-2025-vs2026
+            artifact: steam-client-windows
+            artifact_path: game_dist
+          - target: dedicated-linux
+            name: Dedicated / Linux
+            os: ubuntu-latest
+            artifact: steam-dedicated-linux
+            artifact_path: game_server_dist
+          - target: greyline-coordinator
+            name: Greyline / Coordinator
+            os: ubuntu-latest
+            artifact: greyline-coordinator-linux
+            artifact_path: services/coordinator/bin
+          - target: greyline-game
+            name: Greyline / Game logic
+            os: ubuntu-latest
+            artifact: greyline-game-tests
+            artifact_path: src/game/shared/greyline/tests
+          - target: greyline-schema
+            name: Greyline / Shared schema
+            os: ubuntu-latest
+            artifact: greyline-schema-generated
+            artifact_path: /tmp/greyline_pb
+
+    runs-on: ${{ matrix.os }}
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/../vcpkg
+      VCPKG_DEFAULT_TRIPLET: x64-windows
+
+    steps:
+      # Windows keeps its incremental workspace cache. Do the sparse checkout
+      # first so the cache action itself is available before the full checkout.
+      - name: Checkout actions (Windows)
+        if: matrix.target == 'client-windows'
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            .github
+          token: ${{ secrets.REPO_TOKEN || github.token }}
+          persist-credentials: false
+
+      - name: Setup MSBuild cache
+        if: matrix.target == 'client-windows'
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ github.workspace }}
+            !${{ github.workspace }}/.git/**
+            !${{ github.workspace }}/.github/**
+            !${{ github.workspace }}/.vscode/**
+            !${{ github.workspace }}/game_clean/**
+            !${{ github.workspace }}/game_dist/**
+            !${{ github.workspace }}/game_dist_debug/**
+            !${{ github.workspace }}/steam_build/**
+            !${{ github.workspace }}/.gitattributes
+            !${{ github.workspace }}/.gitignore
+            !${{ github.workspace }}/CONTRIBUTING
+            !${{ github.workspace }}/LICENSE
+            !${{ github.workspace }}/README.md
+            !${{ github.workspace }}/thirdpartylegalnotices.txt
+          key: ${{ runner.os }}-mscache-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-mscache-${{ github.ref_name }}-
+            ${{ runner.os }}-mscache-${{ github.base_ref }}-
+            ${{ runner.os }}-mscache-
+
+      - name: Checkout repository (Windows)
+        if: matrix.target == 'client-windows'
+        uses: actions/checkout@v6
+        with:
+          clean: false
+          token: ${{ secrets.REPO_TOKEN || github.token }}
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Checkout repository (game Linux)
+        if: matrix.target == 'client-linux' || matrix.target == 'dedicated-linux'
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.REPO_TOKEN || github.token }}
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Checkout repository (Greyline)
+        if: startsWith(matrix.target, 'greyline-')
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Setup ccache
+        if: matrix.target == 'client-linux' || matrix.target == 'dedicated-linux'
+        uses: actions/cache@v6
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: ${{ runner.os }}-${{ matrix.target }}-ccache-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target }}-ccache-${{ github.ref_name }}-
+            ${{ runner.os }}-ccache-${{ github.ref_name }}-
+            ${{ runner.os }}-ccache-
+
+      - name: Build Linux client
+        if: matrix.target == 'client-linux'
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ccache
+          CCACHE_COMPRESSLEVEL: 6
+        run: |
+          set -euo pipefail
+          mkdir -p "$CCACHE_DIR"
+          ./src/buildallprojects
+          ./game_clean/copy.sh
+          test -f game_dist/tc2/bin/linux64/client.so
+          test -f game_dist/tc2/bin/linux64/server.so
+          touch game_dist/STEAM_READY
+
+      - name: Build Linux dedicated server
+        if: matrix.target == 'dedicated-linux'
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ccache
+          CCACHE_COMPRESSLEVEL: 6
+        run: |
+          set -euo pipefail
+          mkdir -p "$CCACHE_DIR"
+          ./src/buildallprojects
+          ./game_clean/copy_server.sh
+          test "$(tr -d '\r\n ' < game_server_dist/steam_appid.txt)" = "5147520"
+          test -f game_server_dist/tc2/bin/linux64/server.so
+          test ! -f game_server_dist/tc2/bin/linux64/client.so
+          touch game_server_dist/STEAM_READY
+
+      - name: Add MSBuild
+        if: matrix.target == 'client-windows'
+        uses: microsoft/setup-msbuild@v3
+
+      - name: Prepare Windows project solution
+        if: matrix.target == 'client-windows'
+        shell: cmd
+        working-directory: ${{ github.workspace }}/src
+        run: .\createallprojects.bat
+
+      - name: Install Windows dependencies
+        if: matrix.target == 'client-windows'
+        shell: pwsh
+        run: |
+          Set-Location ..
+          if (-not (Test-Path vcpkg)) {
+            git clone https://github.com/microsoft/vcpkg.git
+          }
+          Set-Location vcpkg
+          .\bootstrap-vcpkg.bat
+          .\vcpkg integrate install
+          .\vcpkg install crow
+
+      - name: Build Windows solution
+        if: matrix.target == 'client-windows'
+        shell: cmd
+        working-directory: ${{ github.workspace }}/src
+        run: msbuild everything.sln /p:Platform="win64" /p:Configuration="Release"
+
+      - name: Copy Windows dist
+        if: matrix.target == 'client-windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f ./game/tc2/pak1*.vpk
+          ./game_clean/copy.sh
+          test -f game_dist/tc2/bin/x64/client.dll
+          test -f game_dist/tc2/bin/x64/server.dll
+          touch game_dist/STEAM_READY
+
+      # Build the coordinator first. The checks below still run after another
+      # check fails, so a formatting/test error does not hide unrelated failures
+      # and a successfully built binary is still archived.
+      - name: Setup Go
+        if: matrix.target == 'greyline-coordinator'
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: services/coordinator/go.mod
+          cache-dependency-path: services/coordinator/go.sum
+
+      - name: Build Greyline coordinator and agent
+        if: matrix.target == 'greyline-coordinator'
+        working-directory: services/coordinator
+        run: |
+          go build -o bin/coordinator ./cmd/coordinator
+          go build -o bin/greyline-agent ./cmd/greyline-agent
+
+      - name: Verify Greyline formatting
+        if: ${{ !cancelled() && matrix.target == 'greyline-coordinator' }}
+        working-directory: services/coordinator
+        run: |
+          unformatted="$(gofmt -l . | grep -v '/pb/' || true)"
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt'd:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Vet Greyline coordinator
+        if: ${{ !cancelled() && matrix.target == 'greyline-coordinator' }}
+        working-directory: services/coordinator
+        run: go vet ./...
+
+      - name: Test Greyline coordinator
+        if: ${{ !cancelled() && matrix.target == 'greyline-coordinator' }}
+        working-directory: services/coordinator
+        run: go test -race -count=2 ./...
+
+      - name: Smoke test Greyline shipped configs
+        if: ${{ !cancelled() && matrix.target == 'greyline-coordinator' }}
+        working-directory: services/coordinator
+        run: |
+          set -euo pipefail
+          export GREYLINE_GC_SECRET=ci-smoke-test-secret
+          export GREYLINE_POOL_KEY=ci-smoke-test-pool-key
+
+          GREYLINE_WAR_LOG="$(mktemp -d)/war.jsonl" GREYLINE_LISTEN=127.0.0.1:0 \
+            timeout 5s ./bin/coordinator -theater theater.industrial.json > out.log 2>&1 || true
+          grep -q "api listening" out.log || { cat out.log; exit 1; }
+          grep -q "war loaded" out.log || { cat out.log; exit 1; }
+
+          GREYLINE_WAR_LOG="$(mktemp -d)/war.jsonl" GREYLINE_LISTEN=127.0.0.1:0 \
+            timeout 5s ./bin/coordinator -config gc.test.json > out.log 2>&1 || true
+          grep -q "api listening" out.log || { cat out.log; exit 1; }
+
+          LOG="$(mktemp -d)/war.jsonl"
+          for run in 1 2; do
+            GREYLINE_WAR_LOG="$LOG" GREYLINE_LISTEN=127.0.0.1:0 \
+              timeout 5s ./bin/coordinator -config gc.test.json > out.log 2>&1 || true
+            grep -q "war loaded" out.log || { cat out.log; exit 1; }
+          done
+          grep -q '"kind":"campaign_started"' "$LOG"
+          test "$(grep -c '"kind":"campaign_started"' "$LOG")" = "1"
+
+      - name: Check Greyline theater maps
+        if: ${{ !cancelled() && matrix.target == 'greyline-coordinator' }}
+        working-directory: services/coordinator
+        run: python3 tools/greyline_check_maps.py theater.industrial.json
+
+      - name: Check Greyline menu script syntax
+        if: ${{ !cancelled() && matrix.target == 'greyline-game' }}
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const html = fs.readFileSync('game/tc2/loose/resource/html/greyline.html', 'utf8');
+          const script = html.match(/<script>([\s\S]*?)<\/script>/);
+          if (!script) throw new Error('greyline.html has no script');
+          new Function(script[1]);
+          NODE
+
+      - name: Build and run Greyline game-side tests
+        if: ${{ !cancelled() && matrix.target == 'greyline-game' }}
+        working-directory: src/game/shared/greyline/tests
+        run: make test
+
+      - name: Run Greyline game tests under AddressSanitizer
+        if: ${{ !cancelled() && matrix.target == 'greyline-game' }}
+        working-directory: src/game/shared/greyline/tests
+        run: make asan
+
+      - name: Check Greyline integration contract
+        if: ${{ !cancelled() && matrix.target == 'greyline-game' }}
+        run: python3 services/coordinator/tools/greyline_integration_check.py .
+
+      - name: Compile Greyline schema with bundled protoc 2.6.1
+        if: matrix.target == 'greyline-schema'
+        run: |
+          set -euo pipefail
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y libc6:i386 libstdc++6:i386
+
+          PROTOC=src/thirdparty/protobuf-2.6.1/bin/linux32/protoc
+          chmod +x "$PROTOC"
+          "$PROTOC" --version
+
+          mkdir -p /tmp/greyline_pb
+          "$PROTOC" \
+            --proto_path=src/thirdparty/protobuf-2.6.1/src \
+            --proto_path=services/coordinator/proto \
+            --cpp_out=/tmp/greyline_pb \
+            services/coordinator/proto/greyline.proto
+
+          test -s /tmp/greyline_pb/greyline.pb.cc
+          test -s /tmp/greyline_pb/greyline.pb.h
+
+      - name: Upload primary artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact_path }}
+          if-no-files-found: warn
+
+      - name: Upload client debug info
+        if: ${{ always() && (matrix.target == 'client-linux' || matrix.target == 'client-windows') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: debug-${{ matrix.target }}
+          path: game_dist_debug
+          if-no-files-found: warn
+
+      - name: Cleanup Linux game workspace
+        if: ${{ always() && (matrix.target == 'client-linux' || matrix.target == 'dedicated-linux') }}
+        continue-on-error: true
+        run: |
+          rm -rf game_dist game_dist_debug game_server_dist steam_build steam_build_server
+          git clean -xfd -- game src
+
+  publish-steam:
+    name: Steam / default
+    needs: build
+    if: ${{ !cancelled() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/release/') }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: team-frontress-steam-publish
+      cancel-in-progress: false
+    env:
+      STEAM_APPID: ${{ vars.STEAM_APPID }}
+      STEAM_DEPOT_WIN: ${{ vars.STEAM_DEPOT_WIN }}
+      STEAM_DEPOT_LINUX: ${{ vars.STEAM_DEPOT_LINUX }}
+      STEAM_DS_APPID: 5150320
+      STEAM_DS_DEPOT_LINUX: ${{ vars.STEAM_DS_DEPOT_LINUX }}
+      STEAM_USERNAME: ${{ secrets.STEAM_USERNAME }}
+      STEAM_CONFIG_VDF: ${{ secrets.STEAM_CONFIG_VDF }}
+      STEAM_PASSWORD: ${{ secrets.STEAM_PASSWORD }}
+      RELEASE_VERSION: ${{ github.ref_name }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Download everything that built
+        uses: actions/download-artifact@v7
+        with:
+          path: publish-artifacts
+
+      - name: Install SteamPipe prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends 7zip
+
+      - name: Publish client depots to default
+        env:
+          STEAM_BRANCH: default
+        run: |
+          set -euo pipefail
+          WIN_DIR="${GITHUB_WORKSPACE}/publish-artifacts/steam-client-windows"
+          LINUX_DIR="${GITHUB_WORKSPACE}/publish-artifacts/steam-client-linux"
+
+          if [ ! -f "${WIN_DIR}/STEAM_READY" ] || [ ! -f "${LINUX_DIR}/STEAM_READY" ]; then
+            echo "::warning::Client Steam publish skipped: both Windows and Linux must finish successfully before default is changed."
+            exit 0
+          fi
+
+          rm -f "${WIN_DIR}/STEAM_READY" "${LINUX_DIR}/STEAM_READY"
+          chmod +x "${LINUX_DIR}"/*.sh "${LINUX_DIR}/tc2_linux64" "${LINUX_DIR}/srcds_run_64" 2>/dev/null || true
+
+          STEAM_WIN_DIR="${WIN_DIR}" \
+          STEAM_LINUX_DIR="${LINUX_DIR}" \
+            ./game_clean/steampipe.sh
+
+      - name: Publish Linux dedicated server to default
+        env:
+          STEAM_DS_BRANCH: default
+        run: |
+          set -euo pipefail
+          DS_DIR="${GITHUB_WORKSPACE}/publish-artifacts/steam-dedicated-linux"
+
+          if [ ! -f "${DS_DIR}/STEAM_READY" ]; then
+            echo "::warning::Dedicated Steam publish skipped: the Linux dedicated lane did not finish successfully."
+            exit 0
+          fi
+
+          if [ -z "${STEAM_DS_DEPOT_LINUX:-}" ]; then
+            echo "STEAM_DS_DEPOT_LINUX repository variable is required to publish Tool AppID ${STEAM_DS_APPID}." >&2
+            exit 1
+          fi
+
+          rm -f "${DS_DIR}/STEAM_READY"
+          chmod +x "${DS_DIR}"/*.sh "${DS_DIR}/tc2_linux64" "${DS_DIR}/srcds_run_64" 2>/dev/null || true
+          ./game_clean/steampipe_server.sh "${DS_DIR}"

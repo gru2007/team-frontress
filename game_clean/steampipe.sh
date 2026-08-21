@@ -2,8 +2,8 @@
 #
 # Upload a build to Steam through SteamPipe.
 #
-# Generates the app/depot build scripts from the dist directories we already
-# produce for itch, then hands them to steamcmd's run_app_build. steamcmd is
+# Generates the app/depot build scripts from packaged build directories, then
+# hands them to steamcmd's run_app_build. steamcmd is
 # downloaded into cibin/ if it isn't on PATH.
 #
 # Usage:
@@ -152,12 +152,10 @@ write_depot_script() {
 		"recursive"	"1"
 	}
 
-	// Debug info ships out of band (game_dist_debug), the itch manifest is for
-	// itch only, and a steam_appid.txt in the depot would let the game start
-	// without Steam having checked ownership.
+	// Debug info ships out of band (game_dist_debug), and steam_appid.txt must
+	// never ship in the client depot because it bypasses Steam ownership checks.
 	"FileExclusion"	"*.pdb"
 	"FileExclusion"	"*.dbg"
-	"FileExclusion"	".itch.toml"
 	"FileExclusion"	"steam_appid.txt"
 }
 EOF
