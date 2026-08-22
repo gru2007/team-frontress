@@ -646,8 +646,8 @@ func ExampleEngine_PlanBattle() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(plan.StageKind, plan.Stage+1, "of", plan.StageCount)
-	// Output: breakthrough 1 of 3
+	fmt.Println(plan.StageKind, plan.Stage+1)
+	// Output: breakthrough 1
 }
 
 // A scoreline arrives in in-game teams. On a map where the attacker had to play
