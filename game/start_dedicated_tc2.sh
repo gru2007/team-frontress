@@ -45,4 +45,4 @@ else
     echo "[greyline] no \$GSLT set: server will use anonymous Steam logon." >&2
 fi
 
-"${SLR}" --devel -- ./tc2_linux64     -steam -gathermod -particles 1 -nobreakpad -nominidump -enablefakeip     -console -dedicated -gatherdedi     +sv_lan 0 "${STEAM_ACCOUNT[@]}" "$@" +sv_pure 1
+"${SLR}" --devel -- ./tc2_linux64 -steam -gathermod -particles 1 -nobreakpad -nominidump -console -dedicated -gatherdedi +sv_lan 0 "${STEAM_ACCOUNT[@]}" "$@" +sv_pure 1
