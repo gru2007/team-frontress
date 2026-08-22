@@ -181,6 +181,10 @@ public:
 	// it a second later by EnforceTeams — which reads as the server taking
 	// something away rather than as never having been theirs to choose.
 	void SeatPlayer( CBasePlayer *pPlayer );
+	// P2P hosts are already connected when the roster is installed after map
+	// load, so they do not get another player_activate event. Seat everybody
+	// once when the agent/UI announces the newly-installed battle contract.
+	void SeatConnectedPlayers();
 
 	bool HasBattle() const { return greyline_front_name.GetString()[0] != '\0'; }
 
@@ -468,6 +472,19 @@ void CGreylineBriefing::SeatPlayer( CBasePlayer *pPlayer )
 }
 
 //-----------------------------------------------------------------------------
+void CGreylineBriefing::SeatConnectedPlayers()
+{
+	for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+		if ( pPlayer && pPlayer->IsConnected() && !pPlayer->IsFakeClient() )
+		{
+			SeatPlayer( pPlayer );
+		}
+	}
+}
+
+//-----------------------------------------------------------------------------
 // What the stock TF code asks the war before it lets somebody play. See
 // greyline_roster_gate.h for why this is three free functions.
 //-----------------------------------------------------------------------------
@@ -629,9 +646,29 @@ CON_COMMAND_F( greyline_roster_status,
 	g_GreylineBriefing.PrintRoster();
 }
 
+CON_COMMAND_F( greyline_presence,
+	"Machine-readable SteamIDs currently connected to this server.",
+	FCVAR_GAMEDLL )
+{
+	for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+		if ( !pPlayer || !pPlayer->IsConnected() || pPlayer->IsFakeClient() )
+			continue;
+		const uint64 ulSteamID = pPlayer->GetSteamIDAsUInt64();
+		if ( ulSteamID != 0 )
+		{
+			// Keep this protocol intentionally boring: one stable prefix and
+			// one integer. The agent ignores every other console line.
+			Msg( "GREYLINE_PRESENCE %llu\n", ulSteamID );
+		}
+	}
+}
+
 CON_COMMAND_F( greyline_announce_briefing,
 	"Announce the current battle's place in the war to everybody on the server.",
 	FCVAR_GAMEDLL )
 {
+	g_GreylineBriefing.SeatConnectedPlayers();
 	g_GreylineBriefing.AnnounceToAll( true );
 }

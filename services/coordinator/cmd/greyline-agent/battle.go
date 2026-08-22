@@ -58,7 +58,11 @@ func (b *battle) bootDeadline() time.Duration {
 func (a *Agent) run(ctx context.Context) {
 	heartbeat := time.NewTicker(15 * time.Second)
 	defer heartbeat.Stop()
-	watchdog := time.NewTicker(5 * time.Second)
+	// READY has its own exponential schedule beginning at one second.  A
+	// five-second watchdog (or the 15-second heartbeat) turns that schedule
+	// into wishful thinking, so drive reconciliation often and let
+	// reportReady decide whether an attempt is due.
+	watchdog := time.NewTicker(1 * time.Second)
 	defer watchdog.Stop()
 
 	for {
@@ -350,7 +354,12 @@ func (a *Agent) handleLog(ctx context.Context, ev srclog.Event) {
 					a.log.Error("could not reapply battle configuration after map load",
 						"match", b.as.MatchID, "cmd", firstWord(cmd), "err", err)
 					a.reportState(ctx, b.as.MatchID, "failed")
-					a.battle = nil
+					// Some of the battle commands have already reached srcds.
+					// Dropping only the Go object leaves a password/roster/policy from
+					// this failed battle behind for the next assignment.  goIdle is
+					// deliberately best-effort per command, so one failed reset does
+					// not prevent the rest of the contract from being cleared.
+					a.goIdle(ctx)
 					return
 				}
 			}
@@ -410,18 +419,15 @@ func (b *battle) markPresent(steamID uint64) {
 	}
 }
 
-func rosterStatusSteamID(line string) (uint64, bool) {
-	fields := strings.Fields(strings.TrimSpace(line))
-	if len(fields) < 2 || fields[0] != "connected:" {
+const presencePrefix = "GREYLINE_PRESENCE "
+
+func presenceSteamID(line string) (uint64, bool) {
+	line = strings.TrimSpace(line)
+	if !strings.HasPrefix(line, presencePrefix) {
 		return 0, false
 	}
-	for i := len(fields) - 1; i >= 0; i-- {
-		id, err := strconv.ParseUint(fields[i], 10, 64)
-		if err == nil && id != 0 {
-			return id, true
-		}
-	}
-	return 0, false
+	id, err := strconv.ParseUint(strings.TrimSpace(strings.TrimPrefix(line, presencePrefix)), 10, 64)
+	return id, err == nil && id != 0
 }
 
 func (a *Agent) refreshConnectedRoster() {
@@ -429,13 +435,15 @@ func (a *Agent) refreshConnectedRoster() {
 	if b == nil {
 		return
 	}
-	out, err := a.exec("greyline_roster_status")
+	// Machine output only: do not make lifecycle state depend on the wording
+	// of greyline_roster_status, player names, or future localization changes.
+	out, err := a.exec("greyline_presence")
 	if err != nil {
 		return
 	}
 	present := make(map[uint64]bool)
 	for _, line := range strings.Split(out, "\n") {
-		id, ok := rosterStatusSteamID(line)
+		id, ok := presenceSteamID(line)
 		if ok && b.rosterContains(id) {
 			present[id] = true
 		}
@@ -538,7 +546,17 @@ func (a *Agent) goIdle(ctx context.Context) {
 		"mp_maxrounds 0",
 		"mp_timelimit 0",
 		`greyline_battle_id ""`,
+		`greyline_front_id ""`,
 		`greyline_front_name ""`,
+		`greyline_node_id ""`,
+		`greyline_node_name ""`,
+		`greyline_campaign ""`,
+		`greyline_attacker ""`,
+		`greyline_defender ""`,
+		"greyline_stage 0",
+		"greyline_stage_count 0",
+		`greyline_stage_kind ""`,
+		`greyline_mobilized ""`,
 		`nextlevel ""`,
 	} {
 		if _, err := a.exec("%s", cmd); err != nil {
@@ -569,6 +587,9 @@ func (a *Agent) checkDeadlines(ctx context.Context) {
 		return
 	}
 	if b.mapLoaded {
+		// MapStarted is a one-shot log event, but READY is desired state.
+		// Keep reconciling it until the coordinator acknowledges it.
+		a.reportReady(ctx)
 		return
 	}
 	if time.Since(b.startedAt) > b.bootDeadline() {
@@ -592,6 +613,12 @@ func (a *Agent) reportState(ctx context.Context, matchID, state string) {
 func (a *Agent) heartbeat(ctx context.Context) {
 	status, matchID, mapName, players := "idle", "", "", 0
 	if b := a.battle; b != nil {
+		// Source UDP logs remain the low-latency path, but a dropped join/leave
+		// datagram must not poison telemetry forever.  Reconcile connected
+		// identities from the game itself on the slow heartbeat as a fallback.
+		if b.mapLoaded {
+			a.refreshConnectedRoster()
+		}
 		matchID = b.as.MatchID
 		mapName = b.as.Map
 		players = len(b.joined)

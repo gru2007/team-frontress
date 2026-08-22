@@ -1289,6 +1289,12 @@ const P2P = {
       this.host.map = cmd.assignment.map;
       this.host.assignment = cmd.assignment;
       this.host.ready = false;
+      // A parked host is the same process but this is a new battle. Result
+      // evidence is per battle; carrying the old guard across changelevel
+      // makes the second assignment silently incapable of reporting a win.
+      this.host.resultReported = false;
+      this.host.startedAt = Date.now();
+      this.host.baselineGameOverSeq = 0;
       await this.launch(cmd.assignment);
       return;
     }
@@ -1559,7 +1565,10 @@ const P2P = {
       "greyline_policy_armed 0", "greyline_roster_gate 0", "sv_password \"\"",
       "greyline_roster_clear", "greyline_min_players 0", "mp_winlimit 0",
       "mp_maxrounds 0", "mp_timelimit 0", "greyline_battle_id \"\"",
-      "greyline_front_name \"\"", "nextlevel \"\"",
+      "greyline_front_id \"\"", "greyline_front_name \"\"", "greyline_node_id \"\"",
+      "greyline_node_name \"\"", "greyline_campaign \"\"", "greyline_attacker \"\"",
+      "greyline_defender \"\"", "greyline_stage 0", "greyline_stage_count 0",
+      "greyline_stage_kind \"\"", "greyline_mobilized \"\"", "nextlevel \"\"",
     ]) {
       try { if (Bridge.ready) await Bridge.cmd(cmd); } catch (e) { /* best effort */ }
     }
@@ -1798,8 +1807,18 @@ const Loop = {
         Evidence.stop();
         const over = ev.over || {};
         const nativeNotice = Actions.operationResult(over);
+        let settled = nativeNotice;
         if (P2P.host && (!finishedMatch || P2P.host.matchId === finishedMatch)) {
-          nativeNotice.finally(() => P2P.parkHost(finishedMatch));
+          // Promise.finally adopts the returned promise, so auto-requeue below
+          // cannot race a new assignment against the old battle's cleanup.
+          settled = nativeNotice.finally(() => P2P.parkHost(finishedMatch));
+        }
+        if (State.settings.autoJoin) {
+          settled.finally(() => {
+            if (State.connected && !State.match && !(State.queue && State.queue.queued)) {
+              void Actions.deploy("");
+            }
+          });
         }
         const update = over.war_update || {};
         const worth = Number(update.weight || 0);

@@ -3,13 +3,13 @@
   "name": "GREYLINE INDUSTRIAL THEATER",
 
   "_comment": [
-    "One theater, seven nodes. Small enough that a player remembers it after two",
-    "evenings — 'Foundry is the middle', 'we lost Rail Yard again' — which is what",
-    "makes it a place instead of a menu.",
+    "A 64-sector industrial theater. Strategic sectors are not Source maps: the",
+    "battle profile chooses a battlefield appropriate to population and stage.",
+    "The opening line is a zig-zag seam so every row starts with a real contested",
+    "neutral sector touching both RED and BLU instead of a decorative dead zone.",
     "",
-    "A strategic node is not a Source map. FOUNDRY 17 is a district: cp_process is",
-    "one part of it, pl_badwater another. That is why seven nodes need no bespoke",
-    "content at all.",
+    "The 8x8 graph gives the campaign room to move without making an individual",
+    "sector grindy; battle weight still scales with real attendance.",
     "",
     "                          IRON JUNCTION",
     "                         /             \\",
@@ -22,81 +22,464 @@
 
   "nodes": [
     {
-      "id": "iron_junction",
-      "name": "Iron Junction",
-      "profile": "junction",
-      "x": 50, "y": 10,
-      "adjacent": ["foundry_17", "quarry"]
+      "id": "sector_a1", "name": "RED Command A1", "profile": "headquarters", "hq": "RED",
+      "x": 5, "y": 5,
+      "adjacent": ["sector_b1", "sector_a2"]
     },
     {
-      "id": "foundry_17",
-      "name": "Foundry 17",
-      "profile": "industrial",
-      "x": 25, "y": 32,
-      "adjacent": ["iron_junction", "rail_yard"]
+      "id": "sector_a2", "name": "Sector A2", "profile": "industrial",
+      "x": 17.9, "y": 5,
+      "adjacent": ["sector_b2", "sector_a1", "sector_a3"]
     },
     {
-      "id": "quarry",
-      "name": "Quarry",
-      "profile": "industrial",
-      "x": 75, "y": 32,
-      "adjacent": ["iron_junction", "reservoir"]
+      "id": "sector_a3", "name": "Sector A3", "profile": "industrial",
+      "x": 30.7, "y": 5,
+      "adjacent": ["sector_b3", "sector_a2", "sector_a4"]
     },
     {
-      "id": "rail_yard",
-      "name": "Rail Yard",
-      "profile": "logistics",
-      "x": 25, "y": 62,
-      "adjacent": ["foundry_17", "reservoir", "red_command"]
+      "id": "sector_a4", "name": "Sector A4", "profile": "junction",
+      "x": 43.6, "y": 5,
+      "adjacent": ["sector_b4", "sector_a3", "sector_a5"]
     },
     {
-      "id": "reservoir",
-      "name": "Reservoir",
-      "profile": "logistics",
-      "x": 75, "y": 62,
-      "adjacent": ["quarry", "rail_yard", "blu_command"]
+      "id": "sector_a5", "name": "Sector A5", "profile": "junction",
+      "x": 56.4, "y": 5,
+      "adjacent": ["sector_b5", "sector_a4", "sector_a6"]
     },
     {
-      "id": "red_command",
-      "name": "RED Command",
-      "profile": "headquarters",
-      "hq": "RED",
-      "x": 30, "y": 90,
-      "adjacent": ["rail_yard"]
+      "id": "sector_a6", "name": "Sector A6", "profile": "industrial",
+      "x": 69.3, "y": 5,
+      "adjacent": ["sector_b6", "sector_a5", "sector_a7"]
     },
     {
-      "id": "blu_command",
-      "name": "BLU Command",
-      "profile": "headquarters",
-      "hq": "BLU",
-      "x": 70, "y": 90,
-      "adjacent": ["reservoir"]
+      "id": "sector_a7", "name": "Sector A7", "profile": "industrial",
+      "x": 82.1, "y": 5,
+      "adjacent": ["sector_b7", "sector_a6", "sector_a8"]
+    },
+    {
+      "id": "sector_a8", "name": "Sector A8", "profile": "logistics",
+      "x": 95, "y": 5,
+      "adjacent": ["sector_b8", "sector_a7"]
+    },
+    {
+      "id": "sector_b1", "name": "Sector B1", "profile": "logistics",
+      "x": 5, "y": 17.9,
+      "adjacent": ["sector_a1", "sector_c1", "sector_b2"]
+    },
+    {
+      "id": "sector_b2", "name": "Sector B2", "profile": "industrial",
+      "x": 17.9, "y": 17.9,
+      "adjacent": ["sector_a2", "sector_c2", "sector_b1", "sector_b3"]
+    },
+    {
+      "id": "sector_b3", "name": "Sector B3", "profile": "industrial",
+      "x": 30.7, "y": 17.9,
+      "adjacent": ["sector_a3", "sector_c3", "sector_b2", "sector_b4"]
+    },
+    {
+      "id": "sector_b4", "name": "Sector B4", "profile": "junction",
+      "x": 43.6, "y": 17.9,
+      "adjacent": ["sector_a4", "sector_c4", "sector_b3", "sector_b5"]
+    },
+    {
+      "id": "sector_b5", "name": "Sector B5", "profile": "junction",
+      "x": 56.4, "y": 17.9,
+      "adjacent": ["sector_a5", "sector_c5", "sector_b4", "sector_b6"]
+    },
+    {
+      "id": "sector_b6", "name": "Sector B6", "profile": "industrial",
+      "x": 69.3, "y": 17.9,
+      "adjacent": ["sector_a6", "sector_c6", "sector_b5", "sector_b7"]
+    },
+    {
+      "id": "sector_b7", "name": "Sector B7", "profile": "industrial",
+      "x": 82.1, "y": 17.9,
+      "adjacent": ["sector_a7", "sector_c7", "sector_b6", "sector_b8"]
+    },
+    {
+      "id": "sector_b8", "name": "Sector B8", "profile": "logistics",
+      "x": 95, "y": 17.9,
+      "adjacent": ["sector_a8", "sector_c8", "sector_b7"]
+    },
+    {
+      "id": "sector_c1", "name": "Sector C1", "profile": "logistics",
+      "x": 5, "y": 30.7,
+      "adjacent": ["sector_b1", "sector_d1", "sector_c2"]
+    },
+    {
+      "id": "sector_c2", "name": "Sector C2", "profile": "industrial",
+      "x": 17.9, "y": 30.7,
+      "adjacent": ["sector_b2", "sector_d2", "sector_c1", "sector_c3"]
+    },
+    {
+      "id": "sector_c3", "name": "Sector C3", "profile": "industrial",
+      "x": 30.7, "y": 30.7,
+      "adjacent": ["sector_b3", "sector_d3", "sector_c2", "sector_c4"]
+    },
+    {
+      "id": "sector_c4", "name": "Sector C4", "profile": "junction",
+      "x": 43.6, "y": 30.7,
+      "adjacent": ["sector_b4", "sector_d4", "sector_c3", "sector_c5"]
+    },
+    {
+      "id": "sector_c5", "name": "Sector C5", "profile": "junction",
+      "x": 56.4, "y": 30.7,
+      "adjacent": ["sector_b5", "sector_d5", "sector_c4", "sector_c6"]
+    },
+    {
+      "id": "sector_c6", "name": "Sector C6", "profile": "industrial",
+      "x": 69.3, "y": 30.7,
+      "adjacent": ["sector_b6", "sector_d6", "sector_c5", "sector_c7"]
+    },
+    {
+      "id": "sector_c7", "name": "Sector C7", "profile": "industrial",
+      "x": 82.1, "y": 30.7,
+      "adjacent": ["sector_b7", "sector_d7", "sector_c6", "sector_c8"]
+    },
+    {
+      "id": "sector_c8", "name": "Sector C8", "profile": "logistics",
+      "x": 95, "y": 30.7,
+      "adjacent": ["sector_b8", "sector_d8", "sector_c7"]
+    },
+    {
+      "id": "sector_d1", "name": "Sector D1", "profile": "logistics",
+      "x": 5, "y": 43.6,
+      "adjacent": ["sector_c1", "sector_e1", "sector_d2"]
+    },
+    {
+      "id": "sector_d2", "name": "Sector D2", "profile": "industrial",
+      "x": 17.9, "y": 43.6,
+      "adjacent": ["sector_c2", "sector_e2", "sector_d1", "sector_d3"]
+    },
+    {
+      "id": "sector_d3", "name": "Sector D3", "profile": "industrial",
+      "x": 30.7, "y": 43.6,
+      "adjacent": ["sector_c3", "sector_e3", "sector_d2", "sector_d4"]
+    },
+    {
+      "id": "sector_d4", "name": "Sector D4", "profile": "junction",
+      "x": 43.6, "y": 43.6,
+      "adjacent": ["sector_c4", "sector_e4", "sector_d3", "sector_d5"]
+    },
+    {
+      "id": "sector_d5", "name": "Sector D5", "profile": "junction",
+      "x": 56.4, "y": 43.6,
+      "adjacent": ["sector_c5", "sector_e5", "sector_d4", "sector_d6"]
+    },
+    {
+      "id": "sector_d6", "name": "Sector D6", "profile": "industrial",
+      "x": 69.3, "y": 43.6,
+      "adjacent": ["sector_c6", "sector_e6", "sector_d5", "sector_d7"]
+    },
+    {
+      "id": "sector_d7", "name": "Sector D7", "profile": "industrial",
+      "x": 82.1, "y": 43.6,
+      "adjacent": ["sector_c7", "sector_e7", "sector_d6", "sector_d8"]
+    },
+    {
+      "id": "sector_d8", "name": "Sector D8", "profile": "logistics",
+      "x": 95, "y": 43.6,
+      "adjacent": ["sector_c8", "sector_e8", "sector_d7"]
+    },
+    {
+      "id": "sector_e1", "name": "Sector E1", "profile": "logistics",
+      "x": 5, "y": 56.4,
+      "adjacent": ["sector_d1", "sector_f1", "sector_e2"]
+    },
+    {
+      "id": "sector_e2", "name": "Sector E2", "profile": "industrial",
+      "x": 17.9, "y": 56.4,
+      "adjacent": ["sector_d2", "sector_f2", "sector_e1", "sector_e3"]
+    },
+    {
+      "id": "sector_e3", "name": "Sector E3", "profile": "industrial",
+      "x": 30.7, "y": 56.4,
+      "adjacent": ["sector_d3", "sector_f3", "sector_e2", "sector_e4"]
+    },
+    {
+      "id": "sector_e4", "name": "Sector E4", "profile": "junction",
+      "x": 43.6, "y": 56.4,
+      "adjacent": ["sector_d4", "sector_f4", "sector_e3", "sector_e5"]
+    },
+    {
+      "id": "sector_e5", "name": "Sector E5", "profile": "junction",
+      "x": 56.4, "y": 56.4,
+      "adjacent": ["sector_d5", "sector_f5", "sector_e4", "sector_e6"]
+    },
+    {
+      "id": "sector_e6", "name": "Sector E6", "profile": "industrial",
+      "x": 69.3, "y": 56.4,
+      "adjacent": ["sector_d6", "sector_f6", "sector_e5", "sector_e7"]
+    },
+    {
+      "id": "sector_e7", "name": "Sector E7", "profile": "industrial",
+      "x": 82.1, "y": 56.4,
+      "adjacent": ["sector_d7", "sector_f7", "sector_e6", "sector_e8"]
+    },
+    {
+      "id": "sector_e8", "name": "Sector E8", "profile": "logistics",
+      "x": 95, "y": 56.4,
+      "adjacent": ["sector_d8", "sector_f8", "sector_e7"]
+    },
+    {
+      "id": "sector_f1", "name": "Sector F1", "profile": "logistics",
+      "x": 5, "y": 69.3,
+      "adjacent": ["sector_e1", "sector_g1", "sector_f2"]
+    },
+    {
+      "id": "sector_f2", "name": "Sector F2", "profile": "industrial",
+      "x": 17.9, "y": 69.3,
+      "adjacent": ["sector_e2", "sector_g2", "sector_f1", "sector_f3"]
+    },
+    {
+      "id": "sector_f3", "name": "Sector F3", "profile": "industrial",
+      "x": 30.7, "y": 69.3,
+      "adjacent": ["sector_e3", "sector_g3", "sector_f2", "sector_f4"]
+    },
+    {
+      "id": "sector_f4", "name": "Sector F4", "profile": "junction",
+      "x": 43.6, "y": 69.3,
+      "adjacent": ["sector_e4", "sector_g4", "sector_f3", "sector_f5"]
+    },
+    {
+      "id": "sector_f5", "name": "Sector F5", "profile": "junction",
+      "x": 56.4, "y": 69.3,
+      "adjacent": ["sector_e5", "sector_g5", "sector_f4", "sector_f6"]
+    },
+    {
+      "id": "sector_f6", "name": "Sector F6", "profile": "industrial",
+      "x": 69.3, "y": 69.3,
+      "adjacent": ["sector_e6", "sector_g6", "sector_f5", "sector_f7"]
+    },
+    {
+      "id": "sector_f7", "name": "Sector F7", "profile": "industrial",
+      "x": 82.1, "y": 69.3,
+      "adjacent": ["sector_e7", "sector_g7", "sector_f6", "sector_f8"]
+    },
+    {
+      "id": "sector_f8", "name": "Sector F8", "profile": "logistics",
+      "x": 95, "y": 69.3,
+      "adjacent": ["sector_e8", "sector_g8", "sector_f7"]
+    },
+    {
+      "id": "sector_g1", "name": "Sector G1", "profile": "logistics",
+      "x": 5, "y": 82.1,
+      "adjacent": ["sector_f1", "sector_h1", "sector_g2"]
+    },
+    {
+      "id": "sector_g2", "name": "Sector G2", "profile": "industrial",
+      "x": 17.9, "y": 82.1,
+      "adjacent": ["sector_f2", "sector_h2", "sector_g1", "sector_g3"]
+    },
+    {
+      "id": "sector_g3", "name": "Sector G3", "profile": "industrial",
+      "x": 30.7, "y": 82.1,
+      "adjacent": ["sector_f3", "sector_h3", "sector_g2", "sector_g4"]
+    },
+    {
+      "id": "sector_g4", "name": "Sector G4", "profile": "junction",
+      "x": 43.6, "y": 82.1,
+      "adjacent": ["sector_f4", "sector_h4", "sector_g3", "sector_g5"]
+    },
+    {
+      "id": "sector_g5", "name": "Sector G5", "profile": "junction",
+      "x": 56.4, "y": 82.1,
+      "adjacent": ["sector_f5", "sector_h5", "sector_g4", "sector_g6"]
+    },
+    {
+      "id": "sector_g6", "name": "Sector G6", "profile": "industrial",
+      "x": 69.3, "y": 82.1,
+      "adjacent": ["sector_f6", "sector_h6", "sector_g5", "sector_g7"]
+    },
+    {
+      "id": "sector_g7", "name": "Sector G7", "profile": "industrial",
+      "x": 82.1, "y": 82.1,
+      "adjacent": ["sector_f7", "sector_h7", "sector_g6", "sector_g8"]
+    },
+    {
+      "id": "sector_g8", "name": "Sector G8", "profile": "logistics",
+      "x": 95, "y": 82.1,
+      "adjacent": ["sector_f8", "sector_h8", "sector_g7"]
+    },
+    {
+      "id": "sector_h1", "name": "Sector H1", "profile": "logistics",
+      "x": 5, "y": 95,
+      "adjacent": ["sector_g1", "sector_h2"]
+    },
+    {
+      "id": "sector_h2", "name": "Sector H2", "profile": "industrial",
+      "x": 17.9, "y": 95,
+      "adjacent": ["sector_g2", "sector_h1", "sector_h3"]
+    },
+    {
+      "id": "sector_h3", "name": "Sector H3", "profile": "industrial",
+      "x": 30.7, "y": 95,
+      "adjacent": ["sector_g3", "sector_h2", "sector_h4"]
+    },
+    {
+      "id": "sector_h4", "name": "Sector H4", "profile": "junction",
+      "x": 43.6, "y": 95,
+      "adjacent": ["sector_g4", "sector_h3", "sector_h5"]
+    },
+    {
+      "id": "sector_h5", "name": "Sector H5", "profile": "junction",
+      "x": 56.4, "y": 95,
+      "adjacent": ["sector_g5", "sector_h4", "sector_h6"]
+    },
+    {
+      "id": "sector_h6", "name": "Sector H6", "profile": "industrial",
+      "x": 69.3, "y": 95,
+      "adjacent": ["sector_g6", "sector_h5", "sector_h7"]
+    },
+    {
+      "id": "sector_h7", "name": "Sector H7", "profile": "industrial",
+      "x": 82.1, "y": 95,
+      "adjacent": ["sector_g7", "sector_h6", "sector_h8"]
+    },
+    {
+      "id": "sector_h8", "name": "BLU Command H8", "profile": "headquarters", "hq": "BLU",
+      "x": 95, "y": 95,
+      "adjacent": ["sector_g8", "sector_h7"]
     }
   ],
 
   "openings": [
     {
-      "name": "Standard deployment",
+      "name": "Zig-zag contact line",
       "owners": {
-        "red_command": "RED",
-        "rail_yard": "RED",
-        "foundry_17": "RED",
-        "blu_command": "BLU",
-        "reservoir": "BLU",
-        "quarry": "BLU",
-        "iron_junction": "NONE"
+        "sector_a1": "RED",
+        "sector_a2": "RED",
+        "sector_a3": "RED",
+        "sector_a4": "NONE",
+        "sector_a5": "BLU",
+        "sector_a6": "BLU",
+        "sector_a7": "BLU",
+        "sector_a8": "BLU",
+        "sector_b1": "RED",
+        "sector_b2": "RED",
+        "sector_b3": "RED",
+        "sector_b4": "RED",
+        "sector_b5": "NONE",
+        "sector_b6": "BLU",
+        "sector_b7": "BLU",
+        "sector_b8": "BLU",
+        "sector_c1": "RED",
+        "sector_c2": "RED",
+        "sector_c3": "RED",
+        "sector_c4": "NONE",
+        "sector_c5": "BLU",
+        "sector_c6": "BLU",
+        "sector_c7": "BLU",
+        "sector_c8": "BLU",
+        "sector_d1": "RED",
+        "sector_d2": "RED",
+        "sector_d3": "RED",
+        "sector_d4": "RED",
+        "sector_d5": "NONE",
+        "sector_d6": "BLU",
+        "sector_d7": "BLU",
+        "sector_d8": "BLU",
+        "sector_e1": "RED",
+        "sector_e2": "RED",
+        "sector_e3": "RED",
+        "sector_e4": "NONE",
+        "sector_e5": "BLU",
+        "sector_e6": "BLU",
+        "sector_e7": "BLU",
+        "sector_e8": "BLU",
+        "sector_f1": "RED",
+        "sector_f2": "RED",
+        "sector_f3": "RED",
+        "sector_f4": "RED",
+        "sector_f5": "NONE",
+        "sector_f6": "BLU",
+        "sector_f7": "BLU",
+        "sector_f8": "BLU",
+        "sector_g1": "RED",
+        "sector_g2": "RED",
+        "sector_g3": "RED",
+        "sector_g4": "NONE",
+        "sector_g5": "BLU",
+        "sector_g6": "BLU",
+        "sector_g7": "BLU",
+        "sector_g8": "BLU",
+        "sector_h1": "RED",
+        "sector_h2": "RED",
+        "sector_h3": "RED",
+        "sector_h4": "RED",
+        "sector_h5": "NONE",
+        "sector_h6": "BLU",
+        "sector_h7": "BLU",
+        "sector_h8": "BLU"
       }
     },
     {
-      "name": "Crossed positions",
+      "name": "Offset contact line",
       "owners": {
-        "red_command": "RED",
-        "rail_yard": "RED",
-        "quarry": "RED",
-        "blu_command": "BLU",
-        "reservoir": "BLU",
-        "foundry_17": "BLU",
-        "iron_junction": "NONE"
+        "sector_a1": "RED",
+        "sector_a2": "RED",
+        "sector_a3": "RED",
+        "sector_a4": "RED",
+        "sector_a5": "NONE",
+        "sector_a6": "BLU",
+        "sector_a7": "BLU",
+        "sector_a8": "BLU",
+        "sector_b1": "RED",
+        "sector_b2": "RED",
+        "sector_b3": "RED",
+        "sector_b4": "NONE",
+        "sector_b5": "BLU",
+        "sector_b6": "BLU",
+        "sector_b7": "BLU",
+        "sector_b8": "BLU",
+        "sector_c1": "RED",
+        "sector_c2": "RED",
+        "sector_c3": "RED",
+        "sector_c4": "RED",
+        "sector_c5": "NONE",
+        "sector_c6": "BLU",
+        "sector_c7": "BLU",
+        "sector_c8": "BLU",
+        "sector_d1": "RED",
+        "sector_d2": "RED",
+        "sector_d3": "RED",
+        "sector_d4": "NONE",
+        "sector_d5": "BLU",
+        "sector_d6": "BLU",
+        "sector_d7": "BLU",
+        "sector_d8": "BLU",
+        "sector_e1": "RED",
+        "sector_e2": "RED",
+        "sector_e3": "RED",
+        "sector_e4": "RED",
+        "sector_e5": "NONE",
+        "sector_e6": "BLU",
+        "sector_e7": "BLU",
+        "sector_e8": "BLU",
+        "sector_f1": "RED",
+        "sector_f2": "RED",
+        "sector_f3": "RED",
+        "sector_f4": "NONE",
+        "sector_f5": "BLU",
+        "sector_f6": "BLU",
+        "sector_f7": "BLU",
+        "sector_f8": "BLU",
+        "sector_g1": "RED",
+        "sector_g2": "RED",
+        "sector_g3": "RED",
+        "sector_g4": "RED",
+        "sector_g5": "NONE",
+        "sector_g6": "BLU",
+        "sector_g7": "BLU",
+        "sector_g8": "BLU",
+        "sector_h1": "RED",
+        "sector_h2": "RED",
+        "sector_h3": "RED",
+        "sector_h4": "NONE",
+        "sector_h5": "BLU",
+        "sector_h6": "BLU",
+        "sector_h7": "BLU",
+        "sector_h8": "BLU"
       }
     }
   ],
@@ -143,9 +526,9 @@
       "stages": ["breakthrough", "advance", "assault"],
       "battlefields": {
         "skirmish": [
-          { "map": "arena_lumberyard", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 12 },
-          { "map": "arena_well", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 12 },
-          { "map": "arena_watchtower", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 12 },
+          { "map": "arena_lumberyard", "mode": "arena", "min_players": 2, "ideal_players": 6, "max_players": 12 },
+          { "map": "arena_well", "mode": "arena", "min_players": 2, "ideal_players": 6, "max_players": 12 },
+          { "map": "arena_watchtower", "mode": "arena", "min_players": 2, "ideal_players": 6, "max_players": 12 },
           { "map": "koth_lakeside_final", "mode": "koth", "min_players": 4, "ideal_players": 8, "max_players": 16 },
           { "map": "koth_highpass", "mode": "koth", "min_players": 4, "ideal_players": 8, "max_players": 16 },
           { "map": "koth_suijin", "mode": "koth", "min_players": 4, "ideal_players": 10, "max_players": 16 }
@@ -177,9 +560,9 @@
       "stages": ["breakthrough", "assault"],
       "battlefields": {
         "skirmish": [
-          { "map": "arena_granary", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 12 },
-          { "map": "arena_ravine", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 12 },
-          { "map": "arena_byre", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 12 },
+          { "map": "arena_granary", "mode": "arena", "min_players": 2, "ideal_players": 6, "max_players": 12 },
+          { "map": "arena_ravine", "mode": "arena", "min_players": 2, "ideal_players": 6, "max_players": 12 },
+          { "map": "arena_byre", "mode": "arena", "min_players": 2, "ideal_players": 6, "max_players": 12 },
           { "map": "koth_nucleus", "mode": "koth", "min_players": 4, "ideal_players": 8, "max_players": 16 },
           { "map": "koth_king", "mode": "koth", "min_players": 4, "ideal_players": 10, "max_players": 16 },
           { "map": "koth_cascade", "mode": "koth", "min_players": 4, "ideal_players": 10, "max_players": 16 }
@@ -203,9 +586,9 @@
       "stages": ["breakthrough", "advance", "assault"],
       "battlefields": {
         "skirmish": [
-          { "map": "arena_offblast_final", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 12 },
-          { "map": "arena_well", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 12 },
-          { "map": "arena_badlands", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 12 },
+          { "map": "arena_offblast_final", "mode": "arena", "min_players": 2, "ideal_players": 6, "max_players": 12 },
+          { "map": "arena_well", "mode": "arena", "min_players": 2, "ideal_players": 6, "max_players": 12 },
+          { "map": "arena_badlands", "mode": "arena", "min_players": 2, "ideal_players": 6, "max_players": 12 },
           { "map": "koth_harvest_final", "mode": "koth", "min_players": 4, "ideal_players": 8, "max_players": 16 },
           { "map": "koth_brazil", "mode": "koth", "min_players": 4, "ideal_players": 10, "max_players": 16 },
           { "map": "koth_viaduct", "mode": "koth", "min_players": 4, "ideal_players": 8, "max_players": 16 }
