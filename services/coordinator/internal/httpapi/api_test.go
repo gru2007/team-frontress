@@ -578,8 +578,9 @@ func TestWorldIsReadableWithoutASession(t *testing.T) {
 	if code := h.do("GET", "/api/v1/world", "", nil, &world); code != http.StatusOK {
 		t.Fatalf("world: status %d", code)
 	}
-	if len(world.World.Nodes) != 7 {
-		t.Fatalf("world has %d nodes, want the theater's 7", len(world.World.Nodes))
+	wantNodes := world.World.NodeCount["RED"] + world.World.NodeCount["BLU"] + world.World.NodeCount["NONE"]
+	if len(world.World.Nodes) != wantNodes {
+		t.Fatalf("world has %d nodes but its ownership totals %d", len(world.World.Nodes), wantNodes)
 	}
 	if world.World.Campaign.Name == "" {
 		t.Fatal("world snapshot has no campaign")

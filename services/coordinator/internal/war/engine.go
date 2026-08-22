@@ -504,6 +504,25 @@ func (e *Engine) RecordBattle(res BattleResult) (Update, error) {
 		}
 
 	case FrontCollapsed:
+		// A neutral objective is claimed by whoever actually wins the fight over
+		// it. Without this, a defender can break an offensive on neutral ground
+		// but still has no owned source from which to launch the counter-attack,
+		// leaving the campaign with zero legal fronts.
+		if e.st.Owner(target) == SideNone {
+			if err := e.emit(Event{
+				Kind:     EventNodeCaptured,
+				Headline: fmt.Sprintf("%s SECURED %s", defender, targetName),
+				NodeCaptured: &NodeCapturedData{
+					NodeID: target, Name: targetName, From: SideNone, To: defender, FrontID: f.ID,
+				},
+			}); err != nil {
+				return up, err
+			}
+			up.NodeCaptured = true
+			up.NodeID = target
+			up.NewOwner = defender
+		}
+
 		if err := e.closeFront(f.ID, FrontCollapsed, "offensive collapsed"); err != nil {
 			return up, err
 		}
@@ -515,6 +534,10 @@ func (e *Engine) RecordBattle(res BattleResult) (Update, error) {
 		if e.st.Owner(f.SourceNode) == attacker {
 			if id, ok := e.openCounterOffensive(defender, attacker, f.SourceNode, target); ok {
 				up.CounterFront = id
+			} else {
+				// The graph may have changed underneath another live front. Never
+				// let one failed specific counter-offensive make the whole war quiet.
+				e.openFronts(1, "front reopened after a collapsed offensive")
 			}
 		} else {
 			e.openFronts(1, "front reopened after a collapsed offensive")

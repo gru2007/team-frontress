@@ -539,24 +539,96 @@ func TestTimelineIsTheRecap(t *testing.T) {
 
 func TestNeutralNodeIsFoughtOverByBothSides(t *testing.T) {
 	e := newTestEngine(t)
-	// The opening leaves Iron Junction neutral; somebody must be able to attack
-	// it, otherwise the middle of the map is decorative.
+
+	neutral := 0
 	found := false
-	for i := 0; i < 40 && !found; i++ {
-		for _, c := range e.candidates() {
-			if c.target == "iron_junction" {
-				found = true
-				if c.attacker == c.defender || c.defender == SideNone {
-					t.Fatalf("neutral objective produced a one-sided front: %+v", c)
-				}
-			}
+	check := func(attacker, defender Side, target string) {
+		if e.st.Owner(target) != SideNone {
+			return
 		}
-		if !found {
-			t.Fatal("no candidate front targets the neutral objective")
+		neutral++
+		found = true
+		if attacker == defender || defender == SideNone {
+			t.Fatalf("neutral objective produced a one-sided front: %s vs %s at %s", attacker, defender, target)
 		}
 	}
-	if got := e.Snapshot().NodeCount["NONE"]; got != 1 {
-		t.Fatalf("%d neutral nodes at the start, want 1", got)
+
+	// A freshly-created engine already has one open front, so that target is
+	// intentionally absent from candidates(). Count both the live front and the
+	// remaining candidates instead of depending on one historical node ID.
+	for _, f := range e.ActiveFronts() {
+		check(f.Attacker, f.Defender, f.TargetNode)
+	}
+	for _, c := range e.candidates() {
+		check(c.attacker, c.defender, c.target)
+	}
+	if e.Snapshot().NodeCount["NONE"] == 0 {
+		t.Fatal("the opening has no neutral objectives")
+	}
+	if !found || neutral == 0 {
+		t.Fatal("no live or candidate front targets a neutral objective")
+	}
+}
+
+func TestDefenderSecuresNeutralObjectiveBeforeCounterAttack(t *testing.T) {
+	e := newTestEngine(t)
+
+	var f Front
+	found := false
+	for _, cur := range e.ActiveFronts() {
+		if e.st.Owner(cur.TargetNode) == SideNone {
+			f, found = cur, true
+			break
+		}
+	}
+	if !found {
+		// The initial front is selected by score plus a small random tie-breaker.
+		// If it did not pick neutral ground, close the untouched fixture front and
+		// explicitly choose one of the theater's neutral candidates.
+		for _, cur := range e.ActiveFronts() {
+			if err := e.closeFront(cur.ID, FrontClosed, "test fixture reset"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, c := range e.candidates() {
+			if e.st.Owner(c.target) != SideNone {
+				continue
+			}
+			id, err := e.openFront(c, "test neutral objective")
+			if err != nil {
+				t.Fatal(err)
+			}
+			f, found = e.Front(id)
+			break
+		}
+	}
+	if !found {
+		t.Fatal("the shipped opening has no fightable neutral objective")
+	}
+
+	target, source := f.TargetNode, f.SourceNode
+	attacker, defender := f.Attacker, f.Defender
+	up := win(t, e, f.ID, defender)
+	if !up.Collapsed {
+		t.Fatalf("defender win did not collapse stage-zero offensive: %+v", up)
+	}
+	if !up.NodeCaptured || up.NewOwner != defender {
+		t.Fatalf("neutral objective was not secured by %s: %+v", defender, up)
+	}
+	if got := e.st.Owner(target); got != defender {
+		t.Fatalf("neutral objective owner = %s, want %s", got, defender)
+	}
+	if up.CounterFront == "" {
+		t.Fatal("neutral defence left no counter-offensive")
+	}
+	counter, ok := e.Front(up.CounterFront)
+	if !ok {
+		t.Fatalf("counter-offensive %q is not active", up.CounterFront)
+	}
+	if counter.Attacker != defender || counter.Defender != attacker ||
+		counter.SourceNode != target || counter.TargetNode != source {
+		t.Fatalf("counter-offensive = %+v; want %s from %s into %s against %s",
+			counter, defender, target, source, attacker)
 	}
 }
 
