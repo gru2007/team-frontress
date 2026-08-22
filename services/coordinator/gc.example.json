@@ -19,7 +19,7 @@
     "campaign_name": "THE SECOND GRAVEL WAR",
     "attacker_team": "blu",
     "full_strength_players": 12,
-    "min_battle_weight": 0.25
+    "min_battle_weight": 0.5
   },
   "auth": {
     "mode": "dev",
@@ -48,10 +48,11 @@
       2,
       3,
       4,
+      5,
       6
     ],
     "min_team_size": 2,
-    "form_wait": "30s",
+    "form_wait": "1m15s",
     "max_concurrent_per_front": 1,
     "abandon_ban_duration": "10m0s",
     "max_migrations": 3

@@ -99,14 +99,14 @@ type Config struct {
 // people online.
 func DefaultConfig() Config {
 	return Config{
-		TeamSizes:             []int{2, 3, 4, 6},
+		TeamSizes:             []int{2, 3, 4, 5, 6},
 		MinTeamSize:           2,
-		FormWait:              45 * time.Second,
+		FormWait:              75 * time.Second,
 		MaxBattlesPerFront:    1,
 		BootDeadline:          90 * time.Second,
 		JoinDeadline:          120 * time.Second,
 		MatchTimeout:          75 * time.Minute,
-		ResultEvidenceTimeout: 20 * time.Second,
+		ResultEvidenceTimeout: 30 * time.Second,
 		SessionTimeout:        90 * time.Second,
 		HeartbeatInterval:     10 * time.Second,
 		WidenAfter:            30 * time.Second,
@@ -207,7 +207,7 @@ func New(cfg Config, log *slog.Logger, engine *war.Engine, servers *pool.Pool) *
 		cfg.MinTeamSize = 2
 	}
 	if len(cfg.TeamSizes) == 0 {
-		cfg.TeamSizes = []int{2, 3, 4, 6}
+		cfg.TeamSizes = []int{2, 3, 4, 5, 6}
 	}
 	sort.Ints(cfg.TeamSizes)
 	return &Matchmaker{
@@ -557,8 +557,11 @@ func (m *Matchmaker) tryForm() {
 		// before a new one is formed. Two 1v1s on the same front while four
 		// people are online is the wrong answer; so is making somebody who
 		// deployed thirty seconds late wait out a battle they could be in.
-		m.topUpLocked(f)
-		for m.formOne(f) {
+		for {
+			m.topUpLocked(f)
+			if !m.formOne(f) {
+				break
+			}
 		}
 	}
 }
@@ -753,8 +756,7 @@ func (m *Matchmaker) formOne(f war.Front) bool {
 		return false
 	}
 	if total < plan.MinPlayers {
-		// The smallest battlefield this front can offer still needs more people
-		// than are queued. Waiting is the honest answer.
+		// The theater must explicitly provide a battlefield for this population.
 		return false
 	}
 	if plan.MaxPlayers > 0 && total > plan.MaxPlayers {
@@ -777,7 +779,7 @@ func (m *Matchmaker) formOne(f war.Front) bool {
 		StateSince: m.now(),
 	}
 
-	server, err := m.pool.Reserve(matchID, pickRegion(picked), m.now())
+	server, err := m.pool.ReserveForRoster(matchID, pickRegion(picked), len(slots), slotSteamIDs(slots), m.now())
 	if err != nil {
 		// Nothing dedicated is free. Before giving up, see if anybody just
 		// picked is willing and able to run the battle on their own machine —
@@ -804,7 +806,7 @@ func (m *Matchmaker) formOne(f war.Front) bool {
 		if hp := m.players[host]; hp != nil {
 			hp.push(Event{Type: EventHostOffer, Host: &HostOffer{
 				MatchID: match.ID, Map: plan.Map, Mode: plan.Mode,
-				MaxPlayers: len(slots), FrontName: plan.FrontName,
+				MaxPlayers: m.capacityOf(match), FrontName: plan.FrontName,
 				AcceptDeadlineS: int(m.cfg.HostAcceptDeadline.Seconds()),
 			}})
 		}
@@ -837,6 +839,16 @@ func (m *Matchmaker) formOne(f war.Front) bool {
 
 	m.pushMatchState(match, "battle server is loading "+plan.Map)
 	return true
+}
+
+func slotSteamIDs(slots []*Slot) []uint64 {
+	ids := make([]uint64, 0, len(slots))
+	for _, slot := range slots {
+		if slot != nil && slot.SteamID != 0 {
+			ids = append(ids, slot.SteamID)
+		}
+	}
+	return ids
 }
 
 // dropFromPendingMatchLocked takes a player out of a battle that has not sent
@@ -977,7 +989,7 @@ func (m *Matchmaker) ConfirmHost(p *Player, matchID string, reg pool.Registratio
 		return "", "", fmt.Errorf("mm: you were not offered host for battle %q", matchID)
 	}
 
-	id, token, err := m.pool.RegisterElectedHost(reg, matchID, m.now())
+	id, token, err := m.pool.RegisterElectedHostForPlayer(reg, matchID, p.SteamID, m.now())
 	if err != nil {
 		return "", "", err
 	}
@@ -1091,9 +1103,15 @@ func withParties(queued []*Player) []*Player {
 // capacityOf is how many players a battle can hold: what the battlefield
 // itself allows, never less than the roster already on it.
 func (m *Matchmaker) capacityOf(match *Match) int {
+	maxRoster := 2 * m.cfg.TeamSizes[len(m.cfg.TeamSizes)-1]
 	capacity := match.Plan.MaxPlayers
-	if capacity <= 0 {
-		capacity = 2 * m.cfg.TeamSizes[len(m.cfg.TeamSizes)-1]
+	if capacity <= 0 || capacity > maxRoster {
+		capacity = maxRoster
+	}
+	if match.ServerID != "" {
+		if server, ok := m.pool.Get(match.ServerID); ok && server.Capacity > 0 && server.Capacity < capacity {
+			capacity = server.Capacity
+		}
 	}
 	if capacity < len(match.Slots) {
 		capacity = len(match.Slots)

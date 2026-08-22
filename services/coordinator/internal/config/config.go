@@ -289,7 +289,7 @@ func Default() *Config {
 			CampaignName:        "THE SECOND GRAVEL WAR",
 			AttackerTeam:        "blu",
 			FullStrengthPlayers: 12,
-			MinBattleWeight:     0.25,
+			MinBattleWeight:     0.5,
 		},
 		Auth: AuthConfig{
 			Mode: AuthDev,
@@ -314,9 +314,9 @@ func Default() *Config {
 			HostFailureCooldown:   Duration(2 * time.Minute),
 		},
 		Match: MatchConfig{
-			TeamSizes:             []int{2, 3, 4, 6},
+			TeamSizes:             []int{2, 3, 4, 5, 6},
 			MinTeamSize:           2,
-			FormWait:              Duration(30 * time.Second),
+			FormWait:              Duration(75 * time.Second),
 			MaxConcurrentPerFront: 1,
 			AbandonBanDuration:    Duration(10 * time.Minute),
 			MaxMigrations:         3,

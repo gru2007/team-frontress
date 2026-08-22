@@ -83,13 +83,15 @@ type Server struct {
 	// anything in the request body a caller controls — see Register vs.
 	// RegisterElectedHost. Trusted governs whether a reported result is
 	// recorded immediately or held for automatic non-host evidence.
-	Kind    Kind `json:"kind"`
-	Trusted bool `json:"trusted"`
+	Kind         Kind   `json:"kind"`
+	Trusted      bool   `json:"trusted"`
+	OwnerSteamID uint64 `json:"owner_steam_id,string,omitempty"`
 
-	Status  Status `json:"status"`
-	MatchID string `json:"match_id,omitempty"`
-	Map     string `json:"map,omitempty"`
-	Players int    `json:"players"`
+	Status   Status `json:"status"`
+	Draining bool   `json:"draining,omitempty"`
+	MatchID  string `json:"match_id,omitempty"`
+	Map      string `json:"map,omitempty"`
+	Players  int    `json:"players"`
 
 	RegisteredAt time.Time `json:"registered_at"`
 	LastSeen     time.Time `json:"last_seen"`
@@ -98,12 +100,13 @@ type Server struct {
 	Hosted int `json:"hosted"`
 	Failed int `json:"failed"`
 
-	token   string
-	mailbox chan Command
+	token     string
+	mailbox   chan Command
+	idleSince time.Time
 }
 
 // Free reports whether the server can take a new battle.
-func (s *Server) Free() bool { return s.Status == StatusIdle }
+func (s *Server) Free() bool { return s.Status == StatusIdle && !s.Draining }
 
 // Public returns a copy without the token, safe to serve on the admin endpoint.
 func (s *Server) Public() Server {
@@ -387,6 +390,17 @@ func (p *Pool) Register(reg Registration, now time.Time) (id, token string, err 
 // There is no restart-reclaims-its-slot behaviour here: a P2P registration is
 // one battle's worth, not a standing identity.
 func (p *Pool) RegisterElectedHost(reg Registration, matchID string, now time.Time) (id, token string, err error) {
+	return p.registerElectedHost(reg, matchID, 0, now)
+}
+
+func (p *Pool) RegisterElectedHostForPlayer(reg Registration, matchID string, ownerSteamID uint64, now time.Time) (id, token string, err error) {
+	if ownerSteamID == 0 {
+		return "", "", errors.New("pool: an elected player host needs an owner SteamID")
+	}
+	return p.registerElectedHost(reg, matchID, ownerSteamID, now)
+}
+
+func (p *Pool) registerElectedHost(reg Registration, matchID string, ownerSteamID uint64, now time.Time) (id, token string, err error) {
 	if matchID == "" {
 		return "", "", errors.New("pool: an elected host registration needs a match id")
 	}
@@ -408,6 +422,7 @@ func (p *Pool) RegisterElectedHost(reg Registration, matchID string, now time.Ti
 		GameVersion:    reg.GameVersion,
 		Kind:           KindP2P,
 		Trusted:        false,
+		OwnerSteamID:   ownerSteamID,
 		Status:         StatusReserved,
 		MatchID:        matchID,
 		RegisteredAt:   now,
@@ -464,7 +479,9 @@ func (p *Pool) Heartbeat(id, token string, status Status, matchID, mapName strin
 		return ErrBadToken
 	}
 	s.LastSeen = now
-	s.Players = players
+	if status != StatusIdle || players > 0 {
+		s.Players = players
+	}
 	if mapName != "" {
 		s.Map = mapName
 	}
@@ -472,9 +489,15 @@ func (p *Pool) Heartbeat(id, token string, status Status, matchID, mapName strin
 	// it. An idle heartbeat from a reserved server is the agent not having
 	// picked up its assignment yet, not a release.
 	switch status {
-	case StatusBooting, StatusLive, StatusDraining:
-		s.Status = status
-		s.MatchID = matchID
+	case StatusBooting, StatusLive:
+		if matchID != "" && s.MatchID != "" && s.MatchID == matchID {
+			s.Status = status
+		}
+	case StatusDraining:
+		s.Draining = true
+		if s.Status == StatusIdle || s.Status == StatusDraining {
+			s.Status = StatusDraining
+		}
 	case StatusIdle:
 		if s.Status == StatusOffline {
 			s.Status = StatusIdle
@@ -520,6 +543,24 @@ func (p *Pool) Poll(ctx context.Context, id, token string, wait time.Duration) (
 // kind, preferring the least recently used server spreads battles across the
 // pool instead of hammering whichever machine registered first.
 func (p *Pool) Reserve(matchID string, region string, now time.Time) (*Server, error) {
+	return p.reserve(matchID, region, 0, nil, now)
+}
+
+func (p *Pool) ReserveForCapacity(matchID, region string, minCapacity int, now time.Time) (*Server, error) {
+	return p.reserve(matchID, region, minCapacity, nil, now)
+}
+
+func (p *Pool) ReserveForRoster(matchID, region string, minCapacity int, roster []uint64, now time.Time) (*Server, error) {
+	owners := make(map[uint64]bool, len(roster))
+	for _, id := range roster {
+		if id != 0 {
+			owners[id] = true
+		}
+	}
+	return p.reserve(matchID, region, minCapacity, owners, now)
+}
+
+func (p *Pool) reserve(matchID, region string, minCapacity int, allowedP2POwners map[uint64]bool, now time.Time) (*Server, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -528,10 +569,16 @@ func (p *Pool) Reserve(matchID string, region string, now time.Time) (*Server, e
 		if !s.Free() || now.Sub(s.LastSeen) > p.offlineAfterFor(s.Kind) {
 			continue
 		}
+		if minCapacity > 0 && s.Capacity < minCapacity {
+			continue
+		}
+		if allowedP2POwners != nil && s.Kind == KindP2P && (s.OwnerSteamID == 0 || !allowedP2POwners[s.OwnerSteamID]) {
+			continue
+		}
 		if region != "" && s.Region != "" && s.Region != region {
 			continue
 		}
-		if best == nil || preferred(s, best) {
+		if best == nil || preferred(s, best, now) {
 			best = s
 		}
 	}
@@ -540,11 +587,18 @@ func (p *Pool) Reserve(matchID string, region string, now time.Time) (*Server, e
 	}
 	best.Status = StatusReserved
 	best.MatchID = matchID
+	best.idleSince = time.Time{}
 	return best, nil
 }
 
 // preferred reports whether s should be picked over the current best.
-func preferred(s, best *Server) bool {
+const stickyReuseWindow = 90 * time.Second
+
+func preferred(s, best *Server, now time.Time) bool {
+	sWarm, bestWarm := recentlyUsedWithPlayers(s, now), recentlyUsedWithPlayers(best, now)
+	if sWarm != bestWarm {
+		return sWarm
+	}
 	sDedicated, bestDedicated := s.Kind != KindP2P, best.Kind != KindP2P
 	if sDedicated != bestDedicated {
 		return sDedicated
@@ -553,6 +607,14 @@ func preferred(s, best *Server) bool {
 		return s.Hosted < best.Hosted
 	}
 	return s.ID < best.ID
+}
+
+func recentlyUsedWithPlayers(s *Server, now time.Time) bool {
+	if s == nil || s.Players <= 0 || s.idleSince.IsZero() {
+		return false
+	}
+	age := now.Sub(s.idleSince)
+	return age >= 0 && age <= stickyReuseWindow
 }
 
 // Send queues a command for a server. A server whose mailbox is full is one
@@ -583,20 +645,20 @@ func (p *Pool) Release(id string, hosted bool) {
 	if !ok {
 		return
 	}
-	// An elected listen server is leased for exactly one battle. Returning it to
-	// the free pool can assign a new roster while its owner is disconnecting.
-	if s.Kind == KindP2P {
-		delete(p.servers, id)
-		return
-	}
 	if hosted {
 		s.Hosted++
 	} else {
 		s.Failed++
 	}
 	s.MatchID = ""
-	if s.Status != StatusOffline && s.Status != StatusDraining {
-		s.Status = StatusIdle
+	if s.Status != StatusOffline {
+		if s.Draining {
+			s.Status = StatusDraining
+			s.idleSince = time.Time{}
+		} else {
+			s.Status = StatusIdle
+			s.idleSince = time.Now()
+		}
 	}
 }
 
@@ -609,9 +671,13 @@ func (p *Pool) Drain(id string, drain bool) error {
 		return ErrUnknownServer
 	}
 	if drain {
-		s.Status = StatusDraining
+		s.Draining = true
+		if s.Status == StatusIdle {
+			s.Status = StatusDraining
+		}
 		return nil
 	}
+	s.Draining = false
 	if s.Status == StatusDraining {
 		s.Status = StatusIdle
 	}

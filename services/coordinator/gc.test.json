@@ -19,7 +19,7 @@
     "max_fronts": 2,
     "mobilization_deficit": 2,
     "_comment_weight": "A battle is worth its size: full_strength_players is the headcount that clears a whole stage, min_battle_weight the floor under a thin one. Small here because a testbed is four people, not twelve.",
-    "full_strength_players": 8,
+    "full_strength_players": 2,
     "min_battle_weight": 0.5,
     "intermission": "1m0s",
     "campaign_name": "THE SECOND GRAVEL WAR"
@@ -40,9 +40,9 @@
     "tick_interval": "1s"
   },
   "match": {
-    "team_sizes": [2, 3, 4, 6],
-    "min_team_size": 2,
-    "form_wait": "10s",
+    "team_sizes": [1, 2, 3, 4, 5, 6],
+    "min_team_size": 1,
+    "form_wait": "3s",
     "max_concurrent_per_front": 1
   },
   "security": {

@@ -134,6 +134,23 @@ func BattleWeight(players, fullStrength int, min float64) float64 {
 	return w
 }
 
+func ProgressPercent(stage int, push float64, stageCount int, status FrontStatus) int {
+	if status == FrontWon {
+		return 100
+	}
+	if status == FrontCollapsed || stageCount <= 0 {
+		return 0
+	}
+	pct := (float64(stage) + push) * 100 / float64(stageCount)
+	if pct < 0 {
+		pct = 0
+	}
+	if pct > 100 {
+		pct = 100
+	}
+	return int(pct + 0.5)
+}
+
 // apply is the only writer of State. It must stay pure with respect to the
 // event: no clocks, no randomness, no lookups outside the state it is given.
 // Everything the coordinator decided is already in the event.
@@ -226,6 +243,7 @@ func apply(st *State, ev Event) error {
 			f.DefenderWins++
 		}
 		f.Stage, f.Push, f.Status = Advance(f, d.Winner, d.Weight)
+		f.ProgressPct = ProgressPercent(f.Stage, f.Push, len(f.Plan), f.Status)
 
 	case EventNodeCaptured:
 		d := ev.NodeCaptured

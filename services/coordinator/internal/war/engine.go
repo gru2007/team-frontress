@@ -79,7 +79,7 @@ func DefaultRules() Rules {
 		CampaignName:        "THE SECOND GRAVEL WAR",
 		AttackerTeam:        "blu",
 		FullStrengthPlayers: 12,
-		MinBattleWeight:     0.25,
+		MinBattleWeight:     0.5,
 	}
 }
 
@@ -100,7 +100,7 @@ func (r *Rules) fill() {
 		r.FullStrengthPlayers = 12
 	}
 	if r.MinBattleWeight <= 0 {
-		r.MinBattleWeight = 0.25
+		r.MinBattleWeight = 0.5
 	}
 	if r.MinBattleWeight > 1 {
 		r.MinBattleWeight = 1
@@ -427,8 +427,9 @@ func (e *Engine) RecordBattle(res BattleResult) (Update, error) {
 	// The headline describes where the front ends up, so it has to be written
 	// against the projected state rather than the one still in memory. Advance
 	// is the same rule the reducer applies a moment later.
-	nextStage, _, nextStatus := Advance(f, winner, weight)
-	headline := battleHeadline(f, winner, kind, f.StageKindAt(nextStage), nextStatus, targetName)
+	nextStage, nextPush, nextStatus := Advance(f, winner, weight)
+	progressPct := ProgressPercent(nextStage, nextPush, len(f.Plan), nextStatus)
+	headline := battleHeadline(f, winner, kind, f.StageKindAt(nextStage), nextStage, nextStatus, targetName, progressPct)
 
 	if err := e.emit(Event{
 		Kind:     EventBattleRecorded,
@@ -464,6 +465,7 @@ func (e *Engine) RecordBattle(res BattleResult) (Update, error) {
 		FrontStatus: f.Status,
 		Weight:      weight,
 		Push:        f.Push,
+		ProgressPct: f.ProgressPct,
 		Headline:    headline,
 	}
 
@@ -529,20 +531,22 @@ func (e *Engine) RecordBattle(res BattleResult) (Update, error) {
 
 // battleHeadline states what the battle did to the offensive, in the words the
 // world recap and the post-match screen both use.
-func battleHeadline(f *Front, winner Side, cleared, next StageKind, status FrontStatus, targetName string) string {
+func battleHeadline(f *Front, winner Side, current, next StageKind, nextStage int, status FrontStatus, targetName string, progressPct int) string {
 	switch {
 	case winner == SideNone:
-		return fmt.Sprintf("STALEMATE AT %s", targetName)
+		return fmt.Sprintf("STALEMATE AT %s - FRONT %d%%", targetName, progressPct)
 	case winner == f.Attacker && status == FrontWon:
-		return fmt.Sprintf("%s CLEARED %s AT %s", winner, cleared.Label(), targetName)
+		return fmt.Sprintf("%s CAPTURE PUSH COMPLETE AT %s - FRONT 100%%", winner, targetName)
+	case winner == f.Attacker && nextStage > f.Stage:
+		return fmt.Sprintf("%s %s COMPLETE AT %s - FRONT %d%% - NEXT: %s", winner, current.Label(), targetName, progressPct, next.Label())
 	case winner == f.Attacker:
-		return fmt.Sprintf("%s %s COMPLETE AT %s — NEXT: %s",
-			winner, cleared.Label(), targetName, next.Label())
+		return fmt.Sprintf("%s GAINED GROUND AT %s - FRONT %d%%", winner, targetName, progressPct)
 	case status == FrontCollapsed:
-		return fmt.Sprintf("%s BROKE THE %s OFFENSIVE AT %s", winner, f.Attacker, targetName)
+		return fmt.Sprintf("%s BROKE THE %s OFFENSIVE AT %s - FRONT 0%%", winner, f.Attacker, targetName)
+	case nextStage < f.Stage:
+		return fmt.Sprintf("%s HELD AT %s - %s PUSHED BACK - FRONT %d%%", winner, targetName, f.Attacker, progressPct)
 	default:
-		return fmt.Sprintf("%s HELD AT %s — %s PUSHED BACK TO %s",
-			winner, targetName, f.Attacker, next.Label())
+		return fmt.Sprintf("%s HELD AT %s - FRONT %d%%", winner, targetName, progressPct)
 	}
 }
 

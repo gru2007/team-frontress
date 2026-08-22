@@ -394,6 +394,9 @@ func (a *Agent) connectRCON() error {
 	}
 	a.conn = conn
 	a.rmu.Unlock()
+	if err := a.attachLogStreamTo(conn); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -402,6 +405,16 @@ func (a *Agent) connectRCON() error {
 // that will not log to us is a server that cannot host: fail loudly at startup
 // rather than silently never reporting a result.
 func (a *Agent) attachLogStream() error {
+	a.rmu.Lock()
+	conn := a.conn
+	a.rmu.Unlock()
+	if conn == nil {
+		return errors.New("RCON is not connected")
+	}
+	return a.attachLogStreamTo(conn)
+}
+
+func (a *Agent) attachLogStreamTo(conn *rcon.Conn) error {
 	for _, cmd := range []string{
 		"log on",
 		"sv_logfile 1",
@@ -411,7 +424,7 @@ func (a *Agent) attachLogStream() error {
 		// because the agent may reconnect to a server that never restarted.
 		fmt.Sprintf("logaddress_add %s", a.cfg.LogAdvertise),
 	} {
-		if _, err := a.exec("%s", cmd); err != nil {
+		if _, err := conn.Execf("%s", cmd); err != nil {
 			return fmt.Errorf("%s: %w", cmd, err)
 		}
 	}

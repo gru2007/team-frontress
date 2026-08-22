@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,9 +16,12 @@ type battle struct {
 	as        *pool.Assignment
 	startedAt time.Time
 	// mapLoaded flips when the server reports it started the assigned map.
-	mapLoaded bool
-	live      bool
-	reported  bool
+	mapLoaded        bool
+	readyReported    bool
+	readyAttempts    int
+	nextReadyAttempt time.Time
+	live             bool
+	reported         bool
 	// A finished result remains attached to the battle until the coordinator
 	// acknowledges it. A transient HTTP failure must not erase a played match.
 	pendingResult     map[string]any
@@ -26,9 +30,10 @@ type battle struct {
 	// scores are the in-game team scores, exactly as the log stated them. The
 	// coordinator translates them back into war sides, because on a payload or
 	// attack/defend map the attacking side is playing as BLU.
-	scores map[srclog.Team]int
-	rounds map[srclog.Team]int
-	joined map[uint64]bool
+	scores      map[srclog.Team]int
+	rounds      map[srclog.Team]int
+	joined      map[uint64]bool
+	peakPlayers int
 }
 
 func newBattle(as *pool.Assignment) *battle {
@@ -205,7 +210,7 @@ func (a *Agent) startBattle(ctx context.Context, as *pool.Assignment) {
 		if _, err := a.exec("%s", cmd); err != nil {
 			a.log.Error("could not configure the battle", "cmd", firstWord(cmd), "err", err)
 			a.reportState(ctx, as.MatchID, "failed")
-			a.battle = nil
+			a.goIdle(ctx)
 			return
 		}
 	}
@@ -234,7 +239,7 @@ func (a *Agent) battleSetupCommands(as *pool.Assignment) []string {
 		// Turn people away for not being on the roster only when the roster
 		// names accounts this server will actually see — see
 		// Assignment.VerifiedIdentities. Otherwise the password is the gate.
-		fmt.Sprintf("greyline_roster_gate %d", boolToConVar(as.VerifiedIdentities)),
+		"greyline_roster_gate 0",
 		// The coordinator decides the teams, so the server must not shuffle
 		// them back.
 		"mp_autoteambalance 0",
@@ -250,7 +255,7 @@ func (a *Agent) battleSetupCommands(as *pool.Assignment) []string {
 		"mp_friendlyfire 0",
 		"mp_disable_respawn_times 0",
 		"mp_chattime 15",
-		fmt.Sprintf("nextlevel %s", a.cfg.IdleMap),
+		`nextlevel ""`,
 
 		// The war context, replicated so the game announces it to players.
 		"greyline_roster_clear",
@@ -285,6 +290,7 @@ func (a *Agent) battleSetupCommands(as *pool.Assignment) []string {
 		cmds = append(cmds, fmt.Sprintf("greyline_roster_add %d %s %s %d",
 			e.SteamID, strings.ToUpper(e.Team), strings.ToUpper(e.Side), contract))
 	}
+	cmds = append(cmds, fmt.Sprintf("greyline_roster_gate %d", boolToConVar(as.VerifiedIdentities)))
 	cmds = append(cmds, modeRules(as.Mode)...)
 	cmds = append(cmds, "greyline_policy_armed 1")
 	return cmds
@@ -348,18 +354,20 @@ func (a *Agent) handleLog(ctx context.Context, ev srclog.Event) {
 					return
 				}
 			}
-			a.reportState(ctx, b.as.MatchID, "ready")
-			a.announceBriefing()
+			a.refreshConnectedRoster()
+			a.reportReady(ctx)
 		}
 
 	case srclog.KindPlayerJoined:
-		if ev.SteamID == 0 {
-			return
-		}
-		b.joined[ev.SteamID] = true
-		if !b.live {
+		b.markPresent(ev.SteamID)
+		if b.readyReported && !b.live && len(b.joined) > 0 {
 			b.live = true
 			a.reportState(ctx, b.as.MatchID, "live")
+		}
+
+	case srclog.KindPlayerLeft:
+		if ev.SteamID != 0 {
+			delete(b.joined, ev.SteamID)
 		}
 
 	case srclog.KindRoundWin:
@@ -374,6 +382,86 @@ func (a *Agent) handleLog(ctx context.Context, ev srclog.Event) {
 
 	case srclog.KindGameOver:
 		a.finishBattle(ctx, ev.Reason)
+	}
+}
+
+func (b *battle) rosterContains(steamID uint64) bool {
+	if steamID == 0 {
+		return false
+	}
+	if !b.as.VerifiedIdentities {
+		return true
+	}
+	for _, entry := range b.as.Roster {
+		if entry.SteamID == steamID {
+			return true
+		}
+	}
+	return false
+}
+
+func (b *battle) markPresent(steamID uint64) {
+	if !b.rosterContains(steamID) {
+		return
+	}
+	b.joined[steamID] = true
+	if len(b.joined) > b.peakPlayers {
+		b.peakPlayers = len(b.joined)
+	}
+}
+
+func rosterStatusSteamID(line string) (uint64, bool) {
+	fields := strings.Fields(strings.TrimSpace(line))
+	if len(fields) < 2 || fields[0] != "connected:" {
+		return 0, false
+	}
+	for i := len(fields) - 1; i >= 0; i-- {
+		id, err := strconv.ParseUint(fields[i], 10, 64)
+		if err == nil && id != 0 {
+			return id, true
+		}
+	}
+	return 0, false
+}
+
+func (a *Agent) refreshConnectedRoster() {
+	b := a.battle
+	if b == nil {
+		return
+	}
+	out, err := a.exec("greyline_roster_status")
+	if err != nil {
+		return
+	}
+	present := make(map[uint64]bool)
+	for _, line := range strings.Split(out, "\n") {
+		id, ok := rosterStatusSteamID(line)
+		if ok && b.rosterContains(id) {
+			present[id] = true
+		}
+	}
+	b.joined = present
+	if len(present) > b.peakPlayers {
+		b.peakPlayers = len(present)
+	}
+}
+
+func (a *Agent) reportReady(ctx context.Context) {
+	b := a.battle
+	if b == nil || !b.mapLoaded || b.readyReported || time.Now().Before(b.nextReadyAttempt) {
+		return
+	}
+	if err := a.post(ctx, "/api/v1/servers/state", map[string]any{"match_id": b.as.MatchID, "state": "ready"}, nil); err != nil {
+		b.readyAttempts++
+		b.nextReadyAttempt = time.Now().Add(time.Second << min(b.readyAttempts-1, 5))
+		return
+	}
+	b.readyReported = true
+	b.nextReadyAttempt = time.Time{}
+	a.announceBriefing()
+	if len(b.joined) > 0 && !b.live {
+		b.live = true
+		a.reportState(ctx, b.as.MatchID, "live")
 	}
 }
 
@@ -402,7 +490,7 @@ func (a *Agent) finishBattle(ctx context.Context, reason string) {
 		"outcome":    outcome,
 		"red_score":  red,
 		"blu_score":  blu,
-		"players":    len(b.joined),
+		"players":    b.peakPlayers,
 		"duration_s": int(time.Since(b.startedAt).Seconds()),
 	}
 	a.reportPendingResult(ctx)
@@ -437,20 +525,25 @@ func (b *battle) finalScores() (red, blu uint32) {
 	return uint32(b.rounds[srclog.TeamRed]), uint32(b.rounds[srclog.TeamBlu])
 }
 
-// goIdle unlocks the server and sends it back to its waiting map.
+// goIdle resets the battle while keeping the Source process alive for reuse.
 func (a *Agent) goIdle(ctx context.Context) {
 	a.battle = nil
 	for _, cmd := range []string{
 		"greyline_policy_armed 0",
+		"greyline_roster_gate 0",
 		`sv_password ""`,
 		"greyline_roster_clear",
+		"greyline_min_players 0",
+		"mp_winlimit 0",
+		"mp_maxrounds 0",
+		"mp_timelimit 0",
 		`greyline_battle_id ""`,
 		`greyline_front_name ""`,
-		fmt.Sprintf("changelevel %s", a.cfg.IdleMap),
+		`nextlevel ""`,
 	} {
 		if _, err := a.exec("%s", cmd); err != nil {
 			a.log.Warn("could not reset the server", "cmd", firstWord(cmd), "err", err)
-			break
+			continue
 		}
 	}
 	a.heartbeat(ctx)
@@ -497,7 +590,7 @@ func (a *Agent) reportState(ctx context.Context, matchID, state string) {
 }
 
 func (a *Agent) heartbeat(ctx context.Context) {
-	status, matchID, mapName, players := "idle", "", a.cfg.IdleMap, 0
+	status, matchID, mapName, players := "idle", "", "", 0
 	if b := a.battle; b != nil {
 		matchID = b.as.MatchID
 		mapName = b.as.Map
@@ -508,6 +601,9 @@ func (a *Agent) heartbeat(ctx context.Context) {
 		default:
 			status = "booting"
 		}
+	}
+	if b := a.battle; b != nil && !b.readyReported {
+		a.reportReady(ctx)
 	}
 	if err := a.post(ctx, "/api/v1/servers/heartbeat", map[string]any{
 		"status":   status,

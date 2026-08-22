@@ -738,6 +738,15 @@ func (a *API) serverRegister(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &reg) {
 		return
 	}
+	if reg.ID != "" {
+		if old, ok := a.pool.Get(reg.ID); ok && old.MatchID != "" {
+			if err := a.mm.ServerState(reg.ID, old.MatchID, "failed", 0,
+				"dedicated server agent re-registered while hosting the battle"); err != nil {
+				a.log.Warn("could not abort battle replaced by server re-registration",
+					"server", reg.ID, "match", old.MatchID, "err", err)
+			}
+		}
+	}
 	id, token, err := a.pool.Register(reg, time.Now())
 	if err != nil {
 		fail(w, http.StatusBadRequest, err.Error())

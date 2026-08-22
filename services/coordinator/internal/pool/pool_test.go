@@ -64,10 +64,9 @@ func TestRegisterElectedHostRequiresAMatchID(t *testing.T) {
 	}
 }
 
-// TestCompletedP2PHostIsNotReused ensures a one-battle listen server cannot be
-// assigned a new roster while its owner is returning to the menu.
-func TestCompletedP2PHostIsNotReused(t *testing.T) {
+func TestCompletedP2PHostIsStickyAndReusable(t *testing.T) {
 	p := New(45 * time.Second)
+	p.SetP2POfflineAfter(2 * stickyReuseWindow)
 	now := time.Now()
 
 	p2pID, p2pToken, err := p.RegisterElectedHost(Registration{}, "earlier-match", now)
@@ -77,27 +76,41 @@ func TestCompletedP2PHostIsNotReused(t *testing.T) {
 	if err := p.SetConnectAddress(p2pID, p2pToken, "169.254.1.2:27015"); err != nil {
 		t.Fatal(err)
 	}
-	p.Release(p2pID, true) // back to idle, as if it had just hosted one battle
+	if err := p.Heartbeat(p2pID, p2pToken, StatusLive, "earlier-match", "koth_lakeside_final", 4, now); err != nil {
+		t.Fatal(err)
+	}
+	p.Release(p2pID, true)
+	if s, ok := p.Get(p2pID); !ok || s.Status != StatusIdle || s.Hosted != 1 {
+		t.Fatalf("completed P2P host was not returned to idle pool: %#v", s)
+	}
 
-	dedicatedID, _, err := p.Register(Registration{ConnectAddress: "10.0.0.9:27015"}, now)
+	dedicatedID, dedicatedToken, err := p.Register(Registration{ConnectAddress: "10.0.0.9:27015"}, now)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	best, err := p.Reserve("next-match", "", now)
+	best, err := p.Reserve("next-match", "", now.Add(time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if best.ID != p2pID {
+		t.Fatalf("Reserve picked %q (kind %q), want sticky P2P server %q", best.ID, best.Kind, p2pID)
+	}
+	p.Release(p2pID, true)
+
+	later := now.Add(stickyReuseWindow + time.Second)
+	if err := p.Heartbeat(p2pID, p2pToken, StatusIdle, "", "", 0, later); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Heartbeat(dedicatedID, dedicatedToken, StatusIdle, "", "", 0, later); err != nil {
+		t.Fatal(err)
+	}
+	best, err = p.Reserve("later-match", "", later)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if best.ID != dedicatedID {
-		t.Fatalf("Reserve picked %q (kind %q), want the dedicated server %q", best.ID, best.Kind, dedicatedID)
-	}
-
-	// With the dedicated server taken there must be no reusable P2P member.
-	if _, err := p.Reserve("another-match", "", now); err != ErrNoServer {
-		t.Fatalf("completed P2P host was reusable: got %v, want ErrNoServer", err)
-	}
-	if _, ok := p.Get(p2pID); ok {
-		t.Fatal("completed one-battle P2P server remained in the pool")
+		t.Fatalf("after sticky window Reserve picked %q, want dedicated server %q", best.ID, dedicatedID)
 	}
 }
 

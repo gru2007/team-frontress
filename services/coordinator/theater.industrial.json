@@ -108,9 +108,9 @@
       "stages": ["breakthrough", "advance", "assault"],
       "battlefields": {
         "skirmish": [
-          { "map": "arena_badlands", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 12 },
-          { "map": "arena_sawmill", "mode": "arena", "min_players": 4, "ideal_players": 6, "max_players": 12 },
-          { "map": "arena_nucleus", "mode": "arena", "min_players": 4, "ideal_players": 8, "max_players": 12 },
+          { "map": "arena_badlands", "mode": "arena", "min_players": 2, "ideal_players": 6, "max_players": 12 },
+          { "map": "arena_sawmill", "mode": "arena", "min_players": 2, "ideal_players": 6, "max_players": 12 },
+          { "map": "arena_nucleus", "mode": "arena", "min_players": 2, "ideal_players": 8, "max_players": 12 },
           { "map": "koth_viaduct", "mode": "koth", "min_players": 4, "ideal_players": 8, "max_players": 16 },
           { "map": "koth_sawmill", "mode": "koth", "min_players": 4, "ideal_players": 8, "max_players": 16 },
           { "map": "koth_probed", "mode": "koth", "min_players": 4, "ideal_players": 10, "max_players": 16 }

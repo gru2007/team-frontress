@@ -240,8 +240,8 @@ func TestMismatchedP2PResultIsRejectedAndPenalizesHost(t *testing.T) {
 	if got := m.hostHistoryLocked(match.HostSteamID).ResultMismatches; got != 1 {
 		t.Fatalf("host result mismatches = %d, want 1", got)
 	}
-	if _, exists := servers.Get(serverID); exists {
-		t.Fatal("finished P2P server remained reusable in the pool")
+	if _, exists := servers.Get(serverID); !exists {
+		t.Fatal("finished P2P server was removed instead of returned to the pool")
 	}
 }
 
@@ -267,7 +267,7 @@ func TestP2PResultWithoutWitnessTimesOutUncounted(t *testing.T) {
 	if got := m.hostHistoryLocked(match.HostSteamID).ResultTimeouts; got != 1 {
 		t.Fatalf("host result timeouts = %d, want 1", got)
 	}
-	if _, exists := servers.Get(serverID); exists {
-		t.Fatal("timed-out P2P server remained reusable in the pool")
+	if _, exists := servers.Get(serverID); !exists {
+		t.Fatal("timed-out P2P server was removed instead of returned to the pool")
 	}
 }

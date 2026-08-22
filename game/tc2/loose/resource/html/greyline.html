@@ -1189,6 +1189,7 @@ const P2P = {
         baselineGameOverSeq: 0,
         resultReported: false,
         ready: false,
+        serverStarted: false,
       };
       UI.el("diagHost").textContent = "accepted · waiting for assignment";
       this.startHeartbeat();
@@ -1215,7 +1216,8 @@ const P2P = {
       const h = this.host;
       if (!h) return;
       try {
-        if (h.ready && Bridge.ready) {
+        const active = !!h.matchId;
+        if (active && h.ready && Bridge.ready) {
           const local = this.parseBridgeJSON(await Bridge.call("greyline_state", ""));
           const level = String(local.level || "").replace(/\\/g, "/").split("/").pop().replace(/\.bsp$/i, "");
           if (!local.connected || level.toLowerCase() !== String(h.map || "").toLowerCase()) {
@@ -1224,10 +1226,10 @@ const P2P = {
           }
         }
         await GC.serverPost(h, "/api/v1/servers/heartbeat", {
-          status: h.ready ? "live" : "booting",
-          match_id: h.matchId,
-          map: h.map || "",
-          players: await this.playerCount(),
+          status: active ? (h.ready ? "live" : "booting") : "idle",
+          match_id: active ? h.matchId : "",
+          map: active ? (h.map || "") : "",
+          players: active ? await this.playerCount() : 0,
         });
       } catch (e) {
         UI.status("P2P heartbeat failed: " + e.message, true);
@@ -1282,6 +1284,14 @@ const P2P = {
 
   async applyCommand(cmd) {
     if (!cmd || !cmd.type || !this.host) return;
+    if (cmd.type === "assign" && cmd.assignment) {
+      this.host.matchId = cmd.assignment.match_id;
+      this.host.map = cmd.assignment.map;
+      this.host.assignment = cmd.assignment;
+      this.host.ready = false;
+      await this.launch(cmd.assignment);
+      return;
+    }
     if (cmd.type === "roster") {
       const entries = cmd.roster || [];
       for (const e of entries) {
@@ -1298,9 +1308,9 @@ const P2P = {
       }
       return;
     }
-    if (cmd.type === "abort") {
+    if (cmd.type === "abort" || cmd.type === "idle") {
       UI.status("coordinator ended this battle: " + (cmd.reason || "aborted"), true);
-      await this.finishHost(cmd.match_id);
+      await this.parkHost(cmd.match_id);
     }
   },
 
@@ -1353,13 +1363,9 @@ const P2P = {
       "tf_bot_join_after_player 0",
       "tf_bot_auto_vacate 1",
       "tf_bot_kick all",
-      "nextlevel " + this.cleanConsole(as.map),
+      "nextlevel \"\"",
       // Turn people away for not being on the roster only when the roster names
-      // accounts this server will actually see. Under the coordinator's dev
-      // auth a client states whichever SteamID it likes, so the roster can be
-      // full of accounts that never turn up and refusing strangers would
-      // refuse everybody. The battle password is the gate until then.
-      "greyline_roster_gate " + (as.verified_identities ? 1 : 0),
+      "greyline_roster_gate 0",
       "greyline_roster_clear",
       "greyline_battle_id " + this.quote(as.match_id),
       "greyline_front_id " + this.quote(b.front_id),
@@ -1383,13 +1389,13 @@ const P2P = {
         String(entry.team || "").toUpperCase() + " " +
         String(entry.side || "").toUpperCase() + " " + (entry.contract ? 1 : 0));
     });
+    cmds.push("greyline_roster_gate " + (as.verified_identities ? 1 : 0));
     return cmds.concat(this.modeRules(as.mode)).concat(["greyline_policy_armed 1"]);
   },
 
   async launch(as) {
     if (!this.host) return;
-    const before = this.parseBridgeJSON(await Bridge.call("greyline_state", ""));
-    this.host.baselineGameOverSeq = Number(before.game_over_seq || 0);
+    const reuse = !!this.host.serverStarted;
 
     // A listen server does not exist yet, unlike the dedicated agent's srcds.
     // Set the engine-level knobs first, then `map` creates the server. The
@@ -1426,7 +1432,8 @@ const P2P = {
     UI.busy("STANDING UP THE BATTLE", as.map,
       "you were picked to host this battle. The game is loading the map — this can take a minute, it has not crashed.");
     await UI.paint();
-    await Bridge.cmd("map " + this.cleanConsole(as.map));
+    await Bridge.cmd((reuse ? "changelevel " : "map ") + this.cleanConsole(as.map));
+    this.host.serverStarted = true;
 
     const deadline = Date.now() + Math.max(30000, (as.boot_deadline_s || 90) * 1000);
     let sawIdentityWithoutAddressAt = 0;
@@ -1443,6 +1450,7 @@ const P2P = {
         UI.busy("STANDING UP THE BATTLE", as.map, "map loaded — applying the roster and the battle rules");
         for (const cmd of this.battleCommands(as)) await Bridge.cmd(cmd);
         configured = true;
+        this.host.baselineGameOverSeq = Number(state.game_over_seq || 0);
         UI.el("diagHost").textContent = "map loaded · applying roster and policy";
         // The local host is already on the server by the time these commands
         // exist, so explicitly show them the same briefing guests get on join.
@@ -1540,6 +1548,27 @@ const P2P = {
     this.host = null;
     UI.el("diagHost").textContent = "idle";
     try { if (Bridge.ready) await Bridge.cmd("disconnect"); } catch (e) { /* already disconnected */ }
+  },
+
+  async parkHost(matchId) {
+    const h = this.host;
+    if (!h || (matchId && h.matchId && h.matchId !== matchId)) return;
+    if (this.gameWatchTimer) clearInterval(this.gameWatchTimer);
+    this.gameWatchTimer = null;
+    for (const cmd of [
+      "greyline_policy_armed 0", "greyline_roster_gate 0", "sv_password \"\"",
+      "greyline_roster_clear", "greyline_min_players 0", "mp_winlimit 0",
+      "mp_maxrounds 0", "mp_timelimit 0", "greyline_battle_id \"\"",
+      "greyline_front_name \"\"", "nextlevel \"\"",
+    ]) {
+      try { if (Bridge.ready) await Bridge.cmd(cmd); } catch (e) { /* best effort */ }
+    }
+    h.matchId = "";
+    h.map = "";
+    h.assignment = null;
+    h.ready = false;
+    try { await GC.serverPost(h, "/api/v1/servers/heartbeat", { status: "idle", match_id: "", map: "", players: 0 }); } catch (e) { /* retry on next beat */ }
+    UI.el("diagHost").textContent = "idle · registered for reuse";
   },
 
   async failHost(reason) {
@@ -1770,7 +1799,7 @@ const Loop = {
         const over = ev.over || {};
         const nativeNotice = Actions.operationResult(over);
         if (P2P.host && (!finishedMatch || P2P.host.matchId === finishedMatch)) {
-          nativeNotice.finally(() => P2P.finishHost(finishedMatch));
+          nativeNotice.finally(() => P2P.parkHost(finishedMatch));
         }
         const update = over.war_update || {};
         const worth = Number(update.weight || 0);

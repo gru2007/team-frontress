@@ -34,7 +34,7 @@ func newTestMaker(t *testing.T) (*Matchmaker, *pool.Pool) {
 	servers := pool.New(45 * time.Second)
 	cfg := DefaultConfig()
 	cfg.MinTeamSize = 2
-	cfg.TeamSizes = []int{2}
+	cfg.TeamSizes = []int{2, 3, 4, 6}
 	cfg.FormWait = 0
 	return New(cfg, slog.New(slog.DiscardHandler), engine, servers), servers
 }

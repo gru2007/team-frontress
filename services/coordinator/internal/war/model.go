@@ -221,8 +221,9 @@ type Front struct {
 	// Plan is the ordered stage list this offensive must clear. Its length is
 	// the front's depth; a mobilized defender is attacked over a shorter plan
 	// only when the coordinator says so at open time, never retroactively.
-	Plan  []StageKind `json:"plan"`
-	Stage int         `json:"stage"`
+	Plan        []StageKind `json:"plan"`
+	Stage       int         `json:"stage"`
+	ProgressPct int         `json:"progress_pct"`
 	// Push is how far into the next stage this offensive has fought, in
 	// stages: positive towards the attacker, negative towards the defender,
 	// always strictly between -1 and 1. A battle at full strength clears a
@@ -456,6 +457,7 @@ type Update struct {
 	// two are what let it say how much it actually moved.
 	Weight       float64 `json:"weight"`
 	Push         float64 `json:"push"`
+	ProgressPct  int     `json:"progress_pct"`
 	NodeCaptured bool    `json:"node_captured"`
 	NodeID       string  `json:"node_id,omitempty"`
 	NewOwner     Side    `json:"new_owner,omitempty"`
