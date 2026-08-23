@@ -134,6 +134,7 @@ jobs:
             !${{ github.workspace }}/game_clean/**
             !${{ github.workspace }}/game_dist/**
             !${{ github.workspace }}/game_dist_debug/**
+            !${{ github.workspace }}/game/tc2/pak1*.vpk
             !${{ github.workspace }}/steam_build/**
             !${{ github.workspace }}/.gitattributes
             !${{ github.workspace }}/.gitignore
@@ -164,25 +165,32 @@ jobs:
           persist-credentials: false
           submodules: recursive
 
+      # Both Linux lanes compile the same tree -- the dedicated payload is cut
+      # out of the client build, it is not a second compile -- so they share
+      # one ccache namespace. The restore prefix must not contain the ref:
+      # this workflow only runs on tags, and a per-tag prefix means every
+      # release starts from an empty cache and compiles the engine cold.
       - name: Setup ccache
         if: matrix.target == 'client-linux' || matrix.target == 'dedicated-linux'
         uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/.ccache
-          key: ${{ runner.os }}-${{ matrix.target }}-ccache-${{ github.ref_name }}-${{ github.sha }}
+          key: ${{ runner.os }}-ccache-v1-${{ github.sha }}-${{ matrix.target }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.target }}-ccache-${{ github.ref_name }}-
-            ${{ runner.os }}-ccache-${{ github.ref_name }}-
-            ${{ runner.os }}-ccache-
+            ${{ runner.os }}-ccache-v1-
 
       - name: Build Linux client
         if: matrix.target == 'client-linux'
         env:
           CCACHE_DIR: ${{ github.workspace }}/.ccache
-          CCACHE_COMPRESSLEVEL: 6
         run: |
           set -euo pipefail
+          # src/sdk_container forwards only CCACHE_DIR into the podman build
+          # container, so every other ccache setting has to travel in the
+          # config file that sits next to the cache itself. Capping the size
+          # keeps the post-job upload short as well.
           mkdir -p "$CCACHE_DIR"
+          printf 'max_size = 2G\ncompression = true\ncompression_level = 6\n' > "$CCACHE_DIR/ccache.conf"
           ./src/buildallprojects
           ./game_clean/copy.sh
           test -f game_dist/tc2/bin/linux64/client.so
@@ -193,10 +201,14 @@ jobs:
         if: matrix.target == 'dedicated-linux'
         env:
           CCACHE_DIR: ${{ github.workspace }}/.ccache
-          CCACHE_COMPRESSLEVEL: 6
         run: |
           set -euo pipefail
+          # src/sdk_container forwards only CCACHE_DIR into the podman build
+          # container, so every other ccache setting has to travel in the
+          # config file that sits next to the cache itself. Capping the size
+          # keeps the post-job upload short as well.
           mkdir -p "$CCACHE_DIR"
+          printf 'max_size = 2G\ncompression = true\ncompression_level = 6\n' > "$CCACHE_DIR/ccache.conf"
           ./src/buildallprojects
           PACK_TARBALL=1 ./game_clean/copy_server.sh
           test "$(tr -d '\r\n ' < game_server_dist/steam_appid.txt)" = "5147520"
@@ -226,16 +238,44 @@ jobs:
         working-directory: ${{ github.workspace }}/src
         run: .\createallprojects.bat
 
+      # VCPKG_ROOT lives beside the workspace, so the MSBuild cache above does
+      # not cover it and every run re-clones vcpkg, re-bootstraps it and
+      # rebuilds crow. Resolve the path first: actions/cache does not glob a
+      # ".." in the middle of a pattern.
+      - name: Resolve the vcpkg location
+        if: matrix.target == 'client-windows'
+        shell: pwsh
+        run: |
+          $dir = [System.IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE '..\vcpkg'))
+          "VCPKG_DIR=$dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Setup vcpkg cache
+        if: matrix.target == 'client-windows'
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ env.VCPKG_DIR }}
+            !${{ env.VCPKG_DIR }}/buildtrees/**
+            !${{ env.VCPKG_DIR }}/packages/**
+          # Static key: the checkout is shallow and the port set never changes
+          # within a release, so once this is warm it is never re-uploaded.
+          # Bump the suffix to pick up a newer vcpkg or a new dependency.
+          key: ${{ runner.os }}-vcpkg-crow-v1
+
       - name: Install Windows dependencies
         if: matrix.target == 'client-windows'
         shell: pwsh
         run: |
           Set-Location ..
-          if (-not (Test-Path vcpkg)) {
-            git clone https://github.com/microsoft/vcpkg.git
+          if (-not (Test-Path vcpkg/.vcpkg-root)) {
+            # A half-restored cache would make git refuse to clone into it.
+            if (Test-Path vcpkg) { Remove-Item -Recurse -Force vcpkg }
+            git clone --depth=1 https://github.com/microsoft/vcpkg.git
           }
           Set-Location vcpkg
-          .\bootstrap-vcpkg.bat
+          if (-not (Test-Path vcpkg.exe)) {
+            .\bootstrap-vcpkg.bat
+          }
           .\vcpkg integrate install
           .\vcpkg install crow
 
