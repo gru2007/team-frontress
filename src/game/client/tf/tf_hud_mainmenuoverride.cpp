@@ -409,7 +409,14 @@ void CHudMainMenuOverride::UpdateMainMenuChrome()
 		}
 	};
 
-	lambdaVGuiOnly( "TFLogoImage" );
+	// The logo stays down in both menus: it is Team Fortress' own, and the
+	// column and the dashboard already say what game this is.
+	Panel *pLogo = FindChildByName( "TFLogoImage" );
+	if ( pLogo )
+	{
+		pLogo->SetVisible( false );
+	}
+
 	lambdaVGuiOnly( "CharacterSetupButton" );
 	lambdaVGuiOnly( "FriendsContainer" );
 #ifdef SOURCESDK
