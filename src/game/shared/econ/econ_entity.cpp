@@ -5,6 +5,8 @@
 //=============================================================================
 
 #include "cbase.h"
+// GREYLINE FRONTRESS: team colours a battle may have swapped.
+#include "greyline/greyline_uniform.h"
 #include "econ_entity_creation.h"
 #include "vgui/ILocalize.h"
 #include "tier3/tier3.h"
@@ -930,7 +932,10 @@ int C_ViewmodelAttachmentModel::GetSkin( void )
 				CEconItemView *pItem = m_hOuter->GetAttributeContainer()->GetItem();
 				if ( pItem && pItem->IsValid() && GetOwnerViaInterface() )
 				{
-					return pItem->GetSkin( GetOwnerViaInterface()->GetTeamNumber(), true );
+					// GREYLINE FRONTRESS: same remap as every other
+					// team-coloured part of a player. See greyline_uniform.h.
+					return pItem->GetSkin(
+						greyline::DisplayTeam( GetOwnerViaInterface()->GetTeamNumber() ), true );
 				}
 			}
 		}

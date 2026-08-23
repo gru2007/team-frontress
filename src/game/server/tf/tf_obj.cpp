@@ -5,6 +5,8 @@
 // $NoKeywords: $
 //=============================================================================//
 #include "cbase.h"
+// GREYLINE FRONTRESS: team colours a battle may have swapped.
+#include "greyline/greyline_uniform.h"
 #include "tf_player.h"
 #include "tf_team.h"
 #include "tf_obj.h"
@@ -928,7 +930,7 @@ void CBaseObject::StartPlacement( CTFPlayer *pPlayer )
 	m_vecBuildMaxs -= GetAbsOrigin();
 
 	// Set the skin
-	m_nSkin = ( GetTeamNumber() == TF_TEAM_RED ) ? 0 : 1;
+	m_nSkin = ( greyline::DisplayTeam( GetTeamNumber() ) == TF_TEAM_RED ) ? 0 : 1;
 
 	UpdateDisabledState();
 }
@@ -1500,7 +1502,7 @@ bool CBaseObject::StartBuilding( CBaseEntity *pBuilder )
 	if ( IsMiniBuilding() && ( GetType() != OBJ_DISPENSER ) )
 	{
 		// Set the skin after placement mode.
-		m_nSkin = ( GetTeamNumber() == TF_TEAM_RED ) ? 2 : 3;
+		m_nSkin = ( greyline::DisplayTeam( GetTeamNumber() ) == TF_TEAM_RED ) ? 2 : 3;
 	}
 
 	if ( ShouldQuickBuild() )
@@ -2375,7 +2377,7 @@ CTFAmmoPack* CBaseObject::CreateAmmoPack( const char *pchModel, int nMetal )
 
 		pAmmoPack->SetInitialVelocity( vecImpulse );
 
-		pAmmoPack->m_nSkin = ( GetTeamNumber() == TF_TEAM_RED ) ? 0 : 1;
+		pAmmoPack->m_nSkin = ( greyline::DisplayTeam( GetTeamNumber() ) == TF_TEAM_RED ) ? 0 : 1;
 
 		// Give the ammo pack some health, so that trains can destroy it.
 		pAmmoPack->SetCollisionGroup( COLLISION_GROUP_DEBRIS );
@@ -3685,7 +3687,7 @@ void CBaseObject::InitializeMapPlacedObject( void )
 	FinishedBuilding();
 
 	// Set the skin
-	m_nSkin = ( GetTeamNumber() == TF_TEAM_RED ) ? 0 : 1;
+	m_nSkin = ( greyline::DisplayTeam( GetTeamNumber() ) == TF_TEAM_RED ) ? 0 : 1;
 }
 
 //-----------------------------------------------------------------------------

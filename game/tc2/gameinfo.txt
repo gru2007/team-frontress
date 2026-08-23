@@ -1,6 +1,6 @@
 "GameInfo"
 {
-	game					"Team Comtress 2"
+	game					"Team Frontress 2"
 	type 					multiplayer_only
 	nomodels				1
 	nohimodel 				1
@@ -22,8 +22,10 @@
 
 	FileSystem
 	{
-		SteamAppId				243750
-		
+		// Team Frontress Playtest. This is the app the client is published
+		// under on SteamPipe, so it is the app Steam initialises us as.
+		SteamAppId				5147520
+
 		SearchPaths
 		{
 			// First, mount all user customizations.  This will search for VPKs and subfolders
