@@ -19,7 +19,7 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-ConVar tf_mm_coordinator( "tf_mm_coordinator", "http://127.0.0.1:27100", FCVAR_ARCHIVE,
+ConVar tf_mm_coordinator( "tf_mm_coordinator", "http://coordinator.r-artemev.ru:44974", FCVAR_ARCHIVE,
                           "Base URL of the Team Frontress matchmaking coordinator." );
 
 extern ConVar tf_mm_debug;
