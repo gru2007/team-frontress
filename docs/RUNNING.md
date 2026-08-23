@@ -164,17 +164,23 @@ it ignores preferences entirely and plays what the front demands.
 
 ### The stock TF2 menu instead of the HTML one
 
-The HTML main menu is drawn on top of Team Fortress' own VGUI menu, which is
-still built and still works underneath it.
+The HTML menu and the VGUI one are two layouts of the same panel. The menu's
+`.res` carries both: everything the web page draws itself sits in an
+`if_htmlmenu` block, and the game picks the set of conditions when it loads the
+layout, so only one of the two menus is ever up.
 
 ```
-tf_main_menu_html 0     // the stock TF2 menu
-tf_main_menu_html 1     // the HTML menu (default)
+tf_main_menu_html 0     // the stock TF2 menu (default)
+tf_main_menu_html 1     // the HTML menu
 ```
+
+The HTML menu is off by default: the matchmaking dashboard is a separate panel
+that sits above everything on the main menu, and it hangs over the web page.
+Until that is sorted out the stock menu is the one that works.
 
 It takes effect immediately and is archived, so it survives a restart. Nothing
-is destroyed when it is off; the web panel is only hidden, and the page is told
-the menu closed so anything it was polling stops.
+is destroyed when it is switched; the menu layout is reloaded, the web panel is
+hidden, and the page is told the menu closed so anything it was polling stops.
 
 Both menus reach the same matchmaking: the dashboard is its own panel and is
 not part of either. Everything the stock menu does not handle itself is passed
@@ -203,7 +209,8 @@ opencreateserverdialog
 Those are the same thing as `gamemenucommand openserverbrowser`, which also
 works and is what the dashboard's own button runs. Under `SOURCESDK` the stock
 menu additionally has a `ServerBrowserButtonSDK`, so with
-`tf_main_menu_html 0` there is a button for it as well.
+`tf_main_menu_html 0` -- the default -- there is a button for it as well, in
+the row along the bottom of the menu.
 
 Note that a matchmade server is passworded, so it will not accept a connection
 from the browser. That is deliberate.
@@ -433,7 +440,7 @@ else's repository rather than a runtime service, but it is a dependency.
 | connected but kicked for the password | something set `sv_password` after the coordinator did |
 | players have no items | GSLT missing, or the inventory endpoint refused |
 | friends cannot join | `tf_mm_party_autocreate 0`, or they are not on your friends list and the lobby is friends-only |
-| HTML menu is blank or broken | `tf_main_menu_html 0` falls back to the stock TF2 menu |
+| HTML menu is blank, or the dashboard hangs over it | `tf_main_menu_html 0` (the default) uses the stock TF2 menu |
 | server list is empty | the HTML menu's list points at `api.teamcomtress.com`. Use `openserverbrowser` |
 
 `tf_mm_debug 1` prints every state change and HTTP round trip on the client;

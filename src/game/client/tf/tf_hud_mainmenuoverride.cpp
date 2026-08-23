@@ -111,15 +111,18 @@ ConVar cl_mainmenu_operation_motd_start( "cl_mainmenu_operation_motd_start", "0"
 ConVar cl_mainmenu_operation_motd_reset( "cl_mainmenu_operation_motd_reset", "0", FCVAR_ARCHIVE | FCVAR_HIDDEN );
 
 //-----------------------------------------------------------------------------
-// The HTML main menu is drawn on top of the stock Team Fortress one, which is
-// still there and still works. Turning this off hides the web panel and hands
-// the menu back to VGUI -- useful when the web UI is broken, when something in
-// it points at a service we do not run, or simply as a preference.
+// The HTML main menu and the VGUI one are two layouts of the same panel, picked
+// by this convar. The menu .res carries both: everything the web page draws
+// itself is in an "if_htmlmenu" block, so exactly one of the two is up at a
+// time and they cannot stack on top of each other.
 //
-// It takes effect immediately: nothing is destroyed, only hidden.
+// Off by default while the web UI still fights with the matchmaking dashboard,
+// which sits above everything on the main menu.
+//
+// It takes effect immediately: changing it reloads the menu layout.
 //-----------------------------------------------------------------------------
 static void MainMenuHtmlChanged( IConVar *pVar, const char *pOldValue, float flOldValue );
-ConVar tf_main_menu_html( "tf_main_menu_html", "1", FCVAR_ARCHIVE,
+ConVar tf_main_menu_html( "tf_main_menu_html", "0", FCVAR_ARCHIVE,
                           "Use the HTML main menu. 0 uses Team Fortress' own VGUI main menu instead.",
                           true, 0, true, 1, MainMenuHtmlChanged );
 
@@ -286,12 +289,10 @@ CHudMainMenuOverride::CHudMainMenuOverride( IViewPort *pViewPort ) : BaseClass( 
 	m_MainMenuWebUiZIndex = -102;
 
 	// Built either way so the convar can be flipped without restarting; when it
-	// is off the panel is simply never shown.
+	// is off the panel is simply never shown. ApplySchemeSettings picks the
+	// layout, this is just so it starts out hidden before the first one.
 	m_pMainMenuWebUi = new CInteractiveWebPanel( this, "TFMainMenuWebUi", "ui/index.html", true, false );
-	if ( !tf_main_menu_html.GetBool() )
-	{
-		m_pMainMenuWebUi->SetVisible( false );
-	}
+	m_pMainMenuWebUi->SetVisible( tf_main_menu_html.GetBool() );
 
 	vgui::ivgui()->AddTickSignal( GetVPanel(), 50 );
 }
@@ -346,30 +347,27 @@ CON_COMMAND( opencreateserverdialog, "Open the create-a-server dialog." )
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: Show or hide the HTML menu to match tf_main_menu_html.
+// Purpose: Switch the menu between its HTML and VGUI layouts.
 //-----------------------------------------------------------------------------
 void CHudMainMenuOverride::UpdateMainMenuWebUiVisibility()
 {
 	if ( !m_pMainMenuWebUi )
 		return;
 
-	if ( !tf_main_menu_html.GetBool() )
+	if ( !tf_main_menu_html.GetBool() && m_pMainMenuWebUi->IsVisible() )
 	{
-		if ( m_pMainMenuWebUi->IsVisible() )
-		{
-			// Tell the page it is going away, the same way closing the menu
-			// does, so anything it has running stops.
-			if ( GetGameStateManager()->IsReady() )
-				GetGameStateManager()->QueueEvent( "closedmenu", "" );
+		// Tell the page it is going away, the same way closing the menu
+		// does, so anything it has running stops.
+		if ( GetGameStateManager()->IsReady() )
+			GetGameStateManager()->QueueEvent( "closedmenu", "" );
 
-			m_pMainMenuWebUi->SetVisible( false );
-		}
-		return;
+		m_pMainMenuWebUi->SetVisible( false );
 	}
 
-	// Turned back on. OnTick puts it back up on the next pass, which is also
-	// what decides whether the menu should be showing at all right now.
-	InvalidateLayout();
+	// Reload the .res with the other set of conditions, so the VGUI menu comes
+	// back (or gets out of the way again). OnTick/OnUpdateMenu decide whether
+	// the web panel should actually be up right now.
+	InvalidateLayout( false, true );
 }
 
 //-----------------------------------------------------------------------------
@@ -689,6 +687,13 @@ void CHudMainMenuOverride::ApplySchemeSettings( IScheme *scheme )
 	float aspectRatio = engine->GetScreenAspectRatio();
 	AddSubKeyNamed( pConditions, aspectRatio >= 1.6 ? "if_wider" : "if_taller" );
 
+	// ...and which of the two menus we're wearing. Everything the web page
+	// draws itself is hidden by the if_htmlmenu blocks in the .res.
+	if ( tf_main_menu_html.GetBool() )
+	{
+		AddSubKeyNamed( pConditions, "if_htmlmenu" );
+	}
+
 	RemoveAllMenuEntries();
 
 	LoadControlSettings( "resource/UI/MainMenuOverride.res", NULL, NULL, pConditions );
@@ -833,6 +838,13 @@ void CHudMainMenuOverride::ApplySchemeSettings( IScheme *scheme )
 	ScheduleTrainingCheck( false );
 
 	PerformKeyRebindings();
+
+	if ( m_pMainMenuWebUi && !tf_main_menu_html.GetBool() )
+	{
+		// The .res leaves it hidden, but don't rely on that to keep an already
+		// loaded page from painting over the VGUI menu.
+		m_pMainMenuWebUi->SetVisible( false );
+	}
 
 	GetMMDashboard();
 	GetCompRanksTooltip();
@@ -1557,10 +1569,13 @@ void CHudMainMenuOverride::OnUpdateMenu( void )
 		}
 	}
 
-	// Position the entries
+	// Position the entries. These come from GameMenu.res rather than from our
+	// own .res, so the if_htmlmenu blocks can't reach them -- keep them down by
+	// hand while the web page is drawing its own buttons.
+	const bool bHtmlMenu = tf_main_menu_html.GetBool();
 	FOR_EACH_VEC( m_pMMButtonEntries, i )
 	{
-		bool shouldBeVisible = true;
+		bool shouldBeVisible = !bHtmlMenu;
 		if ( m_pMMButtonEntries[i].bOnlyInGame && !bInGame )
 		{
 			shouldBeVisible = false;
