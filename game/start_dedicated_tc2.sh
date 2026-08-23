@@ -23,6 +23,11 @@ esac
 
 mv tc2/gameinfo_client.txt tc2/gameinfo.txt
 
-stty sane
+# Desktop launches have a terminal to restore; Docker/SSH supervisors usually
+# do not. Calling stty on a non-TTY only adds a misleading error after the real
+# server exit reason.
+if [ -t 0 ]; then
+    stty sane
+fi
 
 popd > /dev/null
