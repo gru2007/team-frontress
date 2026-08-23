@@ -18,31 +18,10 @@
 		"OnlyInGame"	"1"
 	}
 
-	// Handed to the matchmaking dashboard by CHudMainMenuOverride::OnCommand.
-	"FindGameButton"
-	{
-		"label"			"#MMenu_FindAGame"
-		"command"		"find_game"
-		"subimage"		"glyph_multiplayer"
-		"OnlyAtMenu"	"1"
-	}
-
-	"ServerBrowserButton"
-	{
-		"label"			"#MMenu_PlayMultiplayer"
-		"command"		"OpenServerBrowser"
-		"subimage"		"glyph_server"
-		"OnlyAtMenu"	"1"
-	}
-
-	"CreateServerButton"
-	{
-		"label"			"#MMenu_HostAGame"
-		"command"		"OpenCreateMultiplayerGameDialog"
-		"subimage"		"glyph_create"
-		"OnlyAtMenu"	"1"
-	}
-
+	// Find a game, host a game and the server browser are not here: they are
+	// the three buttons at the top of the information column, which is built
+	// in code and so is always present. Putting them in both places would just
+	// give the same command two homes.
 	"ChangeServerButton"
 	{
 		"label"			"#MMenu_PlayMultiplayer"

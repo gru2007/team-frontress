@@ -1392,6 +1392,13 @@ void CHudMainMenuOverride::LoadMenuEntries( void )
 		}
 	}
 
+	if ( !bLoaded )
+	{
+		// Worth saying out loud: without this file the menu has no buttons of
+		// its own, and that has been mistaken for a broken menu before.
+		Warning( "Could not load Resource/GameMenu.res -- the main menu's button column will be empty.\n" );
+	}
+
 	for (KeyValues *dat = datafile->GetFirstSubKey(); dat != NULL; dat = dat->GetNextKey())
 	{
 		const char *label = dat->GetString("label", "<unknown>");
@@ -1465,6 +1472,8 @@ void CHudMainMenuOverride::LoadMenuEntries( void )
 
 		OnUpdateMenu();
 	}
+
+	DevMsg( "[mainmenu] %d entries from GameMenu.res\n", m_pMMButtonEntries.Count() );
 }
 
 //-----------------------------------------------------------------------------

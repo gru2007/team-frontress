@@ -22,6 +22,7 @@
 #include "utlvector.h"
 
 namespace vgui { class Label; }
+class CExButton;
 
 //-----------------------------------------------------------------------------
 // One card in the column: a titled box. The cards paint their own chrome so
@@ -178,6 +179,47 @@ private:
 };
 
 //-----------------------------------------------------------------------------
+// The buttons that start and stop a search. These live in the column rather
+// than in the menu's button list because the column is built in code and is
+// therefore always there, whatever GameMenu.res does or does not contain.
+//-----------------------------------------------------------------------------
+class CTFMenuActionsPanel : public vgui::EditablePanel
+{
+	DECLARE_CLASS_SIMPLE( CTFMenuActionsPanel, vgui::EditablePanel );
+public:
+	CTFMenuActionsPanel( vgui::Panel *pParent, const char *pszName );
+
+	virtual void ApplySchemeSettings( vgui::IScheme *pScheme ) OVERRIDE;
+	virtual void PerformLayout() OVERRIDE;
+	virtual void OnCommand( const char *pszCommand ) OVERRIDE;
+	virtual void OnTick() OVERRIDE;
+
+private:
+	// Applied from OnTick rather than from ApplySchemeSettings: vgui::Button
+	// re-reads its own colours out of the scheme, and whichever of the two runs
+	// last wins. This one always does.
+	void ApplyButtonStyle();
+
+	CExButton *m_pPlayButton;
+	CExButton *m_pHostButton;
+	CExButton *m_pBrowseButton;
+
+	vgui::HFont m_hBigFont;
+	vgui::HFont m_hSmallFont;
+
+	Color m_colText;
+	Color m_colGo;
+	Color m_colGoArmed;
+	Color m_colStop;
+	Color m_colStopArmed;
+	Color m_colQuiet;
+	Color m_colQuietArmed;
+
+	bool m_bShowingCancel;
+	bool m_bStateKnown;
+};
+
+//-----------------------------------------------------------------------------
 // The column itself. Owns the cards and stacks them.
 //-----------------------------------------------------------------------------
 class CTFMainMenuInfoPanel : public vgui::EditablePanel
@@ -191,6 +233,7 @@ public:
 	void Reload();
 
 private:
+	CTFMenuActionsPanel *m_pActions;
 	CTFCampaignMapPanel *m_pCampaign;
 	CTFQueueInfoPanel   *m_pQueue;
 	CTFMenuNewsPanel    *m_pNews;

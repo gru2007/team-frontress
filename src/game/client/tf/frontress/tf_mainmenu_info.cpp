@@ -12,7 +12,9 @@
 
 #include "fmtstr.h"
 #include "filesystem.h"
+#include "econ_controls.h"
 #include "tf_match_description.h"
+#include "tf_matchmaking_dashboard.h"
 #include "tf_matchmaking_shared.h"
 
 #include <vgui/ILocalize.h>
@@ -781,16 +783,164 @@ void CTFMenuNewsPanel::Paint()
 }
 
 //=============================================================================
+// CTFMenuActionsPanel
+//=============================================================================
+CTFMenuActionsPanel::CTFMenuActionsPanel( Panel *pParent, const char *pszName )
+	: BaseClass( pParent, pszName )
+{
+	m_bShowingCancel = false;
+	m_bStateKnown    = false;
+	m_hBigFont       = INVALID_FONT;
+	m_hSmallFont     = INVALID_FONT;
+
+	m_pPlayButton   = new CExButton( this, "PlayButton",   "FIND A GAME",    this, "toggle_queue" );
+	m_pHostButton   = new CExButton( this, "HostButton",   "HOST A GAME",    this, "create_server" );
+	m_pBrowseButton = new CExButton( this, "BrowseButton", "SERVER BROWSER", this, "server_browser" );
+
+	SetPaintBackgroundEnabled( false );
+	SetKeyBoardInputEnabled( false );
+
+	ivgui()->AddTickSignal( GetVPanel(), 200 );
+}
+
+//-----------------------------------------------------------------------------
+void CTFMenuActionsPanel::ApplySchemeSettings( IScheme *pScheme )
+{
+	BaseClass::ApplySchemeSettings( pScheme );
+
+	m_colText       = pScheme->GetColor( "TanLight", Color( 235, 226, 202, 255 ) );
+	m_colGo         = pScheme->GetColor( "SaleGreen", Color( 76, 107, 34, 255 ) );
+	m_colGoArmed    = pScheme->GetColor( "CreditsGreen", Color( 94, 150, 49, 255 ) );
+	m_colStop       = Color( 120, 24, 12, 255 );
+	m_colStopArmed  = pScheme->GetColor( "RedSolid", Color( 192, 28, 0, 255 ) );
+	m_colQuiet      = pScheme->GetColor( "DarkBrown", Color( 41, 37, 38, 255 ) );
+	m_colQuietArmed = pScheme->GetColor( "LighterDarkBrown", Color( 59, 54, 48, 255 ) );
+
+	m_hBigFont   = pScheme->GetFont( "HudFontSmallBold", true );
+	m_hSmallFont = pScheme->GetFont( "HudFontSmallestBold", true );
+
+	// Restyle on the next tick, once vgui::Button has finished applying its own
+	// scheme colours over the top of anything set here.
+	m_bStateKnown = false;
+}
+
+//-----------------------------------------------------------------------------
+void CTFMenuActionsPanel::ApplyButtonStyle()
+{
+	CExButton *arButtons[] = { m_pPlayButton, m_pHostButton, m_pBrowseButton };
+	for ( int i = 0; i < ARRAYSIZE( arButtons ); ++i )
+	{
+		arButtons[i]->SetFont( ( i == 0 ) ? m_hBigFont : m_hSmallFont );
+		arButtons[i]->SetContentAlignment( Label::a_center );
+		arButtons[i]->SetPaintBackgroundEnabled( true );
+		arButtons[i]->SetPaintBackgroundType( 0 );
+		arButtons[i]->SetPaintBorderEnabled( false );
+		arButtons[i]->SetMouseInputEnabled( true );
+	}
+
+	m_pHostButton->SetDefaultColor( m_colText, m_colQuiet );
+	m_pHostButton->SetArmedColor( m_colText, m_colQuietArmed );
+	m_pHostButton->SetDepressedColor( m_colText, m_colQuiet );
+
+	m_pBrowseButton->SetDefaultColor( m_colText, m_colQuiet );
+	m_pBrowseButton->SetArmedColor( m_colText, m_colQuietArmed );
+	m_pBrowseButton->SetDepressedColor( m_colText, m_colQuiet );
+
+	m_pPlayButton->SetText( m_bShowingCancel ? "CANCEL SEARCH" : "FIND A GAME" );
+	m_pPlayButton->SetDefaultColor( m_colText, m_bShowingCancel ? m_colStop : m_colGo );
+	m_pPlayButton->SetArmedColor( m_colText, m_bShowingCancel ? m_colStopArmed : m_colGoArmed );
+	m_pPlayButton->SetDepressedColor( m_colText, m_bShowingCancel ? m_colStop : m_colGo );
+}
+
+//-----------------------------------------------------------------------------
+void CTFMenuActionsPanel::PerformLayout()
+{
+	BaseClass::PerformLayout();
+
+	const int nWide = GetWide();
+	const int nTall = GetTall();
+	const int nGap  = MAX( 2, nTall / 16 );
+
+	const int nBigTall   = MAX( 10, (int)( ( nTall - nGap ) * 0.55f ) );
+	const int nSmallTall = MAX( 8, nTall - nGap - nBigTall );
+	const int nHalf      = ( nWide - nGap ) / 2;
+
+	m_pPlayButton->SetBounds( 0, 0, nWide, nBigTall );
+	m_pHostButton->SetBounds( 0, nBigTall + nGap, nHalf, nSmallTall );
+	m_pBrowseButton->SetBounds( nWide - nHalf, nBigTall + nGap, nHalf, nSmallTall );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Follow the queue, so one button both starts and stops a search.
+//-----------------------------------------------------------------------------
+void CTFMenuActionsPanel::OnTick()
+{
+	BaseClass::OnTick();
+
+	if ( !IsVisible() )
+		return;
+
+	const bool bQueued = ( TFMMBackend()->GetState() == k_eTFMMState_Searching );
+	if ( bQueued == m_bShowingCancel && m_bStateKnown )
+		return;
+
+	m_bShowingCancel = bQueued;
+	m_bStateKnown    = true;
+
+	ApplyButtonStyle();
+}
+
+//-----------------------------------------------------------------------------
+void CTFMenuActionsPanel::OnCommand( const char *pszCommand )
+{
+	if ( !V_stricmp( pszCommand, "toggle_queue" ) )
+	{
+		if ( TFMMBackend()->GetState() == k_eTFMMState_Searching )
+		{
+			TFMMBackend()->CancelQueue();
+			return;
+		}
+
+		// The dashboard owns the play flow -- it is the thing that decides
+		// between opening the playlist and falling back to quickplay.
+		CTFMatchmakingDashboard *pDashboard = GetMMDashboard();
+		if ( pDashboard )
+		{
+			pDashboard->OnCommand( "find_game" );
+		}
+		return;
+	}
+
+	if ( !V_stricmp( pszCommand, "create_server" ) )
+	{
+		engine->ClientCmd_Unrestricted( "gamemenucommand OpenCreateMultiplayerGameDialog" );
+		return;
+	}
+
+	if ( !V_stricmp( pszCommand, "server_browser" ) )
+	{
+		engine->ClientCmd_Unrestricted( "gamemenucommand OpenServerBrowser" );
+		return;
+	}
+
+	BaseClass::OnCommand( pszCommand );
+}
+
+//=============================================================================
 // CTFMainMenuInfoPanel
 //=============================================================================
 CTFMainMenuInfoPanel::CTFMainMenuInfoPanel( Panel *pParent, const char *pszName )
 	: BaseClass( pParent, pszName )
 {
+	m_pActions  = new CTFMenuActionsPanel( this, "Actions" );
 	m_pCampaign = new CTFCampaignMapPanel( this, "CampaignMap" );
 	m_pQueue    = new CTFQueueInfoPanel( this, "QueueInfo" );
 	m_pNews     = new CTFMenuNewsPanel( this, "News" );
 
-	SetMouseInputEnabled( false );
+	// The buttons need the cursor, and VGUI stops hit testing at the first
+	// parent that does not take mouse input -- so the column has to take it
+	// even though nothing in it but the buttons uses it.
+	SetMouseInputEnabled( true );
 	SetKeyBoardInputEnabled( false );
 	SetPaintBackgroundEnabled( false );
 }
@@ -804,14 +954,17 @@ void CTFMainMenuInfoPanel::PerformLayout()
 	const int nTall = GetTall();
 	const int nGap  = MAX( 2, nTall / 60 );
 
-	const int nBody      = MAX( 1, nTall - nGap * 2 );
-	const int nCampaignH = (int)( nBody * 0.44f );
-	const int nQueueH    = (int)( nBody * 0.26f );
-	const int nNewsH     = nBody - nCampaignH - nQueueH;
+	const int nBody      = MAX( 1, nTall - nGap * 3 );
+	const int nActionsH  = (int)( nBody * 0.17f );
+	const int nCampaignH = (int)( nBody * 0.37f );
+	const int nQueueH    = (int)( nBody * 0.22f );
+	const int nNewsH     = nBody - nActionsH - nCampaignH - nQueueH;
 
-	m_pCampaign->SetBounds( 0, 0, nWide, nCampaignH );
-	m_pQueue->SetBounds( 0, nCampaignH + nGap, nWide, nQueueH );
-	m_pNews->SetBounds( 0, nCampaignH + nQueueH + nGap * 2, nWide, nNewsH );
+	int nY = 0;
+	m_pActions->SetBounds( 0, nY, nWide, nActionsH );   nY += nActionsH + nGap;
+	m_pCampaign->SetBounds( 0, nY, nWide, nCampaignH ); nY += nCampaignH + nGap;
+	m_pQueue->SetBounds( 0, nY, nWide, nQueueH );       nY += nQueueH + nGap;
+	m_pNews->SetBounds( 0, nY, nWide, nNewsH );
 }
 
 //-----------------------------------------------------------------------------

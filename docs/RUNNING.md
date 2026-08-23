@@ -214,8 +214,14 @@ bridge. Neither costs anything when nobody is connected to them.
 
 ### The information column
 
-Down the right of the VGUI menu, where Team Fortress puts its MOTD, are three
-cards:
+Down the right of the VGUI menu, where Team Fortress puts its MOTD, are the
+play buttons and three cards.
+
+**Find a game, host a game, server browser** sit at the top of the column. They
+are built in code, so they are there whatever `GameMenu.res` does or does not
+contain -- which is the whole reason they are on this side of the screen and
+not in the menu's own button list. The first one follows the queue: while a
+search is running it turns red and cancels it.
 
 - **Campaign** -- the war line: nodes coloured by who holds them, the edges
   between them, and a pulsing ring on the front that is live.
@@ -227,6 +233,12 @@ cards:
   you are out of a game, and says so plainly when the coordinator does not
   answer.
 - **News** -- whatever is in the news file.
+
+The buttons on the left, if there are any, come from `GameMenu.res` and are the
+rest of the menu: resume, change server, character setup, and the in-game ones.
+When that file cannot be loaded the game says so in the console --
+`Could not load Resource/GameMenu.res` -- and `developer 1` adds a line saying
+how many entries it did find.
 
 The cards are drawn in code (`src/game/client/tf/frontress/tf_mainmenu_info.cpp`)
 rather than laid out in a `.res`, because the menu's `.res` is in a pak we do
