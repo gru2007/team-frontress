@@ -9,6 +9,11 @@
     "app_id": 5147520
   },
 
+  "players": {
+    "file": "players.jsonl",
+    "abandon_grace_secs": 300
+  },
+
   "match_groups": [
     {
       "match_group": 7,
@@ -19,7 +24,7 @@
       "ideal_players": 12,
       "max_players": 24,
       "patient_secs": 60,
-      "server_config": "frontress_match",
+      "server_config": "frontress_casual",
       "backfill_secs": 0,
       "maps": [
         "koth_product_final",
@@ -32,21 +37,39 @@
       "match_group": 2,
       "name": "Ranked 6v6",
       "mode": "ranked",
-      "enabled": false,
+      "enabled": true,
       "min_players": 12,
       "ideal_players": 12,
       "max_players": 12,
       "patient_secs": 0,
-      "server_config": "frontress_match",
-      "maps": ["cp_process_final", "cp_gullywash_final1"]
+      "server_config": "frontress_ranked",
+      "backfill_secs": -1,
+      "maps": ["cp_process_final", "cp_gullywash_final1", "koth_product_final"],
+      "restrictions": {
+        "max_party_size": 3,
+        "min_matches_played": 5,
+        "abandon_cooldown_mins": 30,
+        "max_abandons": 5,
+        "require_verified_auth": false,
+        "allowed_steam_ids": [],
+        "banned_steam_ids": []
+      }
     }
   ],
 
   "pool": {
-    "boot_deadline_secs": 90,
+    "boot_deadline_secs": 180,
     "idle_end_secs": 300,
     "max_match_secs": 10800,
     "providers": [
+      {
+        "kind": "serveme",
+        "region": "eu",
+        "base_url": "https://serveme.example.org",
+        "api_key": "the coordinator user's serveme API key",
+        "reserve_mins": 120,
+        "prefer_docker": true
+      },
       {
         "kind": "static",
         "region": "eu",

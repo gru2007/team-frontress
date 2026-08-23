@@ -102,3 +102,61 @@ func TestDurationsFallBackWhenUnset(t *testing.T) {
 		t.Fatal("an unset pool block produced a zero duration")
 	}
 }
+
+func TestRestrictionsMustBeSatisfiable(t *testing.T) {
+	base := func() Config {
+		c := Defaults()
+		c.Secret = "s"
+		c.MatchGroups = []MatchGroupConfig{{
+			MatchGroup: 2, Name: "Ranked", Enabled: true,
+			MinPlayers: 12, IdealPlayers: 12, MaxPlayers: 12,
+			Maps: []string{"cp_process_final"},
+		}}
+		c.Pool.Providers = []ProviderConfig{{Kind: "static", Servers: []StaticServer{{Connect: "1.2.3.4:27015"}}}}
+		return c
+	}
+
+	// A party cap bigger than a team can never be met.
+	c := base()
+	c.MatchGroups[0].Restrictions = Restrictions{MaxPartySize: 9}
+	if err := c.Validate(); err == nil {
+		t.Error("a max_party_size larger than a team was accepted")
+	}
+
+	// Verified identities need a coordinator that can check them.
+	c = base()
+	c.Auth = AuthConfig{Mode: "dev"}
+	c.MatchGroups[0].Restrictions = Restrictions{RequireVerifiedAuth: true}
+	if err := c.Validate(); err == nil {
+		t.Error("require_verified_auth was accepted with auth.mode dev, which cannot verify anything")
+	}
+
+	c = base()
+	c.Auth = AuthConfig{Mode: "webapi", SteamAPIKey: "k", AppID: 5147520}
+	c.MatchGroups[0].Restrictions = Restrictions{RequireVerifiedAuth: true, MaxPartySize: 3}
+	if err := c.Validate(); err != nil {
+		t.Errorf("a satisfiable ranked config was refused: %v", err)
+	}
+
+	// A typo in a SteamID silently bans nobody, so it is refused instead.
+	c = base()
+	c.MatchGroups[0].Restrictions = Restrictions{BannedSteamIDs: []wire.SteamID{"7656119800000000"}}
+	if err := c.Validate(); err == nil {
+		t.Error("a malformed SteamID in a ban list was accepted")
+	}
+}
+
+func TestPartyCapIsTheStricterOfTheTwo(t *testing.T) {
+	g := MatchGroupConfig{MaxPlayers: 12}
+	if got := g.PartyCap(); got != 6 {
+		t.Errorf("PartyCap = %d, want half a match when nothing restricts it", got)
+	}
+	g.Restrictions.MaxPartySize = 3
+	if got := g.PartyCap(); got != 3 {
+		t.Errorf("PartyCap = %d, want the restriction", got)
+	}
+	g.Restrictions.MaxPartySize = 6
+	if got := g.PartyCap(); got != 6 {
+		t.Errorf("PartyCap = %d", got)
+	}
+}

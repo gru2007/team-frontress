@@ -22,6 +22,14 @@ import (
 // it to find_servers to learn which are free, then create it. Releasing a
 // server deletes the reservation, so these servers are Ephemeral: there is
 // nothing to return to a free list.
+//
+// Two things about the Frontress fork shape this. Its servers are containers
+// started for the reservation, so a fresh reservation is not a running server
+// for the first half-minute or so: Acquire waits for it rather than handing
+// the matchmaker an address that refuses RCON. And it takes the match's own
+// password, first map and ruleset with the reservation, so the container boots
+// already configured for the match instead of being reconfigured after the
+// fact.
 type Serveme struct {
 	BaseURL string
 	APIKey  string
@@ -32,10 +40,25 @@ type Serveme struct {
 	ServerConfigID int
 	Region         string
 	Client         *http.Client
+	// PreferDocker picks a container host over a bare-metal server when
+	// serveme offers both. serveme numbers its docker hosts from
+	// DockerHost::VIRTUAL_ID_OFFSET (1e9) precisely so they can be told apart
+	// in an id, which is what this leans on.
+	PreferDocker bool
+	// ReadyTimeout bounds the wait for a reservation to come up. Zero uses
+	// the caller's deadline, which the matchmaker sets from
+	// pool.boot_deadline_secs.
+	ReadyTimeout time.Duration
+	// PollEvery is how often the reservation is asked whether it is ready.
+	PollEvery time.Duration
 
 	mu     sync.Mutex
 	active int
 }
+
+// dockerHostIDOffset mirrors serveme's DockerHost::VIRTUAL_ID_OFFSET: the
+// virtual server ids it gives container hosts start here.
+const dockerHostIDOffset = 1_000_000_000
 
 // NewServeme builds a serveme provider from config.
 func NewServeme(pc config.ProviderConfig) *Serveme {
@@ -50,6 +73,9 @@ func NewServeme(pc config.ProviderConfig) *Serveme {
 		ServerConfigID: pc.ServerConfigID,
 		Region:         pc.Region,
 		Client:         &http.Client{Timeout: 30 * time.Second},
+		PreferDocker:   pc.PreferDocker,
+		ReadyTimeout:   time.Duration(pc.ReadyTimeoutSecs) * time.Second,
+		PollEvery:      3 * time.Second,
 	}
 }
 
@@ -68,12 +94,20 @@ type servemeReservation struct {
 	AutoEnd        bool   `json:"auto_end,omitempty"`
 	StartInstantly bool   `json:"start_instantly,omitempty"`
 	Status         string `json:"status,omitempty"`
-	SDRIP          string `json:"sdr_ip,omitempty"`
-	SDRPort        int    `json:"sdr_port,omitempty"`
-	SDRTVPort      int    `json:"sdr_tv_port,omitempty"`
-	TVPort         int    `json:"tv_port,omitempty"`
-	TVPassword     string `json:"tv_password,omitempty"`
-	Server         *struct {
+	// The Frontress fork's matchmaking fields. A serveme that does not know
+	// them ignores them; ours writes the match tag and the ruleset into the
+	// server's config before it starts.
+	MatchID     string `json:"match_id,omitempty"`
+	MatchMode   string `json:"match_mode,omitempty"`
+	MatchConfig string `json:"match_config,omitempty"`
+	Provisioned bool   `json:"provisioned,omitempty"`
+	Ended       bool   `json:"ended,omitempty"`
+	SDRIP       string `json:"sdr_ip,omitempty"`
+	SDRPort     int    `json:"sdr_port,omitempty"`
+	SDRTVPort   int    `json:"sdr_tv_port,omitempty"`
+	TVPort      int    `json:"tv_port,omitempty"`
+	TVPassword  string `json:"tv_password,omitempty"`
+	Server      *struct {
 		ID        int64  `json:"id"`
 		Name      string `json:"name"`
 		IP        string `json:"ip"`
@@ -85,19 +119,24 @@ type servemeReservation struct {
 }
 
 type servemeEnvelope struct {
-	Reservation servemeReservation `json:"reservation"`
-	Servers     []struct {
-		ID       int64  `json:"id"`
-		Name     string `json:"name"`
-		Location *struct {
-			ID   int64  `json:"id"`
-			Name string `json:"name"`
-			Flag string `json:"flag"`
-		} `json:"location"`
-	} `json:"servers"`
+	Reservation servemeReservation   `json:"reservation"`
+	Servers     []servemeFoundServer `json:"servers"`
 }
 
-// Acquire creates a reservation and returns the server it landed on.
+// servemeFoundServer is one entry of find_servers. An id at or above
+// dockerHostIDOffset is a container host rather than a machine.
+type servemeFoundServer struct {
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Location *struct {
+		ID   int64  `json:"id"`
+		Name string `json:"name"`
+		Flag string `json:"flag"`
+	} `json:"location"`
+}
+
+// Acquire creates a reservation, waits for the server behind it to come up,
+// and returns it.
 func (s *Serveme) Acquire(ctx context.Context, req Request) (*Server, error) {
 	// Step 1: prefilled reservation, mostly for the times serveme wants.
 	var prefill servemeEnvelope
@@ -117,6 +156,10 @@ func (s *Serveme) Acquire(ctx context.Context, req Request) (*Server, error) {
 		AutoEnd:        true,
 		StartInstantly: true,
 		EnablePlugins:  true,
+		FirstMap:       req.Map,
+		MatchID:        req.MatchID,
+		MatchMode:      req.Mode,
+		MatchConfig:    req.ServerConfig,
 	}
 
 	// Step 2: which servers are free for that window.
@@ -130,8 +173,11 @@ func (s *Serveme) Acquire(ctx context.Context, req Request) (*Server, error) {
 	}
 
 	// Step 3: create it.
-	res.ServerID = found.Servers[0].ID
-	res.Password = randomToken(8)
+	res.ServerID = s.pick(found.Servers)
+	// The match already has a password, and two passwords for one server is
+	// one too many: the players would be told ours and the server would be
+	// holding serveme's.
+	res.Password = firstNonEmpty(req.Password, randomToken(8))
 	res.RCON = randomToken(16)
 	res.ServerConfigID = s.ServerConfigID
 	if found.Reservation.StartsAt != "" {
@@ -146,6 +192,17 @@ func (s *Serveme) Acquire(ctx context.Context, req Request) (*Server, error) {
 	if r.ID == 0 {
 		return nil, fmt.Errorf("serveme: reservation was not created")
 	}
+
+	// A reservation on a container host is a server that does not exist yet.
+	// Wait for it: an address that is not listening is worse than a slower
+	// match, because the matchmaker would blame the server and re-queue
+	// everybody.
+	ready, err := s.waitReady(ctx, r.ID)
+	if err != nil {
+		s.release(context.WithoutCancel(ctx), r.ID)
+		return nil, err
+	}
+	r = ready
 	connect := ""
 	name := ""
 	if r.Server != nil {
@@ -192,6 +249,69 @@ func (s *Serveme) Acquire(ctx context.Context, req Request) (*Server, error) {
 		Handle:    fmt.Sprintf("%d|%s", r.ID, rconAddr),
 		Ephemeral: true,
 	}, nil
+}
+
+// pick chooses which of the free servers to reserve.
+//
+// Nothing here knows what a server is: serveme's find_servers answers with a
+// list of ids, and the only structure in them is that container hosts are
+// numbered from 1e9. Preferring one is preferring "start a container for this
+// match" over "take the box somebody set up by hand", which is the whole point
+// of the docker-first deployment.
+func (s *Serveme) pick(servers []servemeFoundServer) int64 {
+	if len(servers) == 0 {
+		return 0
+	}
+	if s.PreferDocker {
+		for _, sv := range servers {
+			if sv.ID >= dockerHostIDOffset {
+				return sv.ID
+			}
+		}
+	}
+	return servers[0].ID
+}
+
+// waitReady polls a reservation until the server behind it is up.
+//
+// serveme's own status strings are the contract here: "Ready" and "SDR Ready"
+// mean a server that answers, and the failure strings mean it never will. An
+// unrecognised status is treated as "still coming up", because a fork that
+// invents a new intermediate state should cost us a slower match, not a failed
+// one.
+func (s *Serveme) waitReady(ctx context.Context, id int64) (servemeReservation, error) {
+	if s.ReadyTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, s.ReadyTimeout)
+		defer cancel()
+	}
+	every := s.PollEvery
+	if every <= 0 {
+		every = 3 * time.Second
+	}
+	t := time.NewTicker(every)
+	defer t.Stop()
+
+	var last servemeReservation
+	for {
+		var got servemeEnvelope
+		if err := s.do(ctx, http.MethodGet, fmt.Sprintf("/api/reservations/%d", id), nil, &got); err != nil {
+			return last, err
+		}
+		last = got.Reservation
+		switch last.Status {
+		case "Ready", "SDR Ready":
+			return last, nil
+		case "Ended", "Ending", "Cloud server failed to start":
+			return last, fmt.Errorf("serveme: reservation %d ended before the match started (%s)", id, last.Status)
+		}
+		select {
+		case <-ctx.Done():
+			return last, fmt.Errorf("serveme: reservation %d was still %q when we ran out of time: %w",
+				id, firstNonEmpty(last.Status, "unknown"), ctx.Err())
+		case <-t.C:
+		}
+	}
 }
 
 // Release ends the reservation.

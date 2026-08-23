@@ -41,12 +41,29 @@ type Server struct {
 }
 
 // Request describes what the match needs.
+//
+// Map, Password and ServerConfig are here for the providers that build a
+// server rather than hand one out. A serveme reservation writes the config and
+// downloads the first map before the game starts, so it has to be told all
+// three up front; a static server is already running and ignores them, because
+// RCONSetup sets the same things over RCON a moment later.
 type Request struct {
 	MatchID string
 	Region  string
 	Players int
 	// Minutes the match is expected to last, for providers that reserve time.
 	Minutes int
+	// Map the match starts on.
+	Map string
+	// Password is the match password. A provider that can set it saves the
+	// server a window between booting and being locked -- and saves us the
+	// case where the provider invents its own and the two disagree.
+	Password string
+	// ServerConfig is the ruleset the match runs, e.g. "frontress_ranked".
+	ServerConfig string
+	// Mode is the match group's mode, "frontline" or "ranked". Providers pass
+	// it on for logging and for forks that treat ranked servers differently.
+	Mode string
 }
 
 // Provider is one source of servers.

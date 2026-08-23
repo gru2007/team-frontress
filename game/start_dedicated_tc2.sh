@@ -12,7 +12,14 @@ if [ ! -f bin/linux64/libtinfo.so.5 ]; then
     ln -s /lib/x86_64-linux-gnu/libtinfo.so.6 bin/linux64/libtinfo.so.5
 fi
 
-./tc2.sh -console -dedicated -gatherdedi "$@" +sv_pure 1
+# sv_pure follows the same rule as +ip: a default, not an override. The match
+# config the coordinator execs can still set it either way.
+PURE_DEFAULT=(+sv_pure 1)
+case " $* " in
+  *" +sv_pure "*) PURE_DEFAULT=() ;;
+esac
+
+./tc2.sh -console -dedicated -gatherdedi "$@" "${PURE_DEFAULT[@]}"
 
 mv tc2/gameinfo_client.txt tc2/gameinfo.txt
 

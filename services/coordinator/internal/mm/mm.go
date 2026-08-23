@@ -120,6 +120,7 @@ type Matchmaker struct {
 	newID func() string
 
 	mu      sync.Mutex
+	players PlayerStore
 	tickets map[string]*Ticket
 	matches map[string]*Match
 	// recent remembers when each map was last played, so the picker can
@@ -165,14 +166,17 @@ func (m *Matchmaker) Enqueue(t *Ticket) (*Ticket, error) {
 	if t.Size() == 0 {
 		return nil, fmt.Errorf("a queue ticket needs at least one player")
 	}
-	if t.Size() > group.MaxPlayers/2 {
-		// A party bigger than half a match cannot be placed without splitting
-		// it, and splitting a party is the one thing matchmaking must not do.
-		return nil, fmt.Errorf("a party of %d cannot fit one team in %s", t.Size(), group.Name)
-	}
 
+	// A party bigger than half a match cannot be placed without splitting it,
+	// and splitting a party is the one thing matchmaking must not do. That
+	// check lives with the rest of the group's entry rules.
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	if err := checkRestrictions(group, t, m.players, m.cfg.Auth.Verified(), m.now()); err != nil {
+		m.log.Info("queue refused", "group", group.Name, "leader", t.Leader, "reason", err)
+		return nil, err
+	}
 
 	key := leaderKey{t.Leader, t.MatchGroup}
 	if oldID, ok := m.byLeader[key]; ok {

@@ -23,9 +23,13 @@ func (m *Matchmaker) boot(ctx context.Context, mt *Match) {
 	defer cancel()
 
 	srv, err := m.pool.Acquire(bootCtx, pool.Request{
-		MatchID: mt.ID,
-		Players: len(mt.Players),
-		Minutes: int(m.cfg.Pool.MaxMatch().Minutes()),
+		MatchID:      mt.ID,
+		Players:      len(mt.Players),
+		Minutes:      int(m.cfg.Pool.MaxMatch().Minutes()),
+		Map:          mt.Map,
+		Password:     mt.Password,
+		ServerConfig: group.ServerConfig,
+		Mode:         string(group.EffectiveMode()),
 	})
 	if err != nil {
 		m.failMatch(mt, fmt.Errorf("no server: %w", err), errors.Is(err, pool.ErrNoServer))
@@ -227,6 +231,8 @@ func (m *Matchmaker) endMatch(ctx context.Context, mt *Match, res *wire.MatchRes
 		}
 	}
 
+	m.recordPlayers(mt, res)
+
 	if srv != nil {
 		releaseCtx := context.WithoutCancel(ctx)
 		if err := m.setup.Teardown(releaseCtx, srv); err != nil {
@@ -237,6 +243,59 @@ func (m *Matchmaker) endMatch(ctx context.Context, mt *Match, res *wire.MatchRes
 		}
 	}
 	m.log.Info("match over", "match", mt.ID, "reported", res != nil)
+}
+
+// recordPlayers writes what a finished match means for the people who were in
+// it: a match played, a win or a loss, or an abandon.
+//
+// Two rules keep it honest. A result that lists nobody comes from a server
+// with no agent reporting for it, so it cannot be read as "nobody turned up" —
+// the roster is credited instead. And a match that ended within the grace
+// period never brands anyone: a server that died in its first minute is not
+// twelve people walking out.
+func (m *Matchmaker) recordPlayers(mt *Match, res *wire.MatchResult) {
+	if res == nil || res.Aborted {
+		return
+	}
+	m.mu.Lock()
+	store := m.players
+	roster := append([]wire.AssignedPlayer(nil), mt.Players...)
+	startedAt := mt.startedAt
+	m.mu.Unlock()
+	if store == nil {
+		return
+	}
+
+	present := make(map[wire.SteamID]bool, len(res.Players))
+	for _, p := range res.Players {
+		present[p.SteamID] = true
+	}
+	knowsWhoPlayed := len(res.Players) > 0
+	ranLongEnough := !startedAt.IsZero() && m.now().Sub(startedAt) > m.cfg.Players.AbandonGrace()
+
+	for _, p := range roster {
+		switch {
+		case !knowsWhoPlayed || present[p.SteamID]:
+			store.Played(p, mt.ID, outcomeFor(p.Team, res.Winner))
+		case ranLongEnough:
+			store.Abandoned(p, mt.ID)
+			m.log.Info("player abandoned a match", "match", mt.ID, "player", p.SteamID)
+		}
+	}
+}
+
+// outcomeFor turns a winning team into what it was for one player.
+func outcomeFor(team, winner wire.Team) string {
+	switch {
+	case winner == wire.TeamUnassigned:
+		return "draw"
+	case team == winner:
+		return "win"
+	case team == wire.TeamRed || team == wire.TeamBlu:
+		return "loss"
+	default:
+		return "draw"
+	}
 }
 
 // reconcileWar keeps the number of open fronts in step with how many people are

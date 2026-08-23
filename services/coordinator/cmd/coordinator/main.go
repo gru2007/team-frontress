@@ -23,6 +23,7 @@ import (
 	"github.com/gru2007/team-frontress/services/coordinator/internal/api"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/config"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/mm"
+	"github.com/gru2007/team-frontress/services/coordinator/internal/players"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/pool"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/steamauth"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/war"
@@ -103,7 +104,20 @@ func run() error {
 		log.Info("war enabled", "theater", theater.ID, "campaign", warEngine.Campaign(), "events", len(past))
 	}
 
+	// The player records. Restrictions that talk about the past -- matches
+	// played, matches abandoned -- are only enforceable because of this, and
+	// only survive a restart when players.file is set.
+	records, err := players.New(cfg.Players.File)
+	if err != nil {
+		return err
+	}
+	defer records.Close()
+	if cfg.Players.File != "" {
+		log.Info("player records", "file", cfg.Players.File, "known", records.Known())
+	}
+
 	matchmaker := mm.New(cfg, srvPool, mm.NewRCONSetup(cfg.Name+" | %s"), warEngine, log)
+	matchmaker.UsePlayers(records)
 	handler := api.New(cfg, matchmaker, verifier, registry, warEngine, log).Handler()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

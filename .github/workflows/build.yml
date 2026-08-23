@@ -59,15 +59,20 @@ jobs:
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME}-${GITHUB_SHA::8}"
-          for target in linux/amd64 linux/arm64 windows/amd64; do
-            os="${target%%/*}"
-            arch="${target##*/}"
-            out="dist/coordinator-${os}-${arch}"
-            [ "$os" = "windows" ] && out="${out}.exe"
-            echo "building ${out}"
-            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
-              go build -trimpath -ldflags "-s -w -X main.version=${version}" \
-              -o "$out" ./cmd/coordinator
+          # The agent ships with the coordinator: it is the half that runs next
+          # to a game server, and a coordinator release without one is a
+          # deployment where no match ever reports its result.
+          for cmd in coordinator greyline-agent; do
+            for target in linux/amd64 linux/arm64 windows/amd64; do
+              os="${target%%/*}"
+              arch="${target##*/}"
+              out="dist/${cmd}-${os}-${arch}"
+              [ "$os" = "windows" ] && out="${out}.exe"
+              echo "building ${out}"
+              CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
+                go build -trimpath -ldflags "-s -w -X main.version=${version}" \
+                -o "$out" "./cmd/${cmd}"
+            done
           done
           cp coordinator.example.json theater.example.json README.md dist/
 
@@ -193,11 +198,23 @@ jobs:
           set -euo pipefail
           mkdir -p "$CCACHE_DIR"
           ./src/buildallprojects
-          ./game_clean/copy_server.sh
+          PACK_TARBALL=1 ./game_clean/copy_server.sh
           test "$(tr -d '\r\n ' < game_server_dist/steam_appid.txt)" = "5147520"
           test -f game_server_dist/tc2/bin/linux64/server.so
           test ! -f game_server_dist/tc2/bin/linux64/client.so
+          test -s game_server_dist/VERSION
+          test -s frontress-dedicated-linux.tar.gz
           touch game_server_dist/STEAM_READY
+
+      - name: Upload the dedicated tarball
+        if: matrix.target == 'dedicated-linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontress-dedicated-tarball
+          path: |
+            frontress-dedicated-linux.tar.gz
+            frontress-dedicated-linux.tar.gz.sha256
+          if-no-files-found: error
 
       - name: Add MSBuild
         if: matrix.target == 'client-windows'
@@ -260,6 +277,7 @@ jobs:
         continue-on-error: true
         run: |
           rm -rf game_dist game_dist_debug game_server_dist steam_build steam_build_server
+          rm -f frontress-dedicated-linux.tar.gz frontress-dedicated-linux.tar.gz.sha256
           git clean -xfd -- game src
 
   publish-steam:
@@ -348,3 +366,44 @@ jobs:
           rm -f "${DS_DIR}/STEAM_READY"
           chmod +x "${DS_DIR}"/*.sh "${DS_DIR}/tc2_linux64" "${DS_DIR}/srcds_run_64" 2>/dev/null || true
           ./game_clean/steampipe_server.sh "${DS_DIR}"
+
+  # The artifacts a server operator needs, on a release tag and nowhere else.
+  # Steam ships the game; this ships the things that are not the game: the
+  # dedicated payload the docker image is built from, the coordinator, and the
+  # agent that reports match results from inside a container.
+  release-artifacts:
+    name: Release artifacts
+    needs: [build, coordinator]
+    if: ${{ !cancelled() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/release/') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download everything that built
+        uses: actions/download-artifact@v7
+        with:
+          path: artifacts
+
+      - name: Collect the release files
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          TARBALL="artifacts/frontress-dedicated-tarball/frontress-dedicated-linux.tar.gz"
+          if [ ! -f "${TARBALL}" ]; then
+            echo "::error::No dedicated server tarball in this release; the docker image has nothing to build from."
+            exit 1
+          fi
+          cp "${TARBALL}" "${TARBALL}.sha256" release/
+          # The coordinator lane can fail without stopping a game release, so
+          # its binaries are optional here rather than required.
+          cp artifacts/coordinator/coordinator-* release/ 2>/dev/null || true
+          cp artifacts/coordinator/greyline-agent-* release/ 2>/dev/null || true
+          cp artifacts/coordinator/coordinator.example.json release/ 2>/dev/null || true
+          ls -la release
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          fail_on_unmatched_files: true
+          generate_release_notes: true

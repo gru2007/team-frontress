@@ -44,8 +44,32 @@ printf '5147520\n' > "${SERVER_CLEAN_DIR}/steam_appid.txt"
 
 chmod +x   "${SERVER_CLEAN_DIR}/tc2_linux64"   "${SERVER_CLEAN_DIR}/start_dedicated_tc2.sh"   "${SERVER_CLEAN_DIR}/steamcmd_update.sh"   "${SERVER_CLEAN_DIR}/srcds_run_64"
 
+# The build version, where something that is not Steam can read it: the docker
+# image bakes a payload and the container has to be able to tell whether the
+# one it has is the one it should have. steam.inf is the source of truth for
+# it, so this is a copy, not a second opinion.
+SERVER_VERSION="$(sed -n 's/^PatchVersion=//p' "${SERVER_CLEAN_DIR}/tc2/steam.inf" | tr -d '\r')"
+printf '%s\n' "${SERVER_VERSION}" > "${SERVER_CLEAN_DIR}/VERSION"
+
+# A tarball, for the deployments that do not go through Steam. The docker image
+# in the serveme fork downloads exactly this artifact; SteamPipe uploads the
+# directory. Same bytes, two ways of shipping them.
+if [ "${PACK_TARBALL:-0}" = "1" ]; then
+  TARBALL="../frontress-dedicated-linux.tar.gz"
+  rm -f "${TARBALL}" "${TARBALL}.sha256"
+  tar -czf "${TARBALL}" -C "${SERVER_CLEAN_DIR}" .
+  if command -v sha256sum >/dev/null 2>&1; then
+    (cd .. && sha256sum "$(basename "${TARBALL}")" > "$(basename "${TARBALL}").sha256")
+  else
+    (cd .. && shasum -a 256 "$(basename "${TARBALL}")" > "$(basename "${TARBALL}").sha256")
+  fi
+  echo "Tarball ready: $(cd .. && pwd)/$(basename "${TARBALL}")"
+fi
+
 echo "Dedicated artifact ready: ${SERVER_CLEAN_DIR}"
 echo "  SteamPipe Tool: 5150320"
 echo "  Runtime AppID:   5147520"
+echo "  Build version:   ${SERVER_VERSION}"
 echo "  dependencies:    cd game_server_dist && ./steamcmd_update.sh"
 echo "  run:             GSLT=... ./start_dedicated_tc2.sh +map ctf_2fort +ip 0.0.0.0 -port 27015"
+echo "  docker:          PACK_TARBALL=1 ./game_clean/copy_server.sh  ->  frontress-dedicated-linux.tar.gz"

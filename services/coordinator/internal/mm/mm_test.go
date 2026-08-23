@@ -104,7 +104,7 @@ func newTestMM(t *testing.T, cfg config.Config, servers int) (*Matchmaker, *fake
 	return m, setup, &clock
 }
 
-func players(ids ...string) []wire.AssignedPlayer {
+func roster(ids ...string) []wire.AssignedPlayer {
 	out := make([]wire.AssignedPlayer, 0, len(ids))
 	for _, id := range ids {
 		out = append(out, wire.AssignedPlayer{SteamID: wire.SteamID(id)})
@@ -121,7 +121,7 @@ func party(t *testing.T, m *Matchmaker, leader string, size int, maps ...string)
 	tk, err := m.Enqueue(&Ticket{
 		MatchGroup: wire.MatchGroupCasual12v12,
 		Leader:     wire.SteamID(ids[0]),
-		Players:    players(ids...),
+		Players:    roster(ids...),
 		Maps:       maps,
 	})
 	if err != nil {
@@ -241,7 +241,7 @@ func TestPartyTooBigForATeamIsRefused(t *testing.T) {
 	_, err := m.Enqueue(&Ticket{
 		MatchGroup: wire.MatchGroupCasual12v12,
 		Leader:     "76561198000000000",
-		Players:    players("76561198000000000", "76561198000000001", "76561198000000002", "76561198000000003", "76561198000000004"),
+		Players:    roster("76561198000000000", "76561198000000001", "76561198000000002", "76561198000000003", "76561198000000004"),
 	})
 	if err == nil {
 		t.Fatal("a party of five was accepted into a group with teams of four")

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gru2007/team-frontress/services/coordinator/internal/config"
 )
@@ -16,10 +17,15 @@ import (
 // fakeServeme implements enough of the serveme.tf reservation API to exercise
 // the three-step flow the real one documents.
 type fakeServeme struct {
-	mu       sync.Mutex
-	free     bool
-	created  bool
-	deleted  bool
+	mu      sync.Mutex
+	free    bool
+	created bool
+	deleted bool
+	// shows counts GET /api/reservations/{id}. The first answer is a server
+	// that is still booting, which is what a container host really does.
+	shows    int
+	failWith string
+	servers  []map[string]any
 	lastBody map[string]any
 }
 
@@ -36,7 +42,11 @@ func (f *fakeServeme) handler() http.Handler {
 		defer f.mu.Unlock()
 		out := map[string]any{"reservation": map[string]any{"starts_at": "2026-08-23T12:00:00Z"}}
 		if f.free {
-			out["servers"] = []map[string]any{{"id": 64, "name": "FritzBrigade #10"}}
+			if f.servers != nil {
+				out["servers"] = f.servers
+			} else {
+				out["servers"] = []map[string]any{{"id": 64, "name": "FritzBrigade #10"}}
+			}
 		} else {
 			out["servers"] = []map[string]any{}
 		}
@@ -54,7 +64,30 @@ func (f *fakeServeme) handler() http.Handler {
 			"id":       12345,
 			"password": res["password"],
 			"rcon":     res["rcon"],
-			"status":   "Started",
+			"status":   "Starting",
+			"server": map[string]any{
+				"id": 64, "name": "FritzBrigade #10",
+				"ip": "10.0.0.9", "port": "27015", "ip_and_port": "10.0.0.9:27015",
+			},
+		}})
+	})
+	mux.HandleFunc("GET /api/reservations/{id}", func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		f.shows++
+		status := "Ready"
+		if f.failWith != "" {
+			status = f.failWith
+		} else if f.shows == 1 {
+			status = "Cloud server provisioning"
+		}
+		res, _ := f.lastBody["reservation"].(map[string]any)
+		writeJSON(w, map[string]any{"reservation": map[string]any{
+			"id":       12345,
+			"password": res["password"],
+			"rcon":     res["rcon"],
+			"status":   status,
+			"tv_port":  27020,
 			"server": map[string]any{
 				"id": 64, "name": "FritzBrigade #10",
 				"ip": "10.0.0.9", "port": "27015", "ip_and_port": "10.0.0.9:27015",
@@ -84,6 +117,7 @@ func newFakeServeme(t *testing.T, free bool) (*fakeServeme, *Serveme) {
 		Kind: "serveme", BaseURL: srv.URL, APIKey: "key", ReserveMins: 120, Region: "eu",
 	})
 	p.Client = srv.Client()
+	p.PollEvery = time.Millisecond
 	return f, p
 }
 
@@ -91,7 +125,7 @@ func TestServemeReservesAndReleases(t *testing.T) {
 	f, p := newFakeServeme(t, true)
 	ctx := context.Background()
 
-	s, err := p.Acquire(ctx, Request{MatchID: "m1", Players: 12, Minutes: 90})
+	s, err := p.Acquire(ctx, Request{MatchID: "m1", Players: 12, Minutes: 90, Password: "matchpw", Map: "koth_product_final"})
 	if err != nil {
 		t.Fatalf("acquire: %v", err)
 	}
@@ -119,6 +153,17 @@ func TestServemeReservesAndReleases(t *testing.T) {
 	}
 	if rc, _ := res["rcon"].(string); rc != s.RCON {
 		t.Fatalf("rcon = %q, want the one we reserved with (%q)", s.RCON, rc)
+	}
+	// The match already had a password and a map. A reservation that invents
+	// its own leaves the players holding a password the server never had.
+	if pw, _ := res["password"].(string); pw != "matchpw" {
+		t.Errorf("reservation password = %q, want the match's own", pw)
+	}
+	if fm, _ := res["first_map"].(string); fm != "koth_product_final" {
+		t.Errorf("first_map = %q, want the match's map so the server boots on it", fm)
+	}
+	if f.shows < 2 {
+		t.Errorf("the reservation was polled %d times: a server that was still provisioning was handed out as ready", f.shows)
 	}
 
 	s.Provider = "serveme"
@@ -167,5 +212,35 @@ func TestRCONAddrPrefersTheRealAddress(t *testing.T) {
 	plain := &Server{Provider: "static", Connect: "10.0.0.1:27015"}
 	if got := RCONAddr(plain); got != "10.0.0.1:27015" {
 		t.Fatalf("RCONAddr = %q, want the connect address", got)
+	}
+}
+
+func TestServemeWaitsOutAFailedReservation(t *testing.T) {
+	f, p := newFakeServeme(t, true)
+	f.failWith = "Cloud server failed to start"
+
+	_, err := p.Acquire(context.Background(), Request{MatchID: "m1"})
+	if err == nil {
+		t.Fatal("a reservation whose container never started was returned as a server")
+	}
+	if !f.deleted {
+		t.Error("the failed reservation was left open, which keeps the slot busy for two hours")
+	}
+}
+
+func TestServemePrefersAContainerHost(t *testing.T) {
+	f, p := newFakeServeme(t, true)
+	p.PreferDocker = true
+	f.servers = []map[string]any{
+		{"id": 64, "name": "somebody's box"},
+		{"id": dockerHostIDOffset + 3, "name": "Helsinki (Docker)"},
+	}
+
+	if _, err := p.Acquire(context.Background(), Request{MatchID: "m1"}); err != nil {
+		t.Fatalf("acquire: %v", err)
+	}
+	res := f.lastBody["reservation"].(map[string]any)
+	if got := int64(res["server_id"].(float64)); got != dockerHostIDOffset+3 {
+		t.Fatalf("reserved server %d, want the docker host: prefer_docker is the whole deployment", got)
 	}
 }

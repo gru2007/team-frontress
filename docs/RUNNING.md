@@ -1,8 +1,10 @@
 # Running matchmaking on our own AppID
 
 How to get from a fresh build to two clients finding each other and landing on
-the same server. Everything here is the static-server path: one dedicated
-server you run, no serveme.tf yet.
+the same server. Sections 1-4 are the static-server path: one dedicated server
+you run. Section 5 is the other path — servers as containers, handed out by the
+serveme fork — which is what a community that does not want to maintain
+machines should use.
 
 The design behind it is in [`MATCHMAKING.md`](MATCHMAKING.md); this is the
 operational half.
@@ -25,15 +27,37 @@ authenticates.
 
 ## 1. The dedicated server
 
-Build it, or take the `steam-dedicated-linux` artifact from CI.
+Two ways to have one. **In a container**, which needs nothing installed on the
+machine — that is section 5, and it is the one to use if you are hosting for
+other people. **By hand**, which is the rest of this section and is what you
+want on a laptop.
+
+Build it, take the `steam-dedicated-linux` artifact from CI, or download
+`frontress-dedicated-linux.tar.gz` from a release.
 
 ```bash
 cd game_server_dist
-./steamcmd_update.sh                 # pulls the SDK Base 2013 DS dependencies
+./steamcmd_update.sh                 # Steam Linux Runtime + TF2's content files
 cp ../game/tc2/cfg/frontress_server.cfg tc2/cfg/server.cfg
 $EDITOR tc2/cfg/server.cfg           # four values marked CHANGE
 ./start_dedicated_tc2.sh +map koth_product_final +ip 0.0.0.0 -port 27015
 ```
+
+`steamcmd_update.sh` installs both dependencies next to the game, and the
+launcher looks there first, so there is no Steam install to borrow one from.
+`+ip` and `+sv_pure` on that command line are honoured: the launcher only
+applies its own defaults when you pass none, which it did not always do — a
+server told to bind `0.0.0.0` used to end up on loopback.
+
+The build packs a tarball for the container image with:
+
+```bash
+PACK_TARBALL=1 ./game_clean/copy_server.sh   # -> frontress-dedicated-linux.tar.gz
+```
+
+It also writes `VERSION` (steam.inf's `PatchVersion`) into the payload, which
+is how a container can tell whether the build it has is the build it should
+have — Steam is not in that loop for our AppID.
 
 The four values in `server.cfg`:
 
@@ -44,8 +68,10 @@ The four values in `server.cfg`:
 | `ip` | the address players are told to connect to. It has to match what the coordinator hands out |
 | `tv_*` | SourceTV. It only takes effect at start, which is why it is here and not in the per-match config |
 
-The per-match settings live in [`frontress_match.cfg`](../game/tc2/cfg/frontress_match.cfg),
-which the coordinator execs before every map change. The one line in it worth
+The per-match settings live in the ruleset the coordinator execs before every
+map change: [`frontress_casual.cfg`](../game/tc2/cfg/frontress_casual.cfg) or
+[`frontress_ranked.cfg`](../game/tc2/cfg/frontress_ranked.cfg), both of which
+exec [`frontress_match.cfg`](../game/tc2/cfg/frontress_match.cfg) first. The one line in it worth
 knowing about is `sv_hibernate_when_empty 0` — a hibernating server defers the
 map change until somebody connects, so the first player to arrive lands on the
 *previous* map and nothing looks wrong anywhere else.
@@ -196,7 +222,102 @@ Setting `min_players: 2` and `patient_secs: 0` on the casual group lets one
 player form a match, which is the fastest way to prove the whole path works
 before you have a second person.
 
-## 5. Steam: parties, invites, joining
+### Ranked
+
+`tf_mm_queue 2` is the ladder group. It plays `frontress_ranked.cfg` -- class
+limits, no random crits, no damage spread, the competitive whitelist, no votes
+-- and its queue has entry rules the open queue does not:
+
+```json
+"restrictions": {
+  "max_party_size": 3,
+  "min_matches_played": 5,
+  "abandon_cooldown_mins": 30
+}
+```
+
+A refused queue answers 403 with the reason in words: "you need 5 finished
+matches for Ranked 6v6 and have 2". While testing, drop the block or set
+`min_matches_played: 0` -- otherwise nobody can queue for it on a fresh
+coordinator, which looks exactly like a broken queue.
+
+The records those rules read live in `players.jsonl` and survive a restart. To
+forget everyone, delete the file.
+
+## 5. Servers from serveme: the container path
+
+Nothing above scales past the machines you are willing to set up by hand. The
+[serveme fork](https://github.com/gru2007/serveme-frontress) is the answer to
+that: it hands out **containers**, and the container image carries the game
+payload, the Steam Linux Runtime, TF2's content files, the rulesets and the
+result-reporting agent. A host that can run a container can host a match
+without knowing anything about the game.
+
+Run the site:
+
+```bash
+git clone https://github.com/gru2007/serveme-frontress
+cd serveme-frontress
+cp .env.example .env
+$EDITOR .env          # SECRET_KEY_BASE, STEAM_API_KEY, POSTGRES_PASSWORD, SITE_URL
+docker compose up -d
+```
+
+Then in `.env`, the parts that make it host game servers:
+
+```bash
+FRONTRESS_LOCAL_DOCKER=1                 # this machine runs the containers
+DOCKER_GID=999                           # getent group docker | cut -d: -f3
+DOCKER_HOST_IP=203.0.113.10              # this machine, as a container sees it
+CLOUD_CALLBACK_HOST=203.0.113.10:3000
+FRONTRESS_COORDINATOR_URL=http://203.0.113.10:27100
+FRONTRESS_COORDINATOR_SECRET=<the coordinator's own `secret`>
+```
+
+Give the coordinator an API key:
+
+```bash
+docker compose exec web bin/rails frontress:coordinator_key
+```
+
+That prints the provider block to paste into `coordinator.json`:
+
+```json
+{ "kind": "serveme", "region": "eu",
+  "base_url": "https://serveme.example.org",
+  "api_key": "...", "prefer_docker": true, "reserve_mins": 120 }
+```
+
+Providers are tried in order, so keeping a `static` entry after it is a
+fallback for when the site is down.
+
+What happens per match, and why each step is there:
+
+```text
+   coordinator forms a match
+        |  find_servers            container hosts are listed first
+        |  POST /api/reservations  match_id, match_mode, first_map, password
+        v
+   serveme starts a container, pushes reservation.cfg into it
+        |
+   coordinator polls the reservation until it is "Ready"
+        |  a container takes ~30s; RCON to an address that is not listening
+        |  yet would be read as a broken server and requeue everybody
+        v
+   RCON: sv_password, sv_tags tfmm:<id>, maxplayers, exec <ruleset>, changelevel
+        |
+   players connect; greyline-agent in the container heartbeats the match
+        |
+   game over -> agent POSTs /v1/gs/result -> coordinator ends the reservation
+        -> the container is destroyed
+```
+
+Ranked reservations are refused unless the API user is in serveme's Trusted API
+group, which `frontress:coordinator_key` puts the coordinator in. A ranked
+server booked by hand is a match with no roster, and any result it reports is a
+result against players who never agreed to play it.
+
+## 6. Steam: parties, invites, joining
 
 The party is a Steam lobby. There is no party service anywhere — Steam is the
 party service.
@@ -238,7 +359,7 @@ static server's `stv` field or from a serveme reservation's TV port. Anyone in
 the match can `tf_mm_watch` to spectate. The relay is not password-protected by
 the match password — spectating is not playing.
 
-## 6. Filling servers while they run
+## 7. Filling servers while they run
 
 Casual Frontline is `"mode": "frontline"`, which means matches keep taking
 players after they start. A match that formed as a 4v4 because that is who was
@@ -261,7 +382,7 @@ ranked match after it starts.
 
 Both modes report their result to the war the same way. Scoring is not built.
 
-## 7. Inventory
+## 8. Inventory
 
 Short answer: **your change was the right one, and it should work.**
 
@@ -304,6 +425,9 @@ else's repository rather than a runtime service, but it is a dependency.
 | `tf_mm_status` says `active: no` | Steam not logged on, or `tf_mm_enable 0` |
 | Start Search is greyed out | no maps selected in the casual panel |
 | queue never finds anything | `curl /v1/status` — is `free_servers` above zero? |
+| ranked refuses to queue | its restrictions: matches played, party size, a cooldown. The 403 says which |
+| matches never end on their own | no agent on the server; it ends on the idle or match timeout instead |
+| serveme reservation times out | the container did not come up. `docker compose logs` on the host, and the reservation page shows the phase it stalled in |
 | "no server" in the coordinator log | RCON password wrong, or the server is not up |
 | connected but on the wrong map | server hibernating; `sv_hibernate_when_empty 0` |
 | connected but kicked for the password | something set `sv_password` after the coordinator did |

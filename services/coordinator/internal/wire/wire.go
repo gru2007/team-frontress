@@ -185,6 +185,26 @@ type MatchGroupInfo struct {
 	Backfill bool `json:"backfill"`
 	// OpenMatches is how many live matches are currently accepting players.
 	OpenMatches int `json:"open_matches"`
+	// Restrictions is present when the group has entry rules, so the menu can
+	// say why a queue is closed before the player presses play. It is what the
+	// rules are, never who they were applied to.
+	Restrictions *GroupRestrictions `json:"restrictions,omitempty"`
+}
+
+// GroupRestrictions is the public description of a match group's entry rules.
+type GroupRestrictions struct {
+	// MaxPartySize is the biggest party the group accepts, 1 for solo queue.
+	MaxPartySize int `json:"max_party_size,omitempty"`
+	// MinPartySize is the smallest, for a group queued as a full team.
+	MinPartySize int `json:"min_party_size,omitempty"`
+	// MinMatchesPlayed gates the group behind experience elsewhere.
+	MinMatchesPlayed int `json:"min_matches_played,omitempty"`
+	// RequiresVerifiedAuth means a Steam ticket, not a claimed SteamID.
+	RequiresVerifiedAuth bool `json:"requires_verified_auth,omitempty"`
+	// InviteOnly means the group has an allow list.
+	InviteOnly bool `json:"invite_only,omitempty"`
+	// AbandonCooldownMins is the penalty for walking out of a match.
+	AbandonCooldownMins int `json:"abandon_cooldown_mins,omitempty"`
 }
 
 // WarStatus is the strategic summary. Stage-3 groundwork.

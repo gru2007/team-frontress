@@ -25,6 +25,7 @@ type Config struct {
 	Secret string `json:"secret"`
 
 	Auth        AuthConfig         `json:"auth"`
+	Players     PlayersConfig      `json:"players"`
 	MatchGroups []MatchGroupConfig `json:"match_groups"`
 	Pool        PoolConfig         `json:"pool"`
 	Timing      TimingConfig       `json:"timing"`
@@ -45,6 +46,26 @@ type AuthConfig struct {
 
 // Verified reports whether this mode produces identities the game may trust.
 func (a AuthConfig) Verified() bool { return a.Mode == "webapi" }
+
+// PlayersConfig is the record the coordinator keeps of the people playing.
+//
+// It exists for one reason: a restriction like "five matches before ranked" or
+// "no queue for half an hour after you walk out" needs to remember something
+// across a restart. Matchmaking itself keeps working with this off; only the
+// restrictions that depend on history stop being enforceable.
+type PlayersConfig struct {
+	// File is an append-only JSONL log, folded on startup. Empty keeps the
+	// records in memory, which a restart forgets.
+	File string `json:"file"`
+	// AbandonGraceSecs is how long after a match starts a player may still
+	// show up before never connecting counts as abandoning it.
+	AbandonGraceSecs int `json:"abandon_grace_secs"`
+}
+
+// AbandonGrace is AbandonGraceSecs with a default.
+func (p PlayersConfig) AbandonGrace() time.Duration {
+	return dur(p.AbandonGraceSecs, time.Second, 5*time.Minute)
+}
 
 // Mode is how a match group behaves. It is not a game mode; it is what the
 // coordinator is allowed to do with the match.
@@ -88,6 +109,62 @@ type MatchGroupConfig struct {
 	//
 	// Only frontline matches backfill at all.
 	BackfillSecs int `json:"backfill_secs"`
+	// Restrictions are who may queue for this group at all. An absent block
+	// is the open queue, which is what casual wants and what ranked does not.
+	Restrictions Restrictions `json:"restrictions"`
+}
+
+// Restrictions gate a match group's queue.
+//
+// Everything here is off when unset, so a group without a restrictions block
+// behaves exactly as it did before this existed. Ranked is the reason it
+// exists: a queue whose result is recorded against a player is a queue that
+// has to know who the player is, that nobody is stacking a six-stack against
+// solo queuers, and that the person who walked out of the last match is not
+// starting another one this minute.
+type Restrictions struct {
+	// RequireVerifiedAuth refuses the group unless auth.mode is "webapi".
+	// Validation rejects the combination outright rather than letting a
+	// deployment discover it at the first queue.
+	RequireVerifiedAuth bool `json:"require_verified_auth"`
+	// MaxPartySize is the biggest party that may queue together. Zero means
+	// the group's own limit (half a match). One is solo queue.
+	MaxPartySize int `json:"max_party_size"`
+	// MinPartySize refuses parties smaller than this, for a group that is
+	// meant to be queued as a full team.
+	MinPartySize int `json:"min_party_size"`
+	// MinMatchesPlayed is how many finished matches -- in any group -- a
+	// player needs before this one opens up. Needs players.file to survive a
+	// restart; without it, it counts matches since the coordinator started.
+	MinMatchesPlayed int `json:"min_matches_played"`
+	// AbandonCooldownMins keeps a player who left a match early out of this
+	// group for a while afterwards.
+	AbandonCooldownMins int `json:"abandon_cooldown_mins"`
+	// MaxAbandons removes a player from this group entirely once they have
+	// abandoned this many matches. Zero means never.
+	MaxAbandons int `json:"max_abandons"`
+	// AllowedSteamIDs, when set, is the only list of people who may queue:
+	// a closed test, a league, an invite-only ladder.
+	AllowedSteamIDs []wire.SteamID `json:"allowed_steam_ids"`
+	// BannedSteamIDs may not queue for this group. It is deliberately per
+	// group: a casual ban and a ranked ban are different punishments.
+	BannedSteamIDs []wire.SteamID `json:"banned_steam_ids"`
+}
+
+// Any reports whether this block restricts anything at all.
+func (r Restrictions) Any() bool {
+	return r.RequireVerifiedAuth || r.MaxPartySize > 0 || r.MinPartySize > 0 ||
+		r.MinMatchesPlayed > 0 || r.AbandonCooldownMins > 0 || r.MaxAbandons > 0 ||
+		len(r.AllowedSteamIDs) > 0 || len(r.BannedSteamIDs) > 0
+}
+
+// PartyCap is the largest party this group accepts, restrictions included.
+func (g MatchGroupConfig) PartyCap() int {
+	cap := g.MaxPlayers / 2
+	if n := g.Restrictions.MaxPartySize; n > 0 && n < cap {
+		return n
+	}
+	return cap
 }
 
 // BBackfills reports whether this group tops matches up while they run.
@@ -135,6 +212,14 @@ type ProviderConfig struct {
 	APIKey         string `json:"api_key,omitempty"`
 	ReserveMins    int    `json:"reserve_mins,omitempty"`
 	ServerConfigID int    `json:"server_config_id,omitempty"`
+	// PreferDocker asks for a container host when serveme offers both those
+	// and bare-metal servers. It is the default deployment: a match starts a
+	// container, plays, and the container is destroyed with the reservation.
+	PreferDocker bool `json:"prefer_docker,omitempty"`
+	// ReadyTimeoutSecs bounds the wait for a reservation's server to boot.
+	// Zero falls back to the caller's deadline (pool.boot_deadline_secs),
+	// which is usually what you want.
+	ReadyTimeoutSecs int `json:"ready_timeout_secs,omitempty"`
 }
 
 // StaticServer is a server the operator runs and the coordinator owns.
@@ -286,6 +371,9 @@ func (c Config) Validate() error {
 		if g.MaxPlayers%2 != 0 {
 			return fmt.Errorf("match_groups[%d] (%s): max_players must be even, teams are equal", i, g.Name)
 		}
+		if err := g.Restrictions.validate(g, c.Auth); err != nil {
+			return fmt.Errorf("match_groups[%d] (%s): %w", i, g.Name, err)
+		}
 	}
 	if enabled == 0 {
 		return errors.New("no enabled match groups")
@@ -324,6 +412,50 @@ func (c Config) Validate() error {
 		return errors.New("war.theater_file is required when war.enabled")
 	}
 	return nil
+}
+
+// validate rejects a restrictions block that cannot be satisfied, at boot
+// rather than at the first queue request.
+func (r Restrictions) validate(g MatchGroupConfig, auth AuthConfig) error {
+	if r.RequireVerifiedAuth && !auth.Verified() {
+		return fmt.Errorf("restrictions.require_verified_auth needs auth.mode %q, not %q", "webapi", auth.Mode)
+	}
+	teamCap := g.MaxPlayers / 2
+	if r.MaxPartySize < 0 {
+		return errors.New("restrictions.max_party_size cannot be negative")
+	}
+	if r.MaxPartySize > teamCap {
+		return fmt.Errorf("restrictions.max_party_size %d is bigger than a team (%d)", r.MaxPartySize, teamCap)
+	}
+	if r.MinPartySize < 0 {
+		return errors.New("restrictions.min_party_size cannot be negative")
+	}
+	if r.MinPartySize > teamCap {
+		return fmt.Errorf("restrictions.min_party_size %d cannot fit one team (%d)", r.MinPartySize, teamCap)
+	}
+	if max := r.MaxPartySize; max > 0 && r.MinPartySize > max {
+		return fmt.Errorf("restrictions.min_party_size %d is above max_party_size %d", r.MinPartySize, max)
+	}
+	for _, id := range append(append([]wire.SteamID(nil), r.AllowedSteamIDs...), r.BannedSteamIDs...) {
+		if !validSteamID(id) {
+			return fmt.Errorf("restrictions: %q is not a SteamID64", id)
+		}
+	}
+	return nil
+}
+
+// validSteamID is the config-time copy of the check steamauth does at runtime.
+// Keeping it here avoids an import cycle for one loop over digits.
+func validSteamID(id wire.SteamID) bool {
+	if len(id) < 17 || len(id) > 20 {
+		return false
+	}
+	for _, c := range id {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return id[0] == '7'
 }
 
 // Group returns the config for a match group, or false.

@@ -145,6 +145,64 @@ so they cannot drift apart, and parties are still never split.
 
 Both modes report their result to the war identically. Scoring is not built.
 
+## Ranked, and what "restricted" means
+
+Ranked differs from casual in two places, and they are deliberately separate.
+
+**In the game**, `frontress_ranked.cfg` is the competitive ruleset: 6v6 class
+limits (`mp_sixes 1`), no random crits, no damage spread, the competitive
+weapon whitelist, tournament mode with ready-up, no autobalance or scramble
+(the roster is fixed), and no votes that could change any of it. The
+coordinator execs it before the map change, exactly as it execs
+`frontress_casual.cfg` for the open queue.
+
+**In the coordinator**, a `restrictions` block on the match group says who may
+queue at all:
+
+```json
+"restrictions": {
+  "max_party_size": 3,
+  "min_matches_played": 5,
+  "abandon_cooldown_mins": 30,
+  "max_abandons": 5
+}
+```
+
+A refusal is a 403 with the reason written for the player, not a 400. The
+history those rules read -- matches played, matches abandoned -- lives in
+`players.jsonl`, folded on startup, so a deploy does not clear anybody's
+cooldown. An abandon is "the server reported who was there and this player was
+not", which needs the agent below; a result that names nobody credits the whole
+roster instead of branding it.
+
+The full list is in [`services/coordinator/README.md`](../services/coordinator/README.md).
+
+## Where the servers come from
+
+A match needs a server, and the coordinator does not care which kind:
+
+| | |
+| --- | --- |
+| `static` | servers you run and it drives over RCON |
+| `registered` | servers that register themselves and heartbeat |
+| `serveme` | reservations from the [serveme fork](https://github.com/gru2007/serveme-frontress) |
+
+The serveme path is the one that scales without anybody setting up a machine
+for the game: a reservation starts a container running the game, the match is
+played on it, and ending the reservation destroys it. `prefer_docker` asks for
+exactly that.
+
+## Reporting the result
+
+`cmd/greyline-agent` runs next to the dedicated server -- inside the container,
+when serveme started one -- and closes the loop the coordinator cannot close by
+itself. It reads the match id from `sv_tags`, receives the console log through
+`logaddress_add`, and when the game ends it reports the score and, from RCON
+`status`, who was actually there.
+
+Without it a match still ends, on an empty server or a clock; nobody's record
+is written and the war hears nothing.
+
 ## Console commands
 
 | | |
@@ -176,9 +234,10 @@ Both modes report their result to the war identically. Scoring is not built.
 5. With `min_players: 2` and `patient_secs: 0` one player forms a match, which
    is the fastest way to see the whole path work.
 
-The serveme.tf fork is not deployed yet. Until it is, point a `static` provider
-at any dedicated server you can RCON; the coordinator does not care which
-provider produced the server it got.
+For a `serveme` provider instead of a static one, see
+[`RUNNING.md`](RUNNING.md#5-servers-from-serveme-the-container-path): the fork
+hands out containers, so nothing has to be installed on the machine that runs
+them.
 
 ## State of the work
 
@@ -193,8 +252,11 @@ Two levels, and the difference matters more than the feature list:
 
 Queue and settling for small populations, parties never split across teams, team
 balance, map choice, server pool and provider fallback, the serveme reservation
-flow, Steam ticket verification, the war engine and its log replay, config
-validation. `cd services/coordinator && make race`.
+flow (including waiting for a container to come up and preferring one),
+per-group queue restrictions and the player records they read, Steam ticket
+verification, the log and `status` parsing the agent reports from, the war
+engine and its log replay, config validation.
+`cd services/coordinator && make race`.
 
 ### The game (C++) — written
 
@@ -210,10 +272,11 @@ names and the exact `CUtlBuffer` / `CWebAPIValues` signatures.
 ## Known gaps
 
 1. **Nothing game-side has been compiled.** See above.
-2. **No match result from the game.** `POST /v1/gs/result` exists and the war
-   consumes it, but nothing game-side sends it yet. Matches currently end by
-   emptying out or timing out, which leaves the war unchanged — nobody won.
-   This is the next thing to build if the war is going to matter.
+2. **Match results come from the agent, not the game.** `greyline-agent` reads
+   the console log and RCON `status`, which is enough for a winner, a score and
+   who was present. It is not enough for anything finer — per-player stats, a
+   round-by-round record — and a game-side reporter is still the better answer
+   if the war grows to want them.
 3. **Teams are advisory.** The coordinator decides who is on which side and the
    client is told, but nothing on the server enforces it: a player can pick the
    other team on arrival. Frontline leans on TF2's own autobalance instead,
@@ -223,11 +286,14 @@ names and the exact `CUtlBuffer` / `CWebAPIValues` signatures.
    to seat a specific player in a specific match on request.
 5. **Kicking a party member is impossible.** A Steam lobby has no kick. The
    backend says so rather than pretending.
-6. **No abandon penalties.** `GetAssignedMatchAbandonStatus` reports "no
-   penalty" because the coordinator does not track abandons. Inventing a
-   penalty it cannot apply would mislead players.
+6. **Abandon penalties are enforced at the queue, not in the game.** The
+   coordinator records abandons and refuses to queue somebody on cooldown, but
+   `GetAssignedMatchAbandonStatus` still reports "no penalty" to the client:
+   the game does not yet ask the coordinator what it owes. The refusal arrives
+   when they press play instead, with the reason.
 7. **The queue is in memory.** A coordinator restart drops the queue and the
-   live matches.
+   live matches. Player records are not: they are a file, so cooldowns and
+   match counts survive.
 8. **One request in flight per client.** The backend serializes its HTTP; a
    cancel while a poll is in flight is handled, but the pattern is a
    simplification, not a general one.

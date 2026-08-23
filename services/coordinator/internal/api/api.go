@@ -85,7 +85,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	open := s.mm.OpenMatches()
 	for _, g := range s.cfg.MatchGroups {
-		st.MatchGroups = append(st.MatchGroups, wire.MatchGroupInfo{
+		info := wire.MatchGroupInfo{
 			MatchGroup:  g.MatchGroup,
 			Name:        g.Name,
 			Enabled:     g.Enabled,
@@ -94,7 +94,18 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 			MaxPlayers:  g.MaxPlayers,
 			Backfill:    g.BBackfills(),
 			OpenMatches: open[g.MatchGroup],
-		})
+		}
+		if r := g.Restrictions; r.Any() {
+			info.Restrictions = &wire.GroupRestrictions{
+				MaxPartySize:         g.PartyCap(),
+				MinPartySize:         r.MinPartySize,
+				MinMatchesPlayed:     r.MinMatchesPlayed,
+				RequiresVerifiedAuth: r.RequireVerifiedAuth,
+				InviteOnly:           len(r.AllowedSteamIDs) > 0,
+				AbandonCooldownMins:  r.AbandonCooldownMins,
+			}
+		}
+		st.MatchGroups = append(st.MatchGroups, info)
 	}
 	// The whole pool, not just the servers that registered themselves: an
 	// operator with three static servers and no registrations was being told
@@ -183,6 +194,13 @@ func (s *Server) handleQueue(w http.ResponseWriter, r *http.Request) {
 		LateJoinOK: req.LateJoinOK,
 	})
 	if err != nil {
+		// A group that refused this party on its own terms is not a malformed
+		// request: the client showed the queue, the queue said no, and the
+		// player is owed the reason.
+		if errors.Is(err, mm.ErrRestricted) {
+			writeErr(w, http.StatusForbidden, err.Error())
+			return
+		}
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -246,9 +264,11 @@ func (s *Server) handleServerHeartbeat(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnauthorized, "bad server secret")
 		return
 	}
-	if s.registry != nil && !s.registry.Heartbeat(req.Connect) {
-		// Unknown server: tell it to register rather than silently dropping
-		// its heartbeats forever.
+	if s.registry != nil && !s.registry.Heartbeat(req.Connect) && req.MatchID == "" {
+		// Unknown server with nothing to say: tell it to register rather than
+		// silently dropping its heartbeats forever. A server that names a live
+		// match is a different case — an agent on a serveme reservation or a
+		// static server never registered and still has a match to keep alive.
 		writeErr(w, http.StatusNotFound, "register first")
 		return
 	}
