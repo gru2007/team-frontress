@@ -329,12 +329,30 @@ void CTFMMBackend::PublishParty()
 	if ( m_bPartyPublished && strData == m_strLastPublishedParty )
 		return;
 
-	bool bOK;
-	if ( m_bPartyPublished )
-		bOK = pCache->BUpdateFromMsg( CTFParty::k_nTypeID, strData.data(), (uint32)strData.size() );
-	else
-		bOK = pCache->BCreateFromMsg( CTFParty::k_nTypeID, strData.data(), (uint32)strData.size() );
+	GCSDK::CSharedObjectTypeCache *pPartyType =
+    pCache->FindBaseTypeCache( CTFParty::k_nTypeID );
 
+	const bool bPartyAlreadyExists =
+		pPartyType && pPartyType->GetCount() > 0;
+
+	bool bOK;
+
+	if ( bPartyAlreadyExists )
+	{
+		bOK = pCache->BUpdateFromMsg(
+			CTFParty::k_nTypeID,
+			strData.data(),
+			(uint32)strData.size()
+		);
+	}
+	else
+	{
+		bOK = pCache->BCreateFromMsg(
+			CTFParty::k_nTypeID,
+			strData.data(),
+			(uint32)strData.size()
+		);
+	}
 	if ( bOK )
 	{
 		m_bPartyPublished = true;

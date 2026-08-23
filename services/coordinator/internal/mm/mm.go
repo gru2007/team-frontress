@@ -160,6 +160,32 @@ func New(cfg config.Config, p *pool.Pool, setup ServerSetup, warEngine *war.Engi
 // the same match group.
 func (m *Matchmaker) Enqueue(t *Ticket) (*Ticket, error) {
 	group, ok := m.cfg.Group(t.MatchGroup)
+	    m.log.Info("enqueue request",
+        "group", t.MatchGroup,
+        "leader", t.Leader,
+        "players", t.Size(),
+    )
+
+    if !ok {
+        m.log.Warn("queue refused: group is not configured",
+            "group", t.MatchGroup,
+        )
+        return nil, fmt.Errorf(
+            "match group %d is not available here",
+            t.MatchGroup,
+        )
+    }
+
+    if !group.Enabled {
+        m.log.Warn("queue refused: group is disabled",
+            "group", t.MatchGroup,
+            "name", group.Name,
+        )
+        return nil, fmt.Errorf(
+            "match group %d is not available here",
+            t.MatchGroup,
+        )
+    }
 	if !ok || !group.Enabled {
 		return nil, fmt.Errorf("match group %d is not available here", t.MatchGroup)
 	}
