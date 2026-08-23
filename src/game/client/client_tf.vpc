@@ -926,6 +926,12 @@ $Project "Client (TF)"
 
 			$Folder	"Matchmaking"
 			{
+				// Team Frontress: matchmaking without a Valve game coordinator.
+				$File	"$SRCDIR\game\client\tf\frontress\tf_mm_backend.h"
+				$File	"$SRCDIR\game\client\tf\frontress\tf_mm_backend.cpp"
+				$File	"$SRCDIR\game\client\tf\frontress\tf_mm_party.cpp"
+				$File	"$SRCDIR\game\client\tf\frontress\tf_mm_coordinator.cpp"
+
 				$File	"$SRCDIR\game\client\tf\tf_gc_client.cpp"
 				$File	"$SRCDIR\game\client\tf\tf_gc_client.h"
 				$File	"$SRCDIR\game\client\tf\tf_partyclient.cpp"

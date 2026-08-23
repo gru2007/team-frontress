@@ -13,7 +13,71 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # The coordinator is Go and builds in seconds. It runs first and on its own:
+  # a game build should not wait for it, and a broken coordinator should not
+  # stop a game release.
+  coordinator:
+    name: Coordinator / Go
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/coordinator
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: services/coordinator/go.mod
+          cache-dependency-path: services/coordinator/go.sum
+
+      - name: Check formatting
+        run: |
+          set -euo pipefail
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt would change these files:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race -count=2 ./...
+
+      - name: Build release binaries
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME}-${GITHUB_SHA::8}"
+          for target in linux/amd64 linux/arm64 windows/amd64; do
+            os="${target%%/*}"
+            arch="${target##*/}"
+            out="dist/coordinator-${os}-${arch}"
+            [ "$os" = "windows" ] && out="${out}.exe"
+            echo "building ${out}"
+            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
+              go build -trimpath -ldflags "-s -w -X main.version=${version}" \
+              -o "$out" ./cmd/coordinator
+          done
+          cp coordinator.example.json theater.example.json README.md dist/
+
+      - name: Upload coordinator
+        uses: actions/upload-artifact@v7
+        with:
+          name: coordinator
+          path: services/coordinator/dist
+          if-no-files-found: error
+
   build:
     name: ${{ matrix.name }}
     strategy:
@@ -94,12 +158,6 @@ jobs:
           token: ${{ secrets.REPO_TOKEN || github.token }}
           persist-credentials: false
           submodules: recursive
-
-      - name: Checkout repository (Greyline)
-        if: startsWith(matrix.target, 'greyline-')
-        uses: actions/checkout@v6
-        with:
-          persist-credentials: false
 
       - name: Setup ccache
         if: matrix.target == 'client-linux' || matrix.target == 'dedicated-linux'
@@ -206,7 +264,7 @@ jobs:
 
   publish-steam:
     name: Steam / default
-    needs: build
+    needs: [build, coordinator]
     if: ${{ !cancelled() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/release/') }}
     runs-on: ubuntu-latest
     concurrency:
@@ -233,6 +291,17 @@ jobs:
         uses: actions/download-artifact@v7
         with:
           path: publish-artifacts
+
+      - name: Stage the coordinator next to the release
+        run: |
+          set -euo pipefail
+          COORD_DIR="${GITHUB_WORKSPACE}/publish-artifacts/coordinator"
+          if [ -d "${COORD_DIR}" ]; then
+            echo "Coordinator build published with this release:"
+            ls -la "${COORD_DIR}"
+          else
+            echo "::warning::No coordinator build in this release. Servers will need one built by hand."
+          fi
 
       - name: Install SteamPipe prerequisites
         run: |

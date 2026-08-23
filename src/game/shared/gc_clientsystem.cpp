@@ -25,6 +25,7 @@
 
 #ifdef TF_CLIENT_DLL
 #include "secure_command_line.h"
+#include "frontress/tf_mm_backend.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -139,6 +140,19 @@ bool CGCClientSystem::BSendMessage( const GCSDK::CGCMsgBase& msg )
 //-----------------------------------------------------------------------------
 bool CGCClientSystem::BSendMessage( const GCSDK::CProtoBufMsgBase& msg )									
 { 
+#ifdef TF_CLIENT_DLL
+	// There is no Valve GC. The matchmaking backend answers the messages it
+	// knows in-process; the rest still go to the (absent) GC, which is how
+	// anything we have not implemented stays visibly unimplemented rather than
+	// silently swallowed.
+	::google::protobuf::Message *pBody = msg.GetGenericBody();
+	if ( pBody && TFMMBackend()->BActive() &&
+	     TFMMBackend()->BHandleClientMsg( msg.GetEMsg(), *pBody, NULL ) )
+	{
+		return true;
+	}
+#endif
+
 	return m_GCClient.BSendMessage( msg );
 }
 

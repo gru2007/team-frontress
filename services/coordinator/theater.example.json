@@ -1,0 +1,47 @@
+{
+  "id": "example",
+  "name": "Example Line",
+
+  "nodes": [
+    {
+      "id": "red_hq",
+      "name": "RED HQ",
+      "owner": "RED",
+      "plan": [{ "kind": "assault", "map": "pl_upward", "attacker_team": 3 }]
+    },
+    {
+      "id": "yard",
+      "name": "Rail Yard",
+      "owner": "RED",
+      "plan": [
+        { "kind": "breakthrough", "map": "koth_product_final", "attacker_team": 3 },
+        { "kind": "assault", "map": "pl_upward", "attacker_team": 3 }
+      ]
+    },
+    {
+      "id": "works",
+      "name": "Foundry",
+      "owner": "BLU",
+      "plan": [
+        { "kind": "breakthrough", "map": "cp_process_final", "attacker_team": 3 },
+        { "kind": "assault", "map": "pl_badwater", "attacker_team": 3 }
+      ]
+    },
+    {
+      "id": "blu_hq",
+      "name": "BLU HQ",
+      "owner": "BLU",
+      "plan": [{ "kind": "assault", "map": "pl_badwater", "attacker_team": 3 }]
+    }
+  ],
+
+  "edges": [
+    ["red_hq", "yard"],
+    ["yard", "works"],
+    ["works", "blu_hq"]
+  ],
+
+  "hq": { "RED": "red_hq", "BLU": "blu_hq" },
+
+  "fronts_by_population": [16, 32, 48]
+}

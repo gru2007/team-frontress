@@ -1,0 +1,77 @@
+{
+  "name": "Team Frontress",
+  "listen": ":27100",
+  "secret": "change-me-a-shared-secret-for-game-servers",
+
+  "auth": {
+    "mode": "dev",
+    "steam_api_key": "",
+    "app_id": 5147520
+  },
+
+  "match_groups": [
+    {
+      "match_group": 7,
+      "name": "Casual Frontline",
+      "mode": "frontline",
+      "enabled": true,
+      "min_players": 4,
+      "ideal_players": 12,
+      "max_players": 24,
+      "patient_secs": 60,
+      "server_config": "frontress_match",
+      "backfill_secs": 0,
+      "maps": [
+        "koth_product_final",
+        "cp_process_final",
+        "pl_upward",
+        "ctf_turbine"
+      ]
+    },
+    {
+      "match_group": 2,
+      "name": "Ranked 6v6",
+      "mode": "ranked",
+      "enabled": false,
+      "min_players": 12,
+      "ideal_players": 12,
+      "max_players": 12,
+      "patient_secs": 0,
+      "server_config": "frontress_match",
+      "maps": ["cp_process_final", "cp_gullywash_final1"]
+    }
+  ],
+
+  "pool": {
+    "boot_deadline_secs": 90,
+    "idle_end_secs": 300,
+    "max_match_secs": 10800,
+    "providers": [
+      {
+        "kind": "static",
+        "region": "eu",
+        "servers": [
+          {
+            "name": "local",
+            "connect": "127.0.0.1:27015",
+            "rcon": "change-me",
+            "stv": "127.0.0.1:27020"
+          }
+        ]
+      }
+    ]
+  },
+
+  "timing": {
+    "tick_ms": 1000,
+    "ticket_ttl_secs": 45,
+    "poll_after_ms": 2000,
+    "assignment_ttl_secs": 600
+  },
+
+  "war": {
+    "enabled": false,
+    "theater_file": "theater.example.json",
+    "event_log": "war-events.jsonl"
+  }
+}

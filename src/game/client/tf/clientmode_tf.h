@@ -96,6 +96,10 @@ public:
 	void OnConnectStateChanged();
 
 	void UpdateSteamRichPresence() const;
+
+	// Ask for a refresh on the next frame. Anything that changes what the
+	// friends list should say about this player calls it.
+	void MarkRichPresenceDirty() { m_bPendingRichPresenceUpdate = true; }
 	// Given a client state, match group loc token and pretty map name, build a localized status line.
 	// These are equivalent to 'state', 'matchgrouploc' and 'currentmap' rich presence keys from a player.
 	static bool BuildRichPresenceStatusDirect( wchar_t *pwzOutStatus, size_t uOutSizeBytes,

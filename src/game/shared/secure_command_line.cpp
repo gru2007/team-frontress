@@ -213,6 +213,36 @@ void TFUnsafeCmdLineProcessor( const char *pchUnsafeCmdLine, int cubSize, CSteam
 		return;
 	}
 
+	//
+	// Handle +connect_lobby.
+	//
+	// Steam appends this when somebody accepts a lobby invite or clicks Join
+	// Game while we are not running. The only thing that may follow is a lobby
+	// id, so anything that is not digits is refused outright.
+	//
+	if ( char const *szLobby = StringAfterPrefix( pchUnsafeCmdLine, "+connect_lobby " ) )
+	{
+		bool bValid = ( *szLobby != '\0' );
+		for ( char const *p = szLobby; *p; ++p )
+		{
+			if ( *p < '0' || *p > '9' )
+			{
+				bValid = false;
+				break;
+			}
+		}
+
+		if ( bValid )
+		{
+			engine->ClientCmd_Unrestricted( CFmtStr( "connect_lobby %s", szLobby ) );
+		}
+		else
+		{
+			Warning( "Invalid lobby join string: \"%s\"\n", pchUnsafeCmdLine );
+		}
+		return;
+	}
+
 	// Handle +connect.
 	{
 		if ( char const* ipconnect = StringAfterPrefix( pchUnsafeCmdLine, "+connect " ) )

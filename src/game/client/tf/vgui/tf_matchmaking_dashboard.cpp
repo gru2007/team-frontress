@@ -6,6 +6,8 @@
 
 
 #include "cbase.h"
+
+#include "frontress/tf_mm_backend.h"
 #include "tf_shareddefs.h"
 #include "tf_matchmaking_dashboard.h"
 #include "tf_gamerules.h"
@@ -384,17 +386,23 @@ void CTFMatchmakingDashboard::OnCommand( const char *command )
 	}
 	else if ( FStrEq( command, "find_game" ) )
 	{
-#ifdef SOURCESDK
-		OnQuickplay();
-#else
-		PopStack( 100, k_eSideRight ); // All y'all
-		PushSlidePanel( GetDashboardPanel().GetTypedPanel< CMatchMakingDashboardSidePanel >( k_ePlayList ) );
-		CHudMainMenuOverride *pMMOverride = (CHudMainMenuOverride*)( gViewPortInterface->FindPanelByName( PANEL_MAINMENUOVERRIDE ) );
-		pMMOverride->CheckTrainingStatus();
-
-#endif
+		// Under SOURCESDK this used to go straight to quickplay, because there
+		// was no game coordinator to run a queue against. There is one now --
+		// ours -- so when the matchmaking backend is up, "find a game" opens
+		// the stock playlist and queues like retail. Quickplay stays as the
+		// fallback for when it is not.
+		if ( TFMMBackend()->BActive() )
+		{
+			PopStack( 100, k_eSideRight ); // All y'all
+			PushSlidePanel( GetDashboardPanel().GetTypedPanel< CMatchMakingDashboardSidePanel >( k_ePlayList ) );
+			CHudMainMenuOverride *pMMOverride = (CHudMainMenuOverride*)( gViewPortInterface->FindPanelByName( PANEL_MAINMENUOVERRIDE ) );
+			pMMOverride->CheckTrainingStatus();
+		}
+		else
+		{
+			OnQuickplay();
+		}
 	}
-#ifdef SOURCESDK
 	else if ( FStrEq( command, "play_community" ) )
 	{
 		OnPlayCommunity();
@@ -403,7 +411,6 @@ void CTFMatchmakingDashboard::OnCommand( const char *command )
 	{
 		OnPlayTraining();
 	}
-#endif
 	else if ( FStrEq( command, "quit" ) )
 	{
 		if ( engine->IsInGame() && !engine->IsLevelMainMenuBackground() )

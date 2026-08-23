@@ -109,6 +109,28 @@ ConVar tf_training_has_prompted_for_loadout( "tf_training_has_prompted_for_loado
 ConVar cl_ask_bigpicture_controller_opt_out( "cl_ask_bigpicture_controller_opt_out", "0", FCVAR_ARCHIVE, "Whether the user has opted out of being prompted for controller support in Big Picture." );
 ConVar cl_mainmenu_operation_motd_start( "cl_mainmenu_operation_motd_start", "0", FCVAR_ARCHIVE | FCVAR_HIDDEN );
 ConVar cl_mainmenu_operation_motd_reset( "cl_mainmenu_operation_motd_reset", "0", FCVAR_ARCHIVE | FCVAR_HIDDEN );
+
+//-----------------------------------------------------------------------------
+// The HTML main menu is drawn on top of the stock Team Fortress one, which is
+// still there and still works. Turning this off hides the web panel and hands
+// the menu back to VGUI -- useful when the web UI is broken, when something in
+// it points at a service we do not run, or simply as a preference.
+//
+// It takes effect immediately: nothing is destroyed, only hidden.
+//-----------------------------------------------------------------------------
+static void MainMenuHtmlChanged( IConVar *pVar, const char *pOldValue, float flOldValue );
+ConVar tf_main_menu_html( "tf_main_menu_html", "1", FCVAR_ARCHIVE,
+                          "Use the HTML main menu. 0 uses Team Fortress' own VGUI main menu instead.",
+                          true, 0, true, 1, MainMenuHtmlChanged );
+
+static void MainMenuHtmlChanged( IConVar *pVar, const char *pOldValue, float flOldValue )
+{
+	CHudMainMenuOverride *pMenu =
+		(CHudMainMenuOverride *)gViewPortInterface->FindPanelByName( PANEL_MAINMENUOVERRIDE );
+	if ( pMenu )
+		pMenu->UpdateMainMenuWebUiVisibility();
+}
+
 ConVar cl_mainmenu_safemode( "cl_mainmenu_safemode", "0", FCVAR_NONE, "Enable safe mode", cc_tf_safemode_toggle );
 ConVar cl_mainmenu_updateglow( "cl_mainmenu_updateglow", "1", FCVAR_ARCHIVE | FCVAR_HIDDEN );
 ConVar tf_mainmenu_match_panel_type( "tf_mainmenu_match_panel_type", "7", FCVAR_ARCHIVE | FCVAR_HIDDEN, "The match group data to show on the main menu", cc_tf_mainmenu_match_panel_type );
@@ -263,7 +285,13 @@ CHudMainMenuOverride::CHudMainMenuOverride( IViewPort *pViewPort ) : BaseClass( 
 
 	m_MainMenuWebUiZIndex = -102;
 
+	// Built either way so the convar can be flipped without restarting; when it
+	// is off the panel is simply never shown.
 	m_pMainMenuWebUi = new CInteractiveWebPanel( this, "TFMainMenuWebUi", "ui/index.html", true, false );
+	if ( !tf_main_menu_html.GetBool() )
+	{
+		m_pMainMenuWebUi->SetVisible( false );
+	}
 
 	vgui::ivgui()->AddTickSignal( GetVPanel(), 50 );
 }
@@ -302,6 +330,48 @@ CHudMainMenuOverride::~CHudMainMenuOverride( void )
 
 //-----------------------------------------------------------------------------
 // Purpose: Override painting traversal to suppress main menu painting if we're not ready to show yet
+//-----------------------------------------------------------------------------
+// Team Fortress' own server browser, which is GameUI's and has nothing to do
+// with either menu. Reachable as `gamemenucommand openserverbrowser` too; this
+// exists because that is not a name anybody guesses.
+//-----------------------------------------------------------------------------
+CON_COMMAND( openserverbrowser, "Open the server browser." )
+{
+	engine->ClientCmd_Unrestricted( "gamemenucommand openserverbrowser" );
+}
+
+CON_COMMAND( opencreateserverdialog, "Open the create-a-server dialog." )
+{
+	engine->ClientCmd_Unrestricted( "gamemenucommand OpenCreateMultiplayerGameDialog" );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Show or hide the HTML menu to match tf_main_menu_html.
+//-----------------------------------------------------------------------------
+void CHudMainMenuOverride::UpdateMainMenuWebUiVisibility()
+{
+	if ( !m_pMainMenuWebUi )
+		return;
+
+	if ( !tf_main_menu_html.GetBool() )
+	{
+		if ( m_pMainMenuWebUi->IsVisible() )
+		{
+			// Tell the page it is going away, the same way closing the menu
+			// does, so anything it has running stops.
+			if ( GetGameStateManager()->IsReady() )
+				GetGameStateManager()->QueueEvent( "closedmenu", "" );
+
+			m_pMainMenuWebUi->SetVisible( false );
+		}
+		return;
+	}
+
+	// Turned back on. OnTick puts it back up on the next pass, which is also
+	// what decides whether the menu should be showing at all right now.
+	InvalidateLayout();
+}
+
 //-----------------------------------------------------------------------------
 void CHudMainMenuOverride::PaintTraverse( bool Repaint, bool allowForce )
 {
@@ -361,7 +431,7 @@ void CHudMainMenuOverride::OnTick()
 
 	if ( bInGame || bInReplay || bIsConnected || bBackgroundLevel )
 	{
-		if ( m_pMainMenuWebUi )
+		if ( m_pMainMenuWebUi && tf_main_menu_html.GetBool() )
 		{
 			if ( GetGameStateManager()->IsReady() )
 			{
@@ -1473,7 +1543,7 @@ void CHudMainMenuOverride::OnUpdateMenu( void )
 			// TODO(mcoms): main menu music not working
 			//PlayMainMenuMusic();
 		}
-		if ( m_pMainMenuWebUi )
+		if ( m_pMainMenuWebUi && tf_main_menu_html.GetBool() )
 		{
 			if ( GetGameStateManager()->IsReady() )
 			{

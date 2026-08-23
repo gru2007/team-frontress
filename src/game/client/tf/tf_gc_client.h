@@ -414,6 +414,10 @@ private:
 	// Reliable messages in flight to accept matches, to prevent UI confusion
 	PlayerGroupID_t m_nAcceptingMatchLobbyID = 0;
 
+	// The lobby we were assigned to last time we looked, so UpdateAssignedLobby
+	// can report a change rather than just a current value.
+	PlayerGroupID_t m_nAssignedLobbyID = 0;
+
 
 	// If we were given a chat suspension for the assigned match.
 	bool m_bAssignedMatchChatSuspension = false;

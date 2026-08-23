@@ -11,6 +11,9 @@
 #include "tier1/utlqueue.h"
 #include "gc_clientsystem.h"
 #include "tf_gcmessages.pb.h"
+#ifdef TF_CLIENT_DLL
+#include "frontress/tf_mm_backend.h"
+#endif
 
 using namespace GCSDK;
 
@@ -126,6 +129,20 @@ public:
 			// continuously attempt to send the message to the GC
 
 			double flTimeStart = Plat_FloatTime();
+
+#ifdef TF_CLIENT_DLL
+			// Reliable messages exist because the GC might not answer. Ours
+			// always does, in-process, so a handled message completes on the
+			// first pass and never enters the retry loop below.
+			if ( TFMMBackend()->BActive() &&
+			     TFMMBackend()->BHandleClientMsg( E_MSG_TYPE, m_msg.Body(), &m_msgReply.Body() ) )
+			{
+				MMLog( "[ReliableMsg] %s answered locally for %s\n", GetMsgName(), DebugString() );
+				ReliableMsg()->OnReply( m_msgReply );
+				return true;
+			}
+#endif
+
 			if ( GCClientSystem()->BConnectedtoGC() )
 			{
 				BYldSendMessageAndGetReply_t result = BYldSendMessageAndGetReplyEx( m_msg,

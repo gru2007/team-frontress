@@ -10,6 +10,8 @@
 //
 //=============================================================================
 #include "cbase.h"
+
+#include "frontress/tf_mm_backend.h"
 #include "hud.h"
 #include "clientmode_tf.h"
 #include "cdll_client_int.h"
@@ -566,6 +568,15 @@ void ClientModeTFNormal::Init()
 	ListenForGameEvent( "client_beginconnect" );
 	ListenForGameEvent( "client_disconnect" );
 
+	// Rich presence describes the party and the queue as much as the server, so
+	// it has to be refreshed when those change and not only when we connect
+	// somewhere.
+	ListenForGameEvent( "party_updated" );
+	ListenForGameEvent( "party_queue_state_changed" );
+	ListenForGameEvent( "party_member_join" );
+	ListenForGameEvent( "party_member_leave" );
+	ListenForGameEvent( "lobby_updated" );
+
 	ListenForGameEvent( "player_teleported" );
 	ListenForGameEvent( "scorestats_accumulated_reset" );
 	ListenForGameEvent( "scorestats_accumulated_update" );
@@ -862,6 +873,15 @@ void ClientModeTFNormal::FireGameEvent( IGameEvent *event )
 		// ignore these
 		if ( TFGameRules() && TFGameRules()->IsPVEModeActive() && event->GetInt( "bot" ) != 0 )
 			return;
+	}
+	else if ( FStrEq( "party_updated", eventname ) ||
+	          FStrEq( "party_queue_state_changed", eventname ) ||
+	          FStrEq( "party_member_join", eventname ) ||
+	          FStrEq( "party_member_leave", eventname ) ||
+	          FStrEq( "lobby_updated", eventname ) )
+	{
+		m_bPendingRichPresenceUpdate = true;
+		return;
 	}
 	else if ( FStrEq( "client_disconnect", eventname ) )
 	{
@@ -2353,10 +2373,23 @@ void ClientModeTFNormal::UpdateSteamRichPresence() const
 	{
 		// If they have an MM match, or if they're just on the menus, direct joiners to join their party, they cannot
 		// join the server directly.
-		CFmtStr strConnect( "+tf_party_request_join_user %llu",
-		                    steamapicontext->SteamUser()->GetSteamID().ConvertToUint64() );
 
-		engine->SetRichPresenceConnect( strConnect );
+		// With no game coordinator, "join this player's party" has to resolve
+		// to something Steam itself can act on -- our party is a Steam lobby,
+		// so hand out the lobby directly. It works even when the joiner's game
+		// is not running yet, which the request-to-join path does not.
+		const char *pszLobbyConnect = TFMMBackend()->Party().GetJoinConnectString();
+		if ( pszLobbyConnect )
+		{
+			engine->SetRichPresenceConnect( pszLobbyConnect );
+		}
+		else
+		{
+			CFmtStr strConnect( "+tf_party_request_join_user %llu",
+			                    steamapicontext->SteamUser()->GetSteamID().ConvertToUint64() );
+
+			engine->SetRichPresenceConnect( strConnect );
+		}
 	}
 	else
 	{

@@ -206,6 +206,13 @@ private:
 
 	CInteractiveWebPanel* m_pMainMenuWebUi;
 
+public:
+	// Called when tf_main_menu_html changes. Public because the convar's
+	// change callback is a free function.
+	void UpdateMainMenuWebUiVisibility();
+
+private:
+
 	int						m_MainMenuWebUiZIndex;
 
 	vgui::ImagePanel		*m_pCharacterImagePanel;

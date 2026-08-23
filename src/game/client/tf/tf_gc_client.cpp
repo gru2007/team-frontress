@@ -1,5 +1,7 @@
 //========= Copyright Valve Corporation, All rights reserved. ============//
 #include "cbase.h"
+
+#include "frontress/tf_mm_backend.h"
 #include "tf_gc_client.h"
 #include "gcsdk/gcsdk_auto.h"
 #include "tf_gcmessages.h"
@@ -970,6 +972,13 @@ void CTFGCClientSystem::Update( float frametime )
 {
 	BaseClass::Update( frametime );
 
+	// There is no Valve GC to connect to. The matchmaking UI gates almost
+	// everything on BConnectedtoGC(), so report the backend's availability
+	// there: when it is up, the things the UI would do actually work.
+	if ( BConnectedtoGC() != TFMMBackend()->BActive() )
+	{
+		SetConnectedToGC( TFMMBackend()->BActive() );
+	}
 
 	WebapiInventoryThink();
 
@@ -1081,17 +1090,53 @@ void CTFGCClientSystem::SOChanged( const GCSDK::CSharedObject *pObject, SOChange
 
 bool CTFGCClientSystem::UpdateAssignedLobby()
 {
-	return false;
+	// Our assigned lobby is whatever lobby object is in our SO cache. The
+	// caller wants to know whether that changed, because "which match am I in"
+	// changing is what drives the match-found and match-over flows.
+	CTFGSLobby *pLobby = GetLobby();
+	PlayerGroupID_t nLobbyID = pLobby ? pLobby->GetGroupID() : 0u;
+
+	bool bChanged = ( nLobbyID != m_nAssignedLobbyID );
+	m_nAssignedLobbyID = nLobbyID;
+
+	if ( bChanged && nLobbyID != 0u && pLobby )
+	{
+		// Remember the address so the server browser can tell a matchmade
+		// server apart from one the player found themselves.
+		netadr_t adr;
+		if ( adr.SetFromString( pLobby->GetConnect(), false ) &&
+		     m_vecMatchServerHistory.Find( adr ) == m_vecMatchServerHistory.InvalidIndex() )
+		{
+			m_vecMatchServerHistory.AddToTail( adr );
+		}
+	}
+
+	return bChanged;
+}
+
+// Find the single object of a type in our own SO cache, or NULL.
+template < typename T >
+static T *FindLocalSharedObject( GCSDK::CGCClientSharedObjectCache *pSOCache )
+{
+	if ( !pSOCache )
+		return NULL;
+
+	GCSDK::CSharedObjectTypeCache *pTypeCache = pSOCache->FindBaseTypeCache( T::k_nTypeID );
+	if ( !pTypeCache || pTypeCache->GetCount() == 0 )
+		return NULL;
+
+	// If there is somehow more than one, the newest is the live one.
+	return static_cast< T * >( pTypeCache->GetObject( pTypeCache->GetCount() - 1 ) );
 }
 
 CTFParty* CTFGCClientSystem::GetParty()
 {
-	return NULL;
+	return FindLocalSharedObject< CTFParty >( m_pSOCache );
 }
 
 CTFGSLobby* CTFGCClientSystem::GetLobby() const
 {
-	return NULL;
+	return FindLocalSharedObject< CTFGSLobby >( m_pSOCache );
 }
 
 
@@ -1113,6 +1158,11 @@ void CTFGCClientSystem::ConnectToServer( const char *connect )
 			// ForceCompetitiveConvars() shouldn't fail
 			Assert( 0 );
 		}
+
+		// Everything downstream -- the abandon prompt, the match HUD, the
+		// server browser -- keys off knowing this connect came from
+		// matchmaking rather than from the browser.
+		m_eConnectState = eConnectState_ConnectingToMatchmade;
 
 		engine->ClientCmd_Unrestricted( connectCmd.String() );
 		//vgui::surface()->PlaySound( "ui/ui_findmatch_join_01.wav" );
@@ -1485,32 +1535,52 @@ void CTFGCClientSystem::RemoveLocalPlayerSOListener( ISharedObjectListener* pLis
 
 bool CTFGCClientSystem::BConnectedToMatchServer( bool bLiveMatch )
 {
-	return false;
+	if ( m_eConnectState != eConnectState_ConnectedToMatchmade )
+		return false;
+
+	// "Connected to a match server" and "connected to the server running the
+	// match I am currently in" are different questions -- after a match ends
+	// the player is still on the server, on the summary screen.
+	return bLiveMatch ? BHaveLiveMatch() : true;
 }
 
 bool CTFGCClientSystem::BHaveRunningMatch() const
 {
-	return false;
+	return GetLobby() != NULL;
 }
 
 bool CTFGCClientSystem::BHaveLiveMatch() const
 {
-	return false;
+	const CTFGSLobby *pLobby = GetLobby();
+	return pLobby && pLobby->GetState() == CSOTFGameServerLobby_State_RUN;
 }
 
 EAbandonGameStatus CTFGCClientSystem::GetAssignedMatchAbandonStatus()
 {
-	return k_EAbandonGameStatus_Safe;
+	// No penalties yet: the coordinator does not track abandons, and inventing
+	// a penalty the backend cannot actually apply would only mislead players.
+	return BHaveLiveMatch() ? k_EAbandonGameStatus_AbandonWithoutPenalty
+	                        : k_EAbandonGameStatus_Safe;
 }
 
 ETFMatchGroup CTFGCClientSystem::GetLiveMatchGroup() const
 {
-
-	return k_eTFMatchGroup_Invalid;
+	const CTFGSLobby *pLobby = GetLobby();
+	return pLobby ? pLobby->GetMatchGroup() : k_eTFMatchGroup_Invalid;
 }
 
 void CTFGCClientSystem::JoinMMMatch()
 {
+	CTFGSLobby *pLobby = GetLobby();
+	if ( !pLobby || pLobby->GetState() != CSOTFGameServerLobby_State_RUN )
+	{
+		Warning( "There is no match to join.\n" );
+		return;
+	}
+
+	// The backend knows the password; go through it so the connect is set up
+	// the same way whether the player clicked join or it happened for them.
+	TFMMBackend()->JoinAssignedMatch();
 }
 
 //-----------------------------------------------------------------------------
