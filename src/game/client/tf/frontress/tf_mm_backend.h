@@ -194,6 +194,31 @@ public:
 	CTFMMParty &Party() { return m_party; }
 	const char *GetSTVAddress() const { return m_strSTV.Get(); }
 
+	// What the coordinator last said about the queue we are standing in. The
+	// menu shows this; nothing in matchmaking depends on it.
+	ETFMatchGroup GetQueuedMatchGroup() const { return m_eQueuedMatchGroup; }
+	int   GetQueuePlayerCount() const { return m_nInQueue; }
+	int   GetQueueNeededCount() const { return m_nNeedPlayers; }
+	float GetQueueSeconds() const;
+	const char *GetLastError() const { return m_strLastError.Get(); }
+
+	// The coordinator's public health view, polled while we sit at the menu.
+	// bValid is false until the first reply lands, and stays false when the
+	// coordinator cannot be reached.
+	struct Status_t
+	{
+		Status_t() : bChecked( false ), bValid( false ), nOnlinePlayers( 0 ), nLiveMatches( 0 ), nFreeServers( 0 ) {}
+		// bChecked separates "we have not asked yet" from "we asked and it did
+		// not answer", which are different things to put in front of a player.
+		bool       bChecked;
+		bool       bValid;
+		int        nOnlinePlayers;
+		int        nLiveMatches;
+		int        nFreeServers;
+		CUtlString strName;
+	};
+	const Status_t &GetStatus() const { return m_status; }
+
 	// A party member noticed the leader's assignment in the lobby data.
 	void OnPartyLobbyDataChanged();
 
@@ -216,6 +241,9 @@ private:
 	void SendQueueRequest();
 	void SendQueueCancel();
 	void PollQueue();
+	void PollStatus();
+	void OnStatus( GCSDK::CWebAPIValues *pValues, int eStatusCode );
+	static void StatusThunk( GCSDK::CWebAPIValues *pValues, int eStatusCode, void *pContext );
 	void OnQueueReply( GCSDK::CWebAPIValues *pValues, int eStatusCode );
 	void OnQueueStatus( GCSDK::CWebAPIValues *pValues, int eStatusCode );
 	static void QueueReplyThunk( GCSDK::CWebAPIValues *pValues, int eStatusCode, void *pContext );
@@ -232,6 +260,8 @@ private:
 
 	CTFMMParty       m_party;
 	CTFMMCoordinator m_coordinator;
+	// Its own connection, so a slow status poll never delays a queue poll.
+	CTFMMCoordinator m_statusFeed;
 
 	ETFMMState m_eState;
 	bool       m_bSubscribedToCache;
@@ -244,6 +274,11 @@ private:
 	float         m_flNextPollTime;
 	float         m_flQueueStartTime;
 	int           m_nPollIntervalMS;
+	int           m_nInQueue;
+	int           m_nNeedPlayers;
+
+	Status_t      m_status;
+	float         m_flNextStatusPoll;
 
 	CSOTFParty             m_msgParty;
 	std::string            m_strLastPublishedParty;

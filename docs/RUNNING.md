@@ -182,6 +182,27 @@ It takes effect immediately and is archived, so it survives a restart. Nothing
 is destroyed when it is switched; the menu layout is reloaded, the web panel is
 hidden, and the page is told the menu closed so anything it was polling stops.
 
+The VGUI menu is three things: the matchmaking dashboard's top bar (find a
+game, host, quit), the column of buttons on the left, and the row of small
+glyph buttons along the bottom (server browser, options, advanced options,
+character setup).
+
+The column comes from `resource/gamemenu.res`, which ships **loose**, in
+`game/tc2/loose/resource/`. That is deliberate: `pak1.vpk` is not built from
+this repo, it is a prebuilt download (`game_clean/dlpak.sh` pulls
+`PAK_VERSION` from `mastercomfig/tc2-pak`), it has never carried a
+`gamemenu.res`, and without one the menu falls through to Team Fortress' own,
+which does not match our panels. Everything in `loose` is mounted ahead of the
+pak, so it is also the only way to override a pak file without republishing the
+pak.
+
+Same reason `CHudMainMenuOverride::UpdateMainMenuChrome` sets the visibility
+and z-order of the pieces the web page draws itself, instead of leaving it to
+the `if_htmlmenu` blocks in `game_src/tc2/pak1/resource/ui/mainmenuoverride.res`:
+edits there do not reach the game until someone rebuilds the pak and bumps
+`PAK_VERSION`. The two say the same thing, so when the pak is rebuilt nothing
+changes.
+
 Both menus reach the same matchmaking: the dashboard is its own panel and is
 not part of either. Everything the stock menu does not handle itself is passed
 through to GameUI, which is where the server browser, the options dialogs and
@@ -190,6 +211,47 @@ the create-server dialog live.
 Two things stay running with the HTML menu off, harmlessly: the local Crow
 HTTP server on `127.0.0.1:58270` that serves the page, and the websocket
 bridge. Neither costs anything when nobody is connected to them.
+
+### The information column
+
+Down the right of the VGUI menu, where Team Fortress puts its MOTD, are three
+cards:
+
+- **Campaign** -- the war line: nodes coloured by who holds them, the edges
+  between them, and a pulsing ring on the front that is live.
+- **Matchmaking** -- what the queue is doing. While queued it shows the match
+  group, how long you have been waiting, how many players are in the queue and
+  how many more the coordinator needs, with a bar that fills as they arrive.
+  Along the bottom is the population: players online, matches live, servers
+  free. That line comes from `GET /v1/status`, polled every 30 seconds while
+  you are out of a game, and says so plainly when the coordinator does not
+  answer.
+- **News** -- whatever is in the news file.
+
+The cards are drawn in code (`src/game/client/tf/frontress/tf_mainmenu_info.cpp`)
+rather than laid out in a `.res`, because the menu's `.res` is in a pak we do
+not build. What they draw is not in the code:
+
+```
+game/tc2/loose/resource/ui/frontress_campaign.res
+game/tc2/loose/resource/ui/frontress_news.res
+```
+
+Both ship loose, so they can be edited in an installed game. `x` and `y` on a
+campaign node are 0..1 across the map area, so a line drawn there survives any
+resolution. Delete the `front` block and the map draws quiet.
+
+```
+tf_mainmenu_info_reload
+```
+
+re-reads both without restarting.
+
+The campaign file is a demo -- it is `services/coordinator/theater.example.json`
+laid out by hand. Its shape is the war layer's own shape (nodes, edges, the
+live front), which is the point: `wire.WarStatus.ActiveFronts` already carries
+exactly this, so pointing the panel at the coordinator later is a change to
+where the data comes from, not to what the panel knows.
 
 ### The server browser
 

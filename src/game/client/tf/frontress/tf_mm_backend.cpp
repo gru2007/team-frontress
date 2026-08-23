@@ -39,6 +39,10 @@ CTFMMBackend *TFMMBackend() { return &s_TFMMBackend; }
 
 #define MMDbg( ... ) do { if ( tf_mm_debug.GetBool() ) Msg( "[mm] " __VA_ARGS__ ); } while ( false )
 
+// How often the menu's population line is refreshed. Slow on purpose: it is a
+// courtesy readout, not something anybody waits on.
+static const float k_flStatusPollInterval = 30.f;
+
 static CSteamID LocalSteamID()
 {
 	if ( steamapicontext && steamapicontext->SteamUser() )
@@ -57,7 +61,19 @@ CTFMMBackend::CTFMMBackend()
 	, m_flNextPollTime( 0.f )
 	, m_flQueueStartTime( 0.f )
 	, m_nPollIntervalMS( 2000 )
+	, m_nInQueue( 0 )
+	, m_nNeedPlayers( 0 )
+	, m_flNextStatusPoll( 0.f )
 {
+}
+
+//-----------------------------------------------------------------------------
+float CTFMMBackend::GetQueueSeconds() const
+{
+	if ( m_eState != k_eTFMMState_Searching || m_flQueueStartTime <= 0.f )
+		return 0.f;
+
+	return MAX( 0.f, Plat_FloatTime() - m_flQueueStartTime );
 }
 
 //-----------------------------------------------------------------------------
@@ -165,6 +181,53 @@ void CTFMMBackend::Update( float frametime )
 	{
 		PollQueue();
 	}
+
+	// Population for the menu. Nobody is looking at it during a match, so only
+	// keep it fresh while we are out of one.
+	if ( !engine->IsInGame() &&
+	     Plat_FloatTime() >= m_flNextStatusPoll &&
+	     !m_statusFeed.BBusy() )
+	{
+		PollStatus();
+	}
+}
+
+//-----------------------------------------------------------------------------
+void CTFMMBackend::PollStatus()
+{
+	m_flNextStatusPoll = Plat_FloatTime() + k_flStatusPollInterval;
+
+	if ( !m_statusFeed.BSend( k_EHTTPMethodGET, "/v1/status", NULL,
+	                          &CTFMMBackend::StatusThunk, this ) )
+	{
+		MMDbg( "status poll could not be sent\n" );
+	}
+}
+
+//-----------------------------------------------------------------------------
+void CTFMMBackend::StatusThunk( GCSDK::CWebAPIValues *pValues, int eStatusCode, void *pContext )
+{
+	( (CTFMMBackend *)pContext )->OnStatus( pValues, eStatusCode );
+}
+
+//-----------------------------------------------------------------------------
+void CTFMMBackend::OnStatus( GCSDK::CWebAPIValues *pValues, int eStatusCode )
+{
+	if ( eStatusCode != 200 || !pValues )
+	{
+		// Say nothing rather than something stale: the menu draws "offline"
+		// off the back of this.
+		m_status = Status_t();
+		m_status.bChecked = true;
+		return;
+	}
+
+	m_status.bChecked       = true;
+	m_status.bValid         = true;
+	m_status.nOnlinePlayers = pValues->GetChildInt32Value( "online_players", 0 );
+	m_status.nLiveMatches   = pValues->GetChildInt32Value( "live_matches", 0 );
+	m_status.nFreeServers   = pValues->GetChildInt32Value( "free_servers", 0 );
+	pValues->GetChildStringValue( m_status.strName, "name", "" );
 }
 
 //
@@ -856,6 +919,8 @@ void CTFMMBackend::OnQueueStatus( GCSDK::CWebAPIValues *pValues, int eStatusCode
 	}
 
 	m_nPollIntervalMS = MAX( 500, pValues->GetChildInt32Value( "poll_after_ms", m_nPollIntervalMS ) );
+	m_nInQueue        = pValues->GetChildInt32Value( "in_queue", m_nInQueue );
+	m_nNeedPlayers    = pValues->GetChildInt32Value( "need_players", m_nNeedPlayers );
 
 	CUtlString strState;
 	pValues->GetChildStringValue( strState, "state", "" );

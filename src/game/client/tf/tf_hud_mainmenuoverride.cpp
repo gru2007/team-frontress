@@ -57,6 +57,7 @@
 #include "mute_player_dialog.h"
 #include "tf_quest_map_utils.h"
 #include "tf_matchmaking_dashboard.h"
+#include "frontress/tf_mainmenu_info.h"
 #include "tf_pvp_rank_panel.h"
 
 #include "econ_paintkit.h"
@@ -294,6 +295,13 @@ CHudMainMenuOverride::CHudMainMenuOverride( IViewPort *pViewPort ) : BaseClass( 
 	m_pMainMenuWebUi = new CInteractiveWebPanel( this, "TFMainMenuWebUi", "ui/index.html", true, false );
 	m_pMainMenuWebUi->SetVisible( tf_main_menu_html.GetBool() );
 
+	// The campaign / queue / news column. Built in code rather than in the .res
+	// because the .res lives in a pak we do not build; PerformLayout puts it
+	// where the MOTD panel would be.
+	m_pInfoPanel = new CTFMainMenuInfoPanel( this, "FrontressInfo" );
+	m_pInfoPanel->SetZPos( 10 );
+	m_pInfoPanel->SetVisible( false );
+
 	vgui::ivgui()->AddTickSignal( GetVPanel(), 50 );
 }
 
@@ -344,6 +352,79 @@ CON_COMMAND( openserverbrowser, "Open the server browser." )
 CON_COMMAND( opencreateserverdialog, "Open the create-a-server dialog." )
 {
 	engine->ClientCmd_Unrestricted( "gamemenucommand OpenCreateMultiplayerGameDialog" );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Re-read the campaign and news files, so they can be edited without
+//			restarting the game.
+//-----------------------------------------------------------------------------
+void CHudMainMenuOverride::ReloadMainMenuInfo()
+{
+	if ( m_pInfoPanel )
+	{
+		m_pInfoPanel->Reload();
+	}
+}
+
+CON_COMMAND( tf_mainmenu_info_reload, "Re-read the main menu's campaign and news files." )
+{
+	CHudMainMenuOverride *pMenu =
+		(CHudMainMenuOverride *)gViewPortInterface->FindPanelByName( PANEL_MAINMENUOVERRIDE );
+	if ( pMenu )
+		pMenu->ReloadMainMenuInfo();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Put the pieces of the VGUI menu that the web page draws itself into
+//			the state the current menu mode wants.
+//
+//			The .res says all of this too, in its if_htmlmenu blocks, but the
+//			pak the game ships with is a prebuilt download (game_clean/dlpak.sh)
+//			and predates that, so it still has the VGUI menu switched off. Doing
+//			it here as well is what makes the switch work on a stock install;
+//			when the pak is next rebuilt the two agree.
+//-----------------------------------------------------------------------------
+void CHudMainMenuOverride::UpdateMainMenuChrome()
+{
+	const bool bHtmlMenu = tf_main_menu_html.GetBool();
+
+	// Shown by the VGUI menu, hidden while the web page is up.
+	auto lambdaVGuiOnly = [ & ]( const char *pszName )
+	{
+		Panel *pPanel = FindChildByName( pszName );
+		if ( pPanel )
+		{
+			pPanel->SetVisible( !bHtmlMenu );
+		}
+	};
+
+	// Backdrop pieces, which have to sit behind the web panel's -102 when it is
+	// up and in the ordinary menu stack when it is not.
+	auto lambdaZPos = [ & ]( const char *pszName, int nVGui, int nHtml )
+	{
+		Panel *pPanel = FindChildByName( pszName );
+		if ( pPanel )
+		{
+			pPanel->SetZPos( bHtmlMenu ? nHtml : nVGui );
+		}
+	};
+
+	lambdaVGuiOnly( "TFLogoImage" );
+	lambdaVGuiOnly( "CharacterSetupButton" );
+	lambdaVGuiOnly( "FriendsContainer" );
+#ifdef SOURCESDK
+	// The stock buttons these replace are hidden further down in
+	// ApplySchemeSettings, so on an SDK build this row is the menu.
+	lambdaVGuiOnly( "ServerBrowserButtonSDK" );
+	lambdaVGuiOnly( "SettingsButtonSDK" );
+	lambdaVGuiOnly( "TF2SettingsButtonSDK" );
+#endif
+
+	lambdaZPos( "TFCharacterImage", -99, -105 );
+	lambdaZPos( "TFCharacterModel", -99, -105 );
+	lambdaZPos( "BackgroundFooter", -50, -104 );
+	lambdaZPos( "FooterLine", -5, -103 );
+	lambdaZPos( "ShowPromoCodesButton", 5, 0 );
 }
 
 //-----------------------------------------------------------------------------
@@ -845,6 +926,8 @@ void CHudMainMenuOverride::ApplySchemeSettings( IScheme *scheme )
 		// loaded page from painting over the VGUI menu.
 		m_pMainMenuWebUi->SetVisible( false );
 	}
+
+	UpdateMainMenuChrome();
 
 	GetMMDashboard();
 	GetCompRanksTooltip();
@@ -1440,6 +1523,16 @@ void CHudMainMenuOverride::PerformLayout( void )
 		iYPos += m_pMMButtonEntries[i].pPanel->GetTall() + m_iButtonYDelta;
 	}
 
+	if ( m_pInfoPanel )
+	{
+		// Where the MOTD panel would be, in menu space: c5, 62, 300 x 352.
+		const HScheme hScheme = GetScheme();
+		m_pInfoPanel->SetBounds( GetWide() / 2 + scheme()->GetProportionalScaledValueEx( hScheme, 5 ),
+		                         scheme()->GetProportionalScaledValueEx( hScheme, 62 ),
+		                         scheme()->GetProportionalScaledValueEx( hScheme, 300 ),
+		                         scheme()->GetProportionalScaledValueEx( hScheme, 352 ) );
+	}
+
 	if ( m_pEventPromoContainer && m_pSafeModeContainer )
 	{
 		m_pEventPromoContainer->SetVisible( !cl_mainmenu_safemode.GetBool() );
@@ -1573,6 +1666,14 @@ void CHudMainMenuOverride::OnUpdateMenu( void )
 	// own .res, so the if_htmlmenu blocks can't reach them -- keep them down by
 	// hand while the web page is drawing its own buttons.
 	const bool bHtmlMenu = tf_main_menu_html.GetBool();
+
+	// The information column belongs to the VGUI menu, and only at the menu:
+	// in game this panel is the pause screen, which nobody wants news on.
+	if ( m_pInfoPanel )
+	{
+		m_pInfoPanel->SetVisible( !bHtmlMenu && !bInGame && !bInReplay && !bIsConnected );
+	}
+
 	FOR_EACH_VEC( m_pMMButtonEntries, i )
 	{
 		bool shouldBeVisible = !bHtmlMenu;
@@ -2662,6 +2763,18 @@ void CHudMainMenuOverride::OnCommand( const char *command )
 		if (pVoiceTweak)
 		{
 			// TODO(mcoms)
+		}
+		return;
+	}
+	else if ( !V_stricmp( command, "find_game" ) )
+	{
+		// Matchmaking belongs to the dashboard, which is the thing that knows
+		// whether to open the playlist or fall back to quickplay. The menu
+		// entry just rings its bell.
+		CTFMatchmakingDashboard *pDashboard = GetMMDashboard();
+		if ( pDashboard )
+		{
+			pDashboard->OnCommand( "find_game" );
 		}
 		return;
 	}
