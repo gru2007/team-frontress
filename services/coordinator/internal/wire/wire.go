@@ -163,17 +163,17 @@ type QueueStatus struct {
 // Status is the public health/population view. The main menu can render this
 // without authenticating.
 type Status struct {
-	Name          string           `json:"name"`
-	OnlinePlayers int              `json:"online_players"`
-	QueuedPlayers map[string]int   `json:"queued_players"` // match group id -> players
-	LiveMatches   int              `json:"live_matches"`
-	FreeServers   int              `json:"free_servers"`
+	Name          string         `json:"name"`
+	OnlinePlayers int            `json:"online_players"`
+	QueuedPlayers map[string]int `json:"queued_players"` // match group id -> players
+	LiveMatches   int            `json:"live_matches"`
+	FreeServers   int            `json:"free_servers"`
 	// 1 when FreeServers is an exact count. A remote/on-demand provider
 	// such as serveme cannot answer that without making an allocation
 	// request, so reporting zero as though it were exact is misleading.
-	ServerCapacityKnown int        `json:"server_capacity_known"`
-	MatchGroups   []MatchGroupInfo `json:"match_groups"`
-	War           *WarStatus       `json:"war,omitempty"`
+	ServerCapacityKnown int              `json:"server_capacity_known"`
+	MatchGroups         []MatchGroupInfo `json:"match_groups"`
+	War                 *WarStatus       `json:"war,omitempty"`
 }
 
 // MatchGroupInfo tells the client which groups are worth showing.
