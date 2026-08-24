@@ -27,6 +27,39 @@ using namespace GCSDK;
 
 ConVar tf_special_event_hide( "tf_special_event_hide", "0", FCVAR_ARCHIVE | FCVAR_HIDDEN );
 
+extern const char *s_pszMatchGroups[];
+
+//-----------------------------------------------------------------------------
+// Purpose: Read a "matchgroup" field out of a .res.
+//
+//			The files write the symbolic name -- "MatchGroup_Casual_12v12" --
+//			the same as every other panel that takes one. Reading it with
+//			GetInt() instead silently returned 0 for all of them, so every row
+//			in the play list claimed to be MvM Practice: the reason each mode
+//			reported itself unavailable while the console queue command for the
+//			same mode worked.
+//-----------------------------------------------------------------------------
+static ETFMatchGroup ReadMatchGroupField( KeyValues *inResourceData )
+{
+	const char *pszGroup = inResourceData->GetString( "matchgroup", NULL );
+	if ( !pszGroup || !pszGroup[0] )
+		return k_eTFMatchGroup_Invalid;
+
+	const int nNamed = StringFieldToInt( pszGroup, s_pszMatchGroups, (int)ETFMatchGroup_ARRAYSIZE,
+	                                     /* bDontAssert */ true );
+	if ( nNamed >= 0 )
+		return (ETFMatchGroup)nNamed;
+
+	// A file that writes the number instead still means the number. Anything
+	// else is a typo, and a typo must not read as a real match group: "0" is
+	// MvM Practice, and silently becoming it is exactly what went wrong here.
+	if ( pszGroup[0] == '-' || ( pszGroup[0] >= '0' && pszGroup[0] <= '9' ) )
+		return (ETFMatchGroup)inResourceData->GetInt( "matchgroup", k_eTFMatchGroup_Invalid );
+
+	Warning( "playlist entry has matchgroup \"%s\", which is not a match group\n", pszGroup );
+	return k_eTFMatchGroup_Invalid;
+}
+
 Panel* GetPlayListPanel()
 {
 	Panel* pPanel = new CTFDashboardPlaylistPanel( NULL, "ExpandableList" );
@@ -71,7 +104,7 @@ void CPlayListEntry::ApplySettings( KeyValues *inResourceData )
 {
 	BaseClass::ApplySettings( inResourceData );
 
-	m_eMatchGroup = (ETFMatchGroup)inResourceData->GetInt( "matchgroup", k_eTFMatchGroup_Invalid );
+	m_eMatchGroup = ReadMatchGroupField( inResourceData );
 	m_strImageName = inResourceData->GetString( "image_name" );
 	m_strButtonCommand = inResourceData->GetString( "button_command" );
 	m_strButtonToken = inResourceData->GetString( "button_token" );
@@ -224,6 +257,12 @@ bool CPlayListEntry::BGroupHosted() const
 	// only once it has: before the first status reply every mode is assumed
 	// to exist, because hiding one on a guess is worse than a slow reveal.
 	if ( !TFMMBackend()->BActive() || !TFMMBackend()->BGroupsKnown() )
+		return true;
+
+	// Never empty the list. If the coordinator offered nothing at all, showing
+	// the modes with their reasons on them is recoverable and a blank panel is
+	// not: the player cannot tell it apart from a menu that failed to load.
+	if ( !TFMMBackend()->BAnyGroupOffered() )
 		return true;
 
 	return TFMMBackend()->BGroupOffered( m_eMatchGroup );

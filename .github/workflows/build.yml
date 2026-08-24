@@ -9,6 +9,11 @@ on:
       - "private/*"
   # pull_request:
   workflow_dispatch:
+    inputs:
+      fresh:
+        description: "Ignore the previous build's caches and compile from cold"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -17,6 +22,13 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  # Pinned, not :latest. ccache hashes the compiler, so the day Valve rebuilds
+  # the sniper SDK is the day every cached object becomes a miss. Bump this
+  # deliberately; the tag list is at
+  # registry.gitlab.steamos.cloud/v2/steamrt/sniper/sdk/tags/list.
+  SNIPER_SDK_IMAGE: registry.gitlab.steamos.cloud/steamrt/sniper/sdk:3.0.20260805.254768
+
 jobs:
   # The coordinator is Go and builds in seconds. It runs first and on its own:
   # a game build should not wait for it, and a broken coordinator should not
@@ -24,6 +36,7 @@ jobs:
   coordinator:
     name: Coordinator / Go
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: services/coordinator
@@ -89,32 +102,35 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: client-linux
-            name: Client / Linux
+          # One Linux lane, not two. The dedicated payload is cut out of the
+          # client payload by copy_server.sh -- a packaging step over game_dist,
+          # not a second compile -- so a separate dedicated job meant a second
+          # full engine build, a second 1.4 GB SDK image pull and a second
+          # writer competing for the same ccache, to produce files the client
+          # lane already had on disk.
+          - target: linux
+            name: Game / Linux (client + dedicated)
             os: ubuntu-latest
-            artifact: steam-client-linux
-            artifact_path: game_dist
-          - target: client-windows
+          - target: windows
             name: Client / Windows
             os: windows-2025-vs2026
-            artifact: steam-client-windows
-            artifact_path: game_dist
-          - target: dedicated-linux
-            name: Dedicated / Linux
-            os: ubuntu-latest
-            artifact: steam-dedicated-linux
-            artifact_path: game_server_dist
 
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      # To find and download the previous build's ccache artifact.
+      actions: read
     env:
       VCPKG_ROOT: ${{ github.workspace }}/../vcpkg
       VCPKG_DEFAULT_TRIPLET: x64-windows
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
 
     steps:
       # Windows keeps its incremental workspace cache. Do the sparse checkout
       # first so the cache action itself is available before the full checkout.
       - name: Checkout actions (Windows)
-        if: matrix.target == 'client-windows'
+        if: matrix.target == 'windows'
         uses: actions/checkout@v6
         with:
           sparse-checkout: |
@@ -122,34 +138,16 @@ jobs:
           token: ${{ secrets.REPO_TOKEN || github.token }}
           persist-credentials: false
 
-      - name: Setup MSBuild cache
-        if: matrix.target == 'client-windows'
-        uses: actions/cache@v6
-        with:
-          path: |
-            ${{ github.workspace }}
-            !${{ github.workspace }}/.git/**
-            !${{ github.workspace }}/.github/**
-            !${{ github.workspace }}/.vscode/**
-            !${{ github.workspace }}/game_clean/**
-            !${{ github.workspace }}/game_dist/**
-            !${{ github.workspace }}/game_dist_debug/**
-            !${{ github.workspace }}/game/tc2/pak1*.vpk
-            !${{ github.workspace }}/steam_build/**
-            !${{ github.workspace }}/.gitattributes
-            !${{ github.workspace }}/.gitignore
-            !${{ github.workspace }}/CONTRIBUTING
-            !${{ github.workspace }}/LICENSE
-            !${{ github.workspace }}/README.md
-            !${{ github.workspace }}/thirdpartylegalnotices.txt
-          key: ${{ runner.os }}-mscache-${{ github.ref_name }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-mscache-${{ github.ref_name }}-
-            ${{ runner.os }}-mscache-${{ github.base_ref }}-
-            ${{ runner.os }}-mscache-
+      # See .github/scripts/artifact-cache.sh for why this is not actions/cache.
+      - name: Restore the MSBuild workspace from the previous build
+        if: ${{ matrix.target == 'windows' && github.event.inputs.fresh != 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/artifact-cache.sh restore msbuild-windows .
 
       - name: Checkout repository (Windows)
-        if: matrix.target == 'client-windows'
+        if: matrix.target == 'windows'
         uses: actions/checkout@v6
         with:
           clean: false
@@ -157,59 +155,55 @@ jobs:
           persist-credentials: false
           submodules: recursive
 
-      - name: Checkout repository (game Linux)
-        if: matrix.target == 'client-linux' || matrix.target == 'dedicated-linux'
+      - name: Checkout repository (Linux)
+        if: matrix.target == 'linux'
         uses: actions/checkout@v6
         with:
           token: ${{ secrets.REPO_TOKEN || github.token }}
           persist-credentials: false
           submodules: recursive
 
-      # Both Linux lanes compile the same tree -- the dedicated payload is cut
-      # out of the client build, it is not a second compile -- so they share
-      # one ccache namespace. The restore prefix must not contain the ref:
-      # this workflow only runs on tags, and a per-tag prefix means every
-      # release starts from an empty cache and compiles the engine cold.
-      - name: Setup ccache
-        if: matrix.target == 'client-linux' || matrix.target == 'dedicated-linux'
-        uses: actions/cache@v6
-        with:
-          path: ${{ github.workspace }}/.ccache
-          key: ${{ runner.os }}-ccache-v1-${{ github.sha }}-${{ matrix.target }}
-          restore-keys: |
-            ${{ runner.os }}-ccache-v1-
-
-      - name: Build Linux client
-        if: matrix.target == 'client-linux'
+      # See .github/scripts/artifact-cache.sh for why this is not actions/cache.
+      - name: Restore ccache from the previous build
+        if: ${{ matrix.target == 'linux' && github.event.inputs.fresh != 'true' }}
         env:
-          CCACHE_DIR: ${{ github.workspace }}/.ccache
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/artifact-cache.sh restore ccache-linux "$CCACHE_DIR"
+
+      - name: Build Linux
+        if: matrix.target == 'linux'
         run: |
           set -euo pipefail
-          # src/sdk_container forwards only CCACHE_DIR into the podman build
-          # container, so every other ccache setting has to travel in the
-          # config file that sits next to the cache itself. Capping the size
-          # keeps the post-job upload short as well.
-          mkdir -p "$CCACHE_DIR"
-          printf 'max_size = 2G\ncompression = true\ncompression_level = 6\n' > "$CCACHE_DIR/ccache.conf"
+          # This travels in the config file next to the cache rather than in
+          # the environment, so it applies identically to a developer running
+          # buildallprojects by hand. Sloppiness is not here -- buildallprojects
+          # exports CCACHE_SLOPPINESS, and the environment beats the file.
+          cat > "$CCACHE_DIR/ccache.conf" <<'CONF'
+          # Bounded on purpose: this cache is uploaded and downloaded once per
+          # run, so its size is build time. One full build's objects are well
+          # under this; the headroom absorbs churn between releases.
+          max_size = 1500M
+          compression = true
+          # zstd-1 costs a few percent of size for a much cheaper pack/unpack.
+          compression_level = 1
+          CONF
           ./src/buildallprojects
+
+      - name: Package the Linux client
+        if: matrix.target == 'linux'
+        run: |
+          set -euo pipefail
           ./game_clean/copy.sh
           test -f game_dist/tc2/bin/linux64/client.so
           test -f game_dist/tc2/bin/linux64/server.so
           touch game_dist/STEAM_READY
 
-      - name: Build Linux dedicated server
-        if: matrix.target == 'dedicated-linux'
-        env:
-          CCACHE_DIR: ${{ github.workspace }}/.ccache
+      # Packaging only: copy_server.sh derives game_server_dist from the
+      # game_dist the step above just produced.
+      - name: Package the Linux dedicated server
+        if: matrix.target == 'linux'
         run: |
           set -euo pipefail
-          # src/sdk_container forwards only CCACHE_DIR into the podman build
-          # container, so every other ccache setting has to travel in the
-          # config file that sits next to the cache itself. Capping the size
-          # keeps the post-job upload short as well.
-          mkdir -p "$CCACHE_DIR"
-          printf 'max_size = 2G\ncompression = true\ncompression_level = 6\n' > "$CCACHE_DIR/ccache.conf"
-          ./src/buildallprojects
           PACK_TARBALL=1 ./game_clean/copy_server.sh
           test "$(tr -d '\r\n ' < game_server_dist/steam_appid.txt)" = "5147520"
           test -f game_server_dist/tc2/bin/linux64/server.so
@@ -218,52 +212,49 @@ jobs:
           test -s frontress-dedicated-linux.tar.gz
           touch game_server_dist/STEAM_READY
 
-      - name: Upload the dedicated tarball
-        if: matrix.target == 'dedicated-linux'
+      # Ahead of the dist uploads: a failure there must not cost the next
+      # release its cache. always(), because the objects a failed build did
+      # produce are just as valid as the ones a successful build produced.
+      - name: Pack ccache
+        id: packccache
+        if: ${{ always() && matrix.target == 'linux' }}
+        continue-on-error: true
+        run: bash .github/scripts/artifact-cache.sh pack ccache.tar "$CCACHE_DIR"
+
+      - name: Upload ccache for the next build
+        if: ${{ always() && matrix.target == 'linux' && steps.packccache.outputs.packed == '1' }}
         uses: actions/upload-artifact@v7
         with:
-          name: frontress-dedicated-tarball
-          path: |
-            frontress-dedicated-linux.tar.gz
-            frontress-dedicated-linux.tar.gz.sha256
-          if-no-files-found: error
+          name: ccache-linux
+          path: ccache.tar
+          # The script already compressed it.
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: warn
 
       - name: Add MSBuild
-        if: matrix.target == 'client-windows'
+        if: matrix.target == 'windows'
         uses: microsoft/setup-msbuild@v3
 
       - name: Prepare Windows project solution
-        if: matrix.target == 'client-windows'
+        if: matrix.target == 'windows'
         shell: cmd
         working-directory: ${{ github.workspace }}/src
         run: .\createallprojects.bat
 
-      # VCPKG_ROOT lives beside the workspace, so the MSBuild cache above does
-      # not cover it and every run re-clones vcpkg, re-bootstraps it and
-      # rebuilds crow. Resolve the path first: actions/cache does not glob a
-      # ".." in the middle of a pattern.
-      - name: Resolve the vcpkg location
-        if: matrix.target == 'client-windows'
-        shell: pwsh
-        run: |
-          $dir = [System.IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE '..\vcpkg'))
-          "VCPKG_DIR=$dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Setup vcpkg cache
-        if: matrix.target == 'client-windows'
-        uses: actions/cache@v6
-        with:
-          path: |
-            ${{ env.VCPKG_DIR }}
-            !${{ env.VCPKG_DIR }}/buildtrees/**
-            !${{ env.VCPKG_DIR }}/packages/**
-          # Static key: the checkout is shallow and the port set never changes
-          # within a release, so once this is warm it is never re-uploaded.
-          # Bump the suffix to pick up a newer vcpkg or a new dependency.
-          key: ${{ runner.os }}-vcpkg-crow-v1
+      # VCPKG_ROOT lives beside the workspace, so the workspace archive does not
+      # cover it, and without this every run re-clones vcpkg, re-bootstraps it
+      # and rebuilds crow.
+      - name: Restore vcpkg from the previous build
+        id: vcpkg
+        if: ${{ matrix.target == 'windows' && github.event.inputs.fresh != 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/artifact-cache.sh restore vcpkg-windows "$(cd .. && pwd)/vcpkg"
 
       - name: Install Windows dependencies
-        if: matrix.target == 'client-windows'
+        if: matrix.target == 'windows'
         shell: pwsh
         run: |
           Set-Location ..
@@ -279,14 +270,64 @@ jobs:
           .\vcpkg integrate install
           .\vcpkg install crow
 
+      # Only when it was not restored: the port set is fixed, so a warm vcpkg
+      # is byte-identical to the one already stored. The long retention is what
+      # keeps it warm without a re-upload every release.
+      - name: Pack vcpkg
+        id: packvcpkg
+        if: ${{ matrix.target == 'windows' && steps.vcpkg.outputs.restored != '1' }}
+        shell: bash
+        continue-on-error: true
+        run: bash .github/scripts/artifact-cache.sh pack vcpkg.tar "$(cd .. && pwd)/vcpkg" ./buildtrees ./packages
+
+      - name: Upload vcpkg for the next build
+        if: ${{ matrix.target == 'windows' && steps.packvcpkg.outputs.packed == '1' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: vcpkg-windows
+          path: vcpkg.tar
+          compression-level: 0
+          retention-days: 90
+          if-no-files-found: warn
+
       - name: Build Windows solution
-        if: matrix.target == 'client-windows'
+        if: matrix.target == 'windows'
         shell: cmd
         working-directory: ${{ github.workspace }}/src
         run: msbuild everything.sln /p:Platform="win64" /p:Configuration="Release"
 
-      - name: Copy Windows dist
-        if: matrix.target == 'client-windows'
+      # success() and not always(), unlike ccache: this is a tree of build
+      # state, not content-addressed entries. A tree left behind by a broken
+      # build would be handed to every release after it.
+      - name: Pack the MSBuild workspace
+        id: packws
+        if: ${{ success() && matrix.target == 'windows' }}
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          # Everything checkout puts back on its own is left out, and so are the
+          # two archives this job writes into the workspace.
+          bash .github/scripts/artifact-cache.sh pack workspace.tar . \
+            ./workspace.tar ./vcpkg.tar \
+            ./.git ./.github ./.vscode ./game_clean \
+            ./game_dist ./game_dist_debug ./steam_build \
+            './game/tc2/pak1*.vpk' \
+            ./.gitattributes ./.gitignore ./CONTRIBUTING ./LICENSE \
+            ./README.md ./thirdpartylegalnotices.txt
+
+      - name: Upload the MSBuild workspace for the next build
+        if: ${{ matrix.target == 'windows' && steps.packws.outputs.packed == '1' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: msbuild-windows
+          path: workspace.tar
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Package the Windows client
+        if: matrix.target == 'windows'
         shell: bash
         run: |
           set -euo pipefail
@@ -296,28 +337,63 @@ jobs:
           test -f game_dist/tc2/bin/x64/server.dll
           touch game_dist/STEAM_READY
 
-      - name: Upload primary artifact
-        if: always()
+      # compression-level 1 throughout: the payloads are already-compressed vpk
+      # and stripped binaries, so the default level 6 buys almost nothing and
+      # costs minutes on a multi-gigabyte dist.
+      - name: Upload the Linux client
+        if: ${{ always() && matrix.target == 'linux' }}
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact_path }}
+          name: steam-client-linux
+          path: game_dist
+          compression-level: 1
+          if-no-files-found: warn
+
+      - name: Upload the Linux dedicated payload
+        if: ${{ always() && matrix.target == 'linux' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: steam-dedicated-linux
+          path: game_server_dist
+          compression-level: 1
+          if-no-files-found: warn
+
+      - name: Upload the dedicated tarball
+        if: matrix.target == 'linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontress-dedicated-tarball
+          path: |
+            frontress-dedicated-linux.tar.gz
+            frontress-dedicated-linux.tar.gz.sha256
+          # Already gzip.
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Upload the Windows client
+        if: ${{ always() && matrix.target == 'windows' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: steam-client-windows
+          path: game_dist
+          compression-level: 1
           if-no-files-found: warn
 
       - name: Upload client debug info
-        if: ${{ always() && (matrix.target == 'client-linux' || matrix.target == 'client-windows') }}
+        if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: debug-${{ matrix.target }}
+          name: debug-client-${{ matrix.target }}
           path: game_dist_debug
+          compression-level: 1
           if-no-files-found: warn
 
       - name: Cleanup Linux game workspace
-        if: ${{ always() && (matrix.target == 'client-linux' || matrix.target == 'dedicated-linux') }}
+        if: ${{ always() && matrix.target == 'linux' }}
         continue-on-error: true
         run: |
           rm -rf game_dist game_dist_debug game_server_dist steam_build steam_build_server
-          rm -f frontress-dedicated-linux.tar.gz frontress-dedicated-linux.tar.gz.sha256
+          rm -f frontress-dedicated-linux.tar.gz frontress-dedicated-linux.tar.gz.sha256 ccache.tar
           git clean -xfd -- game src
 
   publish-steam:
@@ -325,6 +401,7 @@ jobs:
     needs: [build, coordinator]
     if: ${{ !cancelled() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/release/') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     concurrency:
       group: team-frontress-steam-publish
       cancel-in-progress: false
@@ -345,9 +422,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Download everything that built
+      # Named, not everything. The unfiltered download also pulled the debug
+      # symbols this job never opens and, now, the ccache tarball.
+      - name: Download what gets published
         uses: actions/download-artifact@v7
         with:
+          pattern: "{steam-*,coordinator}"
           path: publish-artifacts
 
       - name: Stage the coordinator next to the release
@@ -416,12 +496,14 @@ jobs:
     needs: [build, coordinator]
     if: ${{ !cancelled() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/release/') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write
     steps:
-      - name: Download everything that built
+      - name: Download what gets released
         uses: actions/download-artifact@v7
         with:
+          pattern: "{frontress-*,coordinator}"
           path: artifacts
 
       - name: Collect the release files

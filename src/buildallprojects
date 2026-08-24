@@ -8,7 +8,11 @@ pushd "$(dirname -- "$script")" > /dev/null
 source sdk_container
 run_in_sniper "$@"
 
-export CCACHE_SLOPPINESS="pch_defines,time_macros"
+# include_file_ctime/mtime: a CI checkout writes every header a moment before
+# the compiler reads it, and without these ccache treats a too-fresh include as
+# a race and declines to store the result at all -- a build that never caches
+# anything no matter how the cache is keyed.
+export CCACHE_SLOPPINESS="${CCACHE_SLOPPINESS:-pch_defines,time_macros,include_file_ctime,include_file_mtime,locale}"
 export VPC_ENABLE_CCACHE="1"
 ccache -z
 

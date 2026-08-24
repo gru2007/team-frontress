@@ -246,6 +246,85 @@ void CTFMMBackend::StatusThunk( GCSDK::CWebAPIValues *pValues, int eStatusCode, 
 }
 
 //-----------------------------------------------------------------------------
+// Purpose: Read a JSON field for what it means, not for how it was spelled.
+//
+//			CWebAPIValues accessors are typed, and a mismatched one answers zero
+//			rather than the default it was given: on `"enabled": true`, which the
+//			parser stores as a bool, GetChildInt32Value( "enabled", 1 ) returns
+//			0. That read every match group the coordinator serves as switched
+//			off -- which is why every mode said it was closed while the console
+//			queue command for the same mode worked, and why every mode then
+//			vanished once the menu started hiding what is not offered.
+//
+//			Whether a JSON number arrives as Int32, Int64 or Double is the
+//			encoder's business and not something the reading side should have
+//			to agree with in advance, so every numeric type is accepted here,
+//			and the field's default survives a type nobody expected.
+//-----------------------------------------------------------------------------
+static int ReadJSONInt( GCSDK::CWebAPIValues *pValues, const char *pszName, int nDefault )
+{
+	GCSDK::CWebAPIValues *pChild = pValues ? pValues->FindChild( pszName ) : NULL;
+	if ( !pChild )
+		return nDefault;
+
+	switch ( pChild->GetType() )
+	{
+		case GCSDK::k_EWebAPIValueType_Int32:
+			return pChild->GetInt32Value();
+		case GCSDK::k_EWebAPIValueType_UInt32:
+			return (int)pChild->GetUInt32Value();
+		case GCSDK::k_EWebAPIValueType_Int64:
+			return (int)pChild->GetInt64Value();
+		case GCSDK::k_EWebAPIValueType_UInt64:
+			return (int)pChild->GetUInt64Value();
+		case GCSDK::k_EWebAPIValueType_Double:
+			return (int)pChild->GetDoubleValue();
+		case GCSDK::k_EWebAPIValueType_Bool:
+			return pChild->GetBoolValue() ? 1 : 0;
+		case GCSDK::k_EWebAPIValueType_String:
+		{
+			CUtlString strValue;
+			pChild->GetStringValue( strValue );
+			return V_atoi( strValue.Get() );
+		}
+		default:
+			return nDefault;
+	}
+}
+
+//-----------------------------------------------------------------------------
+static bool BReadJSONFlag( GCSDK::CWebAPIValues *pValues, const char *pszName, bool bDefault )
+{
+	GCSDK::CWebAPIValues *pChild = pValues ? pValues->FindChild( pszName ) : NULL;
+	if ( !pChild )
+		return bDefault;
+
+	switch ( pChild->GetType() )
+	{
+		case GCSDK::k_EWebAPIValueType_Bool:
+			return pChild->GetBoolValue();
+		case GCSDK::k_EWebAPIValueType_Int32:
+			return pChild->GetInt32Value() != 0;
+		case GCSDK::k_EWebAPIValueType_UInt32:
+			return pChild->GetUInt32Value() != 0;
+		case GCSDK::k_EWebAPIValueType_Int64:
+			return pChild->GetInt64Value() != 0;
+		case GCSDK::k_EWebAPIValueType_UInt64:
+			return pChild->GetUInt64Value() != 0;
+		case GCSDK::k_EWebAPIValueType_Double:
+			return pChild->GetDoubleValue() != 0.0;
+		case GCSDK::k_EWebAPIValueType_String:
+		{
+			CUtlString strValue;
+			pChild->GetStringValue( strValue );
+			return !V_stricmp( strValue.Get(), "true" ) || !V_stricmp( strValue.Get(), "1" );
+		}
+		default:
+			return bDefault;
+	}
+}
+
+//-----------------------------------------------------------------------------
 void CTFMMBackend::OnStatus( GCSDK::CWebAPIValues *pValues, int eStatusCode )
 {
 	if ( eStatusCode != 200 || !pValues )
@@ -259,11 +338,10 @@ void CTFMMBackend::OnStatus( GCSDK::CWebAPIValues *pValues, int eStatusCode )
 
 	m_status.bChecked             = true;
 	m_status.bValid               = true;
-	m_status.bServerCapacityKnown =
-		( pValues->GetChildInt32Value( "server_capacity_known", 1 ) != 0 );
-	m_status.nOnlinePlayers       = pValues->GetChildInt32Value( "online_players", 0 );
-	m_status.nLiveMatches         = pValues->GetChildInt32Value( "live_matches", 0 );
-	m_status.nFreeServers         = pValues->GetChildInt32Value( "free_servers", 0 );
+	m_status.bServerCapacityKnown = BReadJSONFlag( pValues, "server_capacity_known", true );
+	m_status.nOnlinePlayers       = ReadJSONInt( pValues, "online_players", 0 );
+	m_status.nLiveMatches         = ReadJSONInt( pValues, "live_matches", 0 );
+	m_status.nFreeServers         = ReadJSONInt( pValues, "free_servers", 0 );
 	pValues->GetChildStringValue( m_status.strName, "name", "" );
 
 	// The map pools. A group that reports none leaves its pool empty, and the
@@ -282,11 +360,11 @@ void CTFMMBackend::OnStatus( GCSDK::CWebAPIValues *pValues, int eStatusCode )
 	      pGroup != NULL;
 	      pGroup = pGroup->GetNextChild() )
 	{
-		const int nGroup = pGroup->GetChildInt32Value( "match_group", -1 );
+		const int nGroup = ReadJSONInt( pGroup, "match_group", -1 );
 		if ( nGroup < 0 || nGroup >= k_nMatchGroupPools )
 			continue;
 
-		m_arGroupOffered[ nGroup ] = ( pGroup->GetChildInt32Value( "enabled", 1 ) != 0 );
+		m_arGroupOffered[ nGroup ] = BReadJSONFlag( pGroup, "enabled", true );
 		strSignature += CFmtStr( "%d%s:", nGroup, m_arGroupOffered[ nGroup ] ? "+" : "-" );
 
 		GCSDK::CWebAPIValues *pMaps = pGroup->FindChild( "maps" );
@@ -322,6 +400,17 @@ const CUtlVector< CUtlString > *CTFMMBackend::GetGroupMaps( ETFMatchGroup eMatch
 		return NULL;
 
 	return m_arGroupMaps[ nGroup ].Count() > 0 ? &m_arGroupMaps[ nGroup ] : NULL;
+}
+
+//-----------------------------------------------------------------------------
+bool CTFMMBackend::BAnyGroupOffered() const
+{
+	for ( int i = 0; i < k_nMatchGroupPools; i++ )
+	{
+		if ( m_arGroupOffered[i] )
+			return true;
+	}
+	return false;
 }
 
 //-----------------------------------------------------------------------------
@@ -1080,7 +1169,7 @@ void CTFMMBackend::OnQueueReply( GCSDK::CWebAPIValues *pValues, int eStatusCode 
 	}
 
 	m_strTicketID = strTicket;
-	m_nPollIntervalMS = MAX( 500, pValues->GetChildInt32Value( "poll_after_ms", 2000 ) );
+	m_nPollIntervalMS = MAX( 500, ReadJSONInt( pValues, "poll_after_ms", 2000 ) );
 	m_flNextPollTime = Plat_FloatTime() + ( m_nPollIntervalMS / 1000.f );
 
 	MMDbg( "queued, ticket %s\n", m_strTicketID.Get() );
@@ -1137,9 +1226,9 @@ void CTFMMBackend::OnQueueStatus( GCSDK::CWebAPIValues *pValues, int eStatusCode
 		return;
 	}
 
-	m_nPollIntervalMS = MAX( 500, pValues->GetChildInt32Value( "poll_after_ms", m_nPollIntervalMS ) );
-	m_nInQueue        = pValues->GetChildInt32Value( "in_queue", m_nInQueue );
-	m_nNeedPlayers    = pValues->GetChildInt32Value( "need_players", m_nNeedPlayers );
+	m_nPollIntervalMS = MAX( 500, ReadJSONInt( pValues, "poll_after_ms", m_nPollIntervalMS ) );
+	m_nInQueue        = ReadJSONInt( pValues, "in_queue", m_nInQueue );
+	m_nNeedPlayers    = ReadJSONInt( pValues, "need_players", m_nNeedPlayers );
 
 	// Why the queue is not moving, when the coordinator knows. A match that
 	// formed and is waiting for a free server looks exactly like an empty
@@ -1222,7 +1311,7 @@ void CTFMMBackend::OnQueueStatus( GCSDK::CWebAPIValues *pValues, int eStatusCode
 
 			// The coordinator speaks in the game's team indices; the lobby
 			// object speaks in the GC's, where defenders are red.
-			const int nTeam = pPlayer->GetChildInt32Value( "team", 0 );
+			const int nTeam = ReadJSONInt( pPlayer, "team", 0 );
 			if ( nTeam == TF_TEAM_RED )
 				pMember->set_team( TF_GC_TEAM_DEFENDERS );
 			else if ( nTeam == TF_TEAM_BLUE )
@@ -1482,6 +1571,25 @@ void CTFMMBackend::Spew() const
 	Msg( "  match id    : %s\n", m_strMatchID.IsEmpty() ? "(none)" : m_strMatchID.Get() );
 	if ( !m_strLastError.IsEmpty() )
 		Msg( "  last error  : %s\n", m_strLastError.Get() );
+
+	// Which modes the menu will show, and why. This is the one thing that
+	// cannot be worked out from the outside: a mode missing from the play list
+	// and a mode the coordinator never mentioned look identical on screen.
+	if ( !m_bGroupsKnown )
+	{
+		Msg( "  groups      : the coordinator has not answered yet\n" );
+	}
+	else
+	{
+		Msg( "  groups      :\n" );
+		for ( int i = 0; i < k_nMatchGroupPools; i++ )
+		{
+			Msg( "    %-30s %-12s %d maps\n",
+			     GetMatchGroupName( (ETFMatchGroup)i ),
+			     m_arGroupOffered[i] ? "offered" : "not offered",
+			     m_arGroupMaps[i].Count() );
+		}
+	}
 }
 
 //

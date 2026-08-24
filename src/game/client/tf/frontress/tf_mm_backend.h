@@ -237,6 +237,12 @@ public:
 	// heard from it: the menu should not gate on an answer nobody gave.
 	bool BGroupOffered( ETFMatchGroup eMatchGroup ) const;
 
+	// Does the coordinator serve anything at all? A status reply that offers
+	// nothing is far more often an answer we failed to read than a service
+	// with every mode switched off, and either way a menu with no modes on it
+	// tells the player nothing.
+	bool BAnyGroupOffered() const;
+
 	// Has the coordinator actually listed its match groups yet? BGroupOffered
 	// answers "yes" before it has, which is the right default for enabling a
 	// button and the wrong one for taking a mode off the menu.
