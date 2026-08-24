@@ -127,36 +127,24 @@ jobs:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
 
     steps:
-      # Just enough of the repository to get at the restore script, and off to
-      # one side: the workspace root has to stay clear for the restore below,
-      # which brings its own .git with it.
-      - name: Checkout the CI scripts (Windows)
+      # Windows keeps its incremental workspace cache. Do the sparse checkout
+      # first so the cache action itself is available before the full checkout.
+      - name: Checkout actions (Windows)
         if: matrix.target == 'windows'
         uses: actions/checkout@v6
         with:
-          path: .ci-bootstrap
           sparse-checkout: |
-            .github/scripts
+            .github
           token: ${{ secrets.REPO_TOKEN || github.token }}
           persist-credentials: false
 
       # See .github/scripts/artifact-cache.sh for why this is not actions/cache.
-      #
-      # The .git directory is the point of this, not a passenger. Without it the
-      # checkout below meets an empty index, writes out every tracked file, and
-      # hands MSBuild a tree where every source is newer than every object it
-      # just restored -- so MSBuild rebuilds all of it and the restore buys
-      # nothing. It showed: the checkout took the same 55s warm as cold, and the
-      # compile the same 11 minutes. With the previous build's .git in place --
-      # and its index re-stat'ed, see the script -- git rewrites only what
-      # actually changed since that build, which is exactly the set MSBuild
-      # should recompile.
       - name: Restore the MSBuild workspace from the previous build
         if: ${{ matrix.target == 'windows' && github.event.inputs.fresh != 'true' }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: bash .ci-bootstrap/.github/scripts/artifact-cache.sh restore msbuild-windows-v2 .
+        run: bash .github/scripts/artifact-cache.sh restore msbuild-windows .
 
       - name: Checkout repository (Windows)
         if: matrix.target == 'windows'
@@ -263,7 +251,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: bash .ci-bootstrap/.github/scripts/artifact-cache.sh restore vcpkg-windows "$(cd .. && pwd)/vcpkg"
+        run: bash .github/scripts/artifact-cache.sh restore vcpkg-windows "$(cd .. && pwd)/vcpkg"
 
       - name: Install Windows dependencies
         if: matrix.target == 'windows'
@@ -290,7 +278,7 @@ jobs:
         if: ${{ matrix.target == 'windows' && steps.vcpkg.outputs.restored != '1' }}
         shell: bash
         continue-on-error: true
-        run: bash .ci-bootstrap/.github/scripts/artifact-cache.sh pack vcpkg.tar "$(cd .. && pwd)/vcpkg" ./buildtrees ./packages
+        run: bash .github/scripts/artifact-cache.sh pack vcpkg.tar "$(cd .. && pwd)/vcpkg" ./buildtrees ./packages
 
       - name: Upload vcpkg for the next build
         if: ${{ matrix.target == 'windows' && steps.packvcpkg.outputs.packed == '1' }}
@@ -318,25 +306,21 @@ jobs:
         continue-on-error: true
         run: |
           set -euo pipefail
-          # .git now rides along and every run's fetch adds to it. --auto keeps
-          # that bounded without paying for a repack that is not needed yet.
-          git gc --auto --quiet || true
-
-          # Only untracked, regenerable bulk is left out. Tracked files stay in,
-          # .git above all: anything dropped here is something the next
-          # checkout has to write back, and a rewritten file is a rebuilt file.
-          bash .ci-bootstrap/.github/scripts/artifact-cache.sh pack workspace.tar . \
-            ./workspace.tar ./vcpkg.tar ./.ci-bootstrap \
+          # Everything checkout puts back on its own is left out, and so are the
+          # two archives this job writes into the workspace.
+          bash .github/scripts/artifact-cache.sh pack workspace.tar . \
+            ./workspace.tar ./vcpkg.tar \
+            ./.git ./.github ./.vscode ./game_clean \
             ./game_dist ./game_dist_debug ./steam_build \
-            './game/tc2/pak1*.vpk'
+            './game/tc2/pak1*.vpk' \
+            ./.gitattributes ./.gitignore ./CONTRIBUTING ./LICENSE \
+            ./README.md ./thirdpartylegalnotices.txt
 
       - name: Upload the MSBuild workspace for the next build
         if: ${{ matrix.target == 'windows' && steps.packws.outputs.packed == '1' }}
         uses: actions/upload-artifact@v7
         with:
-          # -v2: the v1 archives were built without .git and cannot serve an
-          # incremental build, so there is nothing to gain by reading them.
-          name: msbuild-windows-v2
+          name: msbuild-windows
           path: workspace.tar
           compression-level: 0
           retention-days: 14
