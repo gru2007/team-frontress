@@ -229,6 +229,11 @@ public:
 	// heard from it: the menu should not gate on an answer nobody gave.
 	bool BGroupOffered( ETFMatchGroup eMatchGroup ) const;
 
+	// Bumped whenever the pools or the offered groups actually change. The map
+	// list is built long before the first status poll answers, so it needs to
+	// know when the answer changed under it.
+	uint32 GetMapPoolGeneration() const { return m_nMapPoolGeneration; }
+
 	// A party member noticed the leader's assignment in the lobby data.
 	void OnPartyLobbyDataChanged();
 
@@ -298,6 +303,8 @@ private:
 	CUtlVector< CUtlString > m_arGroupMaps[ k_nMatchGroupPools ];
 	bool                     m_arGroupOffered[ k_nMatchGroupPools ];
 	bool                     m_bGroupsKnown;
+	CUtlString               m_strGroupSignature;
+	uint32                   m_nMapPoolGeneration;
 
 	CSOTFParty             m_msgParty;
 	std::string            m_strLastPublishedParty;

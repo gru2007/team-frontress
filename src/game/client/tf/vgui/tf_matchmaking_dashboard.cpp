@@ -35,6 +35,7 @@ using namespace vgui;
 using namespace GCSDK;
 
 extern ConVar tf_mm_next_map_vote_time;
+extern ConVar tf_main_menu_html;
 ConVar tf_mm_dashboard_slide_panel_step( "tf_mm_dashboard_slide_panel_step", "20", FCVAR_ARCHIVE );
 ConVar tf_casual_welcome_hide( "tf_casual_welcome_hide", "0", FCVAR_ARCHIVE | FCVAR_HIDDEN );
 ConVar tf_comp_welcome_hide( "tf_comp_welcome_hide", "0", FCVAR_ARCHIVE | FCVAR_HIDDEN );
@@ -309,6 +310,9 @@ void CTFMatchmakingDashboard::ApplySchemeSettings( vgui::IScheme *pScheme )
 
 	// This cannot ever be true or else things get weird when in-game
 	SetKeyBoardInputEnabled( false );
+
+	// After LoadControlSettings, which is the thing that hides the bar.
+	UpdateTopBarVisibility();
 
 	GetMMDashboardParentManager()->UpdateParenting();
 
@@ -647,6 +651,38 @@ void CTFMatchmakingDashboard::OnTick()
 
 	SetKeyBoardInputEnabled( false );
 	SetMouseInputEnabled( BIsExpanded() );
+
+	UpdateTopBarVisibility();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Put the top bar back on the screen.
+//
+//			The pak ships a MatchMakingDashboard.res that hides this panel and
+//			its top bar, from when the HTML menu -- which draws its own row of
+//			buttons -- was the only menu there was. The VGUI menu is the default
+//			now and has nothing else to find a game, manage the party, resume or
+//			quit with, so the bar only goes away while the web page is actually
+//			up. When the pak is next rebuilt the .res agrees; until then this is
+//			what makes the bar appear on a stock install.
+//-----------------------------------------------------------------------------
+void CTFMatchmakingDashboard::UpdateTopBarVisibility()
+{
+	// In game this panel is the pause screen's top bar, which the web menu
+	// never replaces.
+	const bool bWebMenu = ( tf_main_menu_html.GetBool() && !engine->IsInGame() );
+
+	// Only when it changes: this runs every tick, and telling a panel it is
+	// already visible still walks its children.
+	if ( IsVisible() == bWebMenu )
+	{
+		SetVisible( !bWebMenu );
+	}
+
+	if ( m_pTopBar && m_pTopBar->IsVisible() == bWebMenu )
+	{
+		m_pTopBar->SetVisible( !bWebMenu );
+	}
 }
 
 void CTFMatchmakingDashboard::FireGameEvent( IGameEvent *event )

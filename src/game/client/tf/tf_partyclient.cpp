@@ -1,6 +1,8 @@
 //========= Copyright Valve Corporation, All rights reserved. ============//
 
 #include "cbase.h"
+
+#include "frontress/tf_mm_backend.h"
 #include "tf_partyclient.h"
 #include "confirm_dialog.h"
 #include "tf_gc_shared.h"
@@ -1729,6 +1731,18 @@ bool CTFPartyClient::UpdateActiveParty()
 		bool bWasQueued = BInQueueForMatchGroup( eMatchGroup );
 		bool bNowQueued = ( BHavePendingQueueMsg( eMatchGroup ) ||
 		                    ( pActiveParty && pActiveParty->BQueuedForMatchGroup( eMatchGroup ) ) );
+
+		// The backend is the thing actually standing in the coordinator's
+		// queue. It says so through the party object, and when publishing that
+		// object fails the UI would otherwise report idle while a search is
+		// running -- and refuse to cancel it, because it does not believe it
+		// started. Its own state is the truth.
+		if ( !bNowQueued && TFMMBackend()->BActive() &&
+		     TFMMBackend()->GetState() == k_eTFMMState_Searching &&
+		     TFMMBackend()->GetQueuedMatchGroup() == eMatchGroup )
+		{
+			bNowQueued = true;
+		}
 		if ( bWasQueued != bNowQueued )
 			{ mapChangedQueues.Insert( eMatchGroup, bNowQueued ); }
 	}

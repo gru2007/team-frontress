@@ -62,6 +62,9 @@ private:
 	CUtlMap< EMatchmakingGroupType, Panel* > m_mapGroupPanels;
 	CUtlMap< EGameCategory, Panel* > m_mapCategoryPanels;
 
+	// Last map-pool generation this list was built against.
+	uint32 m_nMapPoolGeneration = 0;
+
 	bool					m_bCriteriaDirty;
 };
 

@@ -66,6 +66,7 @@ CTFMMBackend::CTFMMBackend()
 	, m_nNeedPlayers( 0 )
 	, m_flNextStatusPoll( 0.f )
 	, m_bGroupsKnown( false )
+	, m_nMapPoolGeneration( 0 )
 {
 	for ( int i = 0; i < k_nMatchGroupPools; i++ )
 	{
@@ -245,6 +246,8 @@ void CTFMMBackend::OnStatus( GCSDK::CWebAPIValues *pValues, int eStatusCode )
 
 	GCSDK::CWebAPIValues *pGroups = pValues->FindChild( "match_groups" );
 	m_bGroupsKnown = ( pGroups != NULL );
+
+	CUtlString strSignature;
 	for ( GCSDK::CWebAPIValues *pGroup = pGroups ? pGroups->GetFirstChild() : NULL;
 	      pGroup != NULL;
 	      pGroup = pGroup->GetNextChild() )
@@ -254,6 +257,7 @@ void CTFMMBackend::OnStatus( GCSDK::CWebAPIValues *pValues, int eStatusCode )
 			continue;
 
 		m_arGroupOffered[ nGroup ] = ( pGroup->GetChildInt32Value( "enabled", 1 ) != 0 );
+		strSignature += CFmtStr( "%d%s:", nGroup, m_arGroupOffered[ nGroup ] ? "+" : "-" );
 
 		GCSDK::CWebAPIValues *pMaps = pGroup->FindChild( "maps" );
 		for ( GCSDK::CWebAPIValues *pMap = pMaps ? pMaps->GetFirstChild() : NULL;
@@ -263,8 +267,20 @@ void CTFMMBackend::OnStatus( GCSDK::CWebAPIValues *pValues, int eStatusCode )
 			CUtlString strMap;
 			pMap->GetStringValue( strMap );
 			if ( !strMap.IsEmpty() )
+			{
 				m_arGroupMaps[ nGroup ].AddToTail( strMap );
+				strSignature += strMap;
+				strSignature += ",";
+			}
 		}
+	}
+
+	// Only say something changed when it did: the map list rebuilds off this,
+	// and rebuilding it every poll would blink in the player's face.
+	if ( strSignature != m_strGroupSignature )
+	{
+		m_strGroupSignature = strSignature;
+		m_nMapPoolGeneration++;
 	}
 }
 

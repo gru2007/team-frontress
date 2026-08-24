@@ -33,6 +33,42 @@ ConVar tf_show_maps_details_explanation_count( "tf_show_maps_details_explanation
 
 using namespace vgui;
 
+//-----------------------------------------------------------------------------
+// Purpose: Does the coordinator run any of this category's maps?
+//
+//			True when it has not told us its pool yet -- until then the schema
+//			is the only thing we know, and hiding the whole list would be worse
+//			than showing too much of it.
+//-----------------------------------------------------------------------------
+static bool BCategoryHasOfferedMaps( const SchemaGameCategory_t *pCategory )
+{
+	const CUtlVector< CUtlString > *pPool =
+		TFMMBackend()->GetGroupMaps( k_eTFMatchGroup_Casual_12v12 );
+	if ( !pPool )
+		return true;
+
+	FOR_EACH_VEC( pCategory->m_vecEnabledMaps, i )
+	{
+		const MapDef_t *pMap = pCategory->m_vecEnabledMaps[ i ];
+		if ( pMap && pMap->pszMapName && BMapInPool( *pPool, pMap->pszMapName ) )
+			return true;
+	}
+
+	return false;
+}
+
+//-----------------------------------------------------------------------------
+static bool BGroupHasOfferedMaps( const SchemaMMGroup_t *pGroup )
+{
+	FOR_EACH_VEC( pGroup->m_vecModes, i )
+	{
+		if ( BCategoryHasOfferedMaps( pGroup->m_vecModes[ i ] ) )
+			return true;
+	}
+
+	return false;
+}
+
 class CCasualCategory : public CExpandablePanel
 {
 	DECLARE_CLASS_SIMPLE( CCasualCategory, CExpandablePanel );
@@ -281,6 +317,15 @@ void CCasualCriteriaPanel::OnThink()
 {
 	BaseClass::OnThink();
 
+	// The coordinator's map pools arrive on a poll, long after this list was
+	// first built. Rebuild when they change, or it keeps showing what it knew
+	// before the answer came.
+	const uint32 nMapPoolGeneration = TFMMBackend()->GetMapPoolGeneration();
+	if ( nMapPoolGeneration != m_nMapPoolGeneration )
+	{
+		m_nMapPoolGeneration = nMapPoolGeneration;
+		m_bCriteriaDirty = true;
+	}
 
 	if ( m_bCriteriaDirty )
 	{
@@ -467,6 +512,24 @@ void CCasualCriteriaPanel::WriteCategories( void )
 			continue;
 		}
 
+		// A heading whose maps nobody here runs has nothing under it. Take the
+		// whole group out rather than leave a hole in the list.
+		if ( !BGroupHasOfferedMaps( pCat ) )
+		{
+			auto idxGroup = m_mapGroupPanels.Find( pCat->m_eMMGroup );
+			if ( idxGroup != m_mapGroupPanels.InvalidIndex() )
+				m_mapGroupPanels[ idxGroup ]->SetVisible( false );
+
+			FOR_EACH_VEC( pCat->m_vecModes, jHidden )
+			{
+				auto idxHidden = m_mapCategoryPanels.Find( pCat->m_vecModes[ jHidden ]->m_eGameCategory );
+				if ( idxHidden != m_mapCategoryPanels.InvalidIndex() )
+					m_mapCategoryPanels[ idxHidden ]->SetVisible( false );
+			}
+
+			continue;
+		}
+
 		++nCategory;
 
 		bool bGroupSelected = false;
@@ -493,6 +556,9 @@ void CCasualCriteriaPanel::WriteCategories( void )
 		{
 			pGroupPanel = (EditablePanel*)m_mapGroupPanels[ idx ];
 			pTitleLabel = pGroupPanel->FindControl< CExCheckButton >( "Checkbutton" );
+
+			// It may have been hidden before the coordinator answered.
+			pGroupPanel->SetVisible( true );
 		}
 
 		// Category items.
@@ -504,6 +570,15 @@ void CCasualCriteriaPanel::WriteCategories( void )
 
 			if ( !pCategory->PassesRestrictions() )
 			{
+				continue;
+			}
+
+			if ( !BCategoryHasOfferedMaps( pCategory ) )
+			{
+				auto idxHidden = m_mapCategoryPanels.Find( pCategory->m_eGameCategory );
+				if ( idxHidden != m_mapCategoryPanels.InvalidIndex() )
+					m_mapCategoryPanels[ idxHidden ]->SetVisible( false );
+
 				continue;
 			}
 
@@ -522,6 +597,7 @@ void CCasualCriteriaPanel::WriteCategories( void )
 			else
 			{
 				pListEntry = (CCasualCategory*)m_mapCategoryPanels[ idxCat ];
+				pListEntry->SetVisible( true );
 			}
 
 			bool bCatSelected = false;

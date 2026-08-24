@@ -1520,6 +1520,12 @@ void CScrollableList::PerformLayout()
 	for( int i=0; i<m_vecAutoLayoutPanels.Count(); ++i )
 	{
 		LayoutInfo_t layout = m_vecAutoLayoutPanels[ i ];
+
+		// A hidden panel takes no room. Counting one leaves a gap in the list
+		// where something used to be, which reads as a bug.
+		if ( !layout.m_pPanel->IsVisible() )
+			continue;
+
 		nYpos += layout.m_nGap;
 
 		layout.m_pPanel->SetPos( layout.m_pPanel->GetXPos(), nYpos );
