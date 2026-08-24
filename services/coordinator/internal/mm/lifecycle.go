@@ -159,7 +159,10 @@ func (m *Matchmaker) failMatch(mt *Match, cause error, requeue bool) {
 		if requeue {
 			t.state = tsSearching
 			t.matchID = ""
-			t.lastPoll = m.now()
+			// lastPoll is the client's liveness, not ours. Refreshing it here
+			// meant a party whose client had quit was kept searching forever:
+			// every failed attempt reset the clock that expire() uses, so the
+			// coordinator went on forming matches for players who were gone.
 		} else {
 			t.state = tsFailed
 			t.failure = cause.Error()
