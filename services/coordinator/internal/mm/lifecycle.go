@@ -59,11 +59,16 @@ func (m *Matchmaker) boot(ctx context.Context, mt *Match) {
 			return
 		}
 		mt.state = msWaitingServer
+		mt.waitDetail = waitDetail(err)
 		m.mu.Unlock()
 
+		// The error is the only place that says which provider had nothing
+		// and why, so it belongs in the line an operator reads when players
+		// report a queue that never starts.
 		m.log.Info("waiting for a free server",
 			"match", mt.ID,
 			"retry_in", retry,
+			"err", err,
 		)
 
 		select {
@@ -86,6 +91,7 @@ func (m *Matchmaker) boot(ctx context.Context, mt *Match) {
 		return
 	}
 	mt.state = msBooting
+	mt.waitDetail = ""
 	m.mu.Unlock()
 
 	spec := Spec{
@@ -359,4 +365,19 @@ func (m *Matchmaker) reconcileWar() {
 	if _, err := m.war.Reconcile(m.Population()); err != nil {
 		m.log.Error("war could not reconcile fronts", "err", err)
 	}
+}
+
+// waitDetail turns an allocation failure into one line a player can read. The
+// wrapped provider errors are for the log; the queue panel gets the shape of
+// the problem, not a Go error chain.
+func waitDetail(err error) string {
+	const base = "Match found. Waiting for a free server."
+	if err == nil {
+		return base
+	}
+	var noSrv pool.NoServerReason
+	if errors.As(err, &noSrv) && noSrv.Reason != "" {
+		return base + " " + noSrv.Reason
+	}
+	return base
 }

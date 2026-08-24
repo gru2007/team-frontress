@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/gru2007/team-frontress/services/coordinator/internal/wire"
 )
@@ -158,5 +159,28 @@ func TestPartyCapIsTheStricterOfTheTwo(t *testing.T) {
 	g.Restrictions.MaxPartySize = 6
 	if got := g.PartyCap(); got != 6 {
 		t.Errorf("PartyCap = %d", got)
+	}
+}
+
+func TestSearchTTLIsShorterThanAnAssignmentsTTL(t *testing.T) {
+	cfg := Defaults()
+
+	search := cfg.Timing.SearchTTL()
+	if search >= cfg.Timing.TicketTTL() {
+		t.Fatalf("search ttl %s is not shorter than the ticket ttl %s: a client that quit "+
+			"keeps its place in queue for as long as one that is loading a map",
+			search, cfg.Timing.TicketTTL())
+	}
+	if search < 15*time.Second {
+		t.Fatalf("search ttl = %s, want at least 15s so one slow round-trip cannot drop a player", search)
+	}
+}
+
+func TestSearchTTLNeverOutlivesAConfiguredTicketTTL(t *testing.T) {
+	cfg := Defaults()
+	cfg.Timing.TicketTTLSecs = 5
+
+	if got := cfg.Timing.SearchTTL(); got != 5*time.Second {
+		t.Fatalf("search ttl = %s, want 5s: an operator who asked for a short ttl gets it", got)
 	}
 }

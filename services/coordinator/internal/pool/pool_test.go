@@ -144,3 +144,27 @@ func TestRegionIsRespectedWhenBothSidesNameOne(t *testing.T) {
 		t.Fatalf("acquire in region: %v", err)
 	}
 }
+
+// explainedEmpty has nothing free and knows why.
+type explainedEmpty struct{}
+
+func (explainedEmpty) Kind() string { return "explained" }
+func (explainedEmpty) Acquire(context.Context, Request) (*Server, error) {
+	return nil, NoServerReason{Provider: "explained", Reason: "quota spent."}
+}
+func (explainedEmpty) Release(context.Context, *Server) error { return nil }
+
+func TestAcquireKeepsTheReasonAProviderGave(t *testing.T) {
+	p := &Pool{}
+	p.AddProvider(NewStatic(config.ProviderConfig{Kind: "static"})) // silently empty
+	p.AddProvider(explainedEmpty{})
+
+	_, err := p.Acquire(context.Background(), Request{MatchID: "m"})
+	if !errors.Is(err, ErrNoServer) {
+		t.Fatalf("err = %v, want it to still read as ErrNoServer", err)
+	}
+	var reason NoServerReason
+	if !errors.As(err, &reason) || reason.Reason != "quota spent." {
+		t.Fatalf("err = %v, want the provider's reason carried out of the pool", err)
+	}
+}

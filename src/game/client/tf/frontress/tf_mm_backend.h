@@ -237,6 +237,16 @@ public:
 	// heard from it: the menu should not gate on an answer nobody gave.
 	bool BGroupOffered( ETFMatchGroup eMatchGroup ) const;
 
+	// Has the coordinator actually listed its match groups yet? BGroupOffered
+	// answers "yes" before it has, which is the right default for enabling a
+	// button and the wrong one for taking a mode off the menu.
+	bool BGroupsKnown() const { return m_bGroupsKnown; }
+
+	// What the coordinator says about a queue that is not moving, e.g. a match
+	// that formed and is waiting for a free server. Empty when there is
+	// nothing to add to the state.
+	const char *GetQueueDetail() const { return m_strQueueDetail.Get(); }
+
 	// Bumped whenever the pools or the offered groups actually change. The map
 	// list is built long before the first status poll answers, so it needs to
 	// know when the answer changed under it.
@@ -262,6 +272,12 @@ private:
 
 	// Coordinator conversation
 	void SendQueueRequest();
+
+	// The players a queue request stands for. Shared by the request and by
+	// the check for somebody leaving the party mid-queue, so the two cannot
+	// disagree about who was in the ticket.
+	void BuildRoster( CUtlVector< CSteamID > &vecOut ) const;
+	bool BRosterMatches( const CUtlVector< CSteamID > &vecNow ) const;
 	void SendQueueCancel();
 	void PollQueue();
 	void PollStatus();
@@ -307,6 +323,9 @@ private:
 	// after the queue ticket was created. The coordinator's ticket stores
 	// a roster, so polling the same ticket cannot discover a departed member.
 	CUtlVector< CSteamID > m_vecQueuedRoster;
+
+	// The coordinator's own word on a stalled queue, from the last poll.
+	CUtlString    m_strQueueDetail;
 
 	Status_t      m_status;
 	float         m_flNextStatusPoll;

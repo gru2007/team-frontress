@@ -80,7 +80,10 @@ type Match struct {
 	War        *wire.WarBriefing
 	FrontID    string
 
-	state        matchState
+	state matchState
+	// waitDetail is what to tell the players while the match is formed but
+	// has no server yet. Set by boot(), read by Status().
+	waitDetail   string
 	tickets      []string
 	createdAt    time.Time
 	startedAt    time.Time
@@ -278,6 +281,23 @@ func (m *Matchmaker) Status(id string) (wire.QueueStatus, error) {
 		st.State = wire.QueueStateSearching
 	}
 
+	// A ticket in a formed match still reads as "searching" to the client --
+	// there is nothing to connect to yet -- so the reason it is stuck has to
+	// travel separately, or the player just sees a queue that stopped.
+	if t.state == tsMatched && t.matchID != "" {
+		if mt, ok := m.matches[t.matchID]; ok {
+			switch mt.state {
+			case msWaitingServer:
+				st.Detail = mt.waitDetail
+				if st.Detail == "" {
+					st.Detail = "Match found. Waiting for a free server."
+				}
+			case msBooting:
+				st.Detail = "Match found. Starting the server."
+			}
+		}
+	}
+
 	group, _ := m.cfg.Group(t.MatchGroup)
 	queued := m.queuedPlayersLocked(t.MatchGroup)
 	st.InQueue = queued
@@ -407,13 +427,13 @@ func (m *Matchmaker) expire() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	now := m.now()
-	ttl := m.cfg.Timing.TicketTTL()
+	searchTTL := m.cfg.Timing.SearchTTL()
 	assignTTL := m.cfg.Timing.AssignmentTTL()
 
 	for id, t := range m.tickets {
 		switch t.state {
 		case tsSearching:
-			if now.Sub(t.lastPoll) > ttl {
+			if now.Sub(t.lastPoll) > searchTTL {
 				t.state = tsExpired
 				m.log.Info("ticket expired", "ticket", id, "leader", t.Leader)
 			}

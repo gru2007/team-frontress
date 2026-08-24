@@ -21,6 +21,26 @@ import (
 // expected outcome, not a failure: the next provider gets a turn.
 var ErrNoServer = errors.New("no server available")
 
+// NoServerReason is ErrNoServer carrying something a player can read. A
+// provider that knows why it has nothing -- every server booked, a quota
+// spent -- says so here instead of leaving "no server available" to stand for
+// every possible cause.
+type NoServerReason struct {
+	Provider string
+	Reason   string
+}
+
+func (e NoServerReason) Error() string {
+	if e.Reason == "" {
+		return ErrNoServer.Error()
+	}
+	return e.Provider + ": " + e.Reason
+}
+
+// Unwrap makes errors.Is(err, ErrNoServer) true, so every existing caller
+// keeps treating this as the ordinary empty-pool outcome.
+func (e NoServerReason) Unwrap() error { return ErrNoServer }
+
 // Server is a game server reserved for one match.
 type Server struct {
 	Name    string
@@ -118,9 +138,17 @@ func (p *Pool) Acquire(ctx context.Context, req Request) (*Server, error) {
 	p.mu.Unlock()
 
 	var errs []error
+	// The first provider that explained itself. Without this the reason a
+	// provider gave is dropped on the floor and the caller only learns that
+	// nothing, somewhere, was free.
+	var explained error
 	for _, pr := range providers {
 		s, err := pr.Acquire(ctx, req)
 		if errors.Is(err, ErrNoServer) {
+			var reason NoServerReason
+			if explained == nil && errors.As(err, &reason) && reason.Reason != "" {
+				explained = err
+			}
 			continue
 		}
 		if err != nil {
@@ -141,6 +169,9 @@ func (p *Pool) Acquire(ctx context.Context, req Request) (*Server, error) {
 	}
 	if len(errs) > 0 {
 		return nil, fmt.Errorf("%w (%w)", ErrNoServer, errors.Join(errs...))
+	}
+	if explained != nil {
+		return nil, explained
 	}
 	return nil, ErrNoServer
 }

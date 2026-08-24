@@ -192,25 +192,15 @@ void CTFMMBackend::Update( float frametime )
 	     !m_strTicketID.IsEmpty() &&
 	     !m_coordinator.BBusy() )
 	{
-		const int nCurrentMembers = MAX( 1, m_party.GetNumMembers() );
-		bool bRosterChanged = ( nCurrentMembers != m_vecQueuedRoster.Count() );
+		// Compare like with like: BuildRoster is also what wrote the snapshot,
+		// so a member the request would have skipped anyway cannot read as a
+		// change. Comparing against the raw lobby count instead made a party
+		// holding one invalid member look different from its own ticket every
+		// frame, and re-queue on every one of them.
+		CUtlVector< CSteamID > vecNow;
+		BuildRoster( vecNow );
 
-		for ( int i = 0; !bRosterChanged && i < nCurrentMembers; ++i )
-		{
-			const CSteamID member = m_party.BValid() ? m_party.GetMember( i ) : LocalSteamID();
-			bool bFound = false;
-			FOR_EACH_VEC( m_vecQueuedRoster, j )
-			{
-				if ( m_vecQueuedRoster[j] == member )
-				{
-					bFound = true;
-					break;
-				}
-			}
-			bRosterChanged = !bFound;
-		}
-
-		if ( bRosterChanged )
+		if ( !BRosterMatches( vecNow ) )
 		{
 			MMDbg( "party roster changed while queued; replacing ticket\n" );
 			m_strTicketID.Clear();
@@ -223,8 +213,13 @@ void CTFMMBackend::Update( float frametime )
 	}
 
 	// Population for the menu. Nobody is looking at it during a match, so only
-	// keep it fresh while we are out of one.
-	if ( !engine->IsInGame() &&
+	// keep it fresh while we are out of one -- and the main menu's background
+	// map counts as being in a level, which is the whole reason IsInGame is
+	// never asked on its own. Gating on it alone meant that on any install
+	// whose background map loads, the menu never asked the coordinator
+	// anything: no population, and no idea which modes are actually offered.
+	const bool bReallyInGame = ( engine->IsInGame() && !engine->IsLevelMainMenuBackground() );
+	if ( !bReallyInGame &&
 	     Plat_FloatTime() >= m_flNextStatusPoll &&
 	     !m_statusFeed.BBusy() )
 	{
@@ -920,8 +915,68 @@ static void AppendJSONField( CUtlBuffer &buf, const char *pszKey, const char *ps
 }
 
 //-----------------------------------------------------------------------------
+// Purpose: The players a queue request stands for: every valid member of the
+//			Steam lobby, or just us when there is no lobby. One function so the
+//			request and the "did the party change" check cannot disagree.
+//-----------------------------------------------------------------------------
+void CTFMMBackend::BuildRoster( CUtlVector< CSteamID > &vecOut ) const
+{
+	vecOut.RemoveAll();
+
+	if ( !m_party.BValid() )
+	{
+		const CSteamID local = LocalSteamID();
+		if ( local.IsValid() )
+			vecOut.AddToTail( local );
+		return;
+	}
+
+	const int nMembers = m_party.GetNumMembers();
+	for ( int i = 0; i < nMembers; i++ )
+	{
+		const CSteamID member = m_party.GetMember( i );
+		if ( member.IsValid() )
+			vecOut.AddToTail( member );
+	}
+
+	// A lobby that has not synced yet still contains us.
+	if ( vecOut.Count() == 0 )
+	{
+		const CSteamID local = LocalSteamID();
+		if ( local.IsValid() )
+			vecOut.AddToTail( local );
+	}
+}
+
+//-----------------------------------------------------------------------------
+bool CTFMMBackend::BRosterMatches( const CUtlVector< CSteamID > &vecNow ) const
+{
+	if ( vecNow.Count() != m_vecQueuedRoster.Count() )
+		return false;
+
+	FOR_EACH_VEC( vecNow, i )
+	{
+		bool bFound = false;
+		FOR_EACH_VEC( m_vecQueuedRoster, j )
+		{
+			if ( m_vecQueuedRoster[j] == vecNow[i] )
+			{
+				bFound = true;
+				break;
+			}
+		}
+		if ( !bFound )
+			return false;
+	}
+	return true;
+}
+
+//-----------------------------------------------------------------------------
 void CTFMMBackend::SendQueueRequest()
 {
+	// Whatever the last ticket was told, this one has not been told anything.
+	m_strQueueDetail.Clear();
+
 	CUtlBuffer body( 0, 2048, CUtlBuffer::TEXT_BUFFER );
 
 	body.Printf( "{\"match_group\":%d,", (int)m_eQueuedMatchGroup );
@@ -931,20 +986,15 @@ void CTFMMBackend::SendQueueRequest()
 	AppendJSONString( body, CFmtStr( "%llu", m_party.GetLeader().ConvertToUint64() ) );
 
 	body.PutString( ",\"players\":[" );
-	const int nMembers = MAX( 1, m_party.GetNumMembers() );
 
 	// Remember exactly which Steam lobby members this ticket represents.
-	// Update() compares the live lobby to this snapshot while searching.
-	m_vecQueuedRoster.RemoveAll();
+	// Update() rebuilds the same list and compares it while searching.
+	BuildRoster( m_vecQueuedRoster );
 
 	int nWritten = 0;
-	for ( int i = 0; i < nMembers; i++ )
+	FOR_EACH_VEC( m_vecQueuedRoster, i )
 	{
-		CSteamID member = m_party.BValid() ? m_party.GetMember( i ) : LocalSteamID();
-		if ( !member.IsValid() )
-			continue;
-
-		m_vecQueuedRoster.AddToTail( member );
+		const CSteamID member = m_vecQueuedRoster[i];
 
 		if ( nWritten++ > 0 )
 			body.PutChar( ',' );
@@ -1090,6 +1140,11 @@ void CTFMMBackend::OnQueueStatus( GCSDK::CWebAPIValues *pValues, int eStatusCode
 	m_nPollIntervalMS = MAX( 500, pValues->GetChildInt32Value( "poll_after_ms", m_nPollIntervalMS ) );
 	m_nInQueue        = pValues->GetChildInt32Value( "in_queue", m_nInQueue );
 	m_nNeedPlayers    = pValues->GetChildInt32Value( "need_players", m_nNeedPlayers );
+
+	// Why the queue is not moving, when the coordinator knows. A match that
+	// formed and is waiting for a free server looks exactly like an empty
+	// queue from here, and they are not the same thing to wait through.
+	pValues->GetChildStringValue( m_strQueueDetail, "detail", "" );
 
 	CUtlString strState;
 	pValues->GetChildStringValue( strState, "state", "" );
@@ -1359,6 +1414,11 @@ void CTFMMBackend::EnterState( ETFMMState eState )
 
 	MMDbg( "state %d -> %d\n", (int)m_eState, (int)eState );
 	m_eState = eState;
+
+	// The detail line belongs to one search. Leaving it up after the state
+	// changes would have the menu still explaining a queue nobody is in.
+	if ( eState != k_eTFMMState_Searching )
+		m_strQueueDetail.Clear();
 
 	if ( eState == k_eTFMMState_Idle )
 	{

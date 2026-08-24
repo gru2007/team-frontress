@@ -718,6 +718,18 @@ void CTFQueueInfoPanel::Paint()
 	if ( nY + nSmallTall <= nBottom - nSmallTall )
 	{
 		DrawTextAt( m_hSmallFont, m_colDim, x, nY, wszLine );
+		nY += nSmallTall;
+	}
+
+	// Line four, only when there is something to say: the coordinator's own
+	// account of a queue that has stopped moving. Without it a match that has
+	// formed and is waiting for a server looks identical to an empty queue.
+	const char *pszNote = pBackend->GetQueueDetail();
+	if ( eState == k_eTFMMState_Searching && pszNote && pszNote[0] &&
+	     nY + nSmallTall <= nBottom - nSmallTall )
+	{
+		TextToUnicode( pszNote, wszLine, sizeof( wszLine ) );
+		DrawTextAt( m_hSmallFont, m_colAccent, x, nY, wszLine );
 	}
 
 	// Along the bottom, always: how busy the service is.

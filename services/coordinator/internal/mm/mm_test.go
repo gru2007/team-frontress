@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -491,5 +492,58 @@ func TestADefensiveWinLeavesTheMapAlone(t *testing.T) {
 
 	if got := engine.Owner(node); got != ownerBefore {
 		t.Fatalf("%s changed hands on a defensive win", node)
+	}
+}
+
+// emptyProvider always answers "nothing free", and says why.
+type emptyProvider struct{ reason string }
+
+func (e emptyProvider) Kind() string { return "empty" }
+func (e emptyProvider) Acquire(context.Context, pool.Request) (*pool.Server, error) {
+	return nil, pool.NoServerReason{Provider: "empty", Reason: e.reason}
+}
+func (e emptyProvider) Release(context.Context, *pool.Server) error { return nil }
+
+func TestWaitingForAServerTellsThePlayerWhy(t *testing.T) {
+	cfg := testConfig(4, 4, 8, 0)
+	setup := &fakeSetup{}
+	p := &pool.Pool{}
+	p.AddProvider(emptyProvider{reason: "every server is booked."})
+	m := New(cfg, p, setup, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	a := party(t, m, "7656119800000000", 2)
+	party(t, m, "7656119811111111", 2)
+	m.Tick(context.Background())
+
+	// boot() runs off the tick, so give it a moment to reach the wait.
+	var st wire.QueueStatus
+	for i := 0; i < 500; i++ {
+		st, _ = m.Status(a.ID)
+		if strings.Contains(st.Detail, "booked") {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	if st.State != wire.QueueStateSearching {
+		t.Fatalf("state = %q, want searching: there is nothing to connect to yet", st.State)
+	}
+	if st.Detail == "" {
+		t.Fatal("a match that formed and cannot start said nothing about it")
+	}
+	if !strings.Contains(st.Detail, "every server is booked.") {
+		t.Fatalf("detail = %q, want the provider's own reason in it", st.Detail)
+	}
+}
+
+func TestQueueDetailIsEmptyWhileStillSearching(t *testing.T) {
+	m, _, _ := newTestMM(t, testConfig(4, 12, 24, 600), 1)
+
+	a := party(t, m, "7656119800000000", 2)
+	m.Tick(context.Background())
+
+	st, _ := m.Status(a.ID)
+	if st.Detail != "" {
+		t.Fatalf("detail = %q, want nothing: the queue is just short of players", st.Detail)
 	}
 }

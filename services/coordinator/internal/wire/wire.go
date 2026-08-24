@@ -158,6 +158,12 @@ type QueueStatus struct {
 	PollAfterMS int         `json:"poll_after_ms"`
 	Assignment  *Assignment `json:"assignment,omitempty"`
 	Error       string      `json:"error,omitempty"`
+	// Detail is a short line for the player about why the queue is not
+	// moving: most often a match that has already formed and is waiting for
+	// a free server. "searching" with nothing else on screen is the same
+	// picture whether the queue is empty or the pool is, and those are very
+	// different things to be waiting for.
+	Detail string `json:"detail,omitempty"`
 }
 
 // Status is the public health/population view. The main menu can render this

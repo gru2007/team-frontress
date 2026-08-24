@@ -20,6 +20,7 @@
 #include "tf_partyclient.h"
 #include "util_misc.h"
 #include "tf_matchmaking_dashboard_explanations.h"
+#include "frontress/tf_mm_backend.h"
 
 using namespace vgui;
 using namespace GCSDK;
@@ -214,6 +215,20 @@ void CPlayListEntry::UpdateBannedState()
 	}
 }
 
+bool CPlayListEntry::BGroupHosted() const
+{
+	if ( m_eMatchGroup == k_eTFMatchGroup_Invalid )
+		return true;
+
+	// Only the service that would actually take the queue gets to answer, and
+	// only once it has: before the first status reply every mode is assumed
+	// to exist, because hiding one on a guess is worse than a slow reveal.
+	if ( !TFMMBackend()->BActive() || !TFMMBackend()->BGroupsKnown() )
+		return true;
+
+	return TFMMBackend()->BGroupOffered( m_eMatchGroup );
+}
+
 void CPlayListEntry::UpdateDisabledState()
 {
 	auto *pMatchDesc = GetMatchGroupDescription( m_eMatchGroup );
@@ -222,6 +237,35 @@ void CPlayListEntry::UpdateDisabledState()
 		// Community Browser, Tutorials, etc don't have match groups
 		SetEnabled();
 		return;
+	}
+
+	// A mode nobody here runs is not "temporarily disabled while we work on
+	// it": there is no work, and no date it comes back. It should not hold a
+	// row and a tooltip explaining a rework that is not happening -- take it
+	// off the list and let the rows below close the gap.
+	if ( !BGroupHosted() )
+	{
+		// Reloading the scheme puts every entry back where the file put it and
+		// visible again, so intent and state are checked separately: otherwise
+		// a reload leaves the row on screen while the flag still says it is
+		// gone, and the rows below shift over the top of it.
+		if ( !m_bHiddenAsUnhosted || IsVisible() )
+		{
+			m_bHiddenAsUnhosted = true;
+			SetVisible( false );
+			if ( GetParent() )
+				GetParent()->InvalidateLayout();
+		}
+		vgui::ivgui()->RemoveTickSignal( GetVPanel() );
+		return;
+	}
+
+	if ( m_bHiddenAsUnhosted )
+	{
+		m_bHiddenAsUnhosted = false;
+		SetVisible( true );
+		if ( GetParent() )
+			GetParent()->InvalidateLayout();
 	}
 
 	CUtlVector< CTFPartyClient::QueueEligibilityData_t > vecReasons;
@@ -579,7 +623,44 @@ void CTFPlaylistPanel::ApplySchemeSettings( vgui::IScheme *pScheme )
 	m_pMvM = FindControl< CPlayListEntry >( "MvMEntry" );
 	m_pEvent = FindControl< CEventPlayListEntry >( "EventEntry" );
 
+	// Straight after LoadControlSettings, while every entry is still where the
+	// file put it. Once one is hidden and the rest move up, the original
+	// spacing is not recoverable from the panels themselves.
+	CaptureEntrySlots();
+
 	SetMouseInputEnabled( true );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Record the rows the .res laid out, top to bottom.
+//-----------------------------------------------------------------------------
+void CTFPlaylistPanel::CaptureEntrySlots()
+{
+	m_vecEntrySlots.RemoveAll();
+
+	// Every entry, not just the four named ones: the file decides how many
+	// rows there are, and an entry this code has never heard of still has to
+	// take part in closing gaps.
+	for ( int i = 0; i < GetChildCount(); i++ )
+	{
+		CPlayListEntry *pEntry = dynamic_cast< CPlayListEntry * >( GetChild( i ) );
+		if ( !pEntry )
+			continue;
+
+		EntrySlot_t slot;
+		slot.hEntry = pEntry;
+		pEntry->GetPos( slot.nX, slot.nY );
+		slot.nTall = pEntry->GetTall();
+		m_vecEntrySlots.AddToTail( slot );
+	}
+
+	m_vecEntrySlots.Sort( &CTFPlaylistPanel::CompareEntrySlots );
+}
+
+//-----------------------------------------------------------------------------
+int CTFPlaylistPanel::CompareEntrySlots( const EntrySlot_t *pA, const EntrySlot_t *pB )
+{
+	return pA->nY - pB->nY;
 }
 
 void CTFPlaylistPanel::OnCommand( const char *command )
@@ -626,6 +707,57 @@ void CTFPlaylistPanel::OnThink()
 	{
 		// While we have an event active, keep checking if it's there so we can clean up when it's gone.
 		UpdateEventStatus();
+	}
+
+	// Which modes exist at all is the coordinator's answer, and it arrives
+	// well after this panel was built. Nothing else fires when it changes, and
+	// an entry that hid itself stopped ticking, so the panel watches for it.
+	const uint32 nGeneration = TFMMBackend()->GetMapPoolGeneration();
+	if ( nGeneration != m_nLastPoolGeneration )
+	{
+		m_nLastPoolGeneration = nGeneration;
+		UpdatePlaylistEntries();
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Close the gap a mode nobody hosts leaves behind.
+//-----------------------------------------------------------------------------
+void CTFPlaylistPanel::PerformLayout()
+{
+	BaseClass::PerformLayout();
+
+	if ( m_vecEntrySlots.Count() == 0 )
+		return;
+
+	// Only rows this code took away are closed up. An entry that is invisible
+	// for its own reasons -- the event row with no event on -- is left exactly
+	// where the file put it, because the file already laid the list out around
+	// it and second-guessing that is how the rows end up overlapping.
+	int nShift = 0;
+	FOR_EACH_VEC( m_vecEntrySlots, i )
+	{
+		CPlayListEntry *pEntry = m_vecEntrySlots[i].hEntry.Get();
+		if ( !pEntry )
+			continue;
+
+		if ( pEntry->BHiddenAsUnhosted() )
+		{
+			// The row and the space under it, measured to where the next row
+			// starts, so what follows lands exactly where this one began.
+			int nRow = m_vecEntrySlots[i].nTall;
+			if ( i + 1 < m_vecEntrySlots.Count() )
+			{
+				nRow = m_vecEntrySlots[i + 1].nY - m_vecEntrySlots[i].nY;
+			}
+			if ( nRow > 0 )
+			{
+				nShift += nRow;
+			}
+			continue;
+		}
+
+		pEntry->SetPos( m_vecEntrySlots[i].nX, m_vecEntrySlots[i].nY - nShift );
 	}
 }
 

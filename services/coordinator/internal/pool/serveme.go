@@ -169,7 +169,18 @@ func (s *Serveme) Acquire(ctx context.Context, req Request) (*Server, error) {
 		return nil, err
 	}
 	if len(found.Servers) == 0 {
-		return nil, ErrNoServer
+		// serveme answered, and its answer was "nothing". That is a different
+		// thing from a provider that could not be reached, and the operator
+		// cannot tell them apart from "no server available" alone: an empty
+		// list here also covers a spent free-server quota and servers held
+		// back as out of date.
+		return nil, NoServerReason{
+			Provider: "serveme",
+			Reason: fmt.Sprintf(
+				"%s has no server free for the next %d minutes.",
+				s.BaseURL, int(dur.Minutes()),
+			),
+		}
 	}
 
 	// Step 3: create it.

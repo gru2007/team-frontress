@@ -474,6 +474,28 @@ func (t TimingConfig) Tick() time.Duration { return dur(t.TickMS, time.Milliseco
 func (t TimingConfig) TicketTTL() time.Duration {
 	return dur(t.TicketTTLSecs, time.Second, 45*time.Second)
 }
+
+// SearchTTL is how long a ticket that is still in queue may go without a poll.
+//
+// It is deliberately shorter than TicketTTL. A client that is searching polls
+// every PollAfterMS and has nothing else to do; one that stops has been closed,
+// and until its ticket goes the queue counts a player who is not there and can
+// form a match around them. An assignment gets the long TTL instead, because a
+// client that is loading a map genuinely does stop polling for a while.
+func (t TimingConfig) SearchTTL() time.Duration {
+	ttl := t.TicketTTL()
+
+	// Six missed polls, and never less than fifteen seconds: a slow connection
+	// must not lose its place in queue over one bad round-trip.
+	missed := 6 * dur(t.PollAfterMS, time.Millisecond, 2*time.Second)
+	if missed < 15*time.Second {
+		missed = 15 * time.Second
+	}
+	if missed < ttl {
+		return missed
+	}
+	return ttl
+}
 func (t TimingConfig) AssignmentTTL() time.Duration {
 	return dur(t.AssignmentTTLSecs, time.Second, 10*time.Minute)
 }

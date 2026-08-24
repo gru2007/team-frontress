@@ -251,9 +251,19 @@ SteamID64 does not survive a JavaScript `Number`.
 A queue refused by a group's restrictions answers **403** with the reason in
 `error`, which is player-facing text. A malformed request is still 400.
 
-Polling is the whole client protocol. A ticket that stops being polled for
-`ticket_ttl_secs` expires, which is also how a client that crashed leaves the
-queue.
+Polling is the whole client protocol. A ticket that stops being polled expires,
+which is also how a client that crashed leaves the queue. A ticket still *in*
+queue gets a shorter deadline than `ticket_ttl_secs` -- six missed polls, and
+never under fifteen seconds -- because a searching client has nothing else to
+do, and until its ticket goes the queue counts a player who is not there and
+can form a match around them. A ticket holding an assignment keeps the full
+`ticket_ttl_secs`: that client is loading a map and genuinely does go quiet.
+
+A poll answers `searching` while a match is forming *and* while a formed match
+is waiting for a server -- there is nothing to connect to in either case. What
+separates them is `detail`, a player-facing line the client shows under the
+queue ("Match found. Waiting for a free server. ..."). Without it a pool with
+nothing free is indistinguishable from a queue that is simply short of players.
 
 ```bash
 curl -s localhost:27100/v1/status | jq
