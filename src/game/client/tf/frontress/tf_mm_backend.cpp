@@ -55,6 +55,7 @@ CTFMMBackend::CTFMMBackend()
 	: CAutoGameSystemPerFrame( "CTFMMBackend" )
 	, m_eState( k_eTFMMState_Idle )
 	, m_bSubscribedToCache( false )
+	, m_bWarnedPublishFailed( false )
 	, m_bPartyPublished( false )
 	, m_bLobbyPublished( false )
 	, m_eQueuedMatchGroup( k_eTFMatchGroup_Invalid )
@@ -420,12 +421,19 @@ void CTFMMBackend::PublishParty()
 	{
 		m_bPartyPublished = true;
 		m_strLastPublishedParty = strData;
+		m_bWarnedPublishFailed = false;
 	}
 	else
 	{
 		// Publishing failing is not recoverable by retrying the same way, but
-		// it must be visible: with no party object the whole UI is inert.
-		Warning( "[mm] could not publish the party object; matchmaking UI will not work\n" );
+		// it must be visible: with no party object the whole UI is inert. Say
+		// it once -- this runs every frame, and a wall of the same line hides
+		// whatever else went wrong.
+		if ( !m_bWarnedPublishFailed )
+		{
+			m_bWarnedPublishFailed = true;
+			Warning( "[mm] could not publish the party object; matchmaking UI will not work\n" );
+		}
 		m_bPartyPublished = false;
 	}
 }

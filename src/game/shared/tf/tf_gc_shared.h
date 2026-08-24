@@ -71,6 +71,11 @@ public:
 		: CGCClientJob( pGCClient )
 	{}
 
+	// Answer the message here and now, without the job system, if something
+	// in-process can. Returns true when it did, and the caller then owns
+	// nothing more: the message is done.
+	virtual bool BAnswerInProcess() { return false; }
+
 protected:
 	void SetComplete() { Queue().OnReliableMessageComplete( this ); }
 	void SetStalled() { Queue().OnReliableMessageStalled( this ); }
@@ -112,6 +117,27 @@ public:
 		SetComplete();
 
 		return bRet;
+	}
+
+	// See IJobReliableMessage::BAnswerInProcess. This runs before the job does
+	// -- and, when the backend takes the message, instead of it.
+	virtual bool BAnswerInProcess() OVERRIDE
+	{
+#ifdef TF_CLIENT_DLL
+		if ( !TFMMBackend()->BActive() )
+			return false;
+
+		ReliableMsg()->OnPrepare();
+
+		if ( !TFMMBackend()->BHandleClientMsg( E_MSG_TYPE, m_msg.Body(), &m_msgReply.Body() ) )
+			return false;
+
+		MMLog( "[ReliableMsg] %s answered locally for %s\n", GetMsgName(), DebugString() );
+		ReliableMsg()->OnReply( m_msgReply );
+		return true;
+#else
+		return false;
+#endif
 	}
 
 	bool BYieldingRunJobInternal()

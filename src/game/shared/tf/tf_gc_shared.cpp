@@ -8,6 +8,16 @@ void CReliableMessageQueue::Enqueue( IJobReliableMessage *pReliable )
 {
 	pReliable->OnAddedToQueue( this );
 
+	// There is no Valve GC. Anything our own backend can answer is answered
+	// right here, before the job system is involved at all -- a job that never
+	// gets pumped also never completes, and everything queued behind it waits
+	// on it forever. That is what used to happen to "find a game".
+	if ( pReliable->BAnswerInProcess() )
+	{
+		delete pReliable;
+		return;
+	}
+
 	if ( !m_pCurrentConfirmJob )
 	{
 		m_pCurrentConfirmJob = pReliable;

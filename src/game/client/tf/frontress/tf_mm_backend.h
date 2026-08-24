@@ -265,6 +265,9 @@ private:
 
 	ETFMMState m_eState;
 	bool       m_bSubscribedToCache;
+	// Publishing is retried every frame, so the complaint has to be rationed
+	// or it buries everything else in the console.
+	bool       m_bWarnedPublishFailed;
 	bool       m_bPartyPublished;
 	bool       m_bLobbyPublished;
 

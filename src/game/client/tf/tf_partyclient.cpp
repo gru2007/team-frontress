@@ -844,8 +844,10 @@ void CTFPartyClient::RequestQueueForMatch( ETFMatchGroup eMatchGroup )
 
 	PartyMsg( "Requesting queue for %s\n", GetMatchGroupName( eMatchGroup ) );
 	PartyDbg( "Sending PartyQueueForMatch:\n%s", pReliable->Msg().Body().DebugString().c_str() );
-	GTFGCClientSystem()->ReliableMsgQueue().Enqueue( pReliable );
+	// Set before enqueuing: with no GC the message can be answered in-process,
+	// and the reply -- which clears this -- then lands inside Enqueue.
 	SetPendingQueueMsg( eMatchGroup, true );
+	GTFGCClientSystem()->ReliableMsgQueue().Enqueue( pReliable );
 	// See comment in UpdateActiveParty about when InQueue changes.
 	if ( !BInQueueForMatchGroup( eMatchGroup ) )
 	{
@@ -868,8 +870,8 @@ void CTFPartyClient::RequestQueueForStandby()
 
 	PartyMsg( "Requesting queue to join party's lobby\n" );
 	PartyDbg( "Sending PartyQueueForStandby:\n%s", pReliable->Msg().Body().DebugString().c_str() );
-	GTFGCClientSystem()->ReliableMsgQueue().Enqueue( pReliable );
 	m_bPendingStandbyQueueMsg = true;
+	GTFGCClientSystem()->ReliableMsgQueue().Enqueue( pReliable );
 	// See comment in UpdateActiveParty about when InQueue changes
 	if ( !BInStandbyQueue() )
 	{
@@ -1195,9 +1197,9 @@ void CTFPartyClient::CheckSendUpdates()
 	PartyDbg( "Sending Party SetOptions:\n%s", pReliable->Msg().Body().DebugString().c_str() );
 	m_flLastCriteriaUpdate = Plat_FloatTime();
 	m_flPendingChangesTime = -1.f;
-	GTFGCClientSystem()->ReliableMsgQueue().Enqueue( pReliable );
 	m_bPendingReliableCriteriaMsg = true;
 	m_unPendingReliableCriteriaMsgParty = m_unActivePartyID;
+	GTFGCClientSystem()->ReliableMsgQueue().Enqueue( pReliable );
 }
 
 //-----------------------------------------------------------------------------

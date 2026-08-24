@@ -610,21 +610,58 @@ void CTFQueueInfoPanel::Paint()
 	const CTFMMBackend *pBackend = TFMMBackend();
 	const ETFMMState eState = pBackend->GetState();
 
-	wchar_t wszLine[ 128 ];
-	int nY = y;
+	const int nHave = pBackend->GetQueuePlayerCount();
+	const int nNeed = pBackend->GetQueueNeededCount();
 
-	// Line one: what matchmaking is doing.
+	// Line one: what matchmaking is doing. While the coordinator says we are
+	// still searching but nobody else is needed, the match is full and it is
+	// off reserving a server -- which is a wait worth naming, because it is
+	// the one that looks like nothing is happening.
 	const char *pszState = "Not queued";
 	Color colState = m_colDim;
 
 	switch ( eState )
 	{
-	case k_eTFMMState_Searching:   pszState = "Searching for a match";  colState = m_colTitle;  break;
-	case k_eTFMMState_MatchReady:  pszState = "Match found";            colState = Color( 94, 150, 49, 255 ); break;
-	case k_eTFMMState_Connecting:  pszState = "Connecting";             colState = Color( 94, 150, 49, 255 ); break;
-	case k_eTFMMState_InMatch:     pszState = "In a match";             colState = m_colTitle;  break;
-	default:                                                                                    break;
+	case k_eTFMMState_Searching:
+		if ( nNeed == 0 && nHave > 0 )
+		{
+			pszState = "Match full - starting a server";
+			colState = m_colAccent;
+		}
+		else
+		{
+			pszState = "Searching for a match";
+			colState = m_colTitle;
+		}
+		break;
+
+	case k_eTFMMState_MatchReady:
+		pszState = "Server ready - joining";
+		colState = Color( 94, 150, 49, 255 );
+		break;
+
+	case k_eTFMMState_Connecting:
+		pszState = "Connecting to the server";
+		colState = Color( 94, 150, 49, 255 );
+		break;
+
+	case k_eTFMMState_InMatch:
+		pszState = "In a match";
+		colState = m_colTitle;
+		break;
+
+	default:
+		break;
 	}
+
+	wchar_t wszLine[ 128 ];
+	const int nBodyTall  = TextHeight( m_hBodyFont );
+	const int nSmallTall = TextHeight( m_hSmallFont );
+	const int nBottom    = y + tall;
+
+	// Walk down the card, and stop drawing rather than overlap: the card is
+	// sized by the column, not by how much there is to say.
+	int nY = y;
 
 	TextToUnicode( pszState, wszLine, sizeof( wszLine ) );
 	DrawTextAt( m_hBodyFont, colState, x, nY, wszLine );
@@ -641,34 +678,34 @@ void CTFQueueInfoPanel::Paint()
 		}
 	}
 
-	nY += TextHeight( m_hBodyFont ) + MAX( 2, tall / 12 );
+	nY += nBodyTall + MAX( 2, nSmallTall / 2 );
 
 	// Line two: the bar, and what it is filling up with.
-	const int nBarH = MAX( 3, tall / 8 );
-
-	surface()->DrawSetColor( Color( 0, 0, 0, 140 ) );
-	surface()->DrawFilledRect( x, nY, x + wide, nY + nBarH );
-
-	if ( m_flBar > 0.001f )
+	const int nBarTall = MAX( 3, nSmallTall / 2 + 2 );
+	if ( nY + nBarTall <= nBottom - nSmallTall )
 	{
-		const float flWave = 0.5f + 0.5f * sinf( m_flPulse * 3.f );
-		const int nAlpha = m_bQueued ? (int)( 170.f + flWave * 85.f ) : 200;
+		surface()->DrawSetColor( Color( 0, 0, 0, 140 ) );
+		surface()->DrawFilledRect( x, nY, x + wide, nY + nBarTall );
 
-		surface()->DrawSetColor( Color( m_colAccent.r(), m_colAccent.g(), m_colAccent.b(), nAlpha ) );
-		surface()->DrawFilledRect( x, nY, x + (int)( wide * clamp( m_flBar, 0.f, 1.f ) ), nY + nBarH );
+		if ( m_flBar > 0.001f )
+		{
+			const float flWave = 0.5f + 0.5f * sinf( m_flPulse * 3.f );
+			const int nAlpha = m_bQueued ? (int)( 170.f + flWave * 85.f ) : 200;
+
+			surface()->DrawSetColor( Color( m_colAccent.r(), m_colAccent.g(), m_colAccent.b(), nAlpha ) );
+			surface()->DrawFilledRect( x, nY, x + (int)( wide * clamp( m_flBar, 0.f, 1.f ) ), nY + nBarTall );
+		}
+
+		surface()->DrawSetColor( m_colRule );
+		surface()->DrawOutlinedRect( x, nY, x + wide, nY + nBarTall );
+
+		nY += nBarTall + MAX( 2, nSmallTall / 2 );
 	}
-
-	surface()->DrawSetColor( m_colRule );
-	surface()->DrawOutlinedRect( x, nY, x + wide, nY + nBarH );
-
-	nY += nBarH + MAX( 2, tall / 12 );
 
 	// Line three: the numbers behind the bar.
 	if ( eState == k_eTFMMState_Searching )
 	{
 		const int nSeconds = (int)pBackend->GetQueueSeconds();
-		const int nHave    = pBackend->GetQueuePlayerCount();
-		const int nNeed    = pBackend->GetQueueNeededCount();
 
 		CFmtStr strDetail( "%d:%02d in queue   -   %d waiting, %d more needed",
 		                   nSeconds / 60, nSeconds % 60, nHave, nNeed );
@@ -679,26 +716,29 @@ void CTFQueueInfoPanel::Paint()
 		TextToUnicode( "Press Find a Game to join a queue.", wszLine, sizeof( wszLine ) );
 	}
 
-	DrawTextAt( m_hSmallFont, m_colDim, x, nY, wszLine );
+	if ( nY + nSmallTall <= nBottom - nSmallTall )
+	{
+		DrawTextAt( m_hSmallFont, m_colDim, x, nY, wszLine );
+	}
 
-	// Line four, along the bottom: how busy the service is.
+	// Along the bottom, always: how busy the service is.
 	const CTFMMBackend::Status_t &status = pBackend->GetStatus();
 	if ( !status.bChecked )
 	{
 		TextToUnicode( "Contacting the coordinator...", wszLine, sizeof( wszLine ) );
-		DrawTextAt( m_hSmallFont, m_colDim, x, y + tall - TextHeight( m_hSmallFont ), wszLine );
+		DrawTextAt( m_hSmallFont, m_colDim, x, nBottom - nSmallTall, wszLine );
 	}
 	else if ( status.bValid )
 	{
 		CFmtStr strPop( "%d online   -   %d matches live   -   %d servers free",
 		                status.nOnlinePlayers, status.nLiveMatches, status.nFreeServers );
 		TextToUnicode( strPop.Get(), wszLine, sizeof( wszLine ) );
-		DrawTextAt( m_hSmallFont, m_colDim, x, y + tall - TextHeight( m_hSmallFont ), wszLine );
+		DrawTextAt( m_hSmallFont, m_colDim, x, nBottom - nSmallTall, wszLine );
 	}
 	else
 	{
 		TextToUnicode( "Coordinator unreachable.", wszLine, sizeof( wszLine ) );
-		DrawTextAt( m_hSmallFont, Color( 192, 28, 0, 255 ), x, y + tall - TextHeight( m_hSmallFont ), wszLine );
+		DrawTextAt( m_hSmallFont, Color( 192, 28, 0, 255 ), x, nBottom - nSmallTall, wszLine );
 	}
 }
 
@@ -791,11 +831,8 @@ CTFMenuActionsPanel::CTFMenuActionsPanel( Panel *pParent, const char *pszName )
 	m_bShowingCancel = false;
 	m_bStateKnown    = false;
 	m_hBigFont       = INVALID_FONT;
-	m_hSmallFont     = INVALID_FONT;
 
-	m_pPlayButton   = new CExButton( this, "PlayButton",   "FIND A GAME",    this, "toggle_queue" );
-	m_pHostButton   = new CExButton( this, "HostButton",   "HOST A GAME",    this, "create_server" );
-	m_pBrowseButton = new CExButton( this, "BrowseButton", "SERVER BROWSER", this, "server_browser" );
+	m_pPlayButton = new CExButton( this, "PlayButton", "FIND A GAME", this, "toggle_queue" );
 
 	SetPaintBackgroundEnabled( false );
 	SetKeyBoardInputEnabled( false );
@@ -813,11 +850,8 @@ void CTFMenuActionsPanel::ApplySchemeSettings( IScheme *pScheme )
 	m_colGoArmed    = pScheme->GetColor( "CreditsGreen", Color( 94, 150, 49, 255 ) );
 	m_colStop       = Color( 120, 24, 12, 255 );
 	m_colStopArmed  = pScheme->GetColor( "RedSolid", Color( 192, 28, 0, 255 ) );
-	m_colQuiet      = pScheme->GetColor( "DarkBrown", Color( 41, 37, 38, 255 ) );
-	m_colQuietArmed = pScheme->GetColor( "LighterDarkBrown", Color( 59, 54, 48, 255 ) );
 
-	m_hBigFont   = pScheme->GetFont( "HudFontSmallBold", true );
-	m_hSmallFont = pScheme->GetFont( "HudFontSmallestBold", true );
+	m_hBigFont = pScheme->GetFont( "HudFontSmallBold", true );
 
 	// Restyle on the next tick, once vgui::Button has finished applying its own
 	// scheme colours over the top of anything set here.
@@ -827,24 +861,12 @@ void CTFMenuActionsPanel::ApplySchemeSettings( IScheme *pScheme )
 //-----------------------------------------------------------------------------
 void CTFMenuActionsPanel::ApplyButtonStyle()
 {
-	CExButton *arButtons[] = { m_pPlayButton, m_pHostButton, m_pBrowseButton };
-	for ( int i = 0; i < ARRAYSIZE( arButtons ); ++i )
-	{
-		arButtons[i]->SetFont( ( i == 0 ) ? m_hBigFont : m_hSmallFont );
-		arButtons[i]->SetContentAlignment( Label::a_center );
-		arButtons[i]->SetPaintBackgroundEnabled( true );
-		arButtons[i]->SetPaintBackgroundType( 0 );
-		arButtons[i]->SetPaintBorderEnabled( false );
-		arButtons[i]->SetMouseInputEnabled( true );
-	}
-
-	m_pHostButton->SetDefaultColor( m_colText, m_colQuiet );
-	m_pHostButton->SetArmedColor( m_colText, m_colQuietArmed );
-	m_pHostButton->SetDepressedColor( m_colText, m_colQuiet );
-
-	m_pBrowseButton->SetDefaultColor( m_colText, m_colQuiet );
-	m_pBrowseButton->SetArmedColor( m_colText, m_colQuietArmed );
-	m_pBrowseButton->SetDepressedColor( m_colText, m_colQuiet );
+	m_pPlayButton->SetFont( m_hBigFont );
+	m_pPlayButton->SetContentAlignment( Label::a_center );
+	m_pPlayButton->SetPaintBackgroundEnabled( true );
+	m_pPlayButton->SetPaintBackgroundType( 0 );
+	m_pPlayButton->SetPaintBorderEnabled( false );
+	m_pPlayButton->SetMouseInputEnabled( true );
 
 	m_pPlayButton->SetText( m_bShowingCancel ? "CANCEL SEARCH" : "FIND A GAME" );
 	m_pPlayButton->SetDefaultColor( m_colText, m_bShowingCancel ? m_colStop : m_colGo );
@@ -857,17 +879,7 @@ void CTFMenuActionsPanel::PerformLayout()
 {
 	BaseClass::PerformLayout();
 
-	const int nWide = GetWide();
-	const int nTall = GetTall();
-	const int nGap  = MAX( 2, nTall / 16 );
-
-	const int nBigTall   = MAX( 10, (int)( ( nTall - nGap ) * 0.55f ) );
-	const int nSmallTall = MAX( 8, nTall - nGap - nBigTall );
-	const int nHalf      = ( nWide - nGap ) / 2;
-
-	m_pPlayButton->SetBounds( 0, 0, nWide, nBigTall );
-	m_pHostButton->SetBounds( 0, nBigTall + nGap, nHalf, nSmallTall );
-	m_pBrowseButton->SetBounds( nWide - nHalf, nBigTall + nGap, nHalf, nSmallTall );
+	m_pPlayButton->SetBounds( 0, 0, GetWide(), GetTall() );
 }
 
 //-----------------------------------------------------------------------------
@@ -911,18 +923,6 @@ void CTFMenuActionsPanel::OnCommand( const char *pszCommand )
 		return;
 	}
 
-	if ( !V_stricmp( pszCommand, "create_server" ) )
-	{
-		engine->ClientCmd_Unrestricted( "gamemenucommand OpenCreateMultiplayerGameDialog" );
-		return;
-	}
-
-	if ( !V_stricmp( pszCommand, "server_browser" ) )
-	{
-		engine->ClientCmd_Unrestricted( "gamemenucommand OpenServerBrowser" );
-		return;
-	}
-
 	BaseClass::OnCommand( pszCommand );
 }
 
@@ -955,9 +955,9 @@ void CTFMainMenuInfoPanel::PerformLayout()
 	const int nGap  = MAX( 2, nTall / 60 );
 
 	const int nBody      = MAX( 1, nTall - nGap * 3 );
-	const int nActionsH  = (int)( nBody * 0.17f );
-	const int nCampaignH = (int)( nBody * 0.37f );
-	const int nQueueH    = (int)( nBody * 0.22f );
+	const int nActionsH  = (int)( nBody * 0.09f );
+	const int nCampaignH = (int)( nBody * 0.36f );
+	const int nQueueH    = (int)( nBody * 0.30f );
 	const int nNewsH     = nBody - nActionsH - nCampaignH - nQueueH;
 
 	int nY = 0;

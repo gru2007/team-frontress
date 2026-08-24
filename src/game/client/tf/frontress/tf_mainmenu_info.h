@@ -179,9 +179,10 @@ private:
 };
 
 //-----------------------------------------------------------------------------
-// The buttons that start and stop a search. These live in the column rather
+// The button that starts and stops a search. It lives in the column rather
 // than in the menu's button list because the column is built in code and is
 // therefore always there, whatever GameMenu.res does or does not contain.
+// Hosting and the server browser are not here: the dashboard already has them.
 //-----------------------------------------------------------------------------
 class CTFMenuActionsPanel : public vgui::EditablePanel
 {
@@ -201,19 +202,14 @@ private:
 	void ApplyButtonStyle();
 
 	CExButton *m_pPlayButton;
-	CExButton *m_pHostButton;
-	CExButton *m_pBrowseButton;
 
 	vgui::HFont m_hBigFont;
-	vgui::HFont m_hSmallFont;
 
 	Color m_colText;
 	Color m_colGo;
 	Color m_colGoArmed;
 	Color m_colStop;
 	Color m_colStopArmed;
-	Color m_colQuiet;
-	Color m_colQuietArmed;
 
 	bool m_bShowingCancel;
 	bool m_bStateKnown;

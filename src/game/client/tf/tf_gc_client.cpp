@@ -1687,7 +1687,10 @@ bool CTFGCClientSystem::BIsPhoneIdentifying( void )
 
 bool CTFGCClientSystem::BHasCompetitiveAccess( void )
 {
-	return false;
+	// Retail gates ranked play behind owning the Competitive Matchmaking Pass
+	// and a phone-linked premium account. We have no item server and no reason
+	// to sell entry to our own ladder, so everybody has access.
+	return true;
 }
 
 
