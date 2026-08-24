@@ -43,6 +43,6 @@ case " $* " in
   *" +ip "*) IP_DEFAULT=() ;;
 esac
 
-${SLR_SNIPER_PATH} --devel -- ./tc2_linux64 -steam -gathermod -particles 1 -nobreakpad -nominidump -enablefakeip "$@" "${IP_DEFAULT[@]}"
+${SLR_SNIPER_PATH} --devel -- ./tc2_linux64 -steam -gathermod -particles 1 -enablefakeip "$@" "${IP_DEFAULT[@]}"
 
 popd > /dev/null
