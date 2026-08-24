@@ -181,12 +181,45 @@ void CTFMMBackend::Update( float frametime )
 	if ( m_party.BValid() )
 		PublishParty();
 
+	// The queue API ticket contains a roster snapshot. Its GET heartbeat is
+	// for the ticket as a whole, so if one lobby member Alt-F4s while the
+	// leader keeps polling, that old member otherwise stays queued forever.
+	//
+	// Re-POSTing is deliberately used instead of DELETE + POST: Enqueue()
+	// replaces the previous ticket for the same leader/group atomically,
+	// while two HTTP requests would race on this single coordinator channel.
 	if ( m_eState == k_eTFMMState_Searching &&
 	     !m_strTicketID.IsEmpty() &&
-	     Plat_FloatTime() >= m_flNextPollTime &&
 	     !m_coordinator.BBusy() )
 	{
-		PollQueue();
+		const int nCurrentMembers = MAX( 1, m_party.GetNumMembers() );
+		bool bRosterChanged = ( nCurrentMembers != m_vecQueuedRoster.Count() );
+
+		for ( int i = 0; !bRosterChanged && i < nCurrentMembers; ++i )
+		{
+			const CSteamID member = m_party.BValid() ? m_party.GetMember( i ) : LocalSteamID();
+			bool bFound = false;
+			FOR_EACH_VEC( m_vecQueuedRoster, j )
+			{
+				if ( m_vecQueuedRoster[j] == member )
+				{
+					bFound = true;
+					break;
+				}
+			}
+			bRosterChanged = !bFound;
+		}
+
+		if ( bRosterChanged )
+		{
+			MMDbg( "party roster changed while queued; replacing ticket\n" );
+			m_strTicketID.Clear();
+			SendQueueRequest();
+		}
+		else if ( Plat_FloatTime() >= m_flNextPollTime )
+		{
+			PollQueue();
+		}
 	}
 
 	// Population for the menu. Nobody is looking at it during a match, so only
@@ -229,11 +262,13 @@ void CTFMMBackend::OnStatus( GCSDK::CWebAPIValues *pValues, int eStatusCode )
 		return;
 	}
 
-	m_status.bChecked       = true;
-	m_status.bValid         = true;
-	m_status.nOnlinePlayers = pValues->GetChildInt32Value( "online_players", 0 );
-	m_status.nLiveMatches   = pValues->GetChildInt32Value( "live_matches", 0 );
-	m_status.nFreeServers   = pValues->GetChildInt32Value( "free_servers", 0 );
+	m_status.bChecked             = true;
+	m_status.bValid               = true;
+	m_status.bServerCapacityKnown =
+		( pValues->GetChildInt32Value( "server_capacity_known", 1 ) != 0 );
+	m_status.nOnlinePlayers       = pValues->GetChildInt32Value( "online_players", 0 );
+	m_status.nLiveMatches         = pValues->GetChildInt32Value( "live_matches", 0 );
+	m_status.nFreeServers         = pValues->GetChildInt32Value( "free_servers", 0 );
 	pValues->GetChildStringValue( m_status.strName, "name", "" );
 
 	// The map pools. A group that reports none leaves its pool empty, and the
@@ -897,12 +932,19 @@ void CTFMMBackend::SendQueueRequest()
 
 	body.PutString( ",\"players\":[" );
 	const int nMembers = MAX( 1, m_party.GetNumMembers() );
+
+	// Remember exactly which Steam lobby members this ticket represents.
+	// Update() compares the live lobby to this snapshot while searching.
+	m_vecQueuedRoster.RemoveAll();
+
 	int nWritten = 0;
 	for ( int i = 0; i < nMembers; i++ )
 	{
 		CSteamID member = m_party.BValid() ? m_party.GetMember( i ) : LocalSteamID();
 		if ( !member.IsValid() )
 			continue;
+
+		m_vecQueuedRoster.AddToTail( member );
 
 		if ( nWritten++ > 0 )
 			body.PutChar( ',' );

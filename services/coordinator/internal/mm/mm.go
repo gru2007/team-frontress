@@ -60,9 +60,13 @@ func (t *Ticket) Size() int { return len(t.Players) }
 type matchState string
 
 const (
-	msBooting matchState = "booting"
-	msLive    matchState = "live"
-	msOver    matchState = "over"
+	// msWaitingServer keeps a formed match intact while all providers are
+	// temporarily empty. Re-forming the same match every tick both spams
+	// logs and churns maps/IDs for no player-visible benefit.
+	msWaitingServer matchState = "waiting_server"
+	msBooting       matchState = "booting"
+	msLive          matchState = "live"
+	msOver          matchState = "over"
 )
 
 // Match is a formed match and the server running it.

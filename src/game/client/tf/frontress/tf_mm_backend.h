@@ -207,11 +207,19 @@ public:
 	// coordinator cannot be reached.
 	struct Status_t
 	{
-		Status_t() : bChecked( false ), bValid( false ), nOnlinePlayers( 0 ), nLiveMatches( 0 ), nFreeServers( 0 ) {}
+		Status_t()
+			: bChecked( false )
+			, bValid( false )
+			, bServerCapacityKnown( false )
+			, nOnlinePlayers( 0 )
+			, nLiveMatches( 0 )
+			, nFreeServers( 0 )
+		{}
 		// bChecked separates "we have not asked yet" from "we asked and it did
 		// not answer", which are different things to put in front of a player.
 		bool       bChecked;
 		bool       bValid;
+		bool       bServerCapacityKnown;
 		int        nOnlinePlayers;
 		int        nLiveMatches;
 		int        nFreeServers;
@@ -294,6 +302,11 @@ private:
 	int           m_nPollIntervalMS;
 	int           m_nInQueue;
 	int           m_nNeedPlayers;
+
+	// Snapshot used to detect somebody disappearing from the Steam lobby
+	// after the queue ticket was created. The coordinator's ticket stores
+	// a roster, so polling the same ticket cannot discover a departed member.
+	CUtlVector< CSteamID > m_vecQueuedRoster;
 
 	Status_t      m_status;
 	float         m_flNextStatusPoll;

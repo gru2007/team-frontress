@@ -1,0 +1,17 @@
+"lang"
+{
+	"Language"	"english"
+	"Tokens"
+	{
+		"#Frontress_RichPresence_Display"				"{#Frontress_RichPresence_State_%state%}"
+		"#Frontress_RichPresence_State_MainMenu"			"At the Main Menu"
+		"#Frontress_RichPresence_State_SearchingGeneric"		"Searching for a Match"
+		"#Frontress_RichPresence_State_SearchingMatchGroup"	"Searching for %matchgrouploc%"
+		"#Frontress_RichPresence_State_PlayingMatchGroup"		"Playing %matchgrouploc% on %currentmap%"
+		"#Frontress_RichPresence_State_LoadingMatchGroup"		"Joining %matchgrouploc%"
+		"#Frontress_RichPresence_State_PlayingGeneric"		"Playing on %currentmap%"
+		"#Frontress_RichPresence_State_LoadingGeneric"		"Joining a match"
+		"#Frontress_RichPresence_State_PlayingCommunity"		"Playing on %currentmap%"
+		"#Frontress_RichPresence_State_LoadingCommunity"		"Joining a community server"
+	}
+}

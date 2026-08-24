@@ -22,7 +22,7 @@ func (m *Matchmaker) boot(ctx context.Context, mt *Match) {
 	bootCtx, cancel := context.WithTimeout(ctx, m.cfg.Pool.BootDeadline())
 	defer cancel()
 
-	srv, err := m.pool.Acquire(bootCtx, pool.Request{
+	req := pool.Request{
 		MatchID:      mt.ID,
 		Players:      len(mt.Players),
 		Minutes:      int(m.cfg.Pool.MaxMatch().Minutes()),
@@ -30,11 +30,63 @@ func (m *Matchmaker) boot(ctx context.Context, mt *Match) {
 		Password:     mt.Password,
 		ServerConfig: group.ServerConfig,
 		Mode:         string(group.EffectiveMode()),
-	})
-	if err != nil {
-		m.failMatch(mt, fmt.Errorf("no server: %w", err), errors.Is(err, pool.ErrNoServer))
+	}
+
+	// A temporarily empty pool is not a failed match. Keep the roster/map/ID
+	// that were already formed and retry allocation with a bounded backoff.
+	// This turns the old:
+	//
+	//   formed -> no server -> requeue -> formed -> ...
+	//
+	// loop into one stable "waiting for server" match.
+	retry := 2 * time.Second
+	var srv *pool.Server
+	for {
+		var err error
+		srv, err = m.pool.Acquire(bootCtx, req)
+		if err == nil {
+			break
+		}
+
+		if !errors.Is(err, pool.ErrNoServer) {
+			m.failMatch(mt, fmt.Errorf("server allocation failed: %w", err), true)
+			return
+		}
+
+		m.mu.Lock()
+		if mt.state == msOver {
+			m.mu.Unlock()
+			return
+		}
+		mt.state = msWaitingServer
+		m.mu.Unlock()
+
+		m.log.Info("waiting for a free server",
+			"match", mt.ID,
+			"retry_in", retry,
+		)
+
+		select {
+		case <-bootCtx.Done():
+			m.failMatch(mt, fmt.Errorf("no server before boot deadline: %w", err), true)
+			return
+		case <-time.After(retry):
+		}
+
+		retry *= 2
+		if retry > 15*time.Second {
+			retry = 15 * time.Second
+		}
+	}
+
+	m.mu.Lock()
+	if mt.state == msOver {
+		m.mu.Unlock()
+		_ = m.pool.Release(context.WithoutCancel(ctx), srv)
 		return
 	}
+	mt.state = msBooting
+	m.mu.Unlock()
 
 	spec := Spec{
 		MatchID:      mt.ID,
@@ -123,7 +175,7 @@ func (m *Matchmaker) superviseMatches(ctx context.Context) {
 	m.mu.Lock()
 	for _, mt := range m.matches {
 		switch mt.state {
-		case msBooting:
+		case msWaitingServer, msBooting:
 			if now.Sub(mt.createdAt) > m.cfg.Pool.BootDeadline()+10*time.Second {
 				// boot() owns this match and should have finished by now.
 				// Something wedged; let it go rather than leak the parties.

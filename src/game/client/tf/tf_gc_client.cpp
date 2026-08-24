@@ -1634,12 +1634,16 @@ void CTFGCClientSystem::RequestAcceptMatchInvite( PlayerGroupID_t nLobbyID )
 //-----------------------------------------------------------------------------
 bool CTFGCClientSystem::BIsMatchGroupDisabled( ETFMatchGroup eMatchGroup ) const
 {
-	// A group the coordinator does not run is disabled here. Saying so in the
-	// playlist is the whole point: otherwise the mode looks available, takes
-	// the queue, and the coordinator refuses it a second later.
-	if ( !TFMMBackend()->BGroupOffered( eMatchGroup ) )
-		return true;
+	// Frontress and Valve's GC must never both be authorities for queue
+	// availability. The Frontress coordinator is what will actually accept
+	// the queue request, so its /v1/status answer wins while that backend is
+	// active. Keeping the old WorldStatus check here made a stale Valve
+	// disabled_match_groups entry put the "mode unavailable" warning on the
+	// dashboard even though the Frontress queue command worked.
+	if ( TFMMBackend()->BActive() )
+		return !TFMMBackend()->BGroupOffered( eMatchGroup );
 
+	// Legacy fallback for builds that deliberately turn Frontress MM off.
 	for ( int i = 0; i < WorldStatus().disabled_match_groups_size(); i++ )
 	{
 		if ( WorldStatus().disabled_match_groups( i ) == eMatchGroup )

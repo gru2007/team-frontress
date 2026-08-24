@@ -77,11 +77,26 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	for g, n := range s.mm.QueuedPlayers() {
 		queued[strconv.Itoa(int(g))] = n
 	}
+
+	// Static/registered providers expose a local FreeCount. Serveme is
+	// remote and on-demand: Pool.Free() intentionally contributes zero for
+	// it, which is a lower bound rather than "no server exists". Tell the
+	// client whether the number is exact so the UI does not call that zero
+	// "0 servers free".
+	serverCapacityKnown := 1
+	for _, provider := range s.cfg.Pool.Providers {
+		if provider.Kind == "serveme" {
+			serverCapacityKnown = 0
+			break
+		}
+	}
+
 	st := wire.Status{
-		Name:          s.cfg.Name,
-		OnlinePlayers: s.mm.Population(),
-		QueuedPlayers: queued,
-		LiveMatches:   s.mm.LiveMatches(),
+		Name:                s.cfg.Name,
+		OnlinePlayers:       s.mm.Population(),
+		QueuedPlayers:       queued,
+		LiveMatches:         s.mm.LiveMatches(),
+		ServerCapacityKnown: serverCapacityKnown,
 	}
 	open := s.mm.OpenMatches()
 	for _, g := range s.cfg.MatchGroups {

@@ -1,0 +1,17 @@
+"lang"
+{
+	"Language"	"russian"
+	"Tokens"
+	{
+		"#Frontress_RichPresence_Display"				"{#Frontress_RichPresence_State_%state%}"
+		"#Frontress_RichPresence_State_MainMenu"			"В главном меню"
+		"#Frontress_RichPresence_State_SearchingGeneric"		"Ищет матч"
+		"#Frontress_RichPresence_State_SearchingMatchGroup"	"Ищет матч: %matchgrouploc%"
+		"#Frontress_RichPresence_State_PlayingMatchGroup"		"Играет: %matchgrouploc%, %currentmap%"
+		"#Frontress_RichPresence_State_LoadingMatchGroup"		"Подключается: %matchgrouploc%"
+		"#Frontress_RichPresence_State_PlayingGeneric"		"Играет на %currentmap%"
+		"#Frontress_RichPresence_State_LoadingGeneric"		"Подключается к матчу"
+		"#Frontress_RichPresence_State_PlayingCommunity"		"Играет на %currentmap%"
+		"#Frontress_RichPresence_State_LoadingCommunity"		"Подключается к серверу сообщества"
+	}
+}

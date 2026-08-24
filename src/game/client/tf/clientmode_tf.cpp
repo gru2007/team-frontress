@@ -2495,7 +2495,7 @@ void ClientModeTFNormal::UpdateSteamRichPresence() const
 	//
 	// 'steam_display' embeds our state and matchgrouploc set above.
 	//
-	pSteamFriends->SetRichPresence( "steam_display", "#TF_RichPresence_Display" );
+	pSteamFriends->SetRichPresence( "steam_display", "#Frontress_RichPresence_Display" );
 
 	//
 	// 'status' field -- used by legacy steam client only right now

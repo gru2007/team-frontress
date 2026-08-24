@@ -729,9 +729,18 @@ void CTFQueueInfoPanel::Paint()
 	}
 	else if ( status.bValid )
 	{
-		CFmtStr strPop( "%d online   -   %d matches live   -   %d servers free",
-		                status.nOnlinePlayers, status.nLiveMatches, status.nFreeServers );
-		TextToUnicode( strPop.Get(), wszLine, sizeof( wszLine ) );
+		if ( status.bServerCapacityKnown )
+		{
+			CFmtStr strPop( "%d online   -   %d matches live   -   %d servers free",
+			                status.nOnlinePlayers, status.nLiveMatches, status.nFreeServers );
+			TextToUnicode( strPop.Get(), wszLine, sizeof( wszLine ) );
+		}
+		else
+		{
+			CFmtStr strPop( "%d online   -   %d matches live   -   servers on demand",
+			                status.nOnlinePlayers, status.nLiveMatches );
+			TextToUnicode( strPop.Get(), wszLine, sizeof( wszLine ) );
+		}
 		DrawTextAt( m_hSmallFont, m_colDim, x, nBottom - nSmallTall, wszLine );
 	}
 	else

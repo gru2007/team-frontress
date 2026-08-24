@@ -168,6 +168,10 @@ type Status struct {
 	QueuedPlayers map[string]int   `json:"queued_players"` // match group id -> players
 	LiveMatches   int              `json:"live_matches"`
 	FreeServers   int              `json:"free_servers"`
+	// 1 when FreeServers is an exact count. A remote/on-demand provider
+	// such as serveme cannot answer that without making an allocation
+	// request, so reporting zero as though it were exact is misleading.
+	ServerCapacityKnown int        `json:"server_capacity_known"`
 	MatchGroups   []MatchGroupInfo `json:"match_groups"`
 	War           *WarStatus       `json:"war,omitempty"`
 }
