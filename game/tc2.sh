@@ -43,6 +43,17 @@ case " $* " in
   *" +ip "*) IP_DEFAULT=() ;;
 esac
 
-${SLR_SNIPER_PATH} --devel -- ./tc2_linux64 -steam -gathermod -particles 1 -enablefakeip "$@" "${IP_DEFAULT[@]}"
+# FakeIP is not passed here.
+#
+# It is a client-side convenience, and this script is also how every dedicated
+# server starts (start_dedicated_tc2.sh calls it). A server launched with
+# -enablefakeip asks Steam for a FakeIP and, once that allocation lands, starts
+# advertising and answering on it instead of on its real address -- so the
+# address players were handed goes dead the moment Steam is reachable, and no
+# convar undoes a launch parameter.
+#
+# Clients that want it add -enablefakeip to their Steam launch options; "$@"
+# carries it through to the binary.
+${SLR_SNIPER_PATH} --devel -- ./tc2_linux64 -steam -gathermod -particles 1 "$@" "${IP_DEFAULT[@]}"
 
 popd > /dev/null
