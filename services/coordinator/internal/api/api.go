@@ -94,6 +94,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 			MaxPlayers:  g.MaxPlayers,
 			Backfill:    g.BBackfills(),
 			OpenMatches: open[g.MatchGroup],
+			Maps:        g.Maps,
 		}
 		if r := g.Restrictions; r.Any() {
 			info.Restrictions = &wire.GroupRestrictions{

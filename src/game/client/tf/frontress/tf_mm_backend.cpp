@@ -65,7 +65,12 @@ CTFMMBackend::CTFMMBackend()
 	, m_nInQueue( 0 )
 	, m_nNeedPlayers( 0 )
 	, m_flNextStatusPoll( 0.f )
+	, m_bGroupsKnown( false )
 {
+	for ( int i = 0; i < k_nMatchGroupPools; i++ )
+	{
+		m_arGroupOffered[i] = false;
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -229,6 +234,61 @@ void CTFMMBackend::OnStatus( GCSDK::CWebAPIValues *pValues, int eStatusCode )
 	m_status.nLiveMatches   = pValues->GetChildInt32Value( "live_matches", 0 );
 	m_status.nFreeServers   = pValues->GetChildInt32Value( "free_servers", 0 );
 	pValues->GetChildStringValue( m_status.strName, "name", "" );
+
+	// The map pools. A group that reports none leaves its pool empty, and the
+	// UI then falls back to showing everything the schema knows.
+	for ( int i = 0; i < k_nMatchGroupPools; i++ )
+	{
+		m_arGroupMaps[i].RemoveAll();
+		m_arGroupOffered[i] = false;
+	}
+
+	GCSDK::CWebAPIValues *pGroups = pValues->FindChild( "match_groups" );
+	m_bGroupsKnown = ( pGroups != NULL );
+	for ( GCSDK::CWebAPIValues *pGroup = pGroups ? pGroups->GetFirstChild() : NULL;
+	      pGroup != NULL;
+	      pGroup = pGroup->GetNextChild() )
+	{
+		const int nGroup = pGroup->GetChildInt32Value( "match_group", -1 );
+		if ( nGroup < 0 || nGroup >= k_nMatchGroupPools )
+			continue;
+
+		m_arGroupOffered[ nGroup ] = ( pGroup->GetChildInt32Value( "enabled", 1 ) != 0 );
+
+		GCSDK::CWebAPIValues *pMaps = pGroup->FindChild( "maps" );
+		for ( GCSDK::CWebAPIValues *pMap = pMaps ? pMaps->GetFirstChild() : NULL;
+		      pMap != NULL;
+		      pMap = pMap->GetNextChild() )
+		{
+			CUtlString strMap;
+			pMap->GetStringValue( strMap );
+			if ( !strMap.IsEmpty() )
+				m_arGroupMaps[ nGroup ].AddToTail( strMap );
+		}
+	}
+}
+
+//-----------------------------------------------------------------------------
+const CUtlVector< CUtlString > *CTFMMBackend::GetGroupMaps( ETFMatchGroup eMatchGroup ) const
+{
+	const int nGroup = (int)eMatchGroup;
+	if ( nGroup < 0 || nGroup >= k_nMatchGroupPools )
+		return NULL;
+
+	return m_arGroupMaps[ nGroup ].Count() > 0 ? &m_arGroupMaps[ nGroup ] : NULL;
+}
+
+//-----------------------------------------------------------------------------
+bool CTFMMBackend::BGroupOffered( ETFMatchGroup eMatchGroup ) const
+{
+	if ( !m_bGroupsKnown )
+		return true;
+
+	const int nGroup = (int)eMatchGroup;
+	if ( nGroup < 0 || nGroup >= k_nMatchGroupPools )
+		return false;
+
+	return m_arGroupOffered[ nGroup ];
 }
 
 //
@@ -417,6 +477,23 @@ void CTFMMBackend::PublishParty()
 			(uint32)strData.size()
 		);
 	}
+	if ( !bOK && bPartyAlreadyExists && !m_strLastPublishedParty.empty() )
+	{
+		// An update is aimed at the object we published last. The party's id
+		// is 0 until Steam gives us a lobby and a real one afterwards, so the
+		// object we are trying to update is not always the object that is
+		// there. Replace it rather than talk past it.
+		pCache->BDestroyFromMsg( CTFParty::k_nTypeID,
+		                         m_strLastPublishedParty.data(),
+		                         (uint32)m_strLastPublishedParty.size() );
+
+		bOK = pCache->BCreateFromMsg( CTFParty::k_nTypeID, strData.data(), (uint32)strData.size() );
+		if ( bOK )
+		{
+			MMDbg( "party object replaced rather than updated\n" );
+		}
+	}
+
 	if ( bOK )
 	{
 		m_bPartyPublished = true;
@@ -432,7 +509,11 @@ void CTFMMBackend::PublishParty()
 		if ( !m_bWarnedPublishFailed )
 		{
 			m_bWarnedPublishFailed = true;
-			Warning( "[mm] could not publish the party object; matchmaking UI will not work\n" );
+			Warning( "[mm] could not publish the party object (%s, %d bytes, party %llu); "
+			         "matchmaking UI will not work\n",
+			         bPartyAlreadyExists ? "update" : "create",
+			         (int)strData.size(),
+			         (unsigned long long)m_msgParty.party_id() );
 		}
 		m_bPartyPublished = false;
 	}
@@ -677,6 +758,18 @@ bool CTFMMBackend::BHandleClientMsg( uint32 unMsgType, const ::google::protobuf:
 //
 
 //-----------------------------------------------------------------------------
+bool BMapInPool( const CUtlVector< CUtlString > &vecPool, const char *pszMap )
+{
+	FOR_EACH_VEC( vecPool, i )
+	{
+		if ( !V_stricmp( vecPool[i].Get(), pszMap ) )
+			return true;
+	}
+
+	return false;
+}
+
+//-----------------------------------------------------------------------------
 void CTFMMBackend::CollectSelectedMaps( CUtlVector< CUtlString > &vecOut ) const
 {
 	if ( !GTFPartyClient() )
@@ -686,12 +779,22 @@ void CTFMMBackend::CollectSelectedMaps( CUtlVector< CUtlString > &vecOut ) const
 	if ( !helper.AnySelected() )
 		return;
 
+	// Never ask for a map the group does not run: the coordinator would drop
+	// the preference and play something else, which is exactly the surprise
+	// the menu is supposed to prevent.
+	const CUtlVector< CUtlString > *pPool = GetGroupMaps( m_eQueuedMatchGroup );
+
 	const CUtlVector< MapDef_t * > &vecMaps = GetItemSchema()->GetMasterMapsList();
 	FOR_EACH_VEC( vecMaps, i )
 	{
 		const MapDef_t *pMap = vecMaps[i];
-		if ( pMap && pMap->pszMapName && helper.IsMapSelected( pMap ) )
-			vecOut.AddToTail( pMap->pszMapName );
+		if ( !pMap || !pMap->pszMapName || !helper.IsMapSelected( pMap ) )
+			continue;
+
+		if ( pPool && !BMapInPool( *pPool, pMap->pszMapName ) )
+			continue;
+
+		vecOut.AddToTail( pMap->pszMapName );
 	}
 }
 

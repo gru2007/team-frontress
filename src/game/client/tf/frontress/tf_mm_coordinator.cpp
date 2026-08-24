@@ -103,7 +103,14 @@ bool CTFMMCoordinator::BSend( EHTTPMethod eMethod, const char *pszPath, const ch
 
 	const char *pszTicket = GetAuthTicket();
 	if ( pszTicket && pszTicket[0] )
-		pHTTP->SetHTTPRequestHeaderValue( hRequest, "Authorization", CFmtStr( "Steam %s", pszTicket ) );
+	{
+		// A hex-encoded Steam session ticket is a couple of thousand
+		// characters. CFmtStr is 256 and truncates silently -- which produced
+		// a header the coordinator could not validate, and a queue request it
+		// refused without saying why.
+		CFmtStrMax authorization( "Steam %s", pszTicket );
+		pHTTP->SetHTTPRequestHeaderValue( hRequest, "Authorization", authorization.Get() );
+	}
 
 	if ( pszBody && pszBody[0] )
 	{

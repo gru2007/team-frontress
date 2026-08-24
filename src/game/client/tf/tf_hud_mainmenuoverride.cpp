@@ -302,6 +302,12 @@ CHudMainMenuOverride::CHudMainMenuOverride( IViewPort *pViewPort ) : BaseClass( 
 	m_pInfoPanel->SetZPos( 10 );
 	m_pInfoPanel->SetVisible( false );
 
+	// The friends block, where the stock menu keeps it. Same reason as above:
+	// the .res that used to carry it is in a pak we do not build.
+	m_pFriendsPanel = new CTFMenuFriendsPanel( this, "FrontressFriends" );
+	m_pFriendsPanel->SetZPos( 10 );
+	m_pFriendsPanel->SetVisible( false );
+
 	vgui::ivgui()->AddTickSignal( GetVPanel(), 50 );
 }
 
@@ -1539,14 +1545,27 @@ void CHudMainMenuOverride::PerformLayout( void )
 		iYPos += m_pMMButtonEntries[i].pPanel->GetTall() + m_iButtonYDelta;
 	}
 
-	if ( m_pInfoPanel )
 	{
-		// Where the MOTD panel would be, in menu space: c5, 62, 300 x 352.
 		const HScheme hScheme = GetScheme();
-		m_pInfoPanel->SetBounds( GetWide() / 2 + scheme()->GetProportionalScaledValueEx( hScheme, 5 ),
-		                         scheme()->GetProportionalScaledValueEx( hScheme, 62 ),
-		                         scheme()->GetProportionalScaledValueEx( hScheme, 300 ),
-		                         scheme()->GetProportionalScaledValueEx( hScheme, 352 ) );
+		auto lambdaScale = [ & ]( int nValue )
+		{
+			return scheme()->GetProportionalScaledValueEx( hScheme, nValue );
+		};
+
+		if ( m_pInfoPanel )
+		{
+			// Where the MOTD panel would be, in menu space: c5, 62, 300 x 352.
+			m_pInfoPanel->SetBounds( GetWide() / 2 + lambdaScale( 5 ), lambdaScale( 62 ),
+			                         lambdaScale( 300 ), lambdaScale( 352 ) );
+		}
+
+		if ( m_pFriendsPanel )
+		{
+			// Where the friends block was: c-290, down the left, ending level
+			// with the information column.
+			m_pFriendsPanel->SetBounds( GetWide() / 2 + lambdaScale( -290 ), lambdaScale( 190 ),
+			                            lambdaScale( 260 ), lambdaScale( 224 ) );
+		}
 	}
 
 	if ( m_pEventPromoContainer && m_pSafeModeContainer )
@@ -1685,9 +1704,14 @@ void CHudMainMenuOverride::OnUpdateMenu( void )
 
 	// The information column belongs to the VGUI menu, and only at the menu:
 	// in game this panel is the pause screen, which nobody wants news on.
+	const bool bShowMenuBlocks = ( !bHtmlMenu && !bInGame && !bInReplay && !bIsConnected );
 	if ( m_pInfoPanel )
 	{
-		m_pInfoPanel->SetVisible( !bHtmlMenu && !bInGame && !bInReplay && !bIsConnected );
+		m_pInfoPanel->SetVisible( bShowMenuBlocks );
+	}
+	if ( m_pFriendsPanel )
+	{
+		m_pFriendsPanel->SetVisible( bShowMenuBlocks );
 	}
 
 	FOR_EACH_VEC( m_pMMButtonEntries, i )

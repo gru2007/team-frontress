@@ -598,9 +598,31 @@ bool CGameStateManager::Init()
 		std::string str;
 		if (g_pVGuiLocalize)
 		{
-			std::wstring text = g_pVGuiLocalize->Find(params.c_str());
-			std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
-			str = converter.to_bytes(text);
+			// Find returns NULL for a token nobody has a string for, and a
+			// std::wstring built from NULL is undefined -- which showed up at
+			// the far end as "Invalid UTF-8 in text frame" and closed the
+			// socket. An unknown token answers with itself, the way VGUI
+			// renders one.
+			const wchar_t *pwszFound = g_pVGuiLocalize->Find( params.c_str() );
+			if ( pwszFound )
+			{
+				try
+				{
+					std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+					str = converter.to_bytes( pwszFound );
+				}
+				catch ( ... )
+				{
+					// A string we cannot encode is not worth killing the
+					// connection over.
+					str = params;
+				}
+			}
+			else
+			{
+				str = params;
+			}
+
 			return std::make_pair( true, str );
 		}
 		return std::make_pair( true, str );

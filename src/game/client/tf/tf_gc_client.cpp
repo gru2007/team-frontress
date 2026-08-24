@@ -1634,6 +1634,12 @@ void CTFGCClientSystem::RequestAcceptMatchInvite( PlayerGroupID_t nLobbyID )
 //-----------------------------------------------------------------------------
 bool CTFGCClientSystem::BIsMatchGroupDisabled( ETFMatchGroup eMatchGroup ) const
 {
+	// A group the coordinator does not run is disabled here. Saying so in the
+	// playlist is the whole point: otherwise the mode looks available, takes
+	// the queue, and the coordinator refuses it a second later.
+	if ( !TFMMBackend()->BGroupOffered( eMatchGroup ) )
+		return true;
+
 	for ( int i = 0; i < WorldStatus().disabled_match_groups_size(); i++ )
 	{
 		if ( WorldStatus().disabled_match_groups( i ) == eMatchGroup )

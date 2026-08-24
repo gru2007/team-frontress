@@ -12,9 +12,8 @@
 
 #include "fmtstr.h"
 #include "filesystem.h"
-#include "econ_controls.h"
+#include "tf_friends_panel.h"
 #include "tf_match_description.h"
-#include "tf_matchmaking_dashboard.h"
 #include "tf_matchmaking_shared.h"
 
 #include <vgui/ILocalize.h>
@@ -746,7 +745,7 @@ void CTFQueueInfoPanel::Paint()
 // CTFMenuNewsPanel
 //=============================================================================
 CTFMenuNewsPanel::CTFMenuNewsPanel( Panel *pParent, const char *pszName )
-	: BaseClass( pParent, pszName, "NEWS" )
+	: BaseClass( pParent, pszName, "UPDATES" )
 {
 	m_wszEmpty[0] = L'\0';
 }
@@ -823,107 +822,49 @@ void CTFMenuNewsPanel::Paint()
 }
 
 //=============================================================================
-// CTFMenuActionsPanel
+// CTFMenuFriendsPanel
 //=============================================================================
-CTFMenuActionsPanel::CTFMenuActionsPanel( Panel *pParent, const char *pszName )
-	: BaseClass( pParent, pszName )
+CTFMenuFriendsPanel::CTFMenuFriendsPanel( Panel *pParent, const char *pszName )
+	: BaseClass( pParent, pszName, "FRIENDS" )
 {
-	m_bShowingCancel = false;
-	m_bStateKnown    = false;
-	m_hBigFont       = INVALID_FONT;
+	m_pFriends = new CSteamFriendsListPanel( this, "SteamFriendsList" );
 
-	m_pPlayButton = new CExButton( this, "PlayButton", "FIND A GAME", this, "toggle_queue" );
-
-	SetPaintBackgroundEnabled( false );
-	SetKeyBoardInputEnabled( false );
-
-	ivgui()->AddTickSignal( GetVPanel(), 200 );
+	// The list scrolls, so unlike the other cards this one does want the mouse.
+	SetMouseInputEnabled( true );
 }
 
 //-----------------------------------------------------------------------------
-void CTFMenuActionsPanel::ApplySchemeSettings( IScheme *pScheme )
+void CTFMenuFriendsPanel::ApplySchemeSettings( IScheme *pScheme )
 {
 	BaseClass::ApplySchemeSettings( pScheme );
 
-	m_colText       = pScheme->GetColor( "TanLight", Color( 235, 226, 202, 255 ) );
-	m_colGo         = pScheme->GetColor( "SaleGreen", Color( 76, 107, 34, 255 ) );
-	m_colGoArmed    = pScheme->GetColor( "CreditsGreen", Color( 94, 150, 49, 255 ) );
-	m_colStop       = Color( 120, 24, 12, 255 );
-	m_colStopArmed  = pScheme->GetColor( "RedSolid", Color( 192, 28, 0, 255 ) );
+	// The settings the menu's .res used to carry for this list, before the
+	// block was dropped from it.
+	KeyValuesAD pSettings( "SteamFriendsList" );
+	pSettings->SetInt( "columns_count", 2 );
+	pSettings->SetInt( "inset_x", 10 );
+	pSettings->SetInt( "inset_y", 5 );
+	pSettings->SetInt( "row_gap", 5 );
+	pSettings->SetInt( "column_gap", 10 );
+	pSettings->SetInt( "restrict_width", 0 );
 
-	m_hBigFont = pScheme->GetFont( "HudFontSmallBold", true );
+	KeyValues *pFriendPanel = new KeyValues( "friendpanel_kv" );
+	pFriendPanel->SetInt( "wide", 110 );
+	pFriendPanel->SetInt( "tall", 20 );
+	pSettings->AddSubKey( pFriendPanel );
 
-	// Restyle on the next tick, once vgui::Button has finished applying its own
-	// scheme colours over the top of anything set here.
-	m_bStateKnown = false;
+	m_pFriends->ApplySettings( pSettings );
 }
 
 //-----------------------------------------------------------------------------
-void CTFMenuActionsPanel::ApplyButtonStyle()
-{
-	m_pPlayButton->SetFont( m_hBigFont );
-	m_pPlayButton->SetContentAlignment( Label::a_center );
-	m_pPlayButton->SetPaintBackgroundEnabled( true );
-	m_pPlayButton->SetPaintBackgroundType( 0 );
-	m_pPlayButton->SetPaintBorderEnabled( false );
-	m_pPlayButton->SetMouseInputEnabled( true );
-
-	m_pPlayButton->SetText( m_bShowingCancel ? "CANCEL SEARCH" : "FIND A GAME" );
-	m_pPlayButton->SetDefaultColor( m_colText, m_bShowingCancel ? m_colStop : m_colGo );
-	m_pPlayButton->SetArmedColor( m_colText, m_bShowingCancel ? m_colStopArmed : m_colGoArmed );
-	m_pPlayButton->SetDepressedColor( m_colText, m_bShowingCancel ? m_colStop : m_colGo );
-}
-
-//-----------------------------------------------------------------------------
-void CTFMenuActionsPanel::PerformLayout()
+void CTFMenuFriendsPanel::PerformLayout()
 {
 	BaseClass::PerformLayout();
 
-	m_pPlayButton->SetBounds( 0, 0, GetWide(), GetTall() );
-}
+	int x, y, wide, tall;
+	GetContentBounds( x, y, wide, tall );
 
-//-----------------------------------------------------------------------------
-// Purpose: Follow the queue, so one button both starts and stops a search.
-//-----------------------------------------------------------------------------
-void CTFMenuActionsPanel::OnTick()
-{
-	BaseClass::OnTick();
-
-	if ( !IsVisible() )
-		return;
-
-	const bool bQueued = ( TFMMBackend()->GetState() == k_eTFMMState_Searching );
-	if ( bQueued == m_bShowingCancel && m_bStateKnown )
-		return;
-
-	m_bShowingCancel = bQueued;
-	m_bStateKnown    = true;
-
-	ApplyButtonStyle();
-}
-
-//-----------------------------------------------------------------------------
-void CTFMenuActionsPanel::OnCommand( const char *pszCommand )
-{
-	if ( !V_stricmp( pszCommand, "toggle_queue" ) )
-	{
-		if ( TFMMBackend()->GetState() == k_eTFMMState_Searching )
-		{
-			TFMMBackend()->CancelQueue();
-			return;
-		}
-
-		// The dashboard owns the play flow -- it is the thing that decides
-		// between opening the playlist and falling back to quickplay.
-		CTFMatchmakingDashboard *pDashboard = GetMMDashboard();
-		if ( pDashboard )
-		{
-			pDashboard->OnCommand( "find_game" );
-		}
-		return;
-	}
-
-	BaseClass::OnCommand( pszCommand );
+	m_pFriends->SetBounds( x, y, wide, tall );
 }
 
 //=============================================================================
@@ -932,15 +873,13 @@ void CTFMenuActionsPanel::OnCommand( const char *pszCommand )
 CTFMainMenuInfoPanel::CTFMainMenuInfoPanel( Panel *pParent, const char *pszName )
 	: BaseClass( pParent, pszName )
 {
-	m_pActions  = new CTFMenuActionsPanel( this, "Actions" );
 	m_pCampaign = new CTFCampaignMapPanel( this, "CampaignMap" );
 	m_pQueue    = new CTFQueueInfoPanel( this, "QueueInfo" );
 	m_pNews     = new CTFMenuNewsPanel( this, "News" );
 
-	// The buttons need the cursor, and VGUI stops hit testing at the first
-	// parent that does not take mouse input -- so the column has to take it
-	// even though nothing in it but the buttons uses it.
-	SetMouseInputEnabled( true );
+	// Nothing in the column is clickable, and a panel that ate the cursor over
+	// the right third of the menu would be a bug, not a feature.
+	SetMouseInputEnabled( false );
 	SetKeyBoardInputEnabled( false );
 	SetPaintBackgroundEnabled( false );
 }
@@ -954,14 +893,12 @@ void CTFMainMenuInfoPanel::PerformLayout()
 	const int nTall = GetTall();
 	const int nGap  = MAX( 2, nTall / 60 );
 
-	const int nBody      = MAX( 1, nTall - nGap * 3 );
-	const int nActionsH  = (int)( nBody * 0.09f );
-	const int nCampaignH = (int)( nBody * 0.36f );
+	const int nBody      = MAX( 1, nTall - nGap * 2 );
+	const int nCampaignH = (int)( nBody * 0.38f );
 	const int nQueueH    = (int)( nBody * 0.30f );
-	const int nNewsH     = nBody - nActionsH - nCampaignH - nQueueH;
+	const int nNewsH     = nBody - nCampaignH - nQueueH;
 
 	int nY = 0;
-	m_pActions->SetBounds( 0, nY, nWide, nActionsH );   nY += nActionsH + nGap;
 	m_pCampaign->SetBounds( 0, nY, nWide, nCampaignH ); nY += nCampaignH + nGap;
 	m_pQueue->SetBounds( 0, nY, nWide, nQueueH );       nY += nQueueH + nGap;
 	m_pNews->SetBounds( 0, nY, nWide, nNewsH );

@@ -5,6 +5,8 @@
 //=============================================================================//
 #include "cbase.h"
 
+#include "frontress/tf_mm_backend.h"
+
 #include "tf_party.h"
 #include "tf_casual_criteria.h"
 #include "tf_controls.h"
@@ -87,6 +89,21 @@ public:
 			// Sort the maps alphabetically
 			CUtlVector< const MapDef_t* > vecSortedMaps;
 			vecSortedMaps.AddVectorToTail( pCategory->m_vecEnabledMaps );
+
+			// Show only what the coordinator actually runs. The schema knows
+			// every map Team Fortress ever shipped; offering one nobody here
+			// hosts means the player picks it, queues, and gets something
+			// else -- the list has to mean what it says.
+			const CUtlVector< CUtlString > *pPool =
+				TFMMBackend()->GetGroupMaps( k_eTFMatchGroup_Casual_12v12 );
+			if ( pPool )
+			{
+				FOR_EACH_VEC_BACK( vecSortedMaps, iMap )
+				{
+					if ( !BMapInPool( *pPool, vecSortedMaps[ iMap ]->pszMapName ) )
+						vecSortedMaps.Remove( iMap );
+				}
+			}
 			vecSortedMaps.SortPredicate( []( const MapDef_t* pLeft, const MapDef_t* pRight ) -> bool
 			{
 				// Localized map name first

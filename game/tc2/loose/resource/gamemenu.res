@@ -10,27 +10,12 @@
 // falls through to Team Fortress' own file, which does not match our panels.
 "GameMenu"
 {
-	"ResumeGameButton"
-	{
-		"label"			"#MMenu_ResumeGame"
-		"command"		"ResumeGame"
-		"subimage"		"icon_resume"
-		"OnlyInGame"	"1"
-	}
-
-	// Find a game, host a game and the server browser are not here: they are
-	// the three buttons at the top of the information column, which is built
-	// in code and so is always present. Putting them in both places would just
-	// give the same command two homes.
-	"ChangeServerButton"
-	{
-		"label"			"#MMenu_PlayMultiplayer"
-		"command"		"OpenServerBrowser"
-		"subimage"		"glyph_multiplayer"
-		"OnlyInGame"	"1"
-	}
-
-	// Positioned by mainmenuoverride.res, not by the column.
+	// Every entry here names a panel that mainmenuoverride.res already places:
+	// the row along the bottom of the menu, and the in-game buttons. An entry
+	// whose panel does not exist gets built and stacked into a column down the
+	// middle of the screen instead -- which is not where this menu keeps its
+	// buttons. They belong along the top, in the matchmaking dashboard, and
+	// along the bottom. The middle is for the friends and updates blocks.
 	"CharacterSetupButton"
 	{
 		"label"			"#MMenu_CharacterSetup"

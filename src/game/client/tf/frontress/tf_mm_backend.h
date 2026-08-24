@@ -219,6 +219,16 @@ public:
 	};
 	const Status_t &GetStatus() const { return m_status; }
 
+	// What the coordinator says a match group actually plays, from the same
+	// status poll. NULL until it has said so -- which is not the same thing as
+	// a group with no maps. The menu shows a map list the player picks from,
+	// and a map nobody here runs has no business being in it.
+	const CUtlVector< CUtlString > *GetGroupMaps( ETFMatchGroup eMatchGroup ) const;
+
+	// Does the coordinator run this match group at all? True while we have not
+	// heard from it: the menu should not gate on an answer nobody gave.
+	bool BGroupOffered( ETFMatchGroup eMatchGroup ) const;
+
 	// A party member noticed the leader's assignment in the lobby data.
 	void OnPartyLobbyDataChanged();
 
@@ -283,6 +293,12 @@ private:
 	Status_t      m_status;
 	float         m_flNextStatusPoll;
 
+	// Indexed by ETFMatchGroup, which is a small dense enum.
+	static const int k_nMatchGroupPools = k_eTFMatchGroup_Event_Last + 1;
+	CUtlVector< CUtlString > m_arGroupMaps[ k_nMatchGroupPools ];
+	bool                     m_arGroupOffered[ k_nMatchGroupPools ];
+	bool                     m_bGroupsKnown;
+
 	CSOTFParty             m_msgParty;
 	std::string            m_strLastPublishedParty;
 	CSOTFGameServerLobby   m_msgLobby;
@@ -293,5 +309,9 @@ private:
 };
 
 CTFMMBackend *TFMMBackend();
+
+// True when the pool contains the map. Case-insensitive: map names come from a
+// config file somebody types by hand.
+bool BMapInPool( const CUtlVector< CUtlString > &vecPool, const char *pszMap );
 
 #endif // TF_MM_BACKEND_H

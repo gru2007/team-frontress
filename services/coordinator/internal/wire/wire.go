@@ -183,6 +183,10 @@ type MatchGroupInfo struct {
 	MaxPlayers int    `json:"max_players"`
 	// Backfill is true when a match in this group keeps filling while it runs.
 	Backfill bool `json:"backfill"`
+	// Maps is what this group actually plays. The menu shows a map list the
+	// player picks from, and picking a map nobody here runs is worse than not
+	// offering it: the queue silently plays something else.
+	Maps []string `json:"maps,omitempty"`
 	// OpenMatches is how many live matches are currently accepting players.
 	OpenMatches int `json:"open_matches"`
 	// Restrictions is present when the group has entry rules, so the menu can

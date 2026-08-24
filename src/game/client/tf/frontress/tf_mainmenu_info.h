@@ -179,40 +179,21 @@ private:
 };
 
 //-----------------------------------------------------------------------------
-// The button that starts and stops a search. It lives in the column rather
-// than in the menu's button list because the column is built in code and is
-// therefore always there, whatever GameMenu.res does or does not contain.
-// Hosting and the server browser are not here: the dashboard already has them.
+// The friends block, which is a card around Team Fortress' own Steam friends
+// list. It is built here rather than in the menu's .res because that .res
+// lives in a pak we do not build, and the block was dropped from it.
 //-----------------------------------------------------------------------------
-class CTFMenuActionsPanel : public vgui::EditablePanel
+class CTFMenuFriendsPanel : public CTFMenuCardPanel
 {
-	DECLARE_CLASS_SIMPLE( CTFMenuActionsPanel, vgui::EditablePanel );
+	DECLARE_CLASS_SIMPLE( CTFMenuFriendsPanel, CTFMenuCardPanel );
 public:
-	CTFMenuActionsPanel( vgui::Panel *pParent, const char *pszName );
+	CTFMenuFriendsPanel( vgui::Panel *pParent, const char *pszName );
 
 	virtual void ApplySchemeSettings( vgui::IScheme *pScheme ) OVERRIDE;
 	virtual void PerformLayout() OVERRIDE;
-	virtual void OnCommand( const char *pszCommand ) OVERRIDE;
-	virtual void OnTick() OVERRIDE;
 
 private:
-	// Applied from OnTick rather than from ApplySchemeSettings: vgui::Button
-	// re-reads its own colours out of the scheme, and whichever of the two runs
-	// last wins. This one always does.
-	void ApplyButtonStyle();
-
-	CExButton *m_pPlayButton;
-
-	vgui::HFont m_hBigFont;
-
-	Color m_colText;
-	Color m_colGo;
-	Color m_colGoArmed;
-	Color m_colStop;
-	Color m_colStopArmed;
-
-	bool m_bShowingCancel;
-	bool m_bStateKnown;
+	class CSteamFriendsListPanel *m_pFriends;
 };
 
 //-----------------------------------------------------------------------------
@@ -229,7 +210,6 @@ public:
 	void Reload();
 
 private:
-	CTFMenuActionsPanel *m_pActions;
 	CTFCampaignMapPanel *m_pCampaign;
 	CTFQueueInfoPanel   *m_pQueue;
 	CTFMenuNewsPanel    *m_pNews;

@@ -206,6 +206,7 @@ private:
 
 	CInteractiveWebPanel* m_pMainMenuWebUi;
 	class CTFMainMenuInfoPanel* m_pInfoPanel;
+	class CTFMenuFriendsPanel*  m_pFriendsPanel;
 
 public:
 	// Called when tf_main_menu_html changes. Public because the convar's
