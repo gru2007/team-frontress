@@ -35,10 +35,9 @@ fi
 #trap 'echo "Received SIGTERM, shutting down gracefully..." && kill -TERM $!' SIGTERM
 #trap 'echo "Received SIGPIPE, shutting down gracefully..." && continue' SIGPIPE
 
-# The client binds loopback; a dedicated server must not, and a server told to
-# bind 0.0.0.0 used to have that overridden by the default appended after it.
-# So the default is only applied when the caller did not pass one.
-IP_DEFAULT=(+ip 127.0.0.1)
+# Bind the Source networking sockets on all interfaces by default.
+# Keep an explicit caller-supplied +ip untouched.
+IP_DEFAULT=(+ip 0.0.0.0)
 case " $* " in
   *" +ip "*) IP_DEFAULT=() ;;
 esac

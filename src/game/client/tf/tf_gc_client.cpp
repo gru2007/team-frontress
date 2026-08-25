@@ -277,9 +277,16 @@ void CTFGCClientSystem::FireGameEvent( IGameEvent *event )
 	// Started attempting connection to gameserver
 	if ( !Q_stricmp( pEventName, "client_beginconnect" ) )
 	{
-		Assert( IsConnectStateDisconnected() );
-
-		// TODO does the retry command set this source? It should go through ::ConnectToServer
+		// ConnectToServer() marks coordinator-driven connects as matchmade before
+		// handing the command to the engine. Preserve that state when the engine
+		// emits client_beginconnect. The source tag also covers stock retry paths.
+		const char *pszSource = event->GetString( "source", "" );
+		if ( m_eConnectState == eConnectState_ConnectingToMatchmade ||
+		     FStrEq( pszSource, "matchmaking" ) )
+		{
+			m_eConnectState = eConnectState_ConnectingToMatchmade;
+		}
+		else
 		{
 			m_eConnectState = eConnectState_NonmatchmadeServer;
 		}
