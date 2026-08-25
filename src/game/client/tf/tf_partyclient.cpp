@@ -1098,6 +1098,16 @@ bool CTFPartyClient::BInStandbyQueue() const
 //-----------------------------------------------------------------------------
 bool CTFPartyClient::BCanQueueForStandby() const
 {
+	// The local backend owns one matchmaking state at a time. Stock TF2 can
+	// queue standby while already in another live match, but our backend cannot
+	// represent both states safely, so do not advertise an action it will refuse.
+	if ( TFMMBackend()->BActive() )
+	{
+		const ETFMMState eState = TFMMBackend()->GetState();
+		if ( eState != k_eTFMMState_Idle && eState != k_eTFMMState_Searching )
+			return false;
+	}
+
 	// Don't need to check the party since standby queue is per-individual
 	if ( BCurrentMatchOrInviteDisallowsQueuing( /* bCheckParty */ false ) || BInStandbyQueue() || !BHaveActiveParty() )
 		{ return false; }

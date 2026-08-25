@@ -105,13 +105,12 @@ func (m *Matchmaker) boot(ctx context.Context, mt *Match) {
 	mt.waitDetail = ""
 	m.mu.Unlock()
 
-	// A battlefield may allow more players than the group's own ceiling, and
-	// the match was formed against the battlefield's number (see battleSizes).
-	// Sending that roster to a server told to hold group.MaxPlayers means the
-	// last people to arrive are refused for a full server -- by us.
-	maxPlayers := group.MaxPlayers
-	if n := len(mt.Players); n > maxPlayers {
-		maxPlayers = n
+	// Stock CMatchInfo snapshots fixed_match_size when the lobby is first
+	// created. Send the capacity selected for this specific match, not the
+	// initial roster size and not necessarily the group's global ceiling.
+	maxPlayers := matchCapacity(mt, group)
+	if maxPlayers < len(mt.Players) {
+		maxPlayers = len(mt.Players)
 	}
 
 	spec := Spec{

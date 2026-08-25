@@ -82,6 +82,9 @@ type Match struct {
 	ID         string
 	MatchGroup wire.MatchGroup
 	Map        string
+	// MaxPlayers is the capacity selected for this particular match. A
+	// battlefield may be smaller than its match group's global ceiling.
+	MaxPlayers int
 	Server     *pool.Server
 	Players    []wire.AssignedPlayer
 	Password   string
@@ -313,10 +316,11 @@ func (m *Matchmaker) standbySeatLocked(group config.MatchGroupConfig, t *Ticket)
 		}
 	}
 
-	if len(mt.Players)+t.Size() > group.MaxPlayers {
+	capacity := matchCapacity(mt, group)
+	if len(mt.Players)+t.Size() > capacity {
 		return nil, wire.TeamUnassigned, fmt.Errorf("that match is full")
 	}
-	team, ok := roomFor(mt, t.Size(), group.TeamCap())
+	team, ok := roomFor(mt, t.Size(), matchTeamCap(mt, group))
 	if !ok {
 		return nil, wire.TeamUnassigned, fmt.Errorf("neither team in that match has room for %d more", t.Size())
 	}

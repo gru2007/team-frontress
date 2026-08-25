@@ -99,13 +99,14 @@ func (r *RCONSetup) Setup(ctx context.Context, s *pool.Server, spec Spec) error 
 	// still runs matches, just as a passworded community server with none of
 	// the above.
 	if roster := rosterArg(spec.Roster); roster != "" {
-		begin := fmt.Sprintf("tf_mm_match_begin %s %d %s %s %s %s",
+		begin := fmt.Sprintf("tf_mm_match_begin %s %d %s %s %s %s %d",
 			quote(spec.MatchID),
 			int(spec.MatchGroup),
 			quote(spec.Map),
 			quote(spec.ServerConfig),
 			quote(spec.Password),
-			quote(roster))
+			quote(roster),
+			spec.MaxPlayers)
 		out, err := c.Exec(begin)
 		if err != nil {
 			return fmt.Errorf("rcon %q: %w", "tf_mm_match_begin", err)
@@ -130,7 +131,7 @@ func classifyMatchAddReply(out string) (supported, accepted bool) {
 	if strings.Contains(strings.ToLower(out), "unknown command") {
 		return false, false
 	}
-	return true, strings.Contains(out, matchAddOKPrefix)
+	return true, strings.Contains(out, matchAddOKPrefix) || strings.Contains(out, "TFMM_MATCH_ADD_PLAIN")
 }
 
 // AddPlayers announces new seats in a running match.

@@ -46,7 +46,7 @@ func (m *Matchmaker) backfill(ctx context.Context, group config.MatchGroupConfig
 
 	for _, t := range queue {
 		for _, mt := range open {
-			team, ok := roomFor(mt, t.Size(), group.TeamCap())
+			team, ok := roomFor(mt, t.Size(), matchTeamCap(mt, group))
 			if !ok {
 				continue
 			}
@@ -172,6 +172,7 @@ func (m *Matchmaker) releaseTicketFromMatchLocked(mt *Match, t *Ticket) {
 		if id == t.ID {
 			mt.tickets = append(mt.tickets[:i], mt.tickets[i+1:]...)
 			break
+		}
 	}
 
 	// Back in the queue, keeping the wait they had already served.
@@ -180,20 +181,33 @@ func (m *Matchmaker) releaseTicketFromMatchLocked(mt *Match, t *Ticket) {
 	t.assignment = nil
 }
 
+// matchCapacity is the ceiling for one already-formed match. Old in-memory
+// matches that predate MaxPlayers fall back to their group.
+func matchCapacity(mt *Match, group config.MatchGroupConfig) int {
+	if mt != nil && mt.MaxPlayers > 0 {
+		return mt.MaxPlayers
+	}
+	return group.MaxPlayers
+}
+
+func matchTeamCap(mt *Match, group config.MatchGroupConfig) int {
+	return matchCapacity(mt, group) / 2
+}
+
 // openMatchesLocked returns the live matches of a group that will take more
 // players, emptiest first so the queue spreads rather than piling onto one.
-func (m *Matchmaker) openMatchesLocked(group config.MatchGroupConfig) []*Match {
+func (m *Matchmaker) openMatchesLocked(groupCfg config.MatchGroupConfig) []*Match {
 	now := m.now()
 	var out []*Match
 	for _, mt := range m.matches {
-		if mt.state != msLive || mt.MatchGroup != group.MatchGroup {
+		if mt.state != msLive || mt.MatchGroup != groupCfg.MatchGroup {
 			continue
 		}
-		if len(mt.Players) >= group.MaxPlayers {
+		if len(mt.Players) >= matchCapacity(mt, groupCfg) {
 			continue
 		}
-		if group.BackfillSecs > 0 &&
-			now.Sub(mt.startedAt) > time.Duration(group.BackfillSecs)*time.Second {
+		if groupCfg.BackfillSecs > 0 &&
+			now.Sub(mt.startedAt) > time.Duration(groupCfg.BackfillSecs)*time.Second {
 			continue
 		}
 		out = append(out, mt)

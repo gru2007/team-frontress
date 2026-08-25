@@ -227,6 +227,7 @@ func (m *Matchmaker) buildMatchLocked(group config.MatchGroupConfig, battle *war
 	mt := &Match{
 		ID:         m.newID(),
 		MatchGroup: group.MatchGroup,
+		MaxPlayers: group.MaxPlayers,
 		Password:   randomID()[:8],
 		state:      msBooting,
 		createdAt:  m.now(),
@@ -246,6 +247,7 @@ func (m *Matchmaker) buildMatchLocked(group config.MatchGroupConfig, battle *war
 		} else {
 			field = fieldByName(b.Fields, mt.Map, field)
 		}
+		mt.MaxPlayers = fieldSizes(group, field).max
 
 		mt.FrontID = front.ID
 		attackerTeam = wire.Team(b.AttackerTeam)

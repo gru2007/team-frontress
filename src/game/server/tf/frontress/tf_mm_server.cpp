@@ -89,6 +89,7 @@ CTFMMServer::CTFMMServer()
 	: CAutoGameSystemPerFrame( "CTFMMServer" )
 	, m_bPublished( false )
 	, m_bWarnedPublishFailed( false )
+	, m_ulPlainMatchID( 0 )
 	, m_bAwaitingMap( false )
 {
 }
@@ -155,10 +156,11 @@ void CTFMMServer::FrameUpdatePreEntityThink()
 //-----------------------------------------------------------------------------
 void CTFMMServer::BeginMatch( uint64 ulMatchID, int nMatchGroup, const char *pszMap,
                               const char *pszServerConfig, const char *pszFallbackPassword,
-                              const CUtlVector< TFMMSeat_t > &vecSeats )
+                              const CUtlVector< TFMMSeat_t > &vecSeats, int nMaxPlayers )
 {
 	if ( !BActive() )
 	{
+		m_ulPlainMatchID = ulMatchID;
 		Warning( "[mmsrv] cannot start a match: no game server Steam ID yet. "
 		         "Set sv_setsteamaccount to a Game Server Login Token and restart.\n" );
 		// The coordinator hands the map change to this command and does not
@@ -183,6 +185,7 @@ void CTFMMServer::BeginMatch( uint64 ulMatchID, int nMatchGroup, const char *psz
 
 	m_strFallbackPassword = pszFallbackPassword ? pszFallbackPassword : "";
 	m_strServerConfig = pszServerConfig ? pszServerConfig : "";
+	m_ulPlainMatchID = 0;
 
 	m_msgLobby.Clear();
 	// The lobby id has to be non-zero and stable; the match id is the only
@@ -193,7 +196,9 @@ void CTFMMServer::BeginMatch( uint64 ulMatchID, int nMatchGroup, const char *psz
 	m_msgLobby.set_map_name( pszMap ? pszMap : "" );
 	m_msgLobby.set_server_id( OurSteamID().ConvertToUint64() );
 	m_msgLobby.set_formed_time( CRTime::RTime32TimeCur() );
-	m_msgLobby.set_fixed_match_size( vecSeats.Count() );
+	// CMatchInfo snapshots this value when the lobby is created. It is
+	// the capacity of the match, not merely the initial roster size.
+	m_msgLobby.set_fixed_match_size( MAX( nMaxPlayers, vecSeats.Count() ) );
 	m_msgLobby.set_late_join_eligible( true );
 
 	// SERVERSETUP is the state CTFGCServerSystem reacts to by building a
@@ -267,6 +272,7 @@ void CTFMMServer::BeginMatch( uint64 ulMatchID, int nMatchGroup, const char *psz
 	}
 
 	{
+		m_ulPlainMatchID = ulMatchID;
 		m_bAwaitingMap = false;
 		tf_mm_servermode.SetValue( 0 );
 		tf_mm_strict.SetValue( 0 );
@@ -321,6 +327,8 @@ int CTFMMServer::AddSeats( uint64 ulMatchID, const CUtlVector< TFMMSeat_t > &vec
 {
 	if ( !m_bPublished )
 	{
+		if ( m_ulPlainMatchID == ulMatchID )
+			return -2; // deliberate password fallback; no roster gate exists
 		Warning( "[mmsrv] cannot add players: this server has no match\n" );
 		return -1;
 	}
@@ -379,7 +387,6 @@ int CTFMMServer::AddSeats( uint64 ulMatchID, const CUtlVector< TFMMSeat_t > &vec
 	// Bumping the version is what tells the server-side heartbeat that this
 	// lobby is not the one it last acted on.
 	m_msgLobby.set_lobby_mm_version( m_msgLobby.lobby_mm_version() + 1 );
-	m_msgLobby.set_fixed_match_size( m_msgLobby.members_size() );
 
 	if ( !BPublishLobby() )
 	{
@@ -404,13 +411,16 @@ int CTFMMServer::AddSeats( uint64 ulMatchID, const CUtlVector< TFMMSeat_t > &vec
 //-----------------------------------------------------------------------------
 void CTFMMServer::EndMatch( const char *pszWhy )
 {
-	if ( !m_bPublished )
+	if ( !m_bPublished && m_ulPlainMatchID == 0 )
 		return;
 
+	const uint64 ulEndingMatchID = m_bPublished ? m_msgLobby.match_id() : m_ulPlainMatchID;
 	Msg( "[mmsrv] match %016llx over (%s)\n",
-	     (unsigned long long)m_msgLobby.match_id(), pszWhy ? pszWhy : "no reason given" );
+	     (unsigned long long)ulEndingMatchID, pszWhy ? pszWhy : "no reason given" );
 
-	DestroyLobby();
+	if ( m_bPublished )
+		DestroyLobby();
+	m_ulPlainMatchID = 0;
 	m_bAwaitingMap = false;
 	m_strMap.Clear();
 
@@ -873,6 +883,9 @@ CON_COMMAND( tf_mm_match_begin, "Take a match from the matchmaking coordinator."
 
 	CUtlVector< TFMMSeat_t > vecSeats;
 	ParseSeats( args[6], vecSeats );
+	const int nMaxPlayers = args.ArgC() >= 8
+		? MAX( atoi( args[7] ), vecSeats.Count() )
+		: vecSeats.Count();
 
 	if ( vecSeats.Count() == 0 )
 	{
@@ -886,7 +899,7 @@ CON_COMMAND( tf_mm_match_begin, "Take a match from the matchmaking coordinator."
 	}
 
 	TFMMServer()->BeginMatch( ulMatchID, nMatchGroup, pszMap, pszServerConfig,
-	                          pszFallbackPassword, vecSeats );
+	                          pszFallbackPassword, vecSeats, nMaxPlayers );
 }
 
 //-----------------------------------------------------------------------------
@@ -919,6 +932,11 @@ CON_COMMAND( tf_mm_match_add, "Add players to the match this server is running."
 	}
 
 	const int nAdded = TFMMServer()->AddSeats( ulMatchID, vecSeats );
+	if ( nAdded == -2 )
+	{
+		Msg( "TFMM_MATCH_ADD_PLAIN %s\n", args[1] );
+		return;
+	}
 	if ( nAdded < 0 )
 	{
 		Msg( "TFMM_MATCH_ADD_FAILED %s\n", args[1] );

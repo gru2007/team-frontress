@@ -1998,11 +1998,29 @@ void CTFMMBackend::EnterState( ETFMMState eState )
 //-----------------------------------------------------------------------------
 void CTFMMBackend::Fail( const char *pszReason )
 {
+	// A refused standby seat is not the same thing as the party leaving its
+	// match. Preserve the local associated lobby that makes the stock standby
+	// button available, so a temporary full/error response can be retried.
+	const bool bWasStandby = !m_strStandbyMatchID.IsEmpty();
+	const bool bHadAssociation = bWasStandby && m_msgParty.has_associated_lobby_id();
+	const uint64 ulAssociatedLobby = bHadAssociation ? m_msgParty.associated_lobby_id() : 0;
+	const ETFMatchGroup eAssociatedGroup = bHadAssociation
+		? (ETFMatchGroup)m_msgParty.associated_lobby_match_group()
+		: k_eTFMatchGroup_Invalid;
+
 	m_strLastError = pszReason ? pszReason : "";
 	m_strTicketID.Clear();
 	m_msgParty.clear_matchmaking_queues();
-	PublishParty();
 	EnterState( k_eTFMMState_Idle );
+
+	if ( bHadAssociation )
+	{
+		m_msgParty.set_associated_lobby_id( ulAssociatedLobby );
+		m_msgParty.set_associated_lobby_match_group( eAssociatedGroup );
+	}
+	PublishParty();
+	if ( GTFPartyClient() )
+		GTFPartyClient()->ForcePartyUpdate();
 
 	Warning( "Matchmaking stopped: %s\n", m_strLastError.Get() );
 }

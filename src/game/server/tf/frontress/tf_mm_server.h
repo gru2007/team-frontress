@@ -70,7 +70,7 @@ public:
 	// including changing to the map, which CTFGCServerSystem does for us.
 	void BeginMatch( uint64 ulMatchID, int nMatchGroup, const char *pszMap,
 	                 const char *pszServerConfig, const char *pszFallbackPassword,
-	                 const CUtlVector< TFMMSeat_t > &vecSeats );
+	                 const CUtlVector< TFMMSeat_t > &vecSeats, int nMaxPlayers );
 
 	// Sell more seats in the match that is already running. This is how
 	// backfill and standby get past the roster gate: the gate is the lobby, so
@@ -111,6 +111,9 @@ private:
 	CSOTFGameServerLobby m_msgLobby;
 	bool        m_bPublished;
 	bool        m_bWarnedPublishFailed;
+	// Non-zero while this match intentionally runs as a plain/password
+	// fallback. There is no roster gate to update in that mode.
+	uint64      m_ulPlainMatchID;
 	// Set while we are waiting for the map change the lobby triggered, so the
 	// lobby can be flipped from SERVERSETUP to RUN once we are on it.
 	bool        m_bAwaitingMap;
