@@ -123,7 +123,7 @@ bool CTFMMServer::BActive() const
 }
 
 //-----------------------------------------------------------------------------
-void CTFMMServer::Update( float frametime )
+void CTFMMServer::FrameUpdatePreEntityThink()
 {
 	if ( !m_bPublished || !m_bAwaitingMap )
 		return;
@@ -140,9 +140,13 @@ void CTFMMServer::Update( float frametime )
 	if ( !pszMap || V_stricmp( pszMap, m_strMap.Get() ) != 0 )
 		return;
 
-	m_bAwaitingMap = false;
 	m_msgLobby.set_state( CSOTFGameServerLobby_State_RUN );
-	BPublishLobby();
+	if ( !BPublishLobby() )
+	{
+		Warning( "[mmsrv] could not publish the RUN lobby state; will retry\n" );
+		return;
+	}
+	m_bAwaitingMap = false;
 
 	MMSrvDbg( "match %016llx is live on %s\n",
 	          (unsigned long long)m_msgLobby.match_id(), m_strMap.Get() );
@@ -318,7 +322,7 @@ int CTFMMServer::AddSeats( uint64 ulMatchID, const CUtlVector< TFMMSeat_t > &vec
 	if ( !m_bPublished )
 	{
 		Warning( "[mmsrv] cannot add players: this server has no match\n" );
-		return 0;
+		return -1;
 	}
 
 	// A late command for the previous match must not seat somebody in this
@@ -328,8 +332,13 @@ int CTFMMServer::AddSeats( uint64 ulMatchID, const CUtlVector< TFMMSeat_t > &vec
 	{
 		Warning( "[mmsrv] refusing players for match %016llx: this server is running %016llx\n",
 		         (unsigned long long)ulMatchID, (unsigned long long)m_msgLobby.match_id() );
-		return 0;
+		return -1;
 	}
+
+	// Keep an exact copy so a failed cache update cannot leave ghost seats in
+	// the in-memory lobby while the coordinator puts those players back in queue.
+	CSOTFGameServerLobby msgBefore;
+	msgBefore.CopyFrom( m_msgLobby );
 
 	int nAdded = 0;
 	FOR_EACH_VEC( vecSeats, i )
@@ -376,7 +385,15 @@ int CTFMMServer::AddSeats( uint64 ulMatchID, const CUtlVector< TFMMSeat_t > &vec
 	{
 		Warning( "[mmsrv] could not publish the lobby after adding %d players; "
 		         "they will be turned away at the door\n", nAdded );
-		return 0;
+
+		// The coordinator treats this admission as failed and re-queues the
+		// tickets. Roll our local roster back to the same truth. BPublishLobby
+		// is retried with the old object as well in case its replace path had
+		// already removed the previous cache object before the create failed.
+		m_msgLobby.CopyFrom( msgBefore );
+		if ( !BPublishLobby() )
+			Warning( "[mmsrv] could not restore the lobby after a failed seat update\n" );
+		return -1;
 	}
 
 	Msg( "[mmsrv] match %016llx: %d seat(s) added, %d in the match\n",
@@ -464,13 +481,15 @@ bool CTFMMServer::BPublishLobby()
 	if ( !m_msgLobby.SerializeToString( &strData ) )
 		return false;
 
-	// Republishing an unchanged object walks every listener for nothing, and
-	// on this side a listener means "re-examine the whole match".
-	if ( m_bPublished && strData == m_strLastPublished.Get() )
-		return true;
-
 	GCSDK::CSharedObjectTypeCache *pType = pCache->FindBaseTypeCache( CTFGSLobby::k_nTypeID );
 	const bool bExists = ( pType && pType->GetCount() > 0 );
+
+	// Republishing an unchanged object walks every listener for nothing, and
+	// on this side a listener means "re-examine the whole match". The cache
+	// object must still exist: a failed replace may have destroyed it before
+	// the replacement create failed.
+	if ( m_bPublished && bExists && strData == m_strLastPublished.Get() )
+		return true;
 
 	bool bOK = bExists
 		? pCache->BUpdateFromMsg( CTFGSLobby::k_nTypeID, strData.data(), (uint32)strData.size() )
@@ -899,7 +918,13 @@ CON_COMMAND( tf_mm_match_add, "Add players to the match this server is running."
 		return;
 	}
 
-	TFMMServer()->AddSeats( ulMatchID, vecSeats );
+	const int nAdded = TFMMServer()->AddSeats( ulMatchID, vecSeats );
+	if ( nAdded < 0 )
+	{
+		Msg( "TFMM_MATCH_ADD_FAILED %s\n", args[1] );
+		return;
+	}
+	Msg( "TFMM_MATCH_ADD_OK %s %d\n", args[1], nAdded );
 }
 
 //-----------------------------------------------------------------------------

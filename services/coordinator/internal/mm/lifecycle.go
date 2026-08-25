@@ -180,6 +180,7 @@ func (m *Matchmaker) failMatch(mt *Match, cause error, requeue bool) {
 	defer m.mu.Unlock()
 
 	mt.state = msOver
+	mt.endedAt = m.now()
 	for _, id := range mt.tickets {
 		t, ok := m.tickets[id]
 		if !ok {
@@ -321,11 +322,26 @@ func (m *Matchmaker) endMatch(ctx context.Context, mt *Match, res *wire.MatchRes
 		return
 	}
 	mt.state = msOver
+	mt.endedAt = m.now()
 	srv := mt.Server
 	frontID := mt.FrontID
 	briefing := mt.War
-	for _, id := range mt.tickets {
+
+	// Copy the ids because releaseTicketFromMatchLocked removes pending
+	// tickets from mt.tickets as it re-queues them.
+	ticketIDs := append([]string(nil), mt.tickets...)
+	for _, id := range ticketIDs {
 		if t, ok := m.tickets[id]; ok && t.state != tsFailed {
+			// A backfill/standby (or a match still booting) can be in tsMatched
+			// without ever having received an assignment. Marking that ticket
+			// assigned here produces an impossible client state: "assigned"
+			// with no server address. Give the unannounced seat back instead,
+			// and remove it from the result roster so it cannot be counted as an
+			// abandon for a server it was never told to join.
+			if t.state == tsMatched && t.assignment == nil {
+				m.releaseTicketFromMatchLocked(mt, t)
+				continue
+			}
 			// Keep the assignment fetchable: a client that reconnects during
 			// the match-over screen still wants to know where it was.
 			t.state = tsAssigned

@@ -60,7 +60,7 @@ public:
 
 	virtual bool Init() OVERRIDE;
 	virtual void Shutdown() OVERRIDE;
-	virtual void Update( float frametime ) OVERRIDE;
+	virtual void FrameUpdatePreEntityThink() OVERRIDE;
 
 	// Are we standing in for the GC on this server right now?
 	bool BActive() const;

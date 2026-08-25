@@ -121,6 +121,18 @@ func (r *RCONSetup) Setup(ctx context.Context, s *pool.Server, spec Spec) error 
 	return nil
 }
 
+const matchAddOKPrefix = "TFMM_MATCH_ADD_OK"
+
+// classifyMatchAddReply distinguishes an old unmodified server (which has no
+// roster gate and therefore needs no admission command) from one of our servers
+// that understood the command but failed to update its lobby.
+func classifyMatchAddReply(out string) (supported, accepted bool) {
+	if strings.Contains(strings.ToLower(out), "unknown command") {
+		return false, false
+	}
+	return true, strings.Contains(out, matchAddOKPrefix)
+}
+
 // AddPlayers announces new seats in a running match.
 //
 // A server that does not know the command says so, and that is not an error: it
@@ -139,10 +151,23 @@ func (r *RCONSetup) AddPlayers(ctx context.Context, s *pool.Server, matchID stri
 	defer c.Close()
 
 	cmd := fmt.Sprintf("tf_mm_match_add %s %s", quote(matchID), quote(seats))
-	if _, err := c.Exec(cmd); err != nil {
+	out, err := c.Exec(cmd)
+	if err != nil {
 		return fmt.Errorf("rcon %q: %w", "tf_mm_match_add", err)
 	}
-	return nil
+
+	supported, accepted := classifyMatchAddReply(out)
+	if !supported {
+		return nil
+	}
+	if accepted {
+		return nil
+	}
+	reply := strings.TrimSpace(out)
+	if reply == "" {
+		reply = "<empty response>"
+	}
+	return fmt.Errorf("rcon %q was not acknowledged: %s", "tf_mm_match_add", reply)
 }
 
 // PlayerCount asks the server how many humans are on it.

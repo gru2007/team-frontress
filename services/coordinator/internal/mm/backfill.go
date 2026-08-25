@@ -142,37 +142,42 @@ func (m *Matchmaker) releaseSeats(mt *Match, tickets []*Ticket, why string) {
 		if t.state != tsMatched || t.matchID != mt.ID {
 			continue
 		}
-
-		// Take their players back out of the match.
-		kept := mt.Players[:0]
-		for _, p := range mt.Players {
-			drop := false
-			for _, mine := range t.Players {
-				if mine.SteamID == p.SteamID {
-					drop = true
-					break
-				}
-			}
-			if !drop {
-				kept = append(kept, p)
-			}
-		}
-		mt.Players = kept
-
-		for i, id := range mt.tickets {
-			if id == t.ID {
-				mt.tickets = append(mt.tickets[:i], mt.tickets[i+1:]...)
-				break
-			}
-		}
-
-		// Back in the queue, keeping the wait they had already served.
-		t.state = tsSearching
-		t.matchID = ""
-		t.assignment = nil
+		m.releaseTicketFromMatchLocked(mt, t)
 	}
 
 	m.log.Warn("gave back seats in a running match", "match", mt.ID, "why", why, "tickets", len(tickets))
+}
+
+// releaseTicketFromMatchLocked rolls one not-yet-announced ticket back to the
+// queue. The caller holds m.mu. It is shared by the ordinary RCON-failure path
+// and endMatch, where a match can finish while an admission RPC is in flight.
+func (m *Matchmaker) releaseTicketFromMatchLocked(mt *Match, t *Ticket) {
+	// Take their players back out of the match.
+	kept := mt.Players[:0]
+	for _, p := range mt.Players {
+		drop := false
+		for _, mine := range t.Players {
+			if mine.SteamID == p.SteamID {
+				drop = true
+				break
+			}
+		}
+		if !drop {
+			kept = append(kept, p)
+		}
+	}
+	mt.Players = kept
+
+	for i, id := range mt.tickets {
+		if id == t.ID {
+			mt.tickets = append(mt.tickets[:i], mt.tickets[i+1:]...)
+			break
+	}
+
+	// Back in the queue, keeping the wait they had already served.
+	t.state = tsSearching
+	t.matchID = ""
+	t.assignment = nil
 }
 
 // openMatchesLocked returns the live matches of a group that will take more

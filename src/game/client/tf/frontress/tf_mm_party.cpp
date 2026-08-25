@@ -24,6 +24,7 @@
 #include "clientmode_tf.h"
 #include "clientsteamcontext.h"
 #include "fmtstr.h"
+#include "tf_gc_client.h"
 #include "tf_partyclient.h"
 
 // memdbgon must be the last include file in a .cpp file!!!

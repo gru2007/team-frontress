@@ -92,7 +92,7 @@ void CSteamFriendPanel::OnCommand( const char *command )
 				// "Join server" is only worth offering when there is a server
 				// to join. gameInfo says whether they are on one at all, which
 				// is a better answer than the hardcoded true this used to use.
-				const bool bOnAServer = ( gameInfo.m_gameServerIP != 0 && gameInfo.m_gameServerPort != 0 );
+				const bool bOnAServer = ( gameInfo.m_unGameIP != 0 && gameInfo.m_usGamePort != 0 );
 				if ( bOnAServer )
 				{
 					contextMenuBuilder.AddMenuItem( "#TF_Friends_JoinServer", new KeyValues( "Context_JoinServer" ), "server" );
@@ -152,17 +152,17 @@ void CSteamFriendPanel::DoJoinServer()
 	FriendGameInfo_t gameInfo;
 	if ( !steamapicontext || !steamapicontext->SteamFriends() ||
 	     !steamapicontext->SteamFriends()->GetFriendGamePlayed( m_steamID, &gameInfo ) ||
-	     gameInfo.m_gameServerIP == 0 )
+	     gameInfo.m_unGameIP == 0 )
 	{
 		Msg( "That player is not on a server right now.\n" );
 		return;
 	}
 
-	const uint32 unIP = gameInfo.m_gameServerIP;
+	const uint32 unIP = gameInfo.m_unGameIP;
 	CFmtStr strConnect( "connect %u.%u.%u.%u:%u",
 	                    ( unIP >> 24 ) & 0xFF, ( unIP >> 16 ) & 0xFF,
 	                    ( unIP >> 8 ) & 0xFF, unIP & 0xFF,
-	                    (unsigned)gameInfo.m_gameServerPort );
+	                    (unsigned)gameInfo.m_usGamePort );
 
 	// A matchmade server is passworded or roster-gated, and the honest thing
 	// is to let the connect fail and say why rather than pretend.

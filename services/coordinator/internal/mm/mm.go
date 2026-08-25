@@ -94,6 +94,7 @@ type Match struct {
 	waitDetail   string
 	tickets      []string
 	createdAt    time.Time
+	endedAt      time.Time
 	startedAt    time.Time
 	lastNonEmpty time.Time
 	lastPolled   time.Time
@@ -246,9 +247,15 @@ func (m *Matchmaker) Enqueue(t *Ticket) (*Ticket, error) {
 		if old, ok := m.tickets[oldID]; ok {
 			switch old.state {
 			case tsMatched, tsAssigned:
-				// Already in a match. Hand back what they have rather than
-				// queueing them for a second one.
-				return old, nil
+				// Hand back an active match, but never replay an assignment for
+				// a match that is already over (or has already aged out of the
+				// match table). Without this, pressing search after one completed
+				// game can send the party back to the old server.
+				if old.matchID != "" {
+					if mt, exists := m.matches[old.matchID]; exists && mt.state != msOver {
+						return old, nil
+					}
+				}
 			}
 			old.state = tsCancelled
 		}
@@ -553,7 +560,17 @@ func (m *Matchmaker) expire() {
 		}
 	}
 	for id, mt := range m.matches {
-		if mt.state == msOver && now.Sub(mt.createdAt) > assignTTL {
+		if mt.state != msOver {
+			continue
+		}
+		// AssignmentTTL is a retention window *after the match ended*, not a
+		// maximum match lifetime. Using createdAt deleted any match that had
+		// simply lasted longer than the TTL almost immediately at game over.
+		endedAt := mt.endedAt
+		if endedAt.IsZero() {
+			endedAt = mt.createdAt // defensive compatibility for an old in-memory match
+		}
+		if now.Sub(endedAt) > assignTTL {
 			delete(m.matches, id)
 		}
 	}
