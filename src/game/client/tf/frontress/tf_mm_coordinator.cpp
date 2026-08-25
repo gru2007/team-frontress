@@ -50,30 +50,77 @@ CTFMMCoordinator::~CTFMMCoordinator()
 }
 
 //-----------------------------------------------------------------------------
+// The identity the ticket is issued for. Steam records it alongside the ticket
+// and the coordinator does not check it, but a ticket minted for "this service"
+// is not reusable against a different one, which is the whole point of naming
+// it.
+#define TFMM_WEBAPI_IDENTITY "frontress-coordinator"
+
+//-----------------------------------------------------------------------------
+// Purpose: The ticket the coordinator can actually verify.
+//
+//			This used to be GetAuthSessionTicket, whose own header says of it:
+//			"not to be used for ISteamUserAuth\AuthenticateUserTicket - it will
+//			fail". It does fail, with Invalid ticket (101), which is what the
+//			coordinator logged for every queue request from a client whose
+//			Steam was new enough to enforce it. GetAuthTicketForWebApi is the
+//			one that endpoint accepts.
+//
+//			It is asynchronous, so this returns empty until the ticket lands.
+//			Callers must cope with that -- see SendQueueRequest, which waits.
+//-----------------------------------------------------------------------------
 const char *CTFMMCoordinator::GetAuthTicket()
 {
 	if ( !m_strTicket.IsEmpty() )
 		return m_strTicket.Get();
 
-	if ( !steamapicontext || !steamapicontext->SteamUser() || !steamapicontext->SteamUser()->BLoggedOn() )
-		return "";
+	RequestAuthTicket();
+	return "";
+}
 
-	uint8 rgubTicket[1024];
-	uint32 cubTicket = 0;
-	m_hAuthTicket = steamapicontext->SteamUser()->GetAuthSessionTicket( rgubTicket, sizeof( rgubTicket ),
-	                                                                   &cubTicket, NULL );
-	if ( m_hAuthTicket == k_HAuthTicketInvalid || cubTicket == 0 )
-		return "";
+//-----------------------------------------------------------------------------
+void CTFMMCoordinator::RequestAuthTicket()
+{
+	if ( !m_strTicket.IsEmpty() || m_hAuthTicket != k_HAuthTicketInvalid )
+		return; // have one, or one is on the way
+
+	if ( !steamapicontext || !steamapicontext->SteamUser() || !steamapicontext->SteamUser()->BLoggedOn() )
+		return;
+
+	m_hAuthTicket = steamapicontext->SteamUser()->GetAuthTicketForWebApi( TFMM_WEBAPI_IDENTITY );
+	if ( tf_mm_debug.GetBool() )
+		Msg( "[mm] asked Steam for a web API auth ticket\n" );
+}
+
+//-----------------------------------------------------------------------------
+void CTFMMCoordinator::OnWebApiTicket( GetTicketForWebApiResponse_t *pResponse )
+{
+	if ( !pResponse || pResponse->m_hAuthTicket != m_hAuthTicket )
+		return;
+
+	if ( pResponse->m_eResult != k_EResultOK || pResponse->m_cubTicket <= 0 )
+	{
+		Warning( "[mm] Steam would not issue an auth ticket (result %d); "
+		         "a coordinator that verifies tickets will refuse to queue you\n",
+		         (int)pResponse->m_eResult );
+		// Let the next call try again rather than latching the failure.
+		m_hAuthTicket = k_HAuthTicketInvalid;
+		return;
+	}
 
 	// Hex, because that is what the coordinator hands to Steam's web API and
 	// what the rest of this codebase already sends (see BSendMessageComtress).
-	char szHex[ 2 * sizeof( rgubTicket ) + 1 ];
-	for ( uint32 i = 0; i < cubTicket; i++ )
-		V_snprintf( &szHex[ i * 2 ], 3, "%02x", rgubTicket[i] );
-	szHex[ cubTicket * 2 ] = '\0';
+	const int cub = MIN( pResponse->m_cubTicket, (int)GetTicketForWebApiResponse_t::k_nCubTicketMaxLength );
+	CUtlVector< char > vecHex;
+	vecHex.SetCount( cub * 2 + 1 );
+	for ( int i = 0; i < cub; i++ )
+		V_snprintf( &vecHex[ i * 2 ], 3, "%02x", pResponse->m_rgubTicket[i] );
+	vecHex[ cub * 2 ] = '\0';
 
-	m_strTicket = szHex;
-	return m_strTicket.Get();
+	m_strTicket = vecHex.Base();
+
+	if ( tf_mm_debug.GetBool() )
+		Msg( "[mm] web API auth ticket ready (%d bytes)\n", cub );
 }
 
 //-----------------------------------------------------------------------------

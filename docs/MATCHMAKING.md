@@ -192,6 +192,135 @@ for the game: a reservation starts a container running the game, the match is
 played on it, and ending the reservation destroys it. `prefer_docker` asks for
 exactly that.
 
+## The other half: the game server
+
+The client owns `CTFParty` and `CTFGSLobby` in the *player's* shared object
+cache. `src/game/server/tf/frontress/tf_mm_server.cpp` owns `CTFGSLobby` in the
+*game server's* cache, and that one object is what the whole server-side half of
+matchmaking hangs off:
+
+```text
+   coordinator --RCON--> tf_mm_match_begin
+                              |
+                         CTFGSLobby in the server's SO cache
+                              |  CTFGCServerSystem::SOCreated
+                              v
+                          CMatchInfo
+                              |
+      +-----------+-----------+-----------+--------------+
+      |           |           |           |              |
+  roster gate  match group  teams     abandons     the match result
+ (tf_mm_strict) (match HUD,          (who left,   (CMsgGC_Match_Result,
+                 summary)             when)        with per-player stats)
+```
+
+Without it `GetCurrentMatchGroup()` is `k_eTFMatchGroup_Invalid`,
+`SteamIDAllowedToConnect` lets anybody in, teams are advisory and nothing
+reports a result. With it, all of that is stock Valve code doing what it always
+did.
+
+Two seams, and they mirror the client's exactly:
+
+- **the lobby** goes into the cache with `AddLocalSOCache`, the same hand-written
+  `CMsgSOCacheSubscribed` trick and for the same reason;
+- **the outgoing messages** are answered in-process. `tf_gc_shared.h` and
+  `gc_clientsystem.cpp` now offer server messages to `CTFMMServer::BHandleServerMsg`
+  the way they already offered client messages to the backend. Without that the
+  reliable queue wedges on the first message the GC does not answer, and
+  `UpdateConnectedPlayersAndServerInfo` stops running entirely.
+
+### The password is gone, and that is the point
+
+`tf_mm_servermode` — which is what makes `SOCreated` accept a lobby at all —
+refuses to stay on while `sv_password` is set. So the handoff takes the password
+off and puts the roster in its place: `tf_mm_strict 1` makes
+`SteamIDAllowedToConnect` the door, and it opens for exactly the SteamIDs the
+coordinator put in the lobby.
+
+That is a better door. A password is one screenshot away from being public; a
+roster is not. The coordinator still sends the password as a **fallback**: if
+the lobby cannot be published — no GSLT, most likely — the server puts the
+password straight back on and runs as an ordinary passworded community server
+rather than as an open one.
+
+### Getting into a match that is already running
+
+The gate is the lobby, so letting somebody in and putting them in the lobby are
+the same action — there is no separate allow-list that could drift from the
+match. `tf_mm_match_add <match_id> <steamid:team,...>` adds seats to the running
+lobby; `CTFGCServerSystem::SOUpdated` is already watching for a member in
+`RESERVATION_PENDING` that the match does not have yet, and acknowledges them on
+the spot.
+
+Two things use it, and they are the same thing for different reasons:
+
+| | |
+| --- | --- |
+| **backfill** | the coordinator sends the queue into a running match |
+| **standby** | a party member asks to join the match their party is in |
+
+Both go through one path in the coordinator: seats are sold under the lock, the
+ticket is left `matched`, and `admit()` tells the server *before* the client is
+given anything to connect to. If the server cannot be told, the seats are given
+back and the party goes back in the queue — a player left waiting is a far
+better outcome than one bounced off a server they were sent to with no
+explanation.
+
+Standby is one field on the ordinary queue request (`standby_match_id`), so the
+ticket, the poll and the assignment are the same code as everything else. A
+refusal is a refusal with a reason: that match is over, is full, is not this
+group, or neither side has room.
+
+A party member with no seat is deliberately *not* given a lobby object. That
+object means "I am in this match" — `BHaveLiveMatch` reads it — and claiming it
+would both send them at a closed door and switch off the standby button that is
+the way through it.
+
+### What the game reports back
+
+`CMsgGC_Match_Result` is the message the server sends when a match ends, and it
+carries what only the game knows: the real roster, per-player score, kills,
+deaths, damage, healing, support, and who left and why. The backend answers it
+and prints it as `[frontress] match_result …` lines, which `greyline-agent`
+already receives over `logaddress_add` and forwards to `POST /v1/gs/result`.
+
+No new socket in the game DLL, and the agent's log-scraping path stays as the
+fallback for a server that is not running our build.
+
+## What makes a matchmade server "official"
+
+Nothing about a server is permanently official. A server in the pool is a
+community server until the coordinator hands it a match, and it goes back to
+being one when the match ends.
+
+The switch is `tf_match_emulation`, which the coordinator sets over RCON with
+the rest of the per-match setup and clears again on teardown. It is what makes
+`CTFGameRules` report a match group at all — without it `GetCurrentMatchGroup`
+returns `k_eTFMatchGroup_Invalid`, because the server-side answer comes from
+`GTFGCClientSystem()->GetMatch()` and there is no GC to fill that in. The match
+group is what turns on the match HUD, the match summary at game over, and the
+tournament/ready-up handling a group's ruleset asks for.
+
+The game knows two values: `1` is Casual 12v12 and `2` is Ladder 6v6, so the
+coordinator derives it from the group's `match_group`. `match_emulation` on the
+group overrides it.
+
+Two things worth knowing about it:
+
+- **achievements were never the thing gating on this.** `CheckAchievementsEnabled`
+  asks about Steam, commentary mode, demo playback and training — not about
+  whether the server is official. They already unlock on any server here. What
+  official status buys is the match *presentation*, and the post-match flow;
+- **Steam is not in this loop.** Nothing in this repo configures an
+  "official server" concept on the partner site, and nothing in the game reads
+  one: there is no `sv_official`, no official-server flag in the browser code,
+  and the master list only knows AppID, tags and whether the server is secure.
+  Official status here is entirely the coordinator's to grant. The only things
+  Steam genuinely needs uploaded for matchmaking are in `steamworks/` (rich
+  presence localization) and the GSLT in `server.cfg`. If you want certainty
+  about the partner site rather than about this codebase, that is a question
+  for Steamworks support, not one this repo can answer.
+
 ## Reporting the result
 
 `cmd/greyline-agent` runs next to the dedicated server -- inside the container,
@@ -272,18 +401,22 @@ names and the exact `CUtlBuffer` / `CWebAPIValues` signatures.
 ## Known gaps
 
 1. **Nothing game-side has been compiled.** See above.
-2. **Match results come from the agent, not the game.** `greyline-agent` reads
-   the console log and RCON `status`, which is enough for a winner, a score and
-   who was present. It is not enough for anything finer — per-player stats, a
-   round-by-round record — and a game-side reporter is still the better answer
-   if the war grows to want them.
-3. **Teams are advisory.** The coordinator decides who is on which side and the
-   client is told, but nothing on the server enforces it: a player can pick the
-   other team on arrival. Frontline leans on TF2's own autobalance instead,
-   which is fine for casual and not fine for ranked.
-4. **Standby is answered but does nothing.** Asking to join a match your party
-   is already in is a different thing from backfill — it needs the coordinator
-   to seat a specific player in a specific match on request.
+2. **The war does not read the game's result in full.** The game now reports
+   per-player score, kills, deaths, damage, healing and support (see "What the
+   game reports back"), and `greyline-agent` forwards it — but
+   `POST /v1/gs/result` still only records who played and who won. The detail
+   arrives and is dropped.
+3. **Teams are assigned but not locked.** The server has the roster's teams in
+   its match object now, so it puts people where the coordinator said and
+   `CMsgGCChangeMatchPlayerTeamsRequest` keeps the lobby in step when it
+   rebalances. Nothing stops a player choosing the other side on arrival;
+   casual leans on TF2's autobalance, which is fine there and not fine for
+   ranked.
+4. **Standby has no UI beyond the stock button.** It works —
+   `standby_match_id` on the queue request, seated and announced to the server
+   like a backfill — but the only way to reach it is the stock "join your
+   party's match" panel. A member who arrives mid-match is told in the console,
+   not on screen.
 5. **Kicking a party member is impossible.** A Steam lobby has no kick. The
    backend says so rather than pretending.
 6. **Abandon penalties are enforced at the queue, not in the game.** The
@@ -297,11 +430,33 @@ names and the exact `CUtlBuffer` / `CWebAPIValues` signatures.
 8. **One request in flight per client.** The backend serializes its HTTP; a
    cancel while a poll is in flight is handled, but the pattern is a
    simplification, not a general one.
-9. **Backfill does not tell the server anything.** New arrivals just connect
-   with the password. Once a server-side agent exists it should be told who to
-   expect, so a roster gate becomes possible.
+9. **A seat announced to the server is not retried.** `admit()` tells the
+   server about new seats once; if that RCON call fails the party goes back in
+   the queue and tries again on the next tick, which is correct but means a
+   server having a bad minute churns the queue rather than waiting it out.
 10. **`min_players` is per match group, not per front.** A small population gets
     small matches, but the war does not yet ask for a *particular* size.
+11. **A match server is unlisted and roster-gated, so the queue is the only way
+    in.** That is deliberate. Watching is the way around it: a player in a match
+    publishes its SourceTV relay as `tf_stv` rich presence, any friend can read
+    it, and `tf_mm_watch [steamid]` connects there — from the console or from
+    the friends panel's "watch their match". What is still missing is a list:
+    nothing shows the live matches of people who are not on your friends list.
+12. **XP is a match count, not a rating.** `internal/players/progress.go` turns
+    the record into XP and a level — 100 a match, 50 for a win, 150 off for an
+    abandon — and the client publishes it as `CTFRatingData` so the stock badge
+    reads it. It is arithmetic, deliberately: there is no skill model, matchmaking
+    does not use it, and nothing on the ranked side is gated by it yet.
+13. **The lobby settings panel is Valve's, and mostly dead here.**
+    `k_eMMSettings` is `CTFPingPanel`: a ping slider and a datacenter list fed
+    by `GTFGCClientSystem()->BHavePingData()`, which is never true without a
+    GC, so the list is always empty and the slider gates on a ping to nothing.
+    Of the controls that do render, "keep party on the same team" is disabled
+    and marked coming-soon even though the coordinator has always kept parties
+    together, and the invite-mode combo writes `tf_party_join_request_mode`,
+    which nothing reads — the Steam lobby's visibility comes from
+    `tf_mm_party_type`. Two convars for one setting, and the one on screen is
+    the one that does nothing.
 
 ## What stage three plugs into
 

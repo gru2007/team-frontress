@@ -6,6 +6,7 @@
 
 
 #include "cbase.h"
+#include "frontress/tf_mm_backend.h"
 #include "tf_gc_client.h"
 #include "tf_friends_panel.h"
 #include "vgui_avatarimage.h"
@@ -88,11 +89,23 @@ void CSteamFriendPanel::OnCommand( const char *command )
 		{
 			if ( gameInfo.m_gameID.AppID() == (uint32)engine->GetAppID() )
 			{
-				// TODO(mcoms): figure this out
-				bool bTheyAreInACommunityServer = true;
-				if ( bTheyAreInACommunityServer )
+				// "Join server" is only worth offering when there is a server
+				// to join. gameInfo says whether they are on one at all, which
+				// is a better answer than the hardcoded true this used to use.
+				const bool bOnAServer = ( gameInfo.m_gameServerIP != 0 && gameInfo.m_gameServerPort != 0 );
+				if ( bOnAServer )
 				{
 					contextMenuBuilder.AddMenuItem( "#TF_Friends_JoinServer", new KeyValues( "Context_JoinServer" ), "server" );
+				}
+
+				// Watching is the one thing that always works. A matchmade
+				// server will refuse anybody not on its roster, and being told
+				// so by a failed connect is a bad way to learn it -- but the
+				// relay is a separate server with its own slots and no roster
+				// at all, so a friend can always watch.
+				if ( CTFMMParty::GetFriendSTV( m_steamID ) != NULL )
+				{
+					contextMenuBuilder.AddMenuItem( "#TF_Friends_WatchMatch", new KeyValues( "Context_WatchMatch" ), "server" );
 				}
 
 				// You can join someone if you're not in a party, or in a party of just you
@@ -132,7 +145,35 @@ void CSteamFriendPanel::DoJoinParty()
 
 void CSteamFriendPanel::DoJoinServer()
 {
-	// TODO: Prompt to disconnect, potentially, then join
+	// Steam already knows where they are: the same connect string it would use
+	// for "Join Game" in the friends overlay. Reading it here means this
+	// button does exactly what the overlay does, including on a community
+	// server, which is where it used to do nothing at all.
+	FriendGameInfo_t gameInfo;
+	if ( !steamapicontext || !steamapicontext->SteamFriends() ||
+	     !steamapicontext->SteamFriends()->GetFriendGamePlayed( m_steamID, &gameInfo ) ||
+	     gameInfo.m_gameServerIP == 0 )
+	{
+		Msg( "That player is not on a server right now.\n" );
+		return;
+	}
+
+	const uint32 unIP = gameInfo.m_gameServerIP;
+	CFmtStr strConnect( "connect %u.%u.%u.%u:%u",
+	                    ( unIP >> 24 ) & 0xFF, ( unIP >> 16 ) & 0xFF,
+	                    ( unIP >> 8 ) & 0xFF, unIP & 0xFF,
+	                    (unsigned)gameInfo.m_gameServerPort );
+
+	// A matchmade server is passworded or roster-gated, and the honest thing
+	// is to let the connect fail and say why rather than pretend.
+	engine->ClientCmd_Unrestricted( "password \"\"" );
+	engine->ClientCmd_Unrestricted( strConnect.Get() );
+}
+
+void CSteamFriendPanel::DoWatchMatch()
+{
+	engine->ClientCmd_Unrestricted( CFmtStr( "tf_mm_watch %llu",
+	                                         (unsigned long long)m_steamID.ConvertToUint64() ) );
 }
 
 void CSteamFriendPanel::DoInviteToParty()

@@ -27,6 +27,12 @@ const (
 	KindTeamScore Kind = "team_score"
 	// KindMapLoad is a map change: whatever we were tracking is over.
 	KindMapLoad Kind = "map_load"
+	// KindReport is a line the game's own matchmaking backend printed for us
+	// -- "[frontress] <event> <matchid> k=v k=v". It is the game reporting a
+	// result it computed itself, which is strictly better than anything that
+	// can be reconstructed from the console log: it knows who was actually in
+	// the match, who abandoned it and what everyone scored.
+	KindReport Kind = "report"
 	// KindRoundWin is one round inside a match. Reported for completeness;
 	// the coordinator only acts on game over.
 	KindRoundWin Kind = "round_win"
@@ -39,6 +45,10 @@ type Event struct {
 	Team string
 	// Score is the team's score, for KindTeamScore.
 	Score int
+	// Event and Fields carry a KindReport line: the event name and its
+	// key=value pairs, unparsed beyond splitting.
+	Event  string
+	Fields map[string]string
 	// Map is the map name, for KindMapLoad.
 	Map string
 	// Reason is the game over reason, when the server gives one.
@@ -83,6 +93,9 @@ func Parse(line string) (Event, bool) {
 	body = strings.TrimSpace(body)
 
 	switch {
+	case strings.HasPrefix(body, reportPrefix):
+		return parseReport(body)
+
 	case strings.HasPrefix(body, `World triggered "Game_Over"`):
 		return Event{Kind: KindGameOver, Reason: quoted(body, "reason")}, true
 
@@ -108,6 +121,34 @@ func Parse(line string) (Event, bool) {
 		return Event{Kind: KindMapLoad, Map: firstQuoted(body[len("Started map "):])}, true
 	}
 	return Event{}, false
+}
+
+// reportPrefix is the marker CTFMMServer::ReportLine writes. It is a protocol
+// between the game DLL and this package; changing it in one place breaks the
+// other.
+const reportPrefix = "[frontress] "
+
+// parseReport reads "[frontress] <event> <matchid> k=v k=v ...".
+//
+// Deliberately forgiving about the fields: the game may learn to report more of
+// them, and an agent that has not been rebuilt should keep working on the ones
+// it does understand rather than dropping the line.
+func parseReport(body string) (Event, bool) {
+	fields := strings.Fields(strings.TrimPrefix(body, reportPrefix))
+	if len(fields) < 2 {
+		return Event{}, false
+	}
+
+	ev := Event{Kind: KindReport, Event: fields[0], Fields: map[string]string{}}
+	ev.Fields["match_id"] = fields[1]
+	for _, f := range fields[2:] {
+		k, v, ok := strings.Cut(f, "=")
+		if !ok {
+			continue
+		}
+		ev.Fields[k] = v
+	}
+	return ev, true
 }
 
 // quoted returns the quoted string that follows a key, e.g. key "reason" in

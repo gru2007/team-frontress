@@ -39,6 +39,17 @@ func (m *Matchmaker) boot(ctx context.Context, mt *Match) {
 	//   formed -> no server -> requeue -> formed -> ...
 	//
 	// loop into one stable "waiting for server" match.
+	// "match formed" and then nothing is what an operator sees while a
+	// provider spins a container up, and it is indistinguishable from a wedged
+	// coordinator. Say what we are doing before we block on it.
+	m.log.Info("finding a server",
+		"match", mt.ID,
+		"map", mt.Map,
+		"players", len(mt.Players),
+		"deadline", m.cfg.Pool.BootDeadline(),
+	)
+
+	bootStart := m.now()
 	retry := 2 * time.Second
 	var srv *pool.Server
 	for {
@@ -94,13 +105,25 @@ func (m *Matchmaker) boot(ctx context.Context, mt *Match) {
 	mt.waitDetail = ""
 	m.mu.Unlock()
 
+	// A battlefield may allow more players than the group's own ceiling, and
+	// the match was formed against the battlefield's number (see battleSizes).
+	// Sending that roster to a server told to hold group.MaxPlayers means the
+	// last people to arrive are refused for a full server -- by us.
+	maxPlayers := group.MaxPlayers
+	if n := len(mt.Players); n > maxPlayers {
+		maxPlayers = n
+	}
+
 	spec := Spec{
-		MatchID:      mt.ID,
-		Map:          mt.Map,
-		Password:     mt.Password,
-		ServerConfig: group.ServerConfig,
-		Players:      len(mt.Players),
-		MaxPlayers:   group.MaxPlayers,
+		MatchID:        mt.ID,
+		Map:            mt.Map,
+		Password:       mt.Password,
+		ServerConfig:   group.ServerConfig,
+		Players:        len(mt.Players),
+		MaxPlayers:     maxPlayers,
+		MatchEmulation: group.EffectiveMatchEmulation(),
+		MatchGroup:     mt.MatchGroup,
+		Roster:         append([]wire.AssignedPlayer(nil), mt.Players...),
 	}
 	if err := m.setup.Setup(bootCtx, srv, spec); err != nil {
 		if relErr := m.pool.Release(context.WithoutCancel(ctx), srv); relErr != nil {
@@ -126,7 +149,13 @@ func (m *Matchmaker) boot(ctx context.Context, mt *Match) {
 	}
 	m.mu.Unlock()
 
-	m.log.Info("match live", "match", mt.ID, "server", srv.Connect, "map", mt.Map, "players", len(mt.Players))
+	m.log.Info("match live",
+		"match", mt.ID,
+		"server", srv.Connect,
+		"map", mt.Map,
+		"players", len(mt.Players),
+		"boot_took", now.Sub(bootStart).Round(time.Second),
+	)
 }
 
 // teamOf returns the team a ticket's players were put on.
@@ -177,8 +206,12 @@ func (m *Matchmaker) superviseMatches(ctx context.Context) {
 		mt  *Match
 		srv *pool.Server
 	}
+	type ending struct {
+		mt     *Match
+		reason string
+	}
 	var toPoll []check
-	var toEnd []*Match
+	var toEnd []ending
 
 	now := m.now()
 	m.mu.Lock()
@@ -188,15 +221,24 @@ func (m *Matchmaker) superviseMatches(ctx context.Context) {
 			if now.Sub(mt.createdAt) > m.cfg.Pool.BootDeadline()+10*time.Second {
 				// boot() owns this match and should have finished by now.
 				// Something wedged; let it go rather than leak the parties.
-				toEnd = append(toEnd, mt)
+				toEnd = append(toEnd, ending{mt, "server never came up"})
 			}
 		case msLive:
 			if now.Sub(mt.startedAt) > m.cfg.Pool.MaxMatch() {
-				toEnd = append(toEnd, mt)
+				toEnd = append(toEnd, ending{mt, "hit max_match_secs"})
 				continue
 			}
 			if now.Sub(mt.lastNonEmpty) > m.cfg.Pool.IdleEnd() {
-				toEnd = append(toEnd, mt)
+				// Distinguish the two ways this happens. A match nobody
+				// joined and a match we simply could not ask about look
+				// identical from here, and only one of them is the players'
+				// fault -- so say which, or the same "match over" line gets
+				// blamed for both.
+				reason := "empty for idle_end_secs"
+				if !mt.everSeenPlayers {
+					reason = "no player was ever seen on the server"
+				}
+				toEnd = append(toEnd, ending{mt, reason})
 				continue
 			}
 			if now.Sub(mt.lastPolled) > 30*time.Second {
@@ -207,19 +249,25 @@ func (m *Matchmaker) superviseMatches(ctx context.Context) {
 	}
 	m.mu.Unlock()
 
-	for _, mt := range toEnd {
-		m.endMatch(ctx, mt, nil)
+	for _, e := range toEnd {
+		m.endMatch(ctx, e.mt, nil, e.reason)
 	}
 	for _, c := range toPoll {
 		go func(mt *Match, srv *pool.Server) {
 			n, ok := m.setup.PlayerCount(ctx, srv)
 			if !ok {
+				// A match that is about to be ended for being empty when the
+				// truth is that nobody could reach its server is the single
+				// most confusing thing in this log. Say so, once a poll.
+				m.log.Warn("could not count players on the match server",
+					"match", mt.ID, "server", srv.Connect)
 				return
 			}
 			m.mu.Lock()
 			mt.players = n
 			if n > 0 {
 				mt.lastNonEmpty = m.now()
+				mt.everSeenPlayers = true
 			}
 			m.mu.Unlock()
 		}(c.mt, c.srv)
@@ -239,6 +287,7 @@ func (m *Matchmaker) ObserveServer(matchID string, players int) {
 	mt.players = players
 	if players > 0 {
 		mt.lastNonEmpty = m.now()
+		mt.everSeenPlayers = true
 	}
 }
 
@@ -257,14 +306,15 @@ func (m *Matchmaker) ReportResult(ctx context.Context, res wire.MatchResult) err
 	}
 	m.mu.Unlock()
 
-	m.endMatch(ctx, mt, &res)
+	m.endMatch(ctx, mt, &res, "reported by the server")
 	return nil
 }
 
 // endMatch is the single place a match stops existing. res may be nil, which
 // means the match ended without a reported result (empty server, time limit);
-// the war is left untouched in that case, because nobody won.
-func (m *Matchmaker) endMatch(ctx context.Context, mt *Match, res *wire.MatchResult) {
+// the war is left untouched in that case, because nobody won. reason is what
+// to put in the log for a match that ended without one.
+func (m *Matchmaker) endMatch(ctx context.Context, mt *Match, res *wire.MatchResult, reason string) {
 	m.mu.Lock()
 	if mt.state == msOver {
 		m.mu.Unlock()
@@ -303,7 +353,20 @@ func (m *Matchmaker) endMatch(ctx context.Context, mt *Match, res *wire.MatchRes
 			m.log.Warn("could not release server", "server", srv.Connect, "err", err)
 		}
 	}
-	m.log.Info("match over", "match", mt.ID, "reported", res != nil)
+	if reason == "" {
+		reason = "reported by the server"
+	}
+	m.log.Info("match over",
+		"match", mt.ID,
+		"reported", res != nil,
+		"reason", reason,
+		"lasted", func() time.Duration {
+			if mt.startedAt.IsZero() {
+				return 0
+			}
+			return m.now().Sub(mt.startedAt).Round(time.Second)
+		}(),
+	)
 }
 
 // recordPlayers writes what a finished match means for the people who were in

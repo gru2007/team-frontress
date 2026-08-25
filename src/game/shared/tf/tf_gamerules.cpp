@@ -4010,7 +4010,14 @@ CTFGameRules::CTFGameRules()
 #ifdef GAME_DLL
 
 	CMatchInfo *pMatch = GTFGCClientSystem()->GetMatch();
-	if ( pMatch )
+	// SyncMatchSettings already handles the emulated case -- it asks
+	// GetCurrentMatchGroupWithEmulation -- but gating the call on a CMatchInfo
+	// meant it was never reached without a game coordinator, and
+	// m_nMatchGroupType stayed Invalid. That is the variable the client reads
+	// to decide it is in an official match at all, so a matchmade server run
+	// by the coordinator looked like a community server to everyone on it.
+	// FullRestartTournament already asks the question this way.
+	if ( pMatch || IsEmulatingMatch() )
 	{
 		SyncMatchSettings();
 	}

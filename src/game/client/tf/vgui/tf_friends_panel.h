@@ -40,6 +40,7 @@ public:
 	MESSAGE_FUNC( DoInviteToParty, "Context_InviteParty" );
 	MESSAGE_FUNC( DoJoinParty, "Context_JoinParty" );
 	MESSAGE_FUNC( DoJoinServer, "Context_JoinServer" );
+	MESSAGE_FUNC( DoWatchMatch, "Context_WatchMatch" );
 	MESSAGE_FUNC( DoSendMessage, "Context_SendMessage" );
 
 private:

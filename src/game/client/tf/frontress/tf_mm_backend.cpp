@@ -10,6 +10,7 @@
 
 #include "clientsteamcontext.h"
 #include "fmtstr.h"
+#include "inetchannelinfo.h"
 #include "gc_clientsystem.h"
 #include "gcsdk/webapi_response.h"
 #include "rtime.h"
@@ -19,8 +20,10 @@
 #include "tf_matchmaking_shared.h"
 #include "tf_shareddefs.h"
 #include "tf_lobby_server.h"
+#include "tf_match_description.h"
 #include "tf_party.h"
 #include "tf_partyclient.h"
+#include "tf_rating_data.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -43,6 +46,21 @@ CTFMMBackend *TFMMBackend() { return &s_TFMMBackend; }
 // courtesy readout, not something anybody waits on.
 static const float k_flStatusPollInterval = 30.f;
 
+// How long a connect to the match server may take before we call it off. A map
+// download on a slow line is the long case this has to survive.
+static const float k_flConnectGiveUpSecs = 180.f;
+
+// How long a queue request waits for Steam to mint an auth ticket before it
+// goes out without one.
+static const float k_flAuthTicketWaitSecs = 10.f;
+
+// How often the player's own record is refreshed at the menu. It only changes
+// when a match ends, and that path asks for it directly.
+static const float k_flProgressPollInterval = 120.f;
+
+// Defined below, next to the rest of the JSON reading.
+static int ReadJSONInt( GCSDK::CWebAPIValues *pValues, const char *pszName, int nDefault );
+
 static CSteamID LocalSteamID()
 {
 	if ( steamapicontext && steamapicontext->SteamUser() )
@@ -61,10 +79,14 @@ CTFMMBackend::CTFMMBackend()
 	, m_eQueuedMatchGroup( k_eTFMatchGroup_Invalid )
 	, m_flNextPollTime( 0.f )
 	, m_flQueueStartTime( 0.f )
+	, m_flConnectStartTime( 0.f )
+	, m_bConnectLeftOldServer( false )
+	, m_bFollowLeaderServer( false )
 	, m_nPollIntervalMS( 2000 )
 	, m_nInQueue( 0 )
 	, m_nNeedPlayers( 0 )
 	, m_flNextStatusPoll( 0.f )
+	, m_flNextProgressPoll( 0.f )
 	, m_bGroupsKnown( false )
 	, m_nMapPoolGeneration( 0 )
 {
@@ -174,56 +196,126 @@ void CTFMMBackend::Update( float frametime )
 		// the GC put everyone in a party of one; we host one instead.
 		if ( tf_mm_party_autocreate.GetBool() && !m_party.BValid() )
 			m_party.Create();
+
+		// Steam mints the web API ticket asynchronously. Asking now means it
+		// is in hand by the time somebody presses play, rather than the first
+		// queue request of the session being the one that waits for it.
+		m_coordinator.RequestAuthTicket();
 	}
 
 	// The party object tracks the Steam lobby, which changes underneath us.
 	// Republishing is cheap and idempotent; only do it while a lobby exists.
 	if ( m_party.BValid() )
-		PublishParty();
-
-	// The queue API ticket contains a roster snapshot. Its GET heartbeat is
-	// for the ticket as a whole, so if one lobby member Alt-F4s while the
-	// leader keeps polling, that old member otherwise stays queued forever.
-	//
-	// Re-POSTing is deliberately used instead of DELETE + POST: Enqueue()
-	// replaces the previous ticket for the same leader/group atomically,
-	// while two HTTP requests would race on this single coordinator channel.
-	if ( m_eState == k_eTFMMState_Searching &&
-	     !m_strTicketID.IsEmpty() &&
-	     !m_coordinator.BBusy() )
 	{
-		// Compare like with like: BuildRoster is also what wrote the snapshot,
-		// so a member the request would have skipped anyway cannot read as a
-		// change. Comparing against the raw lobby count instead made a party
-		// holding one invalid member look different from its own ticket every
-		// frame, and re-queue on every one of them.
-		CUtlVector< CSteamID > vecNow;
-		BuildRoster( vecNow );
+		PublishParty();
+		// The settings panel writes a convar; Steam has to be told.
+		m_party.ApplyJoinPolicy();
+	}
 
-		if ( !BRosterMatches( vecNow ) )
+	if ( m_eState == k_eTFMMState_Searching && !m_coordinator.BBusy() )
+	{
+		if ( m_strTicketID.IsEmpty() )
 		{
-			MMDbg( "party roster changed while queued; replacing ticket\n" );
-			m_strTicketID.Clear();
-			SendQueueRequest();
+			// A queue request that could not go out yet -- no auth ticket in
+			// hand -- has to be retried, or pressing play before Steam answers
+			// leaves the player standing in a search that never started.
+			if ( Plat_FloatTime() >= m_flNextPollTime )
+				SendQueueRequest();
 		}
-		else if ( Plat_FloatTime() >= m_flNextPollTime )
+		else
 		{
-			PollQueue();
+			// The queue API ticket contains a roster snapshot. Its GET
+			// heartbeat is for the ticket as a whole, so if one lobby member
+			// Alt-F4s while the leader keeps polling, that old member
+			// otherwise stays queued forever.
+			//
+			// Re-POSTing is deliberately used instead of DELETE + POST:
+			// Enqueue() replaces the previous ticket for the same
+			// leader/group atomically, while two HTTP requests would race on
+			// this single coordinator channel.
+			//
+			// Compare like with like: BuildRoster is also what wrote the
+			// snapshot, so a member the request would have skipped anyway
+			// cannot read as a change. Comparing against the raw lobby count
+			// instead made a party holding one invalid member look different
+			// from its own ticket every frame, and re-queue on every one.
+			CUtlVector< CSteamID > vecNow;
+			BuildRoster( vecNow );
+
+			if ( !BRosterMatches( vecNow ) )
+			{
+				MMDbg( "party roster changed while queued; replacing ticket\n" );
+				m_strTicketID.Clear();
+				SendQueueRequest();
+			}
+			else if ( Plat_FloatTime() >= m_flNextPollTime )
+			{
+				PollQueue();
+			}
 		}
 	}
 
-	// Population for the menu. Nobody is looking at it during a match, so only
-	// keep it fresh while we are out of one -- and the main menu's background
-	// map counts as being in a level, which is the whole reason IsInGame is
-	// never asked on its own. Gating on it alone meant that on any install
-	// whose background map loads, the menu never asked the coordinator
-	// anything: no population, and no idea which modes are actually offered.
+	// The main menu's background map counts as being in a level, which is the
+	// whole reason IsInGame is never asked on its own.
 	const bool bReallyInGame = ( engine->IsInGame() && !engine->IsLevelMainMenuBackground() );
-	if ( !bReallyInGame &&
-	     Plat_FloatTime() >= m_flNextStatusPoll &&
-	     !m_statusFeed.BBusy() )
+
+	// Getting out of a match again.
+	//
+	// Nothing used to close this loop: JoinAssignedMatch left us in Connecting
+	// and no path ever left it, so the lobby object stayed in the SO cache for
+	// the rest of the session. The stock UI reads that object to answer "do I
+	// have a live match", so after one game the menu believed forever that a
+	// match was still running.
+	if ( m_eState == k_eTFMMState_Connecting )
 	{
-		PollStatus();
+		// Being in a level is only evidence that we arrived once we have left
+		// wherever we were. Connecting from another server -- a party that was
+		// playing somewhere when the assignment landed -- keeps IsInGame()
+		// answering about the *old* server until the disconnect, and taking
+		// that as "we are in the match" flips straight to InMatch and then
+		// back to Idle on the disconnect a moment later, destroying the lobby
+		// object and the match with it.
+		if ( !bReallyInGame )
+		{
+			m_bConnectLeftOldServer = true;
+		}
+		else if ( m_bConnectLeftOldServer )
+		{
+			EnterState( k_eTFMMState_InMatch );
+		}
+
+		if ( m_eState == k_eTFMMState_Connecting &&
+		     Plat_FloatTime() - m_flConnectStartTime > k_flConnectGiveUpSecs )
+		{
+			// A connect that never lands -- a full server, a password the
+			// server no longer has, a machine that went away between the
+			// assignment and us. Waiting forever leaves the player with a
+			// match they cannot join and a queue they cannot restart.
+			Fail( "could not connect to the match server" );
+		}
+	}
+	else if ( m_eState == k_eTFMMState_InMatch && !bReallyInGame )
+	{
+		// The match is over for us the moment we are off its server, however
+		// we left it.
+		MMDbg( "left the match server\n" );
+		EnterState( k_eTFMMState_Idle );
+		// A finished match is the only thing that moves the record, so this is
+		// the one moment worth asking about it out of turn.
+		m_flNextProgressPoll = 0.f;
+	}
+
+	// Tell the party where we are, so a member who joins can follow us in.
+	PublishPartyServer( bReallyInGame );
+
+	// Population for the menu. Nobody is looking at it during a match, so only
+	// keep it fresh while we are out of one.
+	if ( !bReallyInGame && !m_statusFeed.BBusy() )
+	{
+		if ( Plat_FloatTime() >= m_flNextStatusPoll )
+			PollStatus();
+		else if ( Plat_FloatTime() >= m_flNextProgressPoll )
+			RefreshProgress();
 	}
 }
 
@@ -243,6 +335,137 @@ void CTFMMBackend::PollStatus()
 void CTFMMBackend::StatusThunk( GCSDK::CWebAPIValues *pValues, int eStatusCode, void *pContext )
 {
 	( (CTFMMBackend *)pContext )->OnStatus( pValues, eStatusCode );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Ask the coordinator what our match record adds up to.
+//
+//			The stock rank panel reads XP out of CTFRatingData objects in the
+//			SO cache, which only the GC ever wrote -- so without this the badge
+//			on the main menu is level 1 with an empty bar forever, however many
+//			matches somebody has played. The coordinator has the record; this
+//			fetches it and PublishRatings puts it where the panel looks.
+//-----------------------------------------------------------------------------
+void CTFMMBackend::RefreshProgress()
+{
+	m_flNextProgressPoll = Plat_FloatTime() + k_flProgressPollInterval;
+
+	const CSteamID steamID = LocalSteamID();
+	if ( !steamID.IsValid() )
+		return;
+
+	CFmtStr path( "/v1/player/%llu", (unsigned long long)steamID.ConvertToUint64() );
+	if ( !m_statusFeed.BSend( k_EHTTPMethodGET, path.Get(), NULL,
+	                          &CTFMMBackend::ProgressThunk, this ) )
+	{
+		MMDbg( "progress poll could not be sent\n" );
+	}
+}
+
+//-----------------------------------------------------------------------------
+void CTFMMBackend::ProgressThunk( GCSDK::CWebAPIValues *pValues, int eStatusCode, void *pContext )
+{
+	( (CTFMMBackend *)pContext )->OnProgress( pValues, eStatusCode );
+}
+
+//-----------------------------------------------------------------------------
+void CTFMMBackend::OnProgress( GCSDK::CWebAPIValues *pValues, int eStatusCode )
+{
+	if ( eStatusCode != 200 || !pValues )
+	{
+		// A coordinator that keeps no records answers 503, which is a real
+		// answer: there is no XP here and the badge should stay where it is.
+		MMDbg( "progress poll returned HTTP %d\n", eStatusCode );
+		return;
+	}
+
+	m_progress.bValid        = true;
+	m_progress.nMatches      = ReadJSONInt( pValues, "matches", 0 );
+	m_progress.nWins         = ReadJSONInt( pValues, "wins", 0 );
+	m_progress.nLosses       = ReadJSONInt( pValues, "losses", 0 );
+	m_progress.nAbandons     = ReadJSONInt( pValues, "abandons", 0 );
+	m_progress.nXP           = ReadJSONInt( pValues, "xp", 0 );
+	m_progress.nLevel        = MAX( 1, ReadJSONInt( pValues, "level", 1 ) );
+	m_progress.nLevelXP      = ReadJSONInt( pValues, "level_xp", 0 );
+	m_progress.nLevelXPTotal = ReadJSONInt( pValues, "level_xp_total", 0 );
+
+	MMDbg( "progress: %d xp, level %d, %d matches\n",
+	       m_progress.nXP, m_progress.nLevel, m_progress.nMatches );
+
+	PublishRatings();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Put the XP in the SO cache, under every rating type the match
+//			descriptions say they display.
+//
+//			Two objects per match group, not one: the panel reads the "current"
+//			rating and the "last acknowledged" one and animates the difference.
+//			Publishing the same number as both means the bar is simply correct
+//			rather than sliding on every menu open, which is the honest answer
+//			until the coordinator reports XP per match rather than as a total.
+//-----------------------------------------------------------------------------
+void CTFMMBackend::PublishRatings()
+{
+	if ( !m_progress.bValid )
+		return;
+
+	const CSteamID steamID = LocalSteamID();
+	if ( !steamID.IsValid() || !BEnsureCacheSubscribed() )
+		return;
+
+	GCSDK::CGCClientSharedObjectCache *pCache = GetLocalCache( true );
+	if ( !pCache )
+		return;
+
+	static const ETFMatchGroup s_eGroups[] = { k_eTFMatchGroup_Casual_12v12, k_eTFMatchGroup_Ladder_6v6 };
+
+	bool bChanged = false;
+	for ( int i = 0; i < ARRAYSIZE( s_eGroups ); i++ )
+	{
+		const IMatchGroupDescription *pDesc = GetMatchGroupDescription( s_eGroups[i] );
+		if ( !pDesc || !pDesc->m_pProgressionDesc )
+			continue;
+
+		const EMMRating eRatings[] = { pDesc->GetCurrentDisplayRating(), pDesc->GetLastAckdDisplayRating() };
+		for ( int j = 0; j < ARRAYSIZE( eRatings ); j++ )
+		{
+			CSOTFRatingData msg;
+			msg.set_account_id( steamID.GetAccountID() );
+			msg.set_rating_type( (int32)eRatings[j] );
+			msg.set_rating_primary( (uint32)m_progress.nXP );
+
+			std::string strData;
+			if ( !msg.SerializeToString( &strData ) )
+				continue;
+
+			const bool bHave = ( m_vecPublishedRatingTypes.Find( (int)eRatings[j] ) !=
+			                     m_vecPublishedRatingTypes.InvalidIndex() );
+
+			bool bOK = bHave
+				? pCache->BUpdateFromMsg( CTFRatingData::k_nTypeID, strData.data(), (uint32)strData.size() )
+				: pCache->BCreateFromMsg( CTFRatingData::k_nTypeID, strData.data(), (uint32)strData.size() );
+
+			if ( bOK )
+			{
+				if ( !bHave )
+					m_vecPublishedRatingTypes.AddToTail( (int)eRatings[j] );
+				bChanged = true;
+			}
+		}
+	}
+
+	if ( !bChanged )
+		return;
+
+	// The rank panel listens for this and re-reads the cache. Without it the
+	// badge only updates the next time something else happens to redraw it.
+	if ( gameeventmanager )
+	{
+		IGameEvent *pEvent = gameeventmanager->CreateEvent( "experience_changed" );
+		if ( pEvent )
+			gameeventmanager->FireEventClientSide( pEvent );
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -792,13 +1015,22 @@ bool CTFMMBackend::BHandleClientMsg( uint32 unMsgType, const ::google::protobuf:
 			return true;
 		}
 
-		// Standby -- joining a match your party is already in -- needs the
-		// coordinator to be able to add a player to a running match. It cannot
-		// yet, so answer the message (the client would retry forever
-		// otherwise) and change nothing.
 		case k_EMsgGCParty_QueueForStandby:
-		case k_EMsgGCParty_RemoveFromStandbyQueue:
+		{
+			// "Let me into the game my party is in." The leader published the
+			// match id into the lobby when they got the assignment, so we know
+			// which match to ask for -- and the coordinator seats us in it and
+			// tells the server to expect us, which with the roster gate up is
+			// the only way in.
+			QueueForStandby();
 			return true;
+		}
+
+		case k_EMsgGCParty_RemoveFromStandbyQueue:
+		{
+			CancelQueue();
+			return true;
+		}
 
 		// Invites are Steam's. The stock client's own invite bookkeeping has
 		// nothing to clear on our side.
@@ -950,6 +1182,8 @@ void CTFMMBackend::QueueForMatch( ETFMatchGroup eMatchGroup )
 	m_eQueuedMatchGroup = eMatchGroup;
 	m_strLastError.Clear();
 	m_flQueueStartTime = Plat_FloatTime();
+	// A normal queue is not a standby request, whatever the last one was.
+	m_strStandbyMatchID.Clear();
 
 	// Show the queue in the party object immediately. The UI predicts being in
 	// queue the moment it asks, and a party object that disagrees makes it
@@ -957,6 +1191,56 @@ void CTFMMBackend::QueueForMatch( ETFMatchGroup eMatchGroup )
 	m_msgParty.clear_matchmaking_queues();
 	CSOTFParty_QueueEntry *pEntry = m_msgParty.add_matchmaking_queues();
 	pEntry->set_match_group( eMatchGroup );
+	pEntry->set_queued_time( CRTime::RTime32TimeCur() );
+	PublishParty();
+
+	EnterState( k_eTFMMState_Searching );
+	SendQueueRequest();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Ask to be seated in the match our party is already playing.
+//
+//			The difference from QueueForMatch is one field in the request and
+//			everything else is the same -- same ticket, same poll, same
+//			assignment. It has to be: with the roster gate up, "join my party's
+//			match" and "be backfilled into a match" are the same act on the
+//			server, and the only thing that separates them is which match was
+//			asked for.
+//-----------------------------------------------------------------------------
+void CTFMMBackend::QueueForStandby()
+{
+	if ( !BActive() )
+		return;
+
+	if ( m_eState != k_eTFMMState_Idle && m_eState != k_eTFMMState_Searching )
+	{
+		MMDbg( "already in a match; not asking for a standby seat\n" );
+		return;
+	}
+
+	const char *pszMatchID = m_party.GetLobbyData( "match_id" );
+	if ( !pszMatchID || !pszMatchID[0] )
+	{
+		Warning( "Your party is not in a match to join.\n" );
+		return;
+	}
+
+	int nGroup = atoi( m_party.GetLobbyData( "queue_group" ) );
+	if ( nGroup == 0 )
+		nGroup = (int)k_eTFMatchGroup_Casual_12v12;
+
+	m_strStandbyMatchID = pszMatchID;
+	m_eQueuedMatchGroup = (ETFMatchGroup)nGroup;
+	m_strLastError.Clear();
+	m_flQueueStartTime = Plat_FloatTime();
+	m_strTicketID.Clear();
+
+	// The party object drives the UI's "in queue" state, and standby is a
+	// queue as far as the player is concerned.
+	m_msgParty.clear_matchmaking_queues();
+	CSOTFParty_QueueEntry *pEntry = m_msgParty.add_matchmaking_queues();
+	pEntry->set_match_group( m_eQueuedMatchGroup );
 	pEntry->set_queued_time( CRTime::RTime32TimeCur() );
 	PublishParty();
 
@@ -1063,12 +1347,33 @@ bool CTFMMBackend::BRosterMatches( const CUtlVector< CSteamID > &vecNow ) const
 //-----------------------------------------------------------------------------
 void CTFMMBackend::SendQueueRequest()
 {
+	// Steam issues the web API ticket asynchronously, and a coordinator in
+	// webapi mode refuses a queue request that arrives without one. Wait for
+	// it -- but only for a while: a coordinator in dev mode does not want a
+	// ticket at all, and Steam sometimes will not issue one (offline mode,
+	// a family-shared copy), and neither of those should be a queue that
+	// never starts.
+	if ( !m_coordinator.BHaveAuthTicket() &&
+	     Plat_FloatTime() - m_flQueueStartTime < k_flAuthTicketWaitSecs )
+	{
+		m_coordinator.RequestAuthTicket();
+		m_strQueueDetail = "Waiting for Steam.";
+		m_flNextPollTime = Plat_FloatTime() + 0.5f;
+		return;
+	}
+
 	// Whatever the last ticket was told, this one has not been told anything.
 	m_strQueueDetail.Clear();
 
 	CUtlBuffer body( 0, 2048, CUtlBuffer::TEXT_BUFFER );
 
 	body.Printf( "{\"match_group\":%d,", (int)m_eQueuedMatchGroup );
+	if ( !m_strStandbyMatchID.IsEmpty() )
+	{
+		body.PutString( "\"standby_match_id\":" );
+		AppendJSONString( body, m_strStandbyMatchID.Get() );
+		body.PutChar( ',' );
+	}
 	body.Printf( "\"late_join_ok\":%s,",
 	             ( GTFPartyClient() && GTFPartyClient()->GetEffectiveGroupCriteria().GetLateJoin() ) ? "true" : "false" );
 	body.PutString( "\"leader\":" );
@@ -1358,6 +1663,50 @@ void CTFMMBackend::OnQueueStatus( GCSDK::CWebAPIValues *pValues, int eStatusCode
 }
 
 //-----------------------------------------------------------------------------
+// Purpose: Publish the server we are on into the party's lobby data.
+//
+//			A matchmade match travels as "connect"/"match_id", which every
+//			member acts on. This is the other case, and it was missing: the
+//			leader on a community server, whose party had no way to know where
+//			that was. Steam's "Join Game" hands a joiner our party lobby -- it
+//			cannot hand them a server we never told anyone about -- so without
+//			this, joining a friend who was playing put you in an empty party.
+//-----------------------------------------------------------------------------
+void CTFMMBackend::PublishPartyServer( bool bInGame )
+{
+	if ( !m_party.BValid() || !m_party.BIsLeader() )
+		return;
+
+	CUtlString strServer;
+
+	// A matchmade match is already published, and publishing it twice would
+	// have members racing between two ways of joining the same game.
+	const bool bMatchmade = ( m_eState == k_eTFMMState_MatchReady ||
+	                          m_eState == k_eTFMMState_Connecting ||
+	                          m_eState == k_eTFMMState_InMatch );
+	if ( bInGame && !bMatchmade )
+	{
+		INetChannelInfo *pChan = engine->GetNetChannelInfo();
+		const char *pszAddr = pChan ? pChan->GetAddress() : NULL;
+		if ( pszAddr && pszAddr[0] && !V_stristr( pszAddr, "loopback" ) )
+			strServer = pszAddr;
+	}
+
+	if ( strServer == m_strPublishedServer )
+		return;
+
+	m_strPublishedServer = strServer;
+	m_party.SetLobbyData( "server", strServer.Get() );
+}
+
+//-----------------------------------------------------------------------------
+void CTFMMBackend::OnPartyLobbyEntered()
+{
+	m_bFollowLeaderServer = !m_party.BIsLeader();
+	OnPartyLobbyDataChanged();
+}
+
+//-----------------------------------------------------------------------------
 // A party member watching the leader.
 //
 // Members never hold a queue ticket. The leader queued on behalf of everybody,
@@ -1376,6 +1725,10 @@ void CTFMMBackend::OnPartyLobbyDataChanged()
 		// more -- but do not tear down a match we have already joined.
 		if ( m_eState == k_eTFMMState_MatchReady )
 			EnterState( k_eTFMMState_Idle );
+
+		// They may still be playing somewhere -- a community server, a server
+		// they found in the browser. That is what we just asked to join.
+		FollowLeaderToServer();
 		return;
 	}
 
@@ -1392,6 +1745,31 @@ void CTFMMBackend::OnPartyLobbyDataChanged()
 	                 m_party.GetLobbyData( "stv" ),
 	                 m_party.GetLobbyData( "teams" ),
 	                 (ETFMatchGroup)nGroup );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Spend the one-shot follow on whatever server the leader is on.
+//-----------------------------------------------------------------------------
+void CTFMMBackend::FollowLeaderToServer()
+{
+	if ( !m_bFollowLeaderServer )
+		return;
+
+	const char *pszServer = m_party.GetLobbyData( "server" );
+	if ( !pszServer || !pszServer[0] )
+		return; // they are at the menu, or have not said yet
+
+	// Spend it whether or not the connect works out. Retrying forever would
+	// mean a member who deliberately left the leader's server gets dragged
+	// back the next time anything in the lobby changes.
+	m_bFollowLeaderServer = false;
+
+	INetChannelInfo *pChan = engine->GetNetChannelInfo();
+	if ( pChan && pChan->GetAddress() && !V_stricmp( pChan->GetAddress(), pszServer ) )
+		return; // already there
+
+	Msg( "Joining your party on %s\n", pszServer );
+	engine->ClientCmd_Unrestricted( CFmtStr( "connect %s", pszServer ) );
 }
 
 //-----------------------------------------------------------------------------
@@ -1432,12 +1810,43 @@ void CTFMMBackend::AdoptAssignment( const char *pszMatchID, const char *pszConne
 		pMember->set_type( CTFLobbyPlayerProto_Type_MATCH_PLAYER );
 	}
 
-	PublishLobby();
-
+	// The party is in a match either way -- that is what makes the stock UI
+	// offer "join your party's match", and it is how QueueForStandby knows
+	// which match to ask for.
 	m_msgParty.clear_matchmaking_queues();
 	m_msgParty.set_associated_lobby_id( m_msgLobby.lobby_id() );
 	m_msgParty.set_associated_lobby_match_group( eMatchGroup );
 	PublishParty();
+
+	// A member who joined the party after the match formed has no seat in it,
+	// and with the roster gate up the server will turn them away. So do not
+	// publish the lobby object for them: that object means "I am in this
+	// match", it is what BHaveLiveMatch reads, and claiming it would both send
+	// them at a closed door and switch off the standby button that is the way
+	// through it.
+	if ( !BSeatedInAssignment() )
+	{
+		DestroyLobbySO();
+		Msg( "Your party is playing on %s and you have no seat in it yet. "
+		     "Ask to join the match%s.\n",
+		     m_strConnect.Get(),
+		     m_strSTV.IsEmpty() ? "" : ", or use tf_mm_watch to watch it" );
+		m_party.UpdateRichPresence();
+
+		// Not our match, so the state stays Idle: the queue bar must not come
+		// up for a match we are only standing next to.
+		if ( gameeventmanager )
+		{
+			IGameEvent *pEvent = gameeventmanager->CreateEvent( "lobby_updated" );
+			if ( pEvent )
+				gameeventmanager->FireEventClientSide( pEvent );
+		}
+		if ( GTFPartyClient() )
+			GTFPartyClient()->ForcePartyUpdate();
+		return;
+	}
+
+	PublishLobby();
 
 	Msg( "Your party is playing on %s\n", m_strConnect.Get() );
 
@@ -1448,9 +1857,37 @@ void CTFMMBackend::AdoptAssignment( const char *pszMatchID, const char *pszConne
 }
 
 //-----------------------------------------------------------------------------
+// Purpose: Does the assignment we just adopted actually have a seat for us?
+//
+//			The roster travels with the assignment as the lobby's member list.
+//			An empty list is not an answer -- an older client publishes none --
+//			so it counts as yes, which keeps the old behaviour rather than
+//			locking somebody out on missing information.
+//-----------------------------------------------------------------------------
+bool CTFMMBackend::BSeatedInAssignment() const
+{
+	if ( m_msgLobby.members_size() == 0 )
+		return true;
+
+	const uint64 ulMe = LocalSteamID().ConvertToUint64();
+	for ( int i = 0; i < m_msgLobby.members_size(); i++ )
+	{
+		if ( m_msgLobby.members( i ).id() == ulMe )
+			return true;
+	}
+	return false;
+}
+
+//-----------------------------------------------------------------------------
 void CTFMMBackend::CancelQueue()
 {
-	if ( m_eState != k_eTFMMState_Searching )
+	// Searching is the obvious case. MatchReady is the one that mattered: the
+	// coordinator had handed us a server and the player had not connected to
+	// it yet, and refusing to act here left the queue bar up with an X that
+	// did nothing. Giving up an assignment we never took is the player's to
+	// decide; once we are actually connecting or on the server it is not a
+	// queue any more and "cancel" means disconnect, which is not ours.
+	if ( m_eState != k_eTFMMState_Searching && m_eState != k_eTFMMState_MatchReady )
 		return;
 
 	SendQueueCancel();
@@ -1491,6 +1928,10 @@ void CTFMMBackend::JoinAssignedMatch()
 		engine->ClientCmd_Unrestricted( CFmtStr( "password \"%s\"", m_strPassword.Get() ) );
 	}
 
+	m_flConnectStartTime = Plat_FloatTime();
+	// If we are on a server right now, arriving means leaving that one first.
+	// See the Connecting case in Update().
+	m_bConnectLeftOldServer = !( engine->IsInGame() && !engine->IsLevelMainMenuBackground() );
 	EnterState( k_eTFMMState_Connecting );
 	GTFGCClientSystem()->ConnectToServer( m_strConnect.Get() );
 }
@@ -1512,6 +1953,7 @@ void CTFMMBackend::EnterState( ETFMMState eState )
 	if ( eState == k_eTFMMState_Idle )
 	{
 		m_eQueuedMatchGroup = k_eTFMatchGroup_Invalid;
+		m_strStandbyMatchID.Clear();
 		DestroyLobbySO();
 		m_msgParty.clear_associated_lobby_id();
 		m_msgParty.clear_associated_lobby_match_group();
@@ -1533,6 +1975,16 @@ void CTFMMBackend::EnterState( ETFMMState eState )
 	}
 
 	m_party.UpdateRichPresence();
+
+	// The party client latches "am I in queue" and only re-evaluates it when
+	// the party object changes. Our own state is one of its inputs
+	// (UpdateActiveParty consults GetState()), and every path that leaves the
+	// queue publishes the party *before* it gets here -- so without this the
+	// last thing it ever saw was a backend that said "searching", and the
+	// queue bar stayed up for the rest of the session with nothing able to
+	// take it down.
+	if ( GTFPartyClient() )
+		GTFPartyClient()->ForcePartyUpdate();
 
 	// The dashboard, the playlist and the party panel all redraw off this.
 	if ( gameeventmanager )
@@ -1621,17 +2073,40 @@ CON_COMMAND( tf_mm_join, "Connect to the match matchmaking assigned you." )
 	TFMMBackend()->JoinAssignedMatch();
 }
 
-CON_COMMAND( tf_mm_watch, "Connect to the SourceTV relay for your current match." )
+CON_COMMAND( tf_mm_watch, "Watch a match on SourceTV. With no argument, the one you are in; "
+                          "with a SteamID64, the one that friend is in." )
 {
-	const char *pszSTV = TFMMBackend()->GetSTVAddress();
-	if ( !pszSTV || !pszSTV[0] )
+	CUtlString strSTV;
+
+	if ( args.ArgC() > 1 )
 	{
-		Msg( "This match has no SourceTV relay.\n" );
-		return;
+		const uint64 ulID = Q_atoui64( args[1] );
+		if ( ulID == 0 )
+		{
+			Msg( "Usage: tf_mm_watch [steamid64]\n" );
+			return;
+		}
+
+		const char *pszFound = CTFMMParty::GetFriendSTV( CSteamID( ulID ) );
+		if ( !pszFound || !pszFound[0] )
+		{
+			Msg( "That player is not in a match with a SourceTV relay, or is not on your friends list.\n" );
+			return;
+		}
+		strSTV = pszFound;
+	}
+	else
+	{
+		strSTV = TFMMBackend()->GetSTVAddress();
+		if ( strSTV.IsEmpty() )
+		{
+			Msg( "This match has no SourceTV relay.\n" );
+			return;
+		}
 	}
 
 	// Spectating is not playing: the match password does not apply, and we
 	// must not leave it set from a previous connect.
 	engine->ClientCmd_Unrestricted( "password \"\"" );
-	engine->ClientCmd_Unrestricted( CFmtStr( "connect %s", pszSTV ) );
+	engine->ClientCmd_Unrestricted( CFmtStr( "connect %s", strSTV.Get() ) );
 }

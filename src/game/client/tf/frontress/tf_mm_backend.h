@@ -73,6 +73,11 @@ public:
 	bool BTryJoinFromString( const char *pszID );
 	void OpenInviteDialog();
 
+	// Who Steam should let into the lobby, from the player's own setting, and
+	// pushing it to Steam when it changes.
+	static ELobbyType WantedLobbyType();
+	void ApplyJoinPolicy();
+
 	bool BValid() const { return m_lobbyID.IsValid() && m_lobbyID.IsLobby(); }
 	bool BIsLeader() const;
 	CSteamID GetLobbyID() const { return m_lobbyID; }
@@ -96,6 +101,10 @@ public:
 	// a join request finds a party without a coordinator in the middle.
 	static CSteamID GetFriendPartyLobby( const CSteamID &friendID );
 
+	// The SourceTV relay of the match a friend is in, from their rich
+	// presence, or NULL. Owned by Steam; copy it if you keep it.
+	static const char *GetFriendSTV( const CSteamID &friendID );
+
 	// The connect string Steam should use for us, or NULL if we have no party
 	// worth joining. Owned by the party; copy it if you keep it.
 	const char *GetJoinConnectString() const;
@@ -112,6 +121,9 @@ private:
 
 	CSteamID m_lobbyID;
 	bool     m_bHosting;
+	// The lobby type we last told Steam, so an unchanged setting is not
+	// re-sent every frame.
+	ELobbyType m_eAppliedLobbyType;
 	mutable char m_szConnectString[64];
 
 	CCallResult< CTFMMParty, LobbyCreated_t > m_callLobbyCreated;
@@ -139,12 +151,22 @@ public:
 	bool BBusy() const { return m_hRequest != INVALID_HTTPREQUEST_HANDLE; }
 	void Cancel();
 
-	// Hex-encoded Steam auth session ticket for this session, refreshed lazily.
-	// Empty when Steam will not give us one.
+	// Hex-encoded Steam web API auth ticket for this session. Empty until
+	// Steam answers -- the request is asynchronous -- and empty for good when
+	// Steam will not issue one.
 	const char *GetAuthTicket();
+
+	// Start minting a ticket now, so it is there when somebody presses play.
+	void RequestAuthTicket();
+
+	// Has Steam given us a ticket yet? A coordinator in webapi mode refuses a
+	// queue request without one, so the queue waits rather than being refused.
+	bool BHaveAuthTicket() const { return !m_strTicket.IsEmpty(); }
 
 private:
 	void OnRequestCompleted( HTTPRequestCompleted_t *pInfo, bool bIOFailure );
+
+	STEAM_CALLBACK( CTFMMCoordinator, OnWebApiTicket, GetTicketForWebApiResponse_t );
 
 	HTTPRequestHandle m_hRequest;
 	FnResponse        m_pfnCallback;
@@ -201,6 +223,30 @@ public:
 	int   GetQueueNeededCount() const { return m_nNeedPlayers; }
 	float GetQueueSeconds() const;
 	const char *GetLastError() const { return m_strLastError.Get(); }
+
+	// What the coordinator remembers about us: matches, XP, level. Polled with
+	// the status feed. bValid is false until it has answered once.
+	struct Progress_t
+	{
+		Progress_t()
+			: bValid( false ), nMatches( 0 ), nWins( 0 ), nLosses( 0 )
+			, nAbandons( 0 ), nXP( 0 ), nLevel( 1 ), nLevelXP( 0 ), nLevelXPTotal( 0 )
+		{}
+		bool bValid;
+		int  nMatches;
+		int  nWins;
+		int  nLosses;
+		int  nAbandons;
+		int  nXP;
+		int  nLevel;
+		int  nLevelXP;
+		int  nLevelXPTotal;
+	};
+	const Progress_t &GetProgress() const { return m_progress; }
+
+	// Ask the coordinator for our record now, rather than waiting for the next
+	// status poll. Called when a match ends, which is the only time it changes.
+	void RefreshProgress();
 
 	// The coordinator's public health view, polled while we sit at the menu.
 	// bValid is false until the first reply lands, and stays false when the
@@ -261,14 +307,28 @@ public:
 	// A party member noticed the leader's assignment in the lobby data.
 	void OnPartyLobbyDataChanged();
 
+	// We just entered somebody's party lobby. Joining a party is always a
+	// deliberate act -- an invite accepted, a friend joined, connect_lobby --
+	// and it means "put me where they are", so it arms a one-shot follow onto
+	// whatever server the leader is on. Without it "Join Game" on a friend
+	// playing a community server put you in their party and nowhere else.
+	void OnPartyLobbyEntered();
+
 	// Console-command surface, also used by the UI patches.
 	void QueueForMatch( ETFMatchGroup eMatchGroup );
+	// Ask to be seated in the match our party is already in, rather than
+	// queued for a new one.
+	void QueueForStandby();
 	void CancelQueue();
 	void JoinAssignedMatch();
 	void Spew() const;
 
 private:
 	// SO plumbing
+	// Tell the party which server we are on, so members can follow us there.
+	void PublishPartyServer( bool bInGame );
+	// Spend the one-shot follow, if it is armed and the leader is somewhere.
+	void FollowLeaderToServer();
 	GCSDK::CGCClientSharedObjectCache *GetLocalCache( bool bCreate );
 	bool BEnsureCacheSubscribed();
 	void PublishParty();
@@ -289,6 +349,11 @@ private:
 	void PollStatus();
 	void OnStatus( GCSDK::CWebAPIValues *pValues, int eStatusCode );
 	static void StatusThunk( GCSDK::CWebAPIValues *pValues, int eStatusCode, void *pContext );
+	void OnProgress( GCSDK::CWebAPIValues *pValues, int eStatusCode );
+	static void ProgressThunk( GCSDK::CWebAPIValues *pValues, int eStatusCode, void *pContext );
+	// Put the XP where the stock rank panel reads it: a CTFRatingData object
+	// per display rating type, in our own SO cache.
+	void PublishRatings();
 	void OnQueueReply( GCSDK::CWebAPIValues *pValues, int eStatusCode );
 	void OnQueueStatus( GCSDK::CWebAPIValues *pValues, int eStatusCode );
 	static void QueueReplyThunk( GCSDK::CWebAPIValues *pValues, int eStatusCode, void *pContext );
@@ -298,6 +363,10 @@ private:
 	// poll -- currently, the party leader publishing it into the lobby.
 	void AdoptAssignment( const char *pszMatchID, const char *pszConnect, const char *pszPassword,
 	                      const char *pszSTV, const char *pszTeams, ETFMatchGroup eMatchGroup );
+
+	// Is the assignment we adopted one we actually have a seat in? A party
+	// member who joined after the match formed does not.
+	bool BSeatedInAssignment() const;
 
 	void EnterState( ETFMMState eState );
 	void Fail( const char *pszReason );
@@ -318,9 +387,26 @@ private:
 
 	ETFMatchGroup m_eQueuedMatchGroup;
 	CUtlString    m_strTicketID;
+	// Set while the request in flight is a standby one: which running match we
+	// are asking to be let into. Empty for an ordinary queue.
+	CUtlString    m_strStandbyMatchID;
 	CUtlString    m_strLastError;
 	float         m_flNextPollTime;
 	float         m_flQueueStartTime;
+	// When we ran the connect command, so a connect that never lands can be
+	// given up on instead of holding the match open forever.
+	float         m_flConnectStartTime;
+	// Whether the server we were on when the connect started has been left
+	// yet. Until it has, being in a level says nothing about having arrived.
+	bool          m_bConnectLeftOldServer;
+
+	// Armed by entering a party lobby, spent on the first server the leader
+	// turns out to be on. One-shot on purpose: a party member should not be
+	// dragged across the internet every time the leader changes servers.
+	bool          m_bFollowLeaderServer;
+	// The last address we told the party we were on, so the lobby data is only
+	// written when it actually changes.
+	CUtlString    m_strPublishedServer;
 	int           m_nPollIntervalMS;
 	int           m_nInQueue;
 	int           m_nNeedPlayers;
@@ -335,6 +421,11 @@ private:
 
 	Status_t      m_status;
 	float         m_flNextStatusPoll;
+	Progress_t    m_progress;
+	float         m_flNextProgressPoll;
+	// The rating objects we have already put in the cache, so they are updated
+	// rather than created a second time.
+	CUtlVector< int > m_vecPublishedRatingTypes;
 
 	// Indexed by ETFMatchGroup, which is a small dense enum.
 	static const int k_nMatchGroupPools = k_eTFMatchGroup_Event_Last + 1;

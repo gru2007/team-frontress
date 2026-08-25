@@ -26,12 +26,15 @@
       "patient_secs": 60,
       "server_config": "frontress_casual",
       "backfill_secs": 0,
-      "maps": [
-        "koth_product_final",
-        "cp_process_final",
-        "pl_upward",
-        "ctf_turbine"
-      ]
+
+      "//modes": [
+        "Every stock map of these modes is in the pool -- the same list Valve's",
+        "own casual map picker offers. Drop a mode to take its maps out; add",
+        "'arena', 'passtime', 'mannpower', 'halloween' or 'christmas' to put",
+        "more in. 'maps' below adds individual maps on top."
+      ],
+      "modes": ["attack_defend", "cp", "koth", "payload", "plr", "ctf", "misc"],
+      "maps": []
     },
     {
       "match_group": 2,
@@ -43,8 +46,19 @@
       "max_players": 12,
       "patient_secs": 0,
       "server_config": "frontress_ranked",
+      "match_emulation": 2,
       "backfill_secs": -1,
-      "maps": ["cp_process_final", "cp_gullywash_final1", "koth_product_final"],
+      "maps": [
+        "cp_process_final",
+        "cp_gullywash_final1",
+        "cp_snakewater_final1",
+        "cp_metalworks",
+        "cp_sunshine",
+        "cp_granary",
+        "cp_badlands",
+        "cp_reckoner",
+        "koth_viaduct"
+      ],
       "restrictions": {
         "max_party_size": 3,
         "min_matches_played": 5,

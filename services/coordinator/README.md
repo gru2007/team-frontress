@@ -227,11 +227,89 @@ not the plan — see the agent below.
 The match id reaches the server as `sv_tags` `tfmm:<id>`, which is a stock
 convar. A server-side agent can read it back without a custom protocol.
 
-The coordinator sets `sv_password`, `sv_tags` and `maxplayers` itself and then
-execs the group's `server_config` before changing the map. Anything the server
-needs every match belongs in that config — see
-[`frontress_match.cfg`](../../game/tc2/cfg/frontress_match.cfg). Do not set
-`sv_password` there; it would overwrite the match password.
+The coordinator sets `sv_password`, `sv_tags`, `maxplayers`,
+`tf_match_emulation` and `tf_mm_trusted` itself and then execs the group's
+`server_config` before changing the map. Anything the server needs every match belongs in that config
+— see [`frontress_match.cfg`](../../game/tc2/cfg/frontress_match.cfg). Do not
+set `sv_password` there; it would overwrite the match password.
+
+### Official-match status
+
+`tf_match_emulation` is how a pooled server becomes an *official match* rather
+than a community server that happens to have the right twelve people on it.
+It is what makes `CTFGameRules` report a match group, which turns on the match
+HUD, the match summary at game over, and the tournament/ready-up handling a
+group's ruleset asks for.
+
+The game knows two values — `1` is Casual 12v12, `2` is Ladder 6v6 — so the
+coordinator derives it from the group's `match_group` and sends it with the
+rest of the per-match setup. `match_emulation` on a match group overrides that,
+including to `0` for a group the game has no match description for. Teardown
+sets it back to `0`, so a server handed back to the pool does not show a match
+HUD to whoever lands on it next.
+
+### Handing the match to the server
+
+If the server runs our game DLL it gets the match itself, not just a map change:
+
+```
+tf_mm_match_begin <match_id> <group> <map> <server_cfg> <fallback_password> <steamid:team,...>
+```
+
+That builds a real lobby object in the server's own shared object cache, which
+is what makes `CTFGCServerSystem` create a `CMatchInfo` — the roster gate, team
+assignment, abandon tracking, the match HUD, the match summary and the result
+the game reports all hang off it. It changes the map from the lobby, which is
+why nothing sends `changelevel` afterwards, and it takes `sv_password` off,
+because from that point the roster is the door. See
+[`MATCHMAKING.md`](../../docs/MATCHMAKING.md#the-other-half-the-game-server).
+
+A server without the command answers "Unknown command" and the coordinator
+changes the map itself, so an unmodified dedicated server still runs matches —
+as a passworded community server with none of the above.
+
+Getting into a match that is already running goes the same way:
+
+```
+tf_mm_match_add <match_id> <steamid:team,...>
+```
+
+Backfill and standby both use it, and both wait for it: a ticket seated in a
+running match stays `searching` from the client's point of view until the server
+has been told to expect them. If it cannot be told, the seat is given back and
+the party returns to the queue rather than being sent at a door that will not
+open.
+
+`tf_mm_trusted` goes with it. That is the game's own official-server flag —
+on Valve's build their backend checks it, and there is no backend here, so it
+is ours to grant. It is `FCVAR_NOTIFY`, so it reaches clients, and
+`CServerGameDLL::GetServerBrowserGameData` publishes it as server browser game
+data. Server-side it makes a returning player go back to the team they left
+(`CTFPlayer::ShouldForceAutoTeam`) and stops a spectator slot being used to
+unbalance the sides.
+
+Both are granted per match on purpose: nothing about a server is permanently
+"official", and a server that leaves the pool stops being one.
+
+### Map pools
+
+A match group says which **modes** it plays and gets every stock map of those
+modes, instead of listing a hundred and thirty map names:
+
+```json
+"modes": ["attack_defend", "cp", "koth", "payload", "plr", "ctf", "misc"],
+"maps": []
+```
+
+Those seven are what Valve's own casual map picker offers. `arena`,
+`passtime`, `mannpower`, `halloween` and `christmas` are available and off by
+default. `maps` adds individual maps on top — a community map the table does
+not know about is allowed, it just has to be on the server.
+
+The table lives in [`internal/maps`](internal/maps/vanilla.go) and is lifted
+from the game's own `items_game.txt`: the `rolling_match_tags` on each entry of
+`master_maps_list`, which is exactly what the casual panel reads. Nothing in it
+is invented; adding a map means the game has to ship it.
 
 ## HTTP API
 
@@ -241,9 +319,10 @@ SteamID64 does not survive a JavaScript `Number`.
 | | |
 | --- | --- |
 | `GET /v1/status` | population, queue depths, match groups, war fronts. Public |
-| `POST /v1/queue` | queue a party. Returns `{ticket_id, poll_after_ms}` |
+| `POST /v1/queue` | queue a party. Returns `{ticket_id, poll_after_ms}`. `standby_match_id` asks for a seat in one running match instead |
 | `GET /v1/queue/{id}` | poll. `searching` / `assigned` / `cancelled` / `expired` / `failed` |
 | `DELETE /v1/queue/{id}` | leave the queue |
+| `GET /v1/player/{steamid}` | matches, wins, XP and level. Public |
 | `POST /v1/gs/register` | a server joins the pool (needs `secret`) |
 | `POST /v1/gs/heartbeat` | keeps it in the pool, reports player count |
 | `POST /v1/gs/result` | a finished match (needs `secret`) |
@@ -324,13 +403,37 @@ hold it together:
   file, so a restart resumes the same campaign. Delete the file to start a new
   one.
 
-A node is not a map. It holds an ordered plan, and each stage names the
-battlefield it is fought on:
+A node is not a map. It holds an ordered plan, and each stage names a **kind**
+of battle rather than one map:
 
 ```text
-        BREAKTHROUGH   ->   ASSAULT   ->   NODE CAPTURED, front moves on
-        koth_product        pl_upward
+   SKIRMISH   ->   BREAKTHROUGH   ->   ADVANCE   ->   NODE CAPTURED, front moves on
+   arena/koth      symmetric 5CP       payload
+   2-12 players    8-24 players        8-24 players
 ```
+
+Where each kind can be fought is `battlefields` in the theater file, keyed by
+the stage's kind:
+
+```json
+"battlefields": {
+  "skirmish": [
+    { "map": "arena_well", "mode": "arena", "min_players": 2, "ideal_players": 6, "max_players": 12 },
+    { "map": "koth_viaduct", "mode": "koth", "min_players": 4, "ideal_players": 12, "max_players": 24 }
+  ]
+}
+```
+
+The player counts are the point. A stage's pool is what tells the matchmaker how
+big this battle may be, so it widens the group's own thresholds to cover the
+pool and then, once it knows how many seats it filled, picks a battlefield that
+size actually fits. That is how a node stays winnable at 2v2 without the whole
+queue being configured for 2v2 — give it a `skirmish` stage and the arena maps
+are what two people get.
+
+Which map inside the pool is the matchmaker's call, not the war's: it already
+knows who is queued and which maps they voted for, and it avoids what was just
+played. A stage may still pin one map with `"map"`, which skips all of that.
 
 The attacker clearing the last stage takes the node and the front advances to a
 neighbour still held by the defender. The attacker losing the first stage breaks
@@ -339,8 +442,24 @@ the offensive and the front closes. Losing a later stage pushes it back one.
 How many fronts are open follows the population (`fronts_by_population`), so
 eight people are not scattered across six of them.
 
-When the war is on it also chooses each match's map, which is why a match group
-may omit `maps` in that case.
+## Progression
+
+`internal/players` already remembers matches, wins and abandons because the
+queue restrictions need them. `progress.go` turns that record into the two
+numbers the stock menu has a place for:
+
+| | |
+| --- | --- |
+| a finished match | +100 XP |
+| a win | +50 XP on top |
+| an abandon | -150 XP, floored at zero |
+| a level | 1000 XP, flat, capped at 150 |
+
+Deliberately arithmetic. There is no skill model here and no attempt at one: an
+untuned rating system looks authoritative and is not, and matchmaking does not
+read this. `GET /v1/player/{steamid}` serves it, and the client publishes it as
+a `CTFRatingData` shared object so the badge on the main menu — which reads XP
+out of the SO cache and got nothing before — shows it.
 
 ## Tests
 

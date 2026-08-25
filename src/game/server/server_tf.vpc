@@ -965,6 +965,11 @@ $Project "Server (TF)"
 
 			$Folder	"Matchmaking"
 			{
+				// Team Frontress: the game server's half of matchmaking with
+				// no Valve game coordinator.
+				$File	"$SRCDIR\game\server\tf\frontress\tf_mm_server.h"
+				$File	"$SRCDIR\game\server\tf\frontress\tf_mm_server.cpp"
+
 				$File	"$SRCDIR\game\server\tf\tf_gc_server.cpp"
 				$File	"$SRCDIR\game\server\tf\tf_gc_server.h"
 				$File	"$SRCDIR\game\shared\lobby.cpp"

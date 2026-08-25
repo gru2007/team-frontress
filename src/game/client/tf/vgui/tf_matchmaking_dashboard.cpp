@@ -1402,6 +1402,12 @@ void CTFMatchmakingDashboard::UpdateDimmer()
 
 void GetQueuedString( wchar_t* pwszBuff, int nSize )
 {
+	// Every caller reads this back, and the queue-state event fires on the
+	// edge where the queue *ends* -- at which point neither branch below
+	// writes anything and the caller used to put an uninitialised buffer on
+	// the screen.
+	pwszBuff[0] = L'\0';
+
 	if ( GTFPartyClient()->BInStandbyQueue() )
 	{
 		g_pVGuiLocalize->ConstructString( pwszBuff, 

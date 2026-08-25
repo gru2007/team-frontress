@@ -20,10 +20,18 @@ import (
 )
 
 // fakeSetup stands in for RCON.
+// addCall is one announcement of new seats to a running match's server.
+type addCall struct {
+	MatchID string
+	Roster  []wire.AssignedPlayer
+}
+
 type fakeSetup struct {
 	mu       sync.Mutex
 	setups   []Spec
 	fail     error
+	addFail  error
+	added    []addCall
 	players  int
 	askedFor int
 	teardown int
@@ -37,6 +45,22 @@ func (f *fakeSetup) Setup(_ context.Context, _ *pool.Server, spec Spec) error {
 	}
 	f.setups = append(f.setups, spec)
 	return nil
+}
+
+func (f *fakeSetup) AddPlayers(_ context.Context, _ *pool.Server, matchID string, roster []wire.AssignedPlayer) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.addFail != nil {
+		return f.addFail
+	}
+	f.added = append(f.added, addCall{MatchID: matchID, Roster: roster})
+	return nil
+}
+
+func (f *fakeSetup) addedSeats() []addCall {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]addCall(nil), f.added...)
 }
 
 func (f *fakeSetup) PlayerCount(context.Context, *pool.Server) (int, bool) {
@@ -131,15 +155,43 @@ func party(t *testing.T, m *Matchmaker, leader string, size int, maps ...string)
 	return tk
 }
 
-// settle runs a tick and waits for the boot goroutines it started.
+// waitAssigned waits for a ticket that was seated in a running match to have
+// its assignment, which arrives once admit() has told the server about it.
+func waitAssigned(t *testing.T, m *Matchmaker, tk *Ticket) {
+	t.Helper()
+	for i := 0; i < 500; i++ {
+		m.mu.Lock()
+		state := tk.state
+		m.mu.Unlock()
+		if state != tsMatched {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("the seat was never announced to the server")
+}
+
+// settle runs a tick and waits for the goroutines it started.
+//
+// Two of them, both talking to a server over RCON in production: boot(), which
+// gets a match its server, and admit(), which tells a running match's server
+// about seats just sold. A ticket is not assigned until its half has finished.
 func settle(m *Matchmaker) {
 	m.Tick(context.Background())
-	// boot() runs in its own goroutine; poll briefly for it to publish.
 	for i := 0; i < 200; i++ {
 		m.mu.Lock()
 		pending := false
 		for _, mt := range m.matches {
 			if mt.state == msBooting {
+				pending = true
+			}
+		}
+		for _, t := range m.tickets {
+			// tsMatched on a live match is a seat waiting on admit().
+			if t.state != tsMatched || t.matchID == "" {
+				continue
+			}
+			if mt, ok := m.matches[t.matchID]; ok && mt.state == msLive {
 				pending = true
 			}
 		}
@@ -545,5 +597,149 @@ func TestQueueDetailIsEmptyWhileStillSearching(t *testing.T) {
 	st, _ := m.Status(a.ID)
 	if st.Detail != "" {
 		t.Fatalf("detail = %q, want nothing: the queue is just short of players", st.Detail)
+	}
+}
+
+func TestMatchedTicketReportsItsMatchNotTheEmptyQueue(t *testing.T) {
+	cfg := testConfig(4, 4, 8, 0)
+	setup := &fakeSetup{}
+	p := &pool.Pool{}
+	p.AddProvider(emptyProvider{reason: "every server is booked."})
+	m := New(cfg, p, setup, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	a := party(t, m, "7656119800000000", 2)
+	party(t, m, "7656119811111111", 2)
+	m.Tick(context.Background())
+
+	var st wire.QueueStatus
+	for i := 0; i < 500; i++ {
+		st, _ = m.Status(a.ID)
+		if st.Detail != "" {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	// The four of them are in a match that is waiting for a server. Counting
+	// only the tickets still searching would say "0 queued, 4 more needed",
+	// which is the search bar counting backwards away from a match the player
+	// is already in.
+	if st.InQueue != 4 {
+		t.Fatalf("in_queue = %d, want 4: the players in the formed match", st.InQueue)
+	}
+	if st.NeedPlayers != 0 {
+		t.Fatalf("need_players = %d, want 0: the match already formed", st.NeedPlayers)
+	}
+}
+
+// theaterWithSkirmish is one node whose only stage is a small arena fight and
+// one whose only stage is a full payload push, so a test can tell which the
+// matchmaker decided the queue could fill.
+func theaterWithSkirmish() *war.Theater {
+	return &war.Theater{
+		ID:   "t",
+		Name: "T",
+		Battlefields: map[string][]war.Battlefield{
+			"skirmish": {
+				{Map: "arena_well", Mode: "arena", MinPlayers: 2, IdealPlayers: 6, MaxPlayers: 12},
+				{Map: "arena_badlands", Mode: "arena", MinPlayers: 2, IdealPlayers: 6, MaxPlayers: 12},
+			},
+			"advance": {
+				{Map: "pl_upward", Mode: "payload", MinPlayers: 16, IdealPlayers: 24, MaxPlayers: 24, AttackerTeam: 3},
+			},
+		},
+		Nodes: []war.Node{
+			{ID: "a", Name: "A", Owner: war.SideRED, Plan: []war.Stage{{Kind: "skirmish"}}},
+			{ID: "b", Name: "B", Owner: war.SideBLU, Plan: []war.Stage{{Kind: "advance"}}},
+		},
+		Edges:              [][2]string{{"a", "b"}},
+		HQ:                 map[war.Side]string{war.SideRED: "a", war.SideBLU: "b"},
+		FrontsByPopulation: []int{},
+	}
+}
+
+func warEngineFor(t *testing.T, th *war.Theater) *war.Engine {
+	t.Helper()
+	warLog, past, err := war.OpenLog(filepath.Join(t.TempDir(), "events.jsonl"))
+	if err != nil {
+		t.Fatalf("war log: %v", err)
+	}
+	t.Cleanup(func() { warLog.Close() })
+	engine, err := war.NewEngine(th, warLog, past)
+	if err != nil {
+		t.Fatalf("war engine: %v", err)
+	}
+	return engine
+}
+
+func TestBattlefieldPoolSetsTheMatchSize(t *testing.T) {
+	th := theaterWithSkirmish()
+	if err := th.Validate(); err != nil {
+		t.Fatalf("theater: %v", err)
+	}
+	engine := warEngineFor(t, th)
+	if _, err := engine.Reconcile(4); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	// The group's own floor is 8. The skirmish pool says two people are
+	// enough, and that is the whole point of the pool: a node that can only
+	// be fought over by twelve people is a node a small community never
+	// touches.
+	cfg := testConfig(8, 12, 24, 0)
+	setup := &fakeSetup{}
+	p := &pool.Pool{}
+	p.AddProvider(emptyProvider{reason: "no servers in this test."})
+	m := New(cfg, p, setup, engine, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	a := party(t, m, "7656119800000000", 1)
+	party(t, m, "7656119811111111", 1)
+	m.Tick(context.Background())
+
+	st, err := m.Status(a.ID)
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if st.Detail == "" {
+		t.Fatalf("two players did not form a skirmish; state=%q in_queue=%d need=%d",
+			st.State, st.InQueue, st.NeedPlayers)
+	}
+}
+
+func TestWarMatchPlaysAMapFromItsStagePool(t *testing.T) {
+	th := theaterWithSkirmish()
+	engine := warEngineFor(t, th)
+	if _, err := engine.Reconcile(4); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	cfg := testConfig(2, 2, 24, 0)
+	setup := &fakeSetup{}
+	p := &pool.Pool{}
+	p.AddProvider(emptyProvider{reason: "no servers in this test."})
+	m := New(cfg, p, setup, engine, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	party(t, m, "7656119800000000", 1)
+	party(t, m, "7656119811111111", 1)
+	m.Tick(context.Background())
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.matches) != 1 {
+		t.Fatalf("matches = %d, want 1", len(m.matches))
+	}
+	for _, mt := range m.matches {
+		if mt.Map != "arena_well" && mt.Map != "arena_badlands" {
+			t.Fatalf("map = %q, want one of the skirmish pool", mt.Map)
+		}
+		if mt.War == nil {
+			t.Fatal("a war match carries no briefing")
+		}
+		if mt.War.StageKind != "skirmish" {
+			t.Fatalf("stage kind = %q, want skirmish", mt.War.StageKind)
+		}
+		if mt.War.BattleMode != "arena" {
+			t.Fatalf("battle mode = %q, want arena: the briefing lost the battlefield's mode", mt.War.BattleMode)
+		}
 	}
 }

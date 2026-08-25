@@ -25,32 +25,49 @@ func (m *Matchmaker) form(group config.MatchGroupConfig) *Match {
 		return nil
 	}
 
+	// The war, when it is on, decides what kind of battle this is before the
+	// queue decides who is in it -- because the battlefields that battle can
+	// be fought on are what say how many people it takes. An arena skirmish
+	// and a twelve-a-side payload push are both legitimate battles for the
+	// same node, and only one of them can be filled by six people in queue.
+	//
+	// Asking once matters: NextBattle is a read, but the battlefield choice
+	// downstream is not, and forming a match around one battle and then
+	// booting a different one is exactly the class of bug this avoids.
+	var battle *warBattle
+	if m.war != nil {
+		if b, front, ok := m.warBattleLocked(); ok {
+			battle = &warBattle{battle: b, front: front}
+		}
+	}
+	sizes := battleSizes(group, battle)
+
 	total := 0
 	for _, t := range queue {
 		total += t.Size()
 	}
-	threshold := group.IdealPlayers
+	threshold := sizes.ideal
 	waited := m.now().Sub(queue[0].queuedAt)
 	if group.PatientSecs <= 0 || waited >= time.Duration(group.PatientSecs)*time.Second {
-		threshold = group.MinPlayers
+		threshold = sizes.min
 	}
 	if total < threshold {
 		return nil
 	}
 
-	// Take tickets oldest-first up to the group's ceiling. A ticket that does
-	// not fit is skipped, not dropped: a party of six should not keep a party
-	// of one out of the match after it.
+	// Take tickets oldest-first up to the ceiling. A ticket that does not fit
+	// is skipped, not dropped: a party of six should not keep a party of one
+	// out of the match after it.
 	var picked []*Ticket
 	seats := 0
 	for _, t := range queue {
-		if seats+t.Size() > group.MaxPlayers {
+		if seats+t.Size() > sizes.max {
 			continue
 		}
 		picked = append(picked, t)
 		seats += t.Size()
 	}
-	if seats < group.MinPlayers {
+	if seats < sizes.min {
 		return nil
 	}
 
@@ -59,12 +76,78 @@ func (m *Matchmaker) form(group config.MatchGroupConfig) *Match {
 	// is worse than a slightly smaller one.
 	for len(picked) > 0 {
 		red, blu, ok := splitTeams(picked)
-		if ok && countSeats(picked) >= group.MinPlayers {
-			return m.buildMatchLocked(group, picked, red, blu)
+		if ok && countSeats(picked) >= sizes.min {
+			return m.buildMatchLocked(group, battle, picked, red, blu)
 		}
 		picked = picked[:len(picked)-1]
 	}
 	return nil
+}
+
+// warBattle is the battle the war wants, held together with the front it is
+// being fought on so the two cannot drift apart between deciding and building.
+type warBattle struct {
+	battle war.Battle
+	front  war.Front
+}
+
+// matchSizes is how big a match may be. It is the group's own numbers, widened
+// to whatever the battlefield pool can accommodate.
+type matchSizes struct{ min, ideal, max int }
+
+// battleSizes widens the group's thresholds to cover every battlefield the
+// battle could be fought on: the smallest min anything in the pool will accept,
+// the largest ideal anything will make use of, the largest max anything allows.
+//
+// Widening rather than replacing is deliberate. The pool says what is possible;
+// which of those the queue can actually fill is decided afterwards, once the
+// seats are known, in fieldFor.
+func battleSizes(group config.MatchGroupConfig, b *warBattle) matchSizes {
+	s := matchSizes{min: group.MinPlayers, ideal: group.IdealPlayers, max: group.MaxPlayers}
+	if b == nil || len(b.battle.Fields) == 0 {
+		return s
+	}
+	first := true
+	for _, f := range b.battle.Fields {
+		fs := fieldSizes(group, f)
+		if first {
+			s = fs
+			first = false
+			continue
+		}
+		if fs.min < s.min {
+			s.min = fs.min
+		}
+		if fs.ideal > s.ideal {
+			s.ideal = fs.ideal
+		}
+		if fs.max > s.max {
+			s.max = fs.max
+		}
+	}
+	return s
+}
+
+// fieldSizes is one battlefield's own numbers, with the group's standing in
+// for anything it did not set.
+func fieldSizes(group config.MatchGroupConfig, f war.Battlefield) matchSizes {
+	s := matchSizes{min: f.MinPlayers, ideal: f.IdealPlayers, max: f.MaxPlayers}
+	if s.min <= 0 {
+		s.min = group.MinPlayers
+	}
+	if s.ideal <= 0 {
+		s.ideal = group.IdealPlayers
+	}
+	if s.max <= 0 {
+		s.max = group.MaxPlayers
+	}
+	if s.ideal < s.min {
+		s.ideal = s.min
+	}
+	if s.max < s.ideal {
+		s.max = s.ideal
+	}
+	return s
 }
 
 func countSeats(ts []*Ticket) int {
@@ -140,7 +223,7 @@ func splitTeams(ts []*Ticket) (red, blu []*Ticket, ok bool) {
 
 // buildMatchLocked turns a chosen set of tickets into a match record. The
 // caller holds the lock.
-func (m *Matchmaker) buildMatchLocked(group config.MatchGroupConfig, picked, red, blu []*Ticket) *Match {
+func (m *Matchmaker) buildMatchLocked(group config.MatchGroupConfig, battle *warBattle, picked, red, blu []*Ticket) *Match {
 	mt := &Match{
 		ID:         m.newID(),
 		MatchGroup: group.MatchGroup,
@@ -150,25 +233,39 @@ func (m *Matchmaker) buildMatchLocked(group config.MatchGroupConfig, picked, red
 	}
 
 	attackerTeam := wire.TeamUnassigned
-	if m.war != nil {
-		if b, front, ok := m.warBattleLocked(); ok {
-			mt.Map = b.Stage.Map
-			mt.FrontID = front.ID
-			attackerTeam = wire.Team(b.AttackerTeam)
-			mt.War = &wire.WarBriefing{
-				FrontID:      front.ID,
-				NodeID:       front.NodeID,
-				NodeName:     b.NodeName,
-				StageIndex:   b.StageIndex,
-				StageCount:   b.StageCount,
-				StageKind:    b.Stage.Kind,
-				AttackerWar:  string(b.Attacker),
-				AttackerTeam: attackerTeam,
-			}
+	if battle != nil {
+		b, front := battle.battle, battle.front
+
+		// The war says what kind of battle and where it may be fought; which
+		// of those maps it actually is belongs here, with the half that knows
+		// how many people turned up and which maps they voted for.
+		field := fieldFor(group, b.Fields, countSeats(picked))
+		mt.Map = m.chooseMapLocked(fieldNames(candidateFields(group, b.Fields, countSeats(picked))), picked)
+		if mt.Map == "" {
+			mt.Map = field.Map
+		} else {
+			field = fieldByName(b.Fields, mt.Map, field)
+		}
+
+		mt.FrontID = front.ID
+		attackerTeam = wire.Team(b.AttackerTeam)
+		if field.AttackerTeam != 0 {
+			attackerTeam = wire.Team(field.AttackerTeam)
+		}
+		mt.War = &wire.WarBriefing{
+			FrontID:      front.ID,
+			NodeID:       front.NodeID,
+			NodeName:     b.NodeName,
+			StageIndex:   b.StageIndex,
+			StageCount:   b.StageCount,
+			StageKind:    b.Stage.Kind,
+			BattleMode:   field.Mode,
+			AttackerWar:  string(b.Attacker),
+			AttackerTeam: attackerTeam,
 		}
 	}
 	if mt.Map == "" {
-		mt.Map = m.chooseMapLocked(group, picked)
+		mt.Map = m.chooseMapLocked(group.EffectiveMaps(), picked)
 	}
 	m.recentMap(mt.Map)
 
@@ -177,9 +274,11 @@ func (m *Matchmaker) buildMatchLocked(group config.MatchGroupConfig, picked, red
 			t.state = tsMatched
 			t.matchID = mt.ID
 			mt.tickets = append(mt.tickets, t.ID)
-			for _, p := range t.Players {
-				p.Team = team
-				mt.Players = append(mt.Players, p)
+			// Index, not range, so the ticket knows its own team too. See
+			// the note in addToMatchLocked.
+			for i := range t.Players {
+				t.Players[i].Team = team
+				mt.Players = append(mt.Players, t.Players[i])
 			}
 		}
 	}
@@ -191,6 +290,54 @@ func (m *Matchmaker) buildMatchLocked(group config.MatchGroupConfig, picked, red
 		"match", mt.ID, "group", group.Name, "map", mt.Map,
 		"players", len(mt.Players), "red", countSeats(red), "blu", countSeats(blu))
 	return mt
+}
+
+// candidateFields narrows a battle's pool to the battlefields this many players
+// can actually fill. If none of them fits -- a queue that settled below every
+// battlefield's floor, or grew past every ceiling -- the whole pool is
+// returned rather than nothing: a battle on a slightly wrong-sized map beats
+// no battle at all.
+func candidateFields(group config.MatchGroupConfig, fields []war.Battlefield, seats int) []war.Battlefield {
+	var fits []war.Battlefield
+	for _, f := range fields {
+		fs := fieldSizes(group, f)
+		if seats >= fs.min && seats <= fs.max {
+			fits = append(fits, f)
+		}
+	}
+	if len(fits) == 0 {
+		return fields
+	}
+	return fits
+}
+
+// fieldFor is candidateFields' first answer, for when only one is wanted.
+func fieldFor(group config.MatchGroupConfig, fields []war.Battlefield, seats int) war.Battlefield {
+	c := candidateFields(group, fields, seats)
+	if len(c) == 0 {
+		return war.Battlefield{}
+	}
+	return c[0]
+}
+
+func fieldNames(fields []war.Battlefield) []string {
+	out := make([]string, 0, len(fields))
+	for _, f := range fields {
+		out = append(out, f.Map)
+	}
+	return out
+}
+
+// fieldByName finds the battlefield the map choice landed on, so its mode and
+// attacker team travel with it. Falls back to def for a map that came from
+// somewhere else.
+func fieldByName(fields []war.Battlefield, name string, def war.Battlefield) war.Battlefield {
+	for _, f := range fields {
+		if f.Map == name {
+			return f
+		}
+	}
+	return def
 }
 
 // warBattleLocked picks the front with the fewest matches on it and returns the
@@ -225,9 +372,9 @@ func (m *Matchmaker) warBattleLocked() (battle war.Battle, front war.Front, ok b
 //
 // Preference is a filter, not a veto: if no map satisfies everyone the union of
 // preferences is used, and if nobody expressed one the group's own list is.
-func (m *Matchmaker) chooseMapLocked(group config.MatchGroupConfig, picked []*Ticket) string {
+func (m *Matchmaker) chooseMapLocked(pool []string, picked []*Ticket) string {
 	allowed := map[string]bool{}
-	for _, name := range group.Maps {
+	for _, name := range pool {
 		allowed[name] = true
 	}
 
@@ -267,7 +414,7 @@ func (m *Matchmaker) chooseMapLocked(group config.MatchGroupConfig, picked []*Ti
 		}
 	}
 	if len(candidates) == 0 {
-		candidates = append(candidates, group.Maps...)
+		candidates = append(candidates, pool...)
 	}
 	if len(candidates) == 0 {
 		return ""

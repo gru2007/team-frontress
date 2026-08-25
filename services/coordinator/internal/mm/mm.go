@@ -44,6 +44,14 @@ type Ticket struct {
 	Maps       []string
 	LateJoinOK bool
 	Region     string
+	// StandbyMatchID asks to be seated in one particular running match rather
+	// than queued for a new one: "let me into the game my party is in".
+	//
+	// It is a request, not an instruction. The match has to still be live, in
+	// this group, and have room on a side under the team cap -- the same rule
+	// backfill uses, because it is the same thing happening for a different
+	// reason.
+	StandbyMatchID string
 
 	state      ticketState
 	queuedAt   time.Time
@@ -90,6 +98,9 @@ type Match struct {
 	lastNonEmpty time.Time
 	lastPolled   time.Time
 	players      int
+	// everSeenPlayers separates "the match emptied out" from "nobody ever
+	// arrived", which are the same timeout and very different problems.
+	everSeenPlayers bool
 }
 
 // Spec is everything a game server needs to run a match. It is what ServerSetup
@@ -101,6 +112,17 @@ type Spec struct {
 	ServerConfig string
 	Players      int
 	MaxPlayers   int
+	// MatchEmulation is what tf_match_emulation should be while this match
+	// runs: the server-side switch that makes a pooled server an official
+	// match of a particular group rather than a community server. Zero leaves
+	// it off. See config.MatchEmulationFor.
+	MatchEmulation int
+	// MatchGroup is what the match is, for anything that wants to name it.
+	MatchGroup wire.MatchGroup
+	// Roster is who the coordinator sold a seat to, and which team it is on.
+	// The server uses it to build a real match object, which is what makes
+	// tf_mm_strict's roster gate -- rather than the password -- the door.
+	Roster []wire.AssignedPlayer
 }
 
 // ServerSetup prepares a server for a match and watches it afterwards. The
@@ -108,6 +130,14 @@ type Spec struct {
 type ServerSetup interface {
 	// Setup makes the server ready and returns when the map is changing.
 	Setup(ctx context.Context, s *pool.Server, spec Spec) error
+	// AddPlayers tells a running match's server about seats the coordinator
+	// has just sold, so it will let those players in.
+	//
+	// This is not optional bookkeeping. A server running one of our matches
+	// gates the door on the roster it was given, so a backfill or a standby
+	// join that is not announced here is turned away at connect -- which is
+	// exactly the failure the gate exists to produce for everybody else.
+	AddPlayers(ctx context.Context, s *pool.Server, matchID string, roster []wire.AssignedPlayer) error
 	// PlayerCount returns how many humans are on the server. ok is false when
 	// the server could not be asked, which is not the same as "empty".
 	PlayerCount(ctx context.Context, s *pool.Server) (n int, ok bool)
@@ -230,8 +260,60 @@ func (m *Matchmaker) Enqueue(t *Ticket) (*Ticket, error) {
 	t.lastPoll = t.queuedAt
 	m.tickets[t.ID] = t
 	m.byLeader[key] = t.ID
+
+	if t.StandbyMatchID != "" {
+		mt, team, err := m.standbySeatLocked(group, t)
+		if err != nil {
+			delete(m.tickets, t.ID)
+			delete(m.byLeader, key)
+			m.log.Info("standby refused", "match", t.StandbyMatchID, "leader", t.Leader, "reason", err)
+			return nil, err
+		}
+		m.addToMatchLocked(mt, t, team)
+		m.log.Info("standby seat sold",
+			"ticket", t.ID, "match", mt.ID, "players", t.Size(), "team", team)
+		// The server still has to be told before the client is; admit() does
+		// that off the lock, exactly as backfill does.
+		go m.admit(context.Background(), mt, []*Ticket{t}, "standby")
+		return t, nil
+	}
+
 	m.log.Info("queued", "ticket", t.ID, "group", group.Name, "players", t.Size(), "leader", t.Leader)
 	return t, nil
+}
+
+// standbySeatLocked finds the seat a standby request is asking for, or says why
+// there is not one. The caller holds the lock.
+func (m *Matchmaker) standbySeatLocked(group config.MatchGroupConfig, t *Ticket) (*Match, wire.Team, error) {
+	mt, ok := m.matches[t.StandbyMatchID]
+	if !ok {
+		return nil, wire.TeamUnassigned, fmt.Errorf("that match is over")
+	}
+	if mt.state != msLive {
+		return nil, wire.TeamUnassigned, fmt.Errorf("that match has not started yet")
+	}
+	if mt.MatchGroup != t.MatchGroup {
+		return nil, wire.TeamUnassigned, fmt.Errorf("that match is not %s", group.Name)
+	}
+
+	// Somebody already in it asking again -- a client that retried, or a
+	// member whose party leader queued them in. Hand back what they have.
+	for _, p := range t.Players {
+		for _, in := range mt.Players {
+			if in.SteamID == p.SteamID {
+				return nil, wire.TeamUnassigned, fmt.Errorf("you are already in that match")
+			}
+		}
+	}
+
+	if len(mt.Players)+t.Size() > group.MaxPlayers {
+		return nil, wire.TeamUnassigned, fmt.Errorf("that match is full")
+	}
+	team, ok := roomFor(mt, t.Size(), group.TeamCap())
+	if !ok {
+		return nil, wire.TeamUnassigned, fmt.Errorf("neither team in that match has room for %d more", t.Size())
+	}
+	return mt, team, nil
 }
 
 // Cancel takes a ticket out of queue. A ticket already in a match is not
@@ -265,7 +347,7 @@ func (m *Matchmaker) Status(id string) (wire.QueueStatus, error) {
 		TicketID:    t.ID,
 		QueuedSecs:  int(now.Sub(t.queuedAt).Seconds()),
 		PollAfterMS: m.cfg.Timing.PollAfterMS,
-		Assignment:  t.assignment,
+		Assignment:  cloneAssignment(t.assignment),
 		Error:       t.failure,
 	}
 	switch t.state {
@@ -281,9 +363,17 @@ func (m *Matchmaker) Status(id string) (wire.QueueStatus, error) {
 		st.State = wire.QueueStateSearching
 	}
 
+	group, _ := m.cfg.Group(t.MatchGroup)
+
 	// A ticket in a formed match still reads as "searching" to the client --
 	// there is nothing to connect to yet -- so the reason it is stuck has to
 	// travel separately, or the player just sees a queue that stopped.
+	//
+	// The counts have to travel with it. queuedPlayersLocked only counts
+	// tickets that are still *searching*, so the moment a match formed the
+	// client was told "0 in queue, 4 more needed" about a match it was
+	// already in: the search bar counted backwards while the coordinator was
+	// booting a server for it. A matched ticket reports its own match.
 	if t.state == tsMatched && t.matchID != "" {
 		if mt, ok := m.matches[t.matchID]; ok {
 			switch mt.state {
@@ -295,16 +385,34 @@ func (m *Matchmaker) Status(id string) (wire.QueueStatus, error) {
 			case msBooting:
 				st.Detail = "Match found. Starting the server."
 			}
+			st.InQueue = len(mt.Players)
+			st.NeedPlayers = 0
+			return st, nil
 		}
 	}
 
-	group, _ := m.cfg.Group(t.MatchGroup)
 	queued := m.queuedPlayersLocked(t.MatchGroup)
 	st.InQueue = queued
 	if need := group.MinPlayers - queued; need > 0 {
 		st.NeedPlayers = need
 	}
 	return st, nil
+}
+
+// cloneAssignment copies what the client is told about its match.
+//
+// The caller serializes this after the lock is dropped, and the assignment it
+// would otherwise hand out is the live one: admit() rewrites the roster of
+// every assignment in a match from its own goroutine whenever seats are sold
+// in it, so sharing the pointer is a read and a write of the same slice with
+// nothing in between.
+func cloneAssignment(a *wire.Assignment) *wire.Assignment {
+	if a == nil {
+		return nil
+	}
+	c := *a
+	c.Roster = append([]wire.AssignedPlayer(nil), a.Roster...)
+	return &c
 }
 
 func (m *Matchmaker) queuedPlayersLocked(g wire.MatchGroup) int {

@@ -184,3 +184,69 @@ func TestSearchTTLNeverOutlivesAConfiguredTicketTTL(t *testing.T) {
 		t.Fatalf("search ttl = %s, want 5s: an operator who asked for a short ttl gets it", got)
 	}
 }
+
+func TestMatchEmulationIsDerivedFromTheMatchGroup(t *testing.T) {
+	casual := MatchGroupConfig{MatchGroup: wire.MatchGroupCasual12v12}
+	if got := casual.EffectiveMatchEmulation(); got != 1 {
+		t.Fatalf("casual 12v12 emulation = %d, want 1", got)
+	}
+
+	ladder := MatchGroupConfig{MatchGroup: wire.MatchGroupLadder6v6}
+	if got := ladder.EffectiveMatchEmulation(); got != 2 {
+		t.Fatalf("ladder 6v6 emulation = %d, want 2", got)
+	}
+
+	// A group the game has no match description for gets nothing rather than
+	// a wrong one: an emulated match of the wrong kind is worse than none.
+	other := MatchGroupConfig{MatchGroup: wire.MatchGroup(99)}
+	if got := other.EffectiveMatchEmulation(); got != 0 {
+		t.Fatalf("unknown group emulation = %d, want 0", got)
+	}
+
+	off := 0
+	forced := MatchGroupConfig{MatchGroup: wire.MatchGroupCasual12v12, MatchEmulation: &off}
+	if got := forced.EffectiveMatchEmulation(); got != 0 {
+		t.Fatalf("explicit 0 was overridden, got %d", got)
+	}
+}
+
+// The shipped example is what operators copy. If it stops validating, that
+// should be a test failure here rather than a support question.
+func TestExampleConfigValidates(t *testing.T) {
+	c, err := Load("../../coordinator.example.json")
+	if err != nil {
+		t.Fatalf("coordinator.example.json: %v", err)
+	}
+	var casual MatchGroupConfig
+	for _, g := range c.MatchGroups {
+		if g.MatchGroup == wire.MatchGroupCasual12v12 {
+			casual = g
+		}
+	}
+	// Casual is meant to offer what vanilla offers. If it ever shrinks back to
+	// a handful of maps, that is a regression, not a config choice.
+	if n := len(casual.EffectiveMaps()); n < 100 {
+		t.Fatalf("casual map pool is %d maps, want the vanilla-sized pool", n)
+	}
+}
+
+func TestModesExpandToTheVanillaPool(t *testing.T) {
+	g := MatchGroupConfig{Modes: []string{"koth"}, Maps: []string{"koth_viaduct", "cp_custom_thing"}}
+	got := g.EffectiveMaps()
+
+	seen := map[string]int{}
+	for _, m := range got {
+		seen[m]++
+	}
+	if seen["koth_viaduct"] != 1 {
+		t.Fatalf("koth_viaduct appears %d times; the mode and the explicit list double-counted it", seen["koth_viaduct"])
+	}
+	// A map the table has never heard of is still allowed: a community map is
+	// not a config error.
+	if seen["cp_custom_thing"] != 1 {
+		t.Fatal("an explicit map outside the stock table was dropped")
+	}
+	if len(got) < 20 {
+		t.Fatalf("koth expanded to %d maps, want the whole koth list", len(got))
+	}
+}

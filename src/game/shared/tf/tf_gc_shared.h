@@ -13,6 +13,8 @@
 #include "tf_gcmessages.pb.h"
 #ifdef TF_CLIENT_DLL
 #include "frontress/tf_mm_backend.h"
+#elif defined( TF_DLL )
+#include "frontress/tf_mm_server.h"
 #endif
 
 using namespace GCSDK;
@@ -123,14 +125,24 @@ public:
 	// -- and, when the backend takes the message, instead of it.
 	virtual bool BAnswerInProcess() OVERRIDE
 	{
+#if defined( TF_CLIENT_DLL ) || defined( TF_DLL )
 #ifdef TF_CLIENT_DLL
 		if ( !TFMMBackend()->BActive() )
 			return false;
+#else
+		if ( !TFMMServer()->BActive() )
+			return false;
+#endif
 
 		ReliableMsg()->OnPrepare();
 
+#ifdef TF_CLIENT_DLL
 		if ( !TFMMBackend()->BHandleClientMsg( E_MSG_TYPE, m_msg.Body(), &m_msgReply.Body() ) )
 			return false;
+#else
+		if ( !TFMMServer()->BHandleServerMsg( E_MSG_TYPE, m_msg.Body(), &m_msgReply.Body() ) )
+			return false;
+#endif
 
 		MMLog( "[ReliableMsg] %s answered locally for %s\n", GetMsgName(), DebugString() );
 		ReliableMsg()->OnReply( m_msgReply );
@@ -156,12 +168,20 @@ public:
 
 			double flTimeStart = Plat_FloatTime();
 
-#ifdef TF_CLIENT_DLL
 			// Reliable messages exist because the GC might not answer. Ours
 			// always does, in-process, so a handled message completes on the
 			// first pass and never enters the retry loop below.
+#ifdef TF_CLIENT_DLL
 			if ( TFMMBackend()->BActive() &&
 			     TFMMBackend()->BHandleClientMsg( E_MSG_TYPE, m_msg.Body(), &m_msgReply.Body() ) )
+			{
+				MMLog( "[ReliableMsg] %s answered locally for %s\n", GetMsgName(), DebugString() );
+				ReliableMsg()->OnReply( m_msgReply );
+				return true;
+			}
+#elif defined( TF_DLL )
+			if ( TFMMServer()->BActive() &&
+			     TFMMServer()->BHandleServerMsg( E_MSG_TYPE, m_msg.Body(), &m_msgReply.Body() ) )
 			{
 				MMLog( "[ReliableMsg] %s answered locally for %s\n", GetMsgName(), DebugString() );
 				ReliableMsg()->OnReply( m_msgReply );

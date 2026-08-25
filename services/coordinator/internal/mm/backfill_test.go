@@ -2,6 +2,7 @@ package mm
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -226,5 +227,146 @@ func TestOpenMatchesIsReported(t *testing.T) {
 
 	if got := m.OpenMatches()[wire.MatchGroupCasual12v12]; got != 1 {
 		t.Fatalf("open matches = %d, want 1", got)
+	}
+}
+
+// The roster gate means a backfilled player is refused at the door unless the
+// server was told about them. This is the test that the door gets opened.
+func TestBackfillTellsTheServerBeforeTheClient(t *testing.T) {
+	cfg := testConfig(4, 4, 12, 0)
+	cfg.MatchGroups[0].Mode = config.ModeFrontline
+	m, setup, _ := newTestMM(t, cfg, 1)
+
+	party(t, m, "7656119800000000", 2)
+	party(t, m, "7656119811111111", 2)
+	settle(m)
+	matchID := onlyMatchID(t, m)
+
+	late := party(t, m, "7656119822222222", 2)
+	settle(m)
+
+	calls := setup.addedSeats()
+	if len(calls) != 1 {
+		t.Fatalf("the server was told about seats %d times, want once", len(calls))
+	}
+	if calls[0].MatchID != matchID {
+		t.Fatalf("seats announced for %s, want %s", calls[0].MatchID, matchID)
+	}
+	if len(calls[0].Roster) != 2 {
+		t.Fatalf("announced %d seats, want the 2 that were sold", len(calls[0].Roster))
+	}
+	for _, p := range calls[0].Roster {
+		if p.Team != wire.TeamRed && p.Team != wire.TeamBlu {
+			t.Fatalf("seat for %s has no team; the server would not know where to put them", p.SteamID)
+		}
+	}
+
+	st, _ := m.Status(late.ID)
+	if st.State != wire.QueueStateAssigned {
+		t.Fatalf("state = %q, want assigned once the server had been told", st.State)
+	}
+}
+
+// If the server cannot be told, the players must go back in the queue rather
+// than be sent at a door that will not open for them.
+func TestBackfillGivesTheSeatBackWhenTheServerCannotBeTold(t *testing.T) {
+	cfg := testConfig(4, 4, 12, 0)
+	cfg.MatchGroups[0].Mode = config.ModeFrontline
+	m, setup, _ := newTestMM(t, cfg, 1)
+
+	party(t, m, "7656119800000000", 2)
+	party(t, m, "7656119811111111", 2)
+	settle(m)
+	matchID := onlyMatchID(t, m)
+
+	setup.mu.Lock()
+	setup.addFail = errors.New("rcon refused")
+	setup.mu.Unlock()
+
+	late := party(t, m, "7656119822222222", 2)
+	settle(m)
+
+	st, _ := m.Status(late.ID)
+	if st.State != wire.QueueStateSearching {
+		t.Fatalf("state = %q, want searching: an un-announced seat is not a seat", st.State)
+	}
+	if st.Assignment != nil {
+		t.Fatal("the client was given connect details for a server that will refuse it")
+	}
+
+	red, blu := teamCounts(t, m, matchID)
+	if red+blu != 4 {
+		t.Fatalf("match holds %d players, want the original 4 back", red+blu)
+	}
+}
+
+// Standby: a party member asking to be let into the game their party is
+// already in. Same seat, same gate, different reason for wanting it.
+func TestStandbyPutsYouInYourPartysMatch(t *testing.T) {
+	cfg := testConfig(4, 4, 12, 0)
+	cfg.MatchGroups[0].Mode = config.ModeFrontline
+	m, setup, _ := newTestMM(t, cfg, 1)
+
+	party(t, m, "7656119800000000", 2)
+	party(t, m, "7656119811111111", 2)
+	settle(m)
+	matchID := onlyMatchID(t, m)
+
+	late, err := m.Enqueue(&Ticket{
+		MatchGroup:     cfg.MatchGroups[0].MatchGroup,
+		Leader:         "7656119822222222",
+		Players:        []wire.AssignedPlayer{{SteamID: "7656119822222222"}},
+		StandbyMatchID: matchID,
+	})
+	if err != nil {
+		t.Fatalf("standby: %v", err)
+	}
+	waitAssigned(t, m, late)
+
+	st, _ := m.Status(late.ID)
+	if st.State != wire.QueueStateAssigned {
+		t.Fatalf("state = %q, want assigned", st.State)
+	}
+	if st.Assignment.MatchID != matchID {
+		t.Fatalf("sent to %s, want the party's match %s", st.Assignment.MatchID, matchID)
+	}
+	if !st.Assignment.LateJoin {
+		t.Error("a standby join is a late join")
+	}
+
+	calls := setup.addedSeats()
+	if len(calls) != 1 || calls[0].MatchID != matchID {
+		t.Fatalf("the server was not told to expect the standby player: %+v", calls)
+	}
+}
+
+func TestStandbySaysWhyItCannot(t *testing.T) {
+	cfg := testConfig(4, 4, 4, 0) // max 4: the match fills exactly
+	cfg.MatchGroups[0].Mode = config.ModeFrontline
+	m, _, _ := newTestMM(t, cfg, 1)
+
+	party(t, m, "7656119800000000", 2)
+	party(t, m, "7656119811111111", 2)
+	settle(m)
+	matchID := onlyMatchID(t, m)
+
+	_, err := m.Enqueue(&Ticket{
+		MatchGroup:     cfg.MatchGroups[0].MatchGroup,
+		Leader:         "7656119822222222",
+		Players:        []wire.AssignedPlayer{{SteamID: "7656119822222222"}},
+		StandbyMatchID: matchID,
+	})
+	if err == nil {
+		t.Fatal("standby into a full match was accepted")
+	}
+
+	// A match that does not exist is a refusal, not a crash or a silent queue.
+	if _, err := m.Enqueue(&Ticket{
+		MatchGroup:     cfg.MatchGroups[0].MatchGroup,
+		Leader:         "7656119833333333",
+		Players:        []wire.AssignedPlayer{{SteamID: "7656119833333333"}},
+		StandbyMatchID: "nosuchmatch",
+	}); err == nil {
+		t.Fatal("standby into a match that does not exist was accepted")
 	}
 }

@@ -16,6 +16,7 @@ import (
 
 	"github.com/gru2007/team-frontress/services/coordinator/internal/config"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/mm"
+	"github.com/gru2007/team-frontress/services/coordinator/internal/players"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/pool"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/steamauth"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/war"
@@ -33,6 +34,7 @@ type Server struct {
 	verifier steamauth.Verifier
 	registry *pool.Registry
 	war      *war.Engine
+	players  *players.Store
 	log      *slog.Logger
 }
 
@@ -52,11 +54,11 @@ type Matchmaker interface {
 }
 
 // New builds the API server.
-func New(cfg config.Config, m Matchmaker, v steamauth.Verifier, reg *pool.Registry, w *war.Engine, log *slog.Logger) *Server {
+func New(cfg config.Config, m Matchmaker, v steamauth.Verifier, reg *pool.Registry, w *war.Engine, rec *players.Store, log *slog.Logger) *Server {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Server{cfg: cfg, mm: m, verifier: v, registry: reg, war: w, log: log}
+	return &Server{cfg: cfg, mm: m, verifier: v, registry: reg, war: w, players: rec, log: log}
 }
 
 // Handler returns the routed HTTP handler.
@@ -66,10 +68,44 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/queue", s.handleQueue)
 	mux.HandleFunc("GET /v1/queue/{id}", s.handleQueueStatus)
 	mux.HandleFunc("DELETE /v1/queue/{id}", s.handleQueueCancel)
+	mux.HandleFunc("GET /v1/player/{id}", s.handlePlayer)
 	mux.HandleFunc("POST /v1/gs/register", s.handleServerRegister)
 	mux.HandleFunc("POST /v1/gs/heartbeat", s.handleServerHeartbeat)
 	mux.HandleFunc("POST /v1/gs/result", s.handleServerResult)
 	return mux
+}
+
+// handlePlayer answers what the coordinator remembers about one player: the
+// matches, the XP those matches are worth and the level that comes to.
+//
+// Public and unauthenticated, like the status page. It says nothing a
+// scoreboard would not, and requiring a ticket to read your own level would
+// mean the menu could not show it until the first queue request of the session.
+func (s *Server) handlePlayer(w http.ResponseWriter, r *http.Request) {
+	if s.players == nil {
+		writeErr(w, http.StatusServiceUnavailable, "this coordinator keeps no player records")
+		return
+	}
+	id := wire.SteamID(r.PathValue("id"))
+	if !steamauth.ValidSteamID(id) {
+		writeErr(w, http.StatusBadRequest, "not a SteamID64")
+		return
+	}
+
+	rec := s.players.Get(id)
+	into, needed := rec.LevelProgress()
+	writeJSON(w, http.StatusOK, wire.PlayerProgress{
+		SteamID:      id,
+		Name:         rec.Name,
+		Matches:      rec.Matches,
+		Wins:         rec.Wins,
+		Losses:       rec.Losses,
+		Abandons:     rec.Abandons,
+		XP:           rec.XP(),
+		Level:        rec.Level(),
+		LevelXP:      into,
+		LevelXPTotal: needed,
+	})
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
@@ -109,7 +145,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 			MaxPlayers:  g.MaxPlayers,
 			Backfill:    g.BBackfills(),
 			OpenMatches: open[g.MatchGroup],
-			Maps:        g.Maps,
+			Maps:        g.EffectiveMaps(),
 		}
 		if r := g.Restrictions; r.Any() {
 			info.Restrictions = &wire.GroupRestrictions{
@@ -203,11 +239,12 @@ func (s *Server) handleQueue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ticket, err := s.mm.Enqueue(&mm.Ticket{
-		MatchGroup: req.MatchGroup,
-		Leader:     leader,
-		Players:    players,
-		Maps:       req.Maps,
-		LateJoinOK: req.LateJoinOK,
+		MatchGroup:     req.MatchGroup,
+		Leader:         leader,
+		Players:        players,
+		Maps:           req.Maps,
+		LateJoinOK:     req.LateJoinOK,
+		StandbyMatchID: req.StandbyMatchID,
 	})
 	if err != nil {
 		// A group that refused this party on its own terms is not a malformed

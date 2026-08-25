@@ -53,6 +53,34 @@ type Theater struct {
 	// FrontsByPopulation opens more fronts as more people play. Each entry is
 	// the player count at which one more front opens, in ascending order.
 	FrontsByPopulation []int `json:"fronts_by_population"`
+	// Battlefields is the pool a stage of each kind may be fought on, keyed by
+	// the stage's Kind. A stage that names no Map draws from its kind's pool.
+	//
+	// This is what keeps a campaign from being a list of hardcoded maps: a
+	// node's plan says "breakthrough, then advance, then assault" and the pool
+	// says where each of those can happen and how many people it takes.
+	Battlefields map[string][]Battlefield `json:"battlefields,omitempty"`
+}
+
+// Battlefield is one place a stage of some kind can be fought, and what it
+// costs to fight there.
+//
+// The player counts are the point of it. A 2v2 on arena_well and a 12v12 on
+// pl_swiftwater are both legitimate battles, and the matchmaker cannot know
+// which of them the queue can currently fill unless the battlefield says so.
+// Zero means "use the match group's own number", which is the sane default for
+// a deployment that does not care.
+type Battlefield struct {
+	Map string `json:"map"`
+	// Mode is the operator's word for what is played here. The coordinator
+	// passes it through to the briefing and does not interpret it.
+	Mode         string `json:"mode,omitempty"`
+	MinPlayers   int    `json:"min_players,omitempty"`
+	IdealPlayers int    `json:"ideal_players,omitempty"`
+	MaxPlayers   int    `json:"max_players,omitempty"`
+	// AttackerTeam overrides the stage's own attacker team. An attack/defend
+	// or payload map needs the attacker in BLU; a symmetric one does not care.
+	AttackerTeam int32 `json:"attacker_team,omitempty"`
 }
 
 // Node is one strategic location. A node is not a map: it holds an ordered
@@ -67,9 +95,13 @@ type Node struct {
 // Stage is one battle in a node's offensive.
 type Stage struct {
 	// Kind is the operator's own word for this stage ("breakthrough",
-	// "advance", "assault"). The coordinator only passes it through.
+	// "advance", "assault"). The coordinator only passes it through -- except
+	// that it is also the key into the theater's Battlefields pool.
 	Kind string `json:"kind"`
-	Map  string `json:"map"`
+	// Map pins this stage to one battlefield. Empty draws from the kind's
+	// pool in Theater.Battlefields, which is the usual case: a node should
+	// say what kind of fight happens there, not which map it is every time.
+	Map string `json:"map,omitempty"`
 	// MatchGroup overrides the queue's own group for this stage. Zero means
 	// "whatever the players queued for".
 	MatchGroup int32 `json:"match_group,omitempty"`
@@ -124,8 +156,29 @@ func (t *Theater) Validate() error {
 			return fmt.Errorf("node %s: needs at least one stage", n.ID)
 		}
 		for j, s := range n.Plan {
-			if s.Map == "" {
-				return fmt.Errorf("node %s: plan[%d] has no map", n.ID, j)
+			if s.Kind == "" && s.Map == "" {
+				return fmt.Errorf("node %s: plan[%d] has neither a kind nor a map", n.ID, j)
+			}
+			if s.Map == "" && len(t.Battlefields[s.Kind]) == 0 {
+				return fmt.Errorf("node %s: plan[%d] is a %q stage with no map, and battlefields has no %q pool to draw one from",
+					n.ID, j, s.Kind, s.Kind)
+			}
+		}
+	}
+	for kind, pool := range t.Battlefields {
+		for j, b := range pool {
+			if b.Map == "" {
+				return fmt.Errorf("battlefields[%s][%d]: map must be set", kind, j)
+			}
+			switch {
+			case b.MinPlayers < 0 || b.IdealPlayers < 0 || b.MaxPlayers < 0:
+				return fmt.Errorf("battlefields[%s][%d] (%s): player counts cannot be negative", kind, j, b.Map)
+			case b.MinPlayers%2 != 0 || b.MaxPlayers%2 != 0:
+				return fmt.Errorf("battlefields[%s][%d] (%s): min_players and max_players must be even, teams are equal", kind, j, b.Map)
+			case b.IdealPlayers != 0 && b.MinPlayers != 0 && b.IdealPlayers < b.MinPlayers:
+				return fmt.Errorf("battlefields[%s][%d] (%s): ideal_players %d is below min_players %d", kind, j, b.Map, b.IdealPlayers, b.MinPlayers)
+			case b.MaxPlayers != 0 && b.IdealPlayers != 0 && b.MaxPlayers < b.IdealPlayers:
+				return fmt.Errorf("battlefields[%s][%d] (%s): max_players %d is below ideal_players %d", kind, j, b.Map, b.MaxPlayers, b.IdealPlayers)
 			}
 		}
 	}
@@ -144,6 +197,15 @@ func (t *Theater) Validate() error {
 		return errors.New("fronts_by_population must be ascending")
 	}
 	return nil
+}
+
+// FieldsFor returns the battlefields a stage may be fought on: the one it pins
+// itself to, or its kind's whole pool. Never empty for a validated theater.
+func (t *Theater) FieldsFor(s Stage) []Battlefield {
+	if s.Map != "" {
+		return []Battlefield{{Map: s.Map, AttackerTeam: s.AttackerTeam}}
+	}
+	return t.Battlefields[s.Kind]
 }
 
 // Neighbours returns the nodes adjacent to id.

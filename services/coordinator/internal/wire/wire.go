@@ -79,6 +79,11 @@ type QueueRequest struct {
 	LateJoinOK bool `json:"late_join_ok,omitempty"`
 	// PingMS to the coordinator's known regions, keyed by region id. Advisory.
 	PingMS map[string]int `json:"ping_ms,omitempty"`
+	// StandbyMatchID turns this from "find me a match" into "let me into that
+	// one" -- the match a party member's leader is already playing. The reply
+	// is the same ticket in the same shape; it is just assigned immediately or
+	// refused with a reason, rather than queued.
+	StandbyMatchID string `json:"standby_match_id,omitempty"`
 }
 
 // QueueResponse is the reply to a successful queue request.
@@ -136,12 +141,16 @@ type AssignedPlayer struct {
 // WarBriefing states a battle's place in the campaign. It is the seam the
 // strategic layer plugs into; nothing in matchmaking depends on it being set.
 type WarBriefing struct {
-	FrontID     string `json:"front_id"`
-	NodeID      string `json:"node_id"`
-	NodeName    string `json:"node_name"`
-	StageIndex  int    `json:"stage_index"`
-	StageCount  int    `json:"stage_count"`
-	StageKind   string `json:"stage_kind"`
+	FrontID    string `json:"front_id"`
+	NodeID     string `json:"node_id"`
+	NodeName   string `json:"node_name"`
+	StageIndex int    `json:"stage_index"`
+	StageCount int    `json:"stage_count"`
+	StageKind  string `json:"stage_kind"`
+	// BattleMode is what the chosen battlefield plays as ("koth", "payload",
+	// "attack_defend"). The briefing carries it so the client can say what
+	// kind of fight this is without knowing the map table.
+	BattleMode  string `json:"battle_mode,omitempty"`
 	AttackerWar string `json:"attacker_war"` // "RED" or "BLU" in war terms
 	// AttackerTeam is the game team the attacker wears this battle. The war
 	// side and the game team are not the same thing.
@@ -164,6 +173,24 @@ type QueueStatus struct {
 	// picture whether the queue is empty or the pool is, and those are very
 	// different things to be waiting for.
 	Detail string `json:"detail,omitempty"`
+}
+
+// PlayerProgress is what the coordinator remembers about one player, in the
+// shape the menu wants to draw: the record, and the XP and level derived from
+// it. Nothing here is a skill rating -- see internal/players/progress.go.
+type PlayerProgress struct {
+	SteamID  SteamID `json:"steam_id"`
+	Name     string  `json:"name,omitempty"`
+	Matches  int     `json:"matches"`
+	Wins     int     `json:"wins"`
+	Losses   int     `json:"losses"`
+	Abandons int     `json:"abandons"`
+	XP       int     `json:"xp"`
+	Level    int     `json:"level"`
+	// LevelXP / LevelXPTotal are the progress bar: how far into this level,
+	// and how much the level takes.
+	LevelXP      int `json:"level_xp"`
+	LevelXPTotal int `json:"level_xp_total"`
 }
 
 // Status is the public health/population view. The main menu can render this

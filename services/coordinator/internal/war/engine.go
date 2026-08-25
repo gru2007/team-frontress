@@ -205,14 +205,22 @@ func (e *Engine) pickContestedNodeLocked() (nodeID string, attacker Side, ok boo
 
 // Battle is what the war wants played next on a front.
 type Battle struct {
-	Front        Front
-	NodeName     string
-	Stage        Stage
-	StageIndex   int
-	StageCount   int
-	Attacker     Side
-	Defender     Side
+	Front      Front
+	NodeName   string
+	Stage      Stage
+	StageIndex int
+	StageCount int
+	Attacker   Side
+	Defender   Side
+	// AttackerTeam is the stage's own answer. A battlefield may override it,
+	// because whether the attacker has to wear BLU is a property of the map,
+	// not of the offensive.
 	AttackerTeam int32
+	// Fields is where this battle may be fought. One entry when the stage
+	// pins a map, the kind's whole pool otherwise. The matchmaker chooses
+	// from it -- it is the half that knows how many people are in the queue
+	// and what maps they voted for.
+	Fields []Battlefield
 }
 
 // NextBattle returns the battle the front is currently fighting.
@@ -230,15 +238,22 @@ func (e *Engine) NextBattle(frontID string) (Battle, error) {
 	if f.StageIndex < 0 || f.StageIndex >= len(n.Plan) {
 		return Battle{}, fmt.Errorf("front %s: stage %d is outside %s's plan", frontID, f.StageIndex, n.ID)
 	}
+	stage := n.Plan[f.StageIndex]
+	fields := e.theater.FieldsFor(stage)
+	if len(fields) == 0 {
+		return Battle{}, fmt.Errorf("front %s: stage %d (%q) of %s has nowhere to be fought",
+			frontID, f.StageIndex, stage.Kind, n.ID)
+	}
 	return Battle{
 		Front:        *f,
 		NodeName:     n.Name,
-		Stage:        n.Plan[f.StageIndex],
+		Stage:        stage,
 		StageIndex:   f.StageIndex,
 		StageCount:   len(n.Plan),
 		Attacker:     f.Attacker,
 		Defender:     f.Attacker.Other(),
-		AttackerTeam: n.Plan[f.StageIndex].AttackerTeam,
+		AttackerTeam: stage.AttackerTeam,
+		Fields:       fields,
 	}, nil
 }
 

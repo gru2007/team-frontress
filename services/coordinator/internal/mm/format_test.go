@@ -63,7 +63,7 @@ func TestChooseMapPrefersWhatEveryonePicked(t *testing.T) {
 	picked[0].Maps = []string{"koth_product_final", "cp_process_final"}
 	picked[1].Maps = []string{"cp_process_final"}
 
-	if got := m.chooseMapLocked(group, picked); got != "cp_process_final" {
+	if got := m.chooseMapLocked(group.EffectiveMaps(), picked); got != "cp_process_final" {
 		t.Fatalf("map = %q, want the one both parties chose", got)
 	}
 }
@@ -76,13 +76,13 @@ func TestChooseMapFallsBackToTheUnionThenTheGroup(t *testing.T) {
 	picked := tickets(2, 2)
 	picked[0].Maps = []string{"koth_product_final"}
 	picked[1].Maps = []string{"cp_process_final"}
-	if got := m.chooseMapLocked(group, picked); got == "" {
+	if got := m.chooseMapLocked(group.EffectiveMaps(), picked); got == "" {
 		t.Fatal("no map was chosen from disjoint preferences")
 	}
 
 	// No preferences at all: the group's own list.
 	none := tickets(2)
-	got := m.chooseMapLocked(group, none)
+	got := m.chooseMapLocked(group.EffectiveMaps(), none)
 	if got != "koth_product_final" && got != "cp_process_final" {
 		t.Fatalf("map = %q, want one of the group's maps", got)
 	}
@@ -92,11 +92,11 @@ func TestChooseMapAvoidsTheOneJustPlayed(t *testing.T) {
 	m, _, clock := newTestMM(t, testConfig(4, 4, 8, 0), 1)
 	group, _ := m.cfg.Group(wire.MatchGroupCasual12v12)
 
-	first := m.chooseMapLocked(group, tickets(2))
+	first := m.chooseMapLocked(group.EffectiveMaps(), tickets(2))
 	m.recentMap(first)
 	*clock = clock.Add(time.Minute)
 
-	if second := m.chooseMapLocked(group, tickets(2)); second == first {
+	if second := m.chooseMapLocked(group.EffectiveMaps(), tickets(2)); second == first {
 		t.Fatalf("picked %q twice in a row with another map available", first)
 	}
 }
@@ -108,11 +108,27 @@ func TestMapOutsideTheGroupsListIsIgnored(t *testing.T) {
 	picked := tickets(2)
 	picked[0].Maps = []string{"ctf_2fort_but_haunted"}
 
-	got := m.chooseMapLocked(group, picked)
+	got := m.chooseMapLocked(group.EffectiveMaps(), picked)
 	if got == "ctf_2fort_but_haunted" {
 		t.Fatal("a map the group does not run was chosen because a client asked for it")
 	}
 	if got == "" {
 		t.Fatal("no map was chosen at all")
+	}
+}
+
+func TestRosterArgIsTheServerHandoffFormat(t *testing.T) {
+	got := rosterArg([]wire.AssignedPlayer{
+		{SteamID: "76561198000000001", Team: wire.TeamRed},
+		{SteamID: "", Team: wire.TeamBlu}, // a seat with no id is skipped, not sent blank
+		{SteamID: "76561198000000002", Team: wire.TeamBlu},
+	})
+	want := "76561198000000001:2,76561198000000002:3"
+	if got != want {
+		t.Fatalf("roster = %q, want %q", got, want)
+	}
+
+	if rosterArg(nil) != "" {
+		t.Fatal("an empty roster produced an argument; the handoff must be skipped entirely")
 	}
 }

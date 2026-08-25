@@ -12,6 +12,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/gru2007/team-frontress/services/coordinator/internal/maps"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/wire"
 )
 
@@ -94,8 +95,18 @@ type MatchGroupConfig struct {
 	MinPlayers   int  `json:"min_players"`
 	IdealPlayers int  `json:"ideal_players"`
 	MaxPlayers   int  `json:"max_players"`
-	// Maps this group may pick from when the parties express no preference
-	// and the war layer is off.
+	// Modes this group plays, in the game's own mode names -- "koth",
+	// "payload", "attack_defend", "cp", "ctf", "plr", "misc", "arena",
+	// "passtime", "mannpower", "halloween", "christmas". Every stock map of
+	// those modes is in the pool.
+	//
+	// This is how a queue gets the whole vanilla map list without an operator
+	// typing a hundred and thirty map names, and how it gets restricted to a
+	// few modes without them typing the subset either. It is the mode names
+	// the game itself tags maps with (see internal/maps), not ours.
+	Modes []string `json:"modes,omitempty"`
+	// Maps adds individual maps on top of Modes -- a community map the table
+	// does not know about, or a hand-picked list with no modes at all.
 	Maps []string `json:"maps"`
 	// ServerConfig is exec'd on the game server before the map change, e.g.
 	// "server_casual". Empty means no config.
@@ -109,9 +120,66 @@ type MatchGroupConfig struct {
 	//
 	// Only frontline matches backfill at all.
 	BackfillSecs int `json:"backfill_secs"`
+	// MatchEmulation is what to set tf_match_emulation to on the game server
+	// for this group, which is how a server run by matchmaking becomes an
+	// official match rather than a community server that happens to have the
+	// right people on it: the match HUD, the match summary at game over, and
+	// the post-match handling all hang off it.
+	//
+	// nil derives it from the match group, which is what any sane deployment
+	// wants (see MatchEmulationFor). Set it explicitly -- including to 0 -- to
+	// override, e.g. for a custom group id the game does not know about.
+	MatchEmulation *int `json:"match_emulation,omitempty"`
 	// Restrictions are who may queue for this group at all. An absent block
 	// is the open queue, which is what casual wants and what ranked does not.
 	Restrictions Restrictions `json:"restrictions"`
+}
+
+// EffectiveMaps is the pool this group actually plays: every stock map of the
+// modes it names, plus whatever Maps lists explicitly. Order is stable --
+// modes first in the game's own table order, then the explicit list -- and
+// there are no duplicates.
+func (g MatchGroupConfig) EffectiveMaps() []string {
+	if len(g.Modes) == 0 {
+		return g.Maps
+	}
+	out := maps.InModes(g.Modes...)
+	seen := make(map[string]bool, len(out))
+	for _, m := range out {
+		seen[m] = true
+	}
+	for _, m := range g.Maps {
+		if !seen[m] {
+			seen[m] = true
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+// MatchEmulationFor maps a match group onto the tf_match_emulation value that
+// makes the game treat the server as running that kind of official match.
+//
+// The game only knows two: CTFGameRules::GetCurrentMatchGroupWithEmulation
+// resolves 1 to Casual 12v12 and 2 to Ladder 6v6. Anything else is 0, which
+// leaves the server behaving as a plain community server -- correct, because a
+// group the game cannot name is one it cannot run a match HUD for either.
+func MatchEmulationFor(g wire.MatchGroup) int {
+	switch g {
+	case wire.MatchGroupCasual12v12:
+		return 1
+	case wire.MatchGroupLadder6v6:
+		return 2
+	}
+	return 0
+}
+
+// EffectiveMatchEmulation is the configured override, or the derived value.
+func (g MatchGroupConfig) EffectiveMatchEmulation() int {
+	if g.MatchEmulation != nil {
+		return *g.MatchEmulation
+	}
+	return MatchEmulationFor(g.MatchGroup)
 }
 
 // Restrictions gate a match group's queue.
@@ -359,8 +427,14 @@ func (c Config) Validate() error {
 		case g.MaxPlayers < g.IdealPlayers:
 			return fmt.Errorf("match_groups[%d] (%s): max_players %d is below ideal_players %d", i, g.Name, g.MaxPlayers, g.IdealPlayers)
 		}
-		if len(g.Maps) == 0 && !c.War.Enabled {
-			return fmt.Errorf("match_groups[%d] (%s): needs maps, or war.enabled to choose them", i, g.Name)
+		for _, mode := range g.Modes {
+			if !maps.KnownMode(mode) {
+				return fmt.Errorf("match_groups[%d] (%s): no stock map plays mode %q; known modes are %v",
+					i, g.Name, mode, maps.Modes())
+			}
+		}
+		if len(g.EffectiveMaps()) == 0 && !c.War.Enabled {
+			return fmt.Errorf("match_groups[%d] (%s): needs maps or modes, or war.enabled to choose them", i, g.Name)
 		}
 		switch g.EffectiveMode() {
 		case ModeFrontline, ModeRanked:

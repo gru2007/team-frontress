@@ -24,13 +24,16 @@
 #include "clientmode_tf.h"
 #include "clientsteamcontext.h"
 #include "fmtstr.h"
+#include "tf_partyclient.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-ConVar tf_mm_party_type( "tf_mm_party_type", "1", FCVAR_ARCHIVE,
-                         "Who may join your matchmaking party. 0 = invite only, 1 = friends, 2 = public.",
-                         true, 0, true, 2 );
+ConVar tf_mm_party_type( "tf_mm_party_type", "-1", FCVAR_ARCHIVE,
+                         "Override who may join your matchmaking party, as a Steam lobby type: "
+                         "0 = invite only, 1 = friends, 2 = public. -1 follows the party settings "
+                         "panel's own invite-mode dropdown, which is what a player sees.",
+                         true, -1, true, 2 );
 ConVar tf_mm_debug( "tf_mm_debug", "0", FCVAR_NONE,
                     "Spew what the matchmaking backend is doing." );
 ConVar tf_mm_party_autocreate( "tf_mm_party_autocreate", "1", FCVAR_ARCHIVE,
@@ -44,10 +47,18 @@ ConVar tf_mm_party_autocreate( "tf_mm_party_autocreate", "1", FCVAR_ARCHIVE,
 #define TFMM_LOBBY_DATA_CONNECT    "connect"
 #define TFMM_LOBBY_DATA_PASSWORD   "password"
 #define TFMM_LOBBY_DATA_MATCHID    "match_id"
+// Where the leader is playing when it is not a matchmade match. See
+// CTFMMBackend::PublishPartyServer.
+#define TFMM_LOBBY_DATA_SERVER     "server"
 
 // The rich presence key that carries our party lobby. A friend's client reads
 // it to answer "join this player" without anything in the middle.
 #define TFMM_RP_KEY_LOBBY          "tf_lobby"
+// And the one that carries the SourceTV relay of the match we are in, so a
+// friend can watch it. Spectating is the one thing a stranger to the match can
+// always be allowed to do: the relay is a separate server with its own slots,
+// and letting somebody watch costs the match nothing.
+#define TFMM_RP_KEY_STV            "tf_stv"
 
 static ISteamMatchmaking *MM()
 {
@@ -65,6 +76,7 @@ static CSteamID LocalSteamID()
 CTFMMParty::CTFMMParty()
 	: m_lobbyID( k_steamIDNil )
 	, m_bHosting( false )
+	, m_eAppliedLobbyType( k_ELobbyTypeFriendsOnly )
 {
 	m_szConnectString[0] = '\0';
 }
@@ -87,8 +99,7 @@ void CTFMMParty::Create()
 		return;
 	}
 
-	ELobbyType eType = (ELobbyType)tf_mm_party_type.GetInt();
-	SteamAPICall_t call = pMM->CreateLobby( eType, k_nTFMMMaxPartyMembers );
+	SteamAPICall_t call = pMM->CreateLobby( WantedLobbyType(), k_nTFMMMaxPartyMembers );
 	m_callLobbyCreated.Set( call, this, &CTFMMParty::OnCreated );
 }
 
@@ -108,6 +119,7 @@ void CTFMMParty::OnCreated( LobbyCreated_t *pCreated, bool bIOFailure )
 
 	m_lobbyID = CSteamID( pCreated->m_ulSteamIDLobby );
 	m_bHosting = true;
+	m_eAppliedLobbyType = WantedLobbyType();
 
 	// Steam's lobby owner and our idea of the party leader must agree, and the
 	// UI reads the leader from the party object, not from Steam. Publish it.
@@ -116,6 +128,60 @@ void CTFMMParty::OnCreated( LobbyCreated_t *pCreated, bool bIOFailure )
 
 	if ( tf_mm_debug.GetBool() )
 		Msg( "[mm] party lobby %llu created\n", m_lobbyID.ConvertToUint64() );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Who Steam should let into our party lobby.
+//
+//			There were two convars for this and only one of them did anything.
+//			The dashboard's settings panel writes tf_party_join_request_mode --
+//			that is the dropdown a player actually sees -- and nothing read it,
+//			because the lobby was created from tf_mm_party_type. So the visible
+//			control was inert and the working one was hidden.
+//
+//			The dropdown wins. tf_mm_party_type is still honoured when somebody
+//			set it deliberately (-1 is "follow the dropdown", which is its new
+//			default), because a public lobby is a thing a community server
+//			operator may genuinely want and the dropdown cannot ask for it.
+//
+//			Steam has no "they must ask first" state, so open and
+//			request-to-join are both friends-only: the difference between them
+//			is whether the stock client auto-accepts, which is above this.
+//-----------------------------------------------------------------------------
+ELobbyType CTFMMParty::WantedLobbyType()
+{
+	const int nOverride = tf_mm_party_type.GetInt();
+	if ( nOverride >= 0 )
+		return (ELobbyType)nOverride;
+
+	if ( GTFPartyClient() &&
+	     GTFPartyClient()->GetPartyJoinRequestMode() == CTFPartyClient::k_ePartyJoinRequestMode_ClosedToFriends )
+	{
+		return k_ELobbyTypePrivate; // invite only
+	}
+	return k_ELobbyTypeFriendsOnly;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Keep Steam's idea of who may join in step with the player's.
+//
+//			Called every frame from the backend; a lobby type that has not
+//			changed is not re-sent, and only the owner may set it at all.
+//-----------------------------------------------------------------------------
+void CTFMMParty::ApplyJoinPolicy()
+{
+	if ( !BValid() || !MM() || !BIsLeader() )
+		return;
+
+	const ELobbyType eWanted = WantedLobbyType();
+	if ( eWanted == m_eAppliedLobbyType )
+		return;
+
+	m_eAppliedLobbyType = eWanted;
+	MM()->SetLobbyType( m_lobbyID, eWanted );
+
+	if ( tf_mm_debug.GetBool() )
+		Msg( "[mm] party lobby type is now %d\n", (int)eWanted );
 }
 
 //-----------------------------------------------------------------------------
@@ -201,8 +267,9 @@ void CTFMMParty::OnLobbyEnter( LobbyEnter_t *pEnter )
 	UpdateRichPresence();
 
 	// Joining somebody mid-queue or mid-match: whatever they have published is
-	// what we should be doing too.
-	TFMMBackend()->OnPartyLobbyDataChanged();
+	// what we should be doing too -- including a plain server they are on,
+	// which is what entering a lobby arms a follow for.
+	TFMMBackend()->OnPartyLobbyEntered();
 
 	if ( tf_mm_debug.GetBool() )
 		Msg( "[mm] entered party lobby %llu (%d members)\n", m_lobbyID.ConvertToUint64(), GetNumMembers() );
@@ -403,6 +470,12 @@ void CTFMMParty::UpdateRichPresence() const
 		steamapicontext->SteamFriends()->SetRichPresence( TFMM_RP_KEY_LOBBY, NULL );
 	}
 
+	// The relay for the match we are in, if there is one. Cleared the moment
+	// there is not, so a friend is never pointed at a match that finished.
+	const char *pszSTV = TFMMBackend()->GetSTVAddress();
+	steamapicontext->SteamFriends()->SetRichPresence(
+		TFMM_RP_KEY_STV, ( pszSTV && pszSTV[0] ) ? pszSTV : NULL );
+
 	// The connect string itself belongs to clientmode_tf.cpp, which owns every
 	// rich presence key and rewrites them together. Two writers would race and
 	// the loser's value would stick until the next unrelated event.
@@ -419,6 +492,22 @@ const char *CTFMMParty::GetJoinConnectString() const
 	V_snprintf( m_szConnectString, sizeof( m_szConnectString ),
 	            "+connect_lobby %llu", (unsigned long long)m_lobbyID.ConvertToUint64() );
 	return m_szConnectString;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: The SourceTV relay of the match a friend is in, or NULL.
+//
+//			Same shape as GetFriendPartyLobby and for the same reason: the
+//			answer is in their rich presence, so nothing has to broker it and
+//			it works for anybody on the friends list, in our party or not.
+//-----------------------------------------------------------------------------
+const char *CTFMMParty::GetFriendSTV( const CSteamID &friendID )
+{
+	if ( !steamapicontext || !steamapicontext->SteamFriends() )
+		return NULL;
+
+	const char *pszSTV = steamapicontext->SteamFriends()->GetFriendRichPresence( friendID, TFMM_RP_KEY_STV );
+	return ( pszSTV && pszSTV[0] ) ? pszSTV : NULL;
 }
 
 //-----------------------------------------------------------------------------

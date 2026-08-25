@@ -78,3 +78,35 @@ func TestMapLoad(t *testing.T) {
 		t.Fatalf("parsed %+v, ok=%v", ev, ok)
 	}
 }
+
+func TestParsesTheGamesOwnMatchReport(t *testing.T) {
+	line := `L 08/25/2026 - 10:38:45: [frontress] match_result 5c8cb6f2b25ed652 status=0 winner=2 red=3 blu=1 duration=1841 bots=0 players=12`
+	ev, ok := Parse(line)
+	if !ok {
+		t.Fatal("the game's own report line did not parse")
+	}
+	if ev.Kind != KindReport || ev.Event != "match_result" {
+		t.Fatalf("kind=%q event=%q, want report/match_result", ev.Kind, ev.Event)
+	}
+	if ev.Fields["match_id"] != "5c8cb6f2b25ed652" {
+		t.Fatalf("match_id = %q", ev.Fields["match_id"])
+	}
+	if ev.Fields["winner"] != "2" || ev.Fields["red"] != "3" || ev.Fields["blu"] != "1" {
+		t.Fatalf("fields = %v", ev.Fields)
+	}
+}
+
+func TestReportKeepsUnknownFields(t *testing.T) {
+	// A newer game DLL reporting more than this agent knows about must not
+	// lose the line.
+	ev, ok := Parse(`[frontress] match_player 5c8cb6f2 steamid=76561198000000001 team=2 score=7 something_new=9`)
+	if !ok {
+		t.Fatal("did not parse")
+	}
+	if ev.Fields["something_new"] != "9" {
+		t.Fatalf("unknown field dropped: %v", ev.Fields)
+	}
+	if ev.Fields["steamid"] != "76561198000000001" {
+		t.Fatalf("steamid = %q", ev.Fields["steamid"])
+	}
+}

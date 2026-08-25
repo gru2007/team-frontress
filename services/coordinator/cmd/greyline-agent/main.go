@@ -33,6 +33,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -122,6 +123,11 @@ type agent struct {
 	matchID  string
 	scores   map[string]int
 	reported map[string]bool
+	// gameReport is a result the game is in the middle of printing: the
+	// header arrived, the per-player lines are still coming, and it is sent
+	// when the closing line does. Nil when the game is not reporting, which is
+	// every server without our game DLL.
+	gameReport *wire.MatchResult
 }
 
 func (a *agent) run(ctx context.Context) error {
@@ -228,6 +234,8 @@ func (a *agent) readLog(ctx context.Context, conn net.PacketConn) {
 
 func (a *agent) handle(ctx context.Context, ev srclog.Event) {
 	switch ev.Kind {
+	case srclog.KindReport:
+		a.handleReport(ctx, ev)
 	case srclog.KindTeamScore:
 		if team := srclog.NormalizeTeam(ev.Team); team != "" {
 			a.mu.Lock()
@@ -244,6 +252,89 @@ func (a *agent) handle(ctx context.Context, ev srclog.Event) {
 		a.scores = map[string]int{}
 		a.mu.Unlock()
 	}
+}
+
+// handleReport acts on a line the game's own matchmaking backend printed.
+//
+// This is the better source and it wins where it exists. The log-scraping path
+// below reconstructs a result from console lines and an RCON `status`, which
+// gets the winner and roughly who was there; the game knows who was in the
+// match, who walked out of it and what everybody scored, because it has the
+// match object. When the game reports, that report is what is sent.
+func (a *agent) handleReport(ctx context.Context, ev srclog.Event) {
+	matchID := ev.Fields["match_id"]
+	if matchID == "" {
+		return
+	}
+
+	switch ev.Event {
+	case "match_result":
+		a.mu.Lock()
+		a.gameReport = &wire.MatchResult{
+			MatchID:  matchID,
+			Secret:   a.opt.secret,
+			RedScore: atoiField(ev.Fields, "red"),
+			BluScore: atoiField(ev.Fields, "blu"),
+			Winner:   teamFromNumber(atoiField(ev.Fields, "winner")),
+		}
+		a.mu.Unlock()
+
+	case "match_player":
+		id := ev.Fields["steamid"]
+		a.mu.Lock()
+		if a.gameReport != nil && a.gameReport.MatchID == matchID && id != "" {
+			a.gameReport.Players = append(a.gameReport.Players, wire.AssignedPlayer{
+				SteamID: wire.SteamID(id),
+				Team:    wire.Team(atoiField(ev.Fields, "team")),
+			})
+		}
+		a.mu.Unlock()
+
+	case "match_result_end":
+		a.mu.Lock()
+		res := a.gameReport
+		already := a.reported[matchID]
+		if res != nil {
+			a.reported[matchID] = true
+		}
+		a.gameReport = nil
+		a.mu.Unlock()
+
+		if res == nil || already {
+			return
+		}
+		a.log.Info("reporting the game's own result",
+			"match", matchID, "red", res.RedScore, "blu", res.BluScore,
+			"winner", res.Winner, "players", len(res.Players))
+		a.post(ctx, "/v1/gs/result", *res)
+
+	case "player_left":
+		// Informational for now: the coordinator works out abandons from the
+		// roster it handed out against the players in the result. Logging it
+		// makes the two agree or visibly disagree.
+		a.log.Info("a player left the match",
+			"match", matchID, "player", ev.Fields["steamid"], "abandon", ev.Fields["abandon"])
+	}
+}
+
+// atoiField reads a numeric field, or zero.
+func atoiField(fields map[string]string, key string) int {
+	n, err := strconv.Atoi(fields[key])
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+// teamFromNumber turns the game's team index into the coordinator's team.
+func teamFromNumber(n int) wire.Team {
+	switch n {
+	case int(wire.TeamRed):
+		return wire.TeamRed
+	case int(wire.TeamBlu):
+		return wire.TeamBlu
+	}
+	return wire.TeamUnassigned
 }
 
 // reportResult sends the finished match to the coordinator, once.

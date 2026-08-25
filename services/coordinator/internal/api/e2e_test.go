@@ -23,6 +23,10 @@ import (
 type fakeSetup struct{ players int }
 
 func (f *fakeSetup) Setup(context.Context, *pool.Server, mm.Spec) error { return nil }
+func (f *fakeSetup) AddPlayers(context.Context, *pool.Server, string, []wire.AssignedPlayer) error {
+	return nil
+}
+
 func (f *fakeSetup) PlayerCount(context.Context, *pool.Server) (int, bool) {
 	return f.players, true
 }
@@ -57,7 +61,7 @@ func TestTwoSoloPlayersGetAMatch(t *testing.T) {
 	}
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	matchmaker := mm.New(cfg, srvPool, &fakeSetup{players: 2}, nil, log)
-	h := api.New(cfg, matchmaker, steamauth.DevVerifier{}, nil, nil, log).Handler()
+	h := api.New(cfg, matchmaker, steamauth.DevVerifier{}, nil, nil, nil, log).Handler()
 
 	queue := func(id string) string {
 		t.Helper()

@@ -12,6 +12,7 @@ import (
 
 	"github.com/gru2007/team-frontress/services/coordinator/internal/config"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/mm"
+	"github.com/gru2007/team-frontress/services/coordinator/internal/players"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/pool"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/steamauth"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/wire"
@@ -68,7 +69,11 @@ func newTestAPI(t *testing.T) (*fakeMM, http.Handler) {
 	cfg := config.Defaults()
 	cfg.Secret = "server-secret"
 	m := &fakeMM{}
-	s := New(cfg, m, steamauth.DevVerifier{}, pool.NewRegistry(0), nil,
+	rec, err := players.New("")
+	if err != nil {
+		t.Fatalf("players: %v", err)
+	}
+	s := New(cfg, m, steamauth.DevVerifier{}, pool.NewRegistry(0), nil, rec,
 		slog.New(slog.NewTextHandler(io.Discard, nil)))
 	return m, s.Handler()
 }
@@ -241,5 +246,30 @@ func TestMalformedBodyIsRefused(t *testing.T) {
 	h.ServeHTTP(w, r)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", w.Code)
+	}
+}
+
+func TestPlayerProgressIsServed(t *testing.T) {
+	_, h := newTestAPI(t)
+
+	rr := post(t, h, http.MethodGet, "/v1/player/76561198000000001", nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body %s", rr.Code, rr.Body.String())
+	}
+	var got wire.PlayerProgress
+	if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	// A player nobody has ever seen is level 1 with nothing, not an error:
+	// the menu asks about everyone the first time they open it.
+	if got.Level != 1 || got.XP != 0 {
+		t.Fatalf("unknown player is level %d xp %d, want 1 and 0", got.Level, got.XP)
+	}
+	if got.LevelXPTotal <= 0 {
+		t.Fatal("the progress bar has no length")
+	}
+
+	if rr := post(t, h, http.MethodGet, "/v1/player/not-a-steamid", nil); rr.Code != http.StatusBadRequest {
+		t.Fatalf("a bad SteamID gave %d, want 400", rr.Code)
 	}
 }

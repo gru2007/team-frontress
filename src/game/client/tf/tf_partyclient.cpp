@@ -1460,6 +1460,11 @@ void CTFPartyClient::OnRemoveFromQueueReply( const CProtoBufMsg< CMsgPartyRemove
 	ETFMatchGroup eMatchGroup = msg.Body().match_group();
 	Assert( BHavePendingQueueCancelMsg( eMatchGroup ) );
 	SetPendingQueueCancelMsg( eMatchGroup, false );
+	// Same reason as OnQueueForMatchReply: in-queue state is predicted, so the
+	// reply is the point at which it has to be checked against reality. With a
+	// GC this was covered by the party object arriving right behind the reply;
+	// answered in-process it is not, and the queue would stay "on" in the UI.
+	UpdateActiveParty();
 }
 
 //-----------------------------------------------------------------------------
