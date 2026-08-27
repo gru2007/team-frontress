@@ -646,3 +646,13 @@ game_src/tc2/pak1/materials/*
 !game_src/tc2/pak1/materials/models/effects
 game_src/tc2/pak1/particles
 game_src/tc2/pak1/scenes
+
+# macOS port build products. The Steam bridge's C++ is generated from
+# steam_api.json by build.sh on every build, so it is not carried here.
+/tools/macos-port/steam-bridge/generated/
+/tools/macos-port/steam-bridge/dist/
+/tools/macos-port/steamworks-probe
+/game_dist_macos/
+
+# Runtimes fetched by tools/macos-port/fetch-runtimes.sh.
+/macos-runtimes/

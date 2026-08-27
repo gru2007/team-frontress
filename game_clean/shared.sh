@@ -27,6 +27,11 @@ elif [[ "$BUILD_PLATFORM" == "win"* || "$BUILD_PLATFORM" == "msys"* || "$BUILD_P
   PLAT_DIR="x64"
   DLL_EXT=".dll"
   EXE_EXT=".exe"
+elif [[ "$BUILD_PLATFORM" == "darwin"* ]]; then
+  PLATFORM="mac"
+  PLAT_DIR="macos"
+  DLL_EXT=".dylib"
+  EXE_EXT=""
 else
   echo "OS/Platform ${BUILD_PLATFORM} is not supported! Exiting."
   exit 1

@@ -21,6 +21,8 @@
 #endif
 
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <array>
 #include <string>
 #include <vector>
@@ -163,12 +165,16 @@ static bool LoadSteam( const char *pRootDir )
 		return false;
 	}
 
-	// Make a steam_appid.txt now, of just eg. Source SDK 2013 MP for this.
-	FILE *pFile = fopen( "steam_appid.txt", "w" );
-	if ( pFile )
+	// Steam sets the app id in the environment for depot launches. Avoid
+	// modifying a signed macOS app bundle when the Wine host already supplied it.
+	if ( !getenv( "SteamAppId" ) )
 	{
-		fprintf( pFile, "%u\n", k_unMyModAppid );
-		fclose( pFile );
+		FILE *pFile = fopen( "steam_appid.txt", "w" );
+		if ( pFile )
+		{
+			fprintf( pFile, "%u\n", k_unMyModAppid );
+			fclose( pFile );
+		}
 	}
 
 	decltype(SteamAPI_Init) *pfnSAPIInit = (decltype( SteamAPI_Init ) *) GetProcAddress( s_SteamModule, "SteamAPI_Init" );
@@ -192,6 +198,45 @@ static bool LoadSteam( const char *pRootDir )
 
 static bool GetGameInstallDir( const char *pRootDir, char *pszBuf, int nBufSize, bool bDedicated )
 {
+#if defined( _WIN32 )
+	// On the macOS port the host resolves Team Fortress 2 out of the native
+	// Steam library and hands it over already translated to a Windows path.
+	// Windows-only: the Wine build of the client is the only consumer.
+	// This is checked before Steam is touched at all: native Steamworks
+	// answers GetAppInstallDir with a POSIX path the Windows launcher cannot
+	// use, so asking it would be worse than not asking, and the assets have to
+	// be reachable even when the Steam bridge is not.
+	const char *pszHostTF2Dir = getenv( "TC2_TF2_DIR" );
+	if ( !bDedicated && pszHostTF2Dir && pszHostTF2Dir[0] )
+	{
+		if ( strlen( pszHostTF2Dir ) >= static_cast<size_t>( nBufSize ) )
+		{
+			MessageBox( 0, "TC2_TF2_DIR is too long.", "Launcher Error", MB_OK );
+			return false;
+		}
+
+		strcpy( pszBuf, pszHostTF2Dir );
+
+		// A path that does not hold a Team Fortress 2 install would otherwise
+		// surface much later as a failure to load launcher.dll.
+		char szLauncher[MAX_PATH];
+		_snprintf( szLauncher, sizeof( szLauncher ), "%s\\bin\\x64\\launcher.dll", pszBuf );
+		szLauncher[sizeof( szLauncher ) - 1] = '\0';
+
+		if ( GetFileAttributesA( szLauncher ) == INVALID_FILE_ATTRIBUTES )
+		{
+			char szError[1024];
+			_snprintf( szError, sizeof( szError ),
+				"TC2_TF2_DIR does not point at a Team Fortress 2 install:\n\n%s", pszBuf );
+			szError[sizeof( szError ) - 1] = '\0';
+			MessageBox( 0, szError, "Launcher Error", MB_OK );
+			return false;
+		}
+
+		return true;
+	}
+#endif // _WIN32
+
 	if ( !LoadSteam( pRootDir ) )
 	{
 		return false;

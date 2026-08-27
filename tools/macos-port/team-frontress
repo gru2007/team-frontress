@@ -1,0 +1,147 @@
+#!/bin/bash
+#
+# Team Frontress macOS launcher.
+#
+# Finds the user's Team Fortress 2 install through native Steam, translates it
+# into a Windows path, and starts the Windows client under the embedded Wine
+# runtime with D9MT on Metal and the Steamworks bridge in place.
+
+set -u
+
+CONTENTS_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+RESOURCES_DIR="${CONTENTS_DIR}/Resources"
+GAME_DIR="${RESOURCES_DIR}/game"
+WINE_ROOT="${RESOURCES_DIR}/wine"
+SUPPORT_DIR="${HOME}/Library/Application Support/Team Frontress"
+WINEPREFIX="${SUPPORT_DIR}/prefix"
+LOG_DIR="${HOME}/Library/Logs/Team Frontress"
+LOG_FILE="${LOG_DIR}/launcher.log"
+
+mkdir -p "${SUPPORT_DIR}" "${LOG_DIR}"
+
+# One run's log, not every run's. A player asked for a log after a crash should
+# not have to find the right session inside a file that has been growing since
+# install.
+if [ -f "${LOG_FILE}" ]; then
+	mv -f "${LOG_FILE}" "${LOG_FILE}.previous"
+fi
+exec >"${LOG_FILE}" 2>&1
+
+printf 'Team Frontress launcher: %s\n' "$(date)"
+
+alert() {
+	TC2_ALERT_TEXT="$1" /usr/bin/osascript <<'APPLESCRIPT' >/dev/null
+display alert "Team Frontress" message (system attribute "TC2_ALERT_TEXT") as critical
+APPLESCRIPT
+}
+
+find_tf2() {
+	local steam_root="${HOME}/Library/Application Support/Steam"
+	local library manifest install_dir candidate
+	local libraries="${steam_root}"
+
+	if [ -f "${steam_root}/steamapps/libraryfolders.vdf" ]; then
+		libraries="${libraries}"$'\n'"$(/usr/bin/perl -ne '
+			while (/"path"\s+"((?:\\.|[^"])*)"/g) {
+				$p = $1;
+				$p =~ s/\\\\/\\/g;
+				print "$p\n";
+			}
+		' "${steam_root}/steamapps/libraryfolders.vdf")"
+	fi
+
+	while IFS= read -r library; do
+		[ -n "${library}" ] || continue
+		manifest="${library}/steamapps/appmanifest_440.acf"
+		[ -f "${manifest}" ] || continue
+
+		install_dir="$(/usr/bin/perl -ne 'if (/"installdir"\s+"([^"]+)"/) { print $1; exit }' "${manifest}")"
+		[ -n "${install_dir}" ] || continue
+		candidate="${library}/steamapps/common/${install_dir}"
+
+		# The Windows depot specifically: a macOS-platform install of app 440
+		# has a manifest but none of the binaries this needs.
+		if [ -f "${candidate}/bin/x64/launcher.dll" ]; then
+			printf '%s\n' "${candidate}"
+			return 0
+		fi
+	done <<<"${libraries}"
+
+	return 1
+}
+
+WINE="${WINE_ROOT}/bin/wine64"
+if [ ! -x "${WINE}" ]; then
+	WINE="${WINE_ROOT}/bin/wine"
+fi
+
+if [ ! -x "${WINE}" ]; then
+	alert "The embedded open-source Wine runtime is missing. Reinstall Team Frontress."
+	exit 1
+fi
+
+NATIVE_STEAM_API="${RESOURCES_DIR}/steam/libsteam_api.dylib"
+if [ ! -f "${NATIVE_STEAM_API}" ]; then
+	alert "The Steamworks library is missing from this install. Reinstall Team Frontress."
+	exit 1
+fi
+
+TF2_DIR="${TC2_TF2_DIR_UNIX:-$(find_tf2 || true)}"
+if [ -z "${TF2_DIR}" ] || [ ! -f "${TF2_DIR}/bin/x64/launcher.dll" ]; then
+	printf 'no Windows Team Fortress 2 install found\n'
+	"${RESOURCES_DIR}/install-tf2"
+	exit 1
+fi
+printf 'Team Fortress 2: %s\n' "${TF2_DIR}"
+
+export WINEPREFIX
+export WINEDEBUG="${WINEDEBUG:--all}"
+export SteamAppId="${SteamAppId:-5147520}"
+export SteamGameId="${SteamGameId:-5147520}"
+
+# d3d9 native: D9MT's frontend ships next to the .exe. The other three are Wine
+# builtins living in the runtime's own directories, which is also where their
+# unix halves are found -- so they must resolve as builtin and nothing else.
+export WINEDLLOVERRIDES="d3d9=n;winemetal=b;d9mtmetal=b;steam_api64=b${WINEDLLOVERRIDES:+;${WINEDLLOVERRIDES}}"
+
+# Where the bridge's unix half dlopens Valve's library from.
+export TC2_NATIVE_STEAM_API="${NATIVE_STEAM_API}"
+
+if [ ! -f "${WINEPREFIX}/system.reg" ]; then
+	printf 'creating the Wine prefix\n'
+	mkdir -p "${WINEPREFIX}"
+	if ! "${WINE}" wineboot -u; then
+		alert "Wine could not initialize its prefix. See ${LOG_FILE}."
+		exit 1
+	fi
+fi
+
+# Wine only goes looking for a builtin once the DLL name has resolved to a file
+# on the Windows side, and system32 is populated from the runtime's DLL set when
+# the prefix is created -- which is before these three were added to it. Without
+# a file here the load fails with ERROR_MOD_NOT_FOUND and never reaches the
+# builtin at all. Copying the real builtin is what makes the name resolve; Wine
+# then maps it as a builtin and pairs it with its unixlib.
+SYSTEM32="${WINEPREFIX}/drive_c/windows/system32"
+for dll in winemetal d9mtmetal steam_api64; do
+	source_dll="${WINE_ROOT}/lib/wine/x86_64-windows/${dll}.dll"
+	if [ ! -f "${source_dll}" ]; then
+		printf 'builtin missing from the runtime: %s\n' "${source_dll}"
+		continue
+	fi
+	if ! /usr/bin/cmp -s "${source_dll}" "${SYSTEM32}/${dll}.dll"; then
+		printf 'installing builtin %s into the prefix\n' "${dll}"
+		cp -f "${source_dll}" "${SYSTEM32}/${dll}.dll"
+	fi
+done
+
+TC2_TF2_DIR="$("${WINE}" winepath -w "${TF2_DIR}" | tr -d '\r')"
+if [ -z "${TC2_TF2_DIR}" ]; then
+	alert "Wine could not translate the Team Fortress 2 install path."
+	exit 1
+fi
+export TC2_TF2_DIR
+printf 'Team Fortress 2 (windows path): %s\n' "${TC2_TF2_DIR}"
+
+cd "${GAME_DIR}" || exit 1
+exec "${WINE}" "${GAME_DIR}/tc2_win64.exe" -game tc2 "$@"

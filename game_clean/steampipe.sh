@@ -14,15 +14,18 @@
 #                  paths resolve against the directory you invoke this from,
 #                  same as push.sh.
 #
-# To upload both platforms in one build (a single BuildID covering both
-# depots), skip the argument and set STEAM_WIN_DIR and STEAM_LINUX_DIR.
+# To upload several platforms in one build (a single BuildID covering all
+# depots), skip the argument and set STEAM_WIN_DIR, STEAM_LINUX_DIR and/or
+# STEAM_MAC_DIR.
 #
 # Environment:
 #   STEAM_APPID         app to build into        (default 5147520, Team Frontress Playtest)
 #   STEAM_DEPOT_WIN     Windows content depot    (default STEAM_APPID + 1)
 #   STEAM_DEPOT_LINUX   Linux content depot      (default STEAM_APPID + 2)
+#   STEAM_DEPOT_MAC     macOS content depot      (default STEAM_APPID + 3)
 #   STEAM_WIN_DIR       Windows content dir      (overrides the positional arg)
 #   STEAM_LINUX_DIR     Linux content dir        (overrides the positional arg)
+#   STEAM_MAC_DIR       macOS content dir        (overrides the positional arg)
 #   STEAM_BRANCH        beta branch to set live  (empty = upload only, set live by hand)
 #   STEAM_USERNAME      Steam builder account    (required)
 #   STEAM_CONFIG_VDF    base64 of a config.vdf already logged in as that
@@ -33,7 +36,7 @@
 #   STEAMPIPE_PREVIEW   1 = generate + validate the build without uploading
 #
 # Run script within the directory
-BIN_DIR=$(dirname "$(readlink -fn "$0")")
+BIN_DIR=$(cd "$(dirname "$0")" && pwd)
 ORIGINAL_DIR=$(pwd)
 cd "${BIN_DIR}" || exit 2
 
@@ -44,6 +47,7 @@ source ./shared.sh
 STEAM_APPID="${STEAM_APPID:-5147520}"
 STEAM_DEPOT_WIN="${STEAM_DEPOT_WIN:-$((STEAM_APPID + 1))}"
 STEAM_DEPOT_LINUX="${STEAM_DEPOT_LINUX:-$((STEAM_APPID + 2))}"
+STEAM_DEPOT_MAC="${STEAM_DEPOT_MAC:-$((STEAM_APPID + 3))}"
 STEAM_BRANCH="${STEAM_BRANCH:-}"
 STEAM_USERNAME="${STEAM_USERNAME:-}"
 STEAM_CONFIG_VDF="${STEAM_CONFIG_VDF:-}"
@@ -58,12 +62,15 @@ fi
 
 WIN_DIR="${STEAM_WIN_DIR:-}"
 LINUX_DIR="${STEAM_LINUX_DIR:-}"
+MAC_DIR="${STEAM_MAC_DIR:-}"
 
-if [ -z "${WIN_DIR}" ] && [ -z "${LINUX_DIR}" ]; then
+if [ -z "${WIN_DIR}" ] && [ -z "${LINUX_DIR}" ] && [ -z "${MAC_DIR}" ]; then
   if [ "${PLATFORM}" = "win" ]; then
     WIN_DIR="${PLATFORM_DIR}"
-  else
+  elif [ "${PLATFORM}" = "linux" ]; then
     LINUX_DIR="${PLATFORM_DIR}"
+  else
+    MAC_DIR="${PLATFORM_DIR}"
   fi
 fi
 
@@ -121,6 +128,11 @@ if [ -n "${LINUX_DIR}" ]; then
   LINUX_DIR=$(abs_path "${LINUX_DIR}")
 fi
 
+if [ -n "${MAC_DIR}" ]; then
+  check_content_dir "macOS" "${MAC_DIR}"
+  MAC_DIR=$(abs_path "${MAC_DIR}")
+fi
+
 BUILD_DIR="${BIN_DIR}/../steam_build"
 rm -rf "${BUILD_DIR}"
 mkdir -p "${BUILD_DIR}/output"
@@ -175,6 +187,12 @@ if [ -n "${LINUX_DIR}" ]; then
 "
 fi
 
+if [ -n "${MAC_DIR}" ]; then
+  write_depot_script "${STEAM_DEPOT_MAC}" "${MAC_DIR}"
+  DEPOT_ENTRIES="${DEPOT_ENTRIES}		\"${STEAM_DEPOT_MAC}\"	\"$(script_path "${BUILD_DIR}/depot_${STEAM_DEPOT_MAC}.vdf")\"
+"
+fi
+
 APP_SCRIPT="${BUILD_DIR}/app_build_${STEAM_APPID}.vdf"
 cat > "${APP_SCRIPT}" <<EOF
 "appbuild"
@@ -209,7 +227,7 @@ install_steamcmd() {
     curl -sSL --fail --retry 3 "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip" -o "${STEAMCMD_DIR}/steamcmd.zip"
     $CMD_7Z x -y "${STEAMCMD_DIR}/steamcmd.zip" "-o${STEAMCMD_DIR}"
     STEAMCMD="${STEAMCMD_DIR}/steamcmd.exe"
-  else
+  elif [ "${PLATFORM}" = "linux" ]; then
     # steamcmd is a 32 bit binary; the runtime it needs isn't in every image.
     if ! ldconfig -p 2>/dev/null | grep -q "libgcc_s.so.1 (libc6,x86"; then
       if command -v sudo >/dev/null 2>&1 && command -v apt-get >/dev/null 2>&1; then
@@ -223,6 +241,10 @@ install_steamcmd() {
 
     curl -sSL --fail --retry 3 "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz" -o "${STEAMCMD_DIR}/steamcmd_linux.tar.gz"
     tar -xzf "${STEAMCMD_DIR}/steamcmd_linux.tar.gz" -C "${STEAMCMD_DIR}"
+    STEAMCMD="${STEAMCMD_DIR}/steamcmd.sh"
+  else
+    curl -sSL --fail --retry 3 "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_osx.tar.gz" -o "${STEAMCMD_DIR}/steamcmd_osx.tar.gz"
+    tar -xzf "${STEAMCMD_DIR}/steamcmd_osx.tar.gz" -C "${STEAMCMD_DIR}"
     STEAMCMD="${STEAMCMD_DIR}/steamcmd.sh"
   fi
 
