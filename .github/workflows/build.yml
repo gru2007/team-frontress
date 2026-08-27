@@ -589,13 +589,16 @@ jobs:
       STEAM_DEPOT_MAC: ${{ vars.STEAM_DEPOT_MAC || '5147523' }}
       # The same build also ships under the main app. Only the AppID it is
       # stamped and published with differs; retarget_appid.sh does the stamping.
-      # Set STEAM_MAIN_APPID to 'none' to publish the playtest alone, and
-      # STEAM_MAIN_BRANCH to 'none' to upload without setting anything live.
+      # Set STEAM_MAIN_APPID to 'none' to publish the playtest alone.
       STEAM_MAIN_APPID: ${{ vars.STEAM_MAIN_APPID || '5147380' }}
       STEAM_MAIN_DEPOT_WIN: ${{ vars.STEAM_MAIN_DEPOT_WIN || '5147381' }}
       STEAM_MAIN_DEPOT_LINUX: ${{ vars.STEAM_MAIN_DEPOT_LINUX || '5147382' }}
       STEAM_MAIN_DEPOT_MAC: ${{ vars.STEAM_MAIN_DEPOT_MAC || '5147383' }}
-      STEAM_MAIN_BRANCH: ${{ vars.STEAM_MAIN_BRANCH || 'prerelease' }}
+      # Uploaded but not set live, unlike the playtest: a store app's default
+      # branch is a release decision, and a setlive naming a branch the app does
+      # not have fails the whole commit after the content is already up. Set
+      # STEAM_MAIN_BRANCH to a branch that exists on the app to change that.
+      STEAM_MAIN_BRANCH: ${{ vars.STEAM_MAIN_BRANCH || 'none' }}
       # The dedicated server ships under its own Tool, unchanged by any of that.
       STEAM_DS_APPID: 5150320
       STEAM_DS_DEPOT_LINUX: 5150321

@@ -41,10 +41,21 @@ so between the two uploads CI runs
 which rewrites those three files and refuses to continue if a stamp did not
 take. Which app, which depots and which beta branch the second upload goes to
 are the `STEAM_MAIN_APPID`, `STEAM_MAIN_DEPOT_WIN` / `_LINUX` / `_MAC` and
-`STEAM_MAIN_BRANCH` repository variables; the defaults are `5147380`, its three
-`+1/+2/+3` depots and the `prerelease` branch. Set `STEAM_MAIN_APPID` to `none`
-to publish the playtest alone, or `STEAM_MAIN_BRANCH` to `none` to upload
-without setting anything live.
+`STEAM_MAIN_BRANCH` repository variables; the defaults are `5147380` and its
+three `+1/+2/+3` depots. Set `STEAM_MAIN_APPID` to `none` to publish the
+playtest alone.
+
+The playtest is set live on its `prerelease` branch; the main app is **uploaded
+only**, and which build goes live there is a click in Steamworks. Point
+`STEAM_MAIN_BRANCH` at a branch that exists on the app to change that -- and
+only at one that exists: a `setlive` naming a branch the app does not have fails
+the commit *after* the content has been uploaded, which is what
+`ERROR! Failed to commit build for AppID ... : Failure` at the end of a
+successful-looking upload usually means. The other two things it means are a
+depot that is not assigned to the app (or assigned only in an app configuration
+that was never published) and a builder account that may upload content but not
+publish builds. `steampipe.sh` prints all three and stops rather than
+re-uploading the content twice more.
 
 Nothing in the game code decides which app it is: `engine->GetAppID()` and
 `SteamUtils()->GetAppID()` answer with whatever the client was launched as, and

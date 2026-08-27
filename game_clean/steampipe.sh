@@ -179,23 +179,28 @@ EOF
 }
 
 DEPOT_ENTRIES=""
+# The depots this build touches, for messages that have to name them.
+DEPOT_LIST=""
 
 if [ -n "${WIN_DIR}" ]; then
   write_depot_script "${STEAM_DEPOT_WIN}" "${WIN_DIR}"
   DEPOT_ENTRIES="${DEPOT_ENTRIES}		\"${STEAM_DEPOT_WIN}\"	\"$(script_path "${BUILD_DIR}/depot_${STEAM_DEPOT_WIN}.vdf")\"
 "
+  DEPOT_LIST="${DEPOT_LIST}${DEPOT_LIST:+, }${STEAM_DEPOT_WIN}"
 fi
 
 if [ -n "${LINUX_DIR}" ]; then
   write_depot_script "${STEAM_DEPOT_LINUX}" "${LINUX_DIR}"
   DEPOT_ENTRIES="${DEPOT_ENTRIES}		\"${STEAM_DEPOT_LINUX}\"	\"$(script_path "${BUILD_DIR}/depot_${STEAM_DEPOT_LINUX}.vdf")\"
 "
+  DEPOT_LIST="${DEPOT_LIST}${DEPOT_LIST:+, }${STEAM_DEPOT_LINUX}"
 fi
 
 if [ -n "${MAC_DIR}" ]; then
   write_depot_script "${STEAM_DEPOT_MAC}" "${MAC_DIR}"
   DEPOT_ENTRIES="${DEPOT_ENTRIES}		\"${STEAM_DEPOT_MAC}\"	\"$(script_path "${BUILD_DIR}/depot_${STEAM_DEPOT_MAC}.vdf")\"
 "
+  DEPOT_LIST="${DEPOT_LIST}${DEPOT_LIST:+, }${STEAM_DEPOT_MAC}"
 fi
 
 APP_SCRIPT="${BUILD_DIR}/app_build_${STEAM_APPID}.vdf"
@@ -302,6 +307,28 @@ while true; do
 
   if [ ${STATUS} -eq 0 ] && grep -qi "successfully finished appid ${STEAM_APPID}" "${RUN_LOG}"; then
     break
+  fi
+
+  # A refused commit is Steamworks answering, not a flake: the content is
+  # already uploaded, the same build will be refused again, and each retry
+  # re-scans and re-uploads gigabytes to get the same "Failure".
+  if grep -qi "Failed to commit build for AppID" "${RUN_LOG}"; then
+    {
+      echo
+      echo "Steamworks accepted the content for AppID ${STEAM_APPID} and then refused to commit the build."
+      echo "That is app configuration, not a transient error. In order of likelihood:"
+      if [ -n "${STEAM_BRANCH}" ]; then
+        echo "  1. Branch '${STEAM_BRANCH}' does not exist on AppID ${STEAM_APPID}. Setting a build live on a"
+        echo "     branch the app does not have fails the commit. Create the beta branch in Steamworks, or"
+        echo "     upload without setting anything live (STEAM_BRANCH empty; STEAM_MAIN_BRANCH=none in CI)."
+      fi
+      echo "  2. Depots ${DEPOT_LIST} are not assigned to AppID ${STEAM_APPID}, or the app's"
+      echo "     configuration was edited but never published -- a depot that exists only in an unpublished"
+      echo "     draft cannot be built into."
+      echo "  3. The builder account may upload to the depots but not publish builds for this app."
+      echo
+    } >&2
+    exit 1
   fi
 
   if [ ${ATTEMPT} -ge ${MAX_ATTEMPTS} ]; then
