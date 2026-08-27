@@ -71,7 +71,7 @@ func run() error {
 
 	var verifier steamauth.Verifier = steamauth.DevVerifier{}
 	if cfg.Auth.Verified() {
-		verifier = &steamauth.WebAPIVerifier{APIKey: cfg.Auth.SteamAPIKey, AppID: cfg.Auth.AppID}
+		verifier = &steamauth.WebAPIVerifier{APIKey: cfg.Auth.SteamAPIKey, AppIDs: cfg.Auth.AppIDList()}
 	} else {
 		log.Warn("auth.mode is dev: clients are believed about who they are. Do not run this on the public internet.")
 	}

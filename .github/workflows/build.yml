@@ -205,7 +205,11 @@ jobs:
         run: |
           set -euo pipefail
           PACK_TARBALL=1 ./game_clean/copy_server.sh
-          test "$(tr -d '\r\n ' < game_server_dist/steam_appid.txt)" = "5147520"
+          # The payload runs as the game, not as the Tool it ships in, and the
+          # two files that say which game have to agree -- whichever app this
+          # build is for.
+          test "$(tr -d '\r\n ' < game_server_dist/steam_appid.txt)" \
+             = "$(sed -n 's/^appID=//p' game_server_dist/tc2/steam.inf | tr -d '\r')"
           test -f game_server_dist/tc2/bin/linux64/server.so
           test ! -f game_server_dist/tc2/bin/linux64/client.so
           test -s game_server_dist/VERSION

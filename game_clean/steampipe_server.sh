@@ -32,10 +32,16 @@ if [ -z "${DEPOT}" ]; then
   echo "STEAM_DS_DEPOT_LINUX is required; use the actual depot owned by ${APPID}." >&2
   exit 1
 fi
-if [ ! -f "${CONTENT}/steam_appid.txt" ] || [ "$(tr -d '\r\n ' < "${CONTENT}/steam_appid.txt")" != "5147520" ]; then
-  echo "Dedicated content must contain steam_appid.txt = 5147520." >&2
+# The payload runs as the game, not as the Tool it ships in, and the two files
+# that say which game must agree: copy_server.sh derives one from the other, so
+# a mismatch here means something rewrote one of them on its own.
+CONTENT_APPID="$(sed -n 's/^appID=//p' "${CONTENT}/tc2/steam.inf" 2>/dev/null | tr -d '\r')"
+PAYLOAD_APPID="$(tr -d '\r\n ' < "${CONTENT}/steam_appid.txt" 2>/dev/null || true)"
+if [ -z "${CONTENT_APPID}" ] || [ "${PAYLOAD_APPID}" != "${CONTENT_APPID}" ]; then
+  echo "Dedicated content is inconsistent: tc2/steam.inf says appID=${CONTENT_APPID:-<none>}, steam_appid.txt says ${PAYLOAD_APPID:-<none>}." >&2
   exit 1
 fi
+echo "Dedicated payload runs as AppID ${CONTENT_APPID}, shipping in Tool ${APPID}."
 if [ -z "${USERNAME}" ]; then
   echo "STEAM_USERNAME is required." >&2
   exit 1

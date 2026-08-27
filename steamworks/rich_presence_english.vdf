@@ -1,8 +1,10 @@
-// Steam rich presence tokens for Team Frontress (appID 5147520).
+// Steam rich presence tokens for Team Frontress.
 //
 // This file is not read by the game. It has to be uploaded on the Steamworks
 // partner site (App Admin -> Community -> Rich Presence Localization) before
-// anything appears in the friends list: Steam resolves "steam_display" against
+// anything appears in the friends list, and once per app -- the playtest
+// (5147520) and the main app (5147380) each resolve tokens against their own
+// uploaded table: Steam resolves "steam_display" against
 // what the app has uploaded, not against anything the client ships. The
 // in-game friends panel reads the "status" key instead, which is why that has
 // worked all along while the Steam client showed nothing.

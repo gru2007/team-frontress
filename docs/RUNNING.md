@@ -19,7 +19,8 @@ operational half.
 
 The distinction bites once: the dedicated package ships in the Tool's depot, but
 `steam_appid.txt` inside it says `5147520`, because that is the app the server
-is serving. `game_clean/copy_server.sh` writes it; do not "fix" it.
+is serving. `game_clean/copy_server.sh` writes it, copying the AppID out of the
+payload's own `steam.inf`; do not "fix" it.
 
 `game/tc2/steam.inf` carries the same pair and the build version. Steam refuses
 to authenticate a server whose `steam.inf` version does not match what the app
@@ -45,18 +46,39 @@ are the `STEAM_MAIN_APPID`, `STEAM_MAIN_DEPOT_WIN` / `_LINUX` / `_MAC` and
 to publish the playtest alone, or `STEAM_MAIN_BRANCH` to `none` to upload
 without setting anything live.
 
-Two places are deliberately not stamped:
+Nothing in the game code decides which app it is: `engine->GetAppID()` and
+`SteamUtils()->GetAppID()` answer with whatever the client was launched as, and
+the inventory request, the friends panel, the server browser and the GC
+messages all go through them. What is written down anywhere is only these:
 
-- **The launcher binaries.** `MOD_APPID` from `launcher_main_tc2.vpc` is only
-  used when nothing set `SteamAppId` in the environment, and Steam always sets
-  it for the app it launched. It decides which app a build run outside Steam
-  attaches to, and that stays the playtest.
-- **The macOS bundle**, because editing it would break its code signature. Its
-  launcher stamps the copy it stages out of the bundle with the AppID Steam
-  launched it with, so one signed bundle serves both apps.
+| Where | What it is | Stamped? |
+| --- | --- | --- |
+| `tc2/steam.inf`, both `gameinfo*.txt` | the app the content belongs to | yes, per upload |
+| `steam_appid.txt` in the dedicated payload | the app the server runs as | derived from `steam.inf` by `copy_server.sh` |
+| `MOD_APPID` in `launcher_main_tc2.vpc` | which app a build run **outside** Steam attaches to | no -- one binary ships in both depots, and Steam's `SteamAppId` wins whenever it launched us |
+| The macOS bundle | -- | no -- editing it breaks its signature; its launcher stamps the staged copy from the AppID Steam launched it with |
+| `auth.app_id` / `auth.app_ids` in the coordinator | whose tickets matchmaking accepts | operator config, see below |
+| `steamworks/rich_presence_*.vdf` | friends-list tokens | uploaded per app on the partner site -- do both |
 
-The dedicated server is not part of this. It ships under Tool `5150320` and
-keeps running as `5147520`.
+Two of those are worth saying out loud.
+
+**Matchmaking.** A Steam auth ticket is only good for the app its client is
+running as, so a coordinator that knows one AppID rejects everyone on the other.
+`"auth": { "app_id": 5147520, "app_ids": [5147380] }` accepts both; see the
+[coordinator README](../services/coordinator/README.md).
+
+**The dedicated server.** It ships under Tool `5150320` and keeps running as
+`5147520`. That is the app its GSLT is issued for, the app Steam registers the
+server under, and the app whose clients can authenticate on it -- so a server
+serves players of one app, not both. To move a server to the main app, stamp
+its payload before uploading it:
+
+```bash
+./game_clean/retarget_appid.sh game_server_dist 5147380
+```
+
+`steam_appid.txt` follows `steam.inf` automatically, and the Tool it ships in
+does not change.
 
 ## 1. The dedicated server
 
@@ -97,7 +119,7 @@ The four values in `server.cfg`:
 | | |
 | --- | --- |
 | `rcon_password` | how the coordinator drives the server. Without it a match can be assigned but never set up |
-| `sv_setsteamaccount` | a GSLT for **5147520** from [managegameservers](https://steamcommunity.com/dev/managegameservers). Without it players connect with no inventory and the server is invisible to Steam |
+| `sv_setsteamaccount` | a GSLT for the app the server runs as -- **5147520** unless the payload was stamped for another one -- from [managegameservers](https://steamcommunity.com/dev/managegameservers). Without it players connect with no inventory and the server is invisible to Steam |
 | `ip` | the address players are told to connect to. It has to match what the coordinator hands out |
 | `tv_*` | SourceTV. It only takes effect at start, which is why it is here and not in the per-match config |
 
@@ -133,7 +155,9 @@ The example is already the static path. What to change:
 
 Leave `auth.mode` as `dev` while testing on a LAN. It believes whatever SteamID
 a client claims — fine on your own network, not fine on the internet. Switching
-to `webapi` needs a Steam Web API key and verifies every ticket.
+to `webapi` needs a Steam Web API key and verifies every ticket. List every app
+whose players may queue there (`app_id` plus `app_ids`): a ticket is only valid
+for the app its client is running as.
 
 Check it:
 
@@ -502,7 +526,8 @@ Short answer: **your change was the right one, and it should work.**
 
 `https://www.teamfortress.com/webapi/ISDK/GetInventory/v0001` is Valve's own
 endpoint for Source SDK 2013 mods, not a TC2 service. The client asks Steam for
-a `GetAuthTicketForWebApi("tf2sdk")` ticket, sends it with `appid=5147520`, and
+a `GetAuthTicketForWebApi("tf2sdk")` ticket, sends it with the AppID the client
+is running as (`engine->GetAppID()`, so 5147520 or 5147380), and
 gets back a serialized SO cache that goes into the local player's inventory with
 `AddLocalSOCache`. The old `api.teamcomtress.com` URL was Team Comtress' own
 relay, which we cannot use and which is presumably why nothing worked.

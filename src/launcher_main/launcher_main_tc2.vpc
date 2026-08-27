@@ -8,7 +8,11 @@ $Configuration
 {
 	$Compiler
 	{
-		$PreprocessorDefinitions	"$BASE;MOD_APPID=5147520" // Team Frontress Playtest, the app we ship under on SteamPipe.
+		// Only used when nothing set SteamAppId in the environment: Steam sets it for
+		// the app it launched, so a copy from either the playtest or the main app
+		// initialises as the app it was started from. This is what a build run by
+		// hand, outside Steam, attaches to.
+		$PreprocessorDefinitions	"$BASE;MOD_APPID=5147520" // Team Frontress Playtest.
 	}
 }
 

@@ -6,7 +6,8 @@
   "auth": {
     "mode": "dev",
     "steam_api_key": "",
-    "app_id": 5147520
+    "app_id": 5147520,
+    "app_ids": [5147380]
   },
 
   "players": {

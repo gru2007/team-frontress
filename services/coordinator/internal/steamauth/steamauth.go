@@ -49,7 +49,12 @@ func (DevVerifier) Verify(_ context.Context, claimed wire.SteamID, _ string) (wi
 // WebAPIVerifier calls ISteamUserAuth/AuthenticateUserTicket.
 type WebAPIVerifier struct {
 	APIKey string
-	AppID  uint32
+	// AppIDs are the apps whose tickets are accepted. The same build ships
+	// under more than one AppID -- the playtest and the main app -- and a
+	// ticket is only good for the app its client is running as, so a ticket is
+	// offered to each in turn until one recognises it. One entry is the
+	// ordinary case and costs one call, as before.
+	AppIDs []uint32
 	// BaseURL defaults to the public Steam API. Tests point it elsewhere.
 	BaseURL string
 	Client  *http.Client
@@ -58,6 +63,10 @@ type WebAPIVerifier struct {
 	// every two seconds would otherwise be six Steam calls a second.
 	mu    sync.Mutex
 	cache map[string]cacheEntry
+	// lastGood is the AppID that verified the previous ticket. A lobby is
+	// almost always on one app, so trying that one first keeps the second call
+	// to the app that changed rather than to every ticket.
+	lastGood uint32
 }
 
 type cacheEntry struct {
@@ -78,13 +87,76 @@ func (v *WebAPIVerifier) Verify(ctx context.Context, claimed wire.SteamID, ticke
 		return id, nil
 	}
 
+	appIDs := v.orderedAppIDs()
+	if len(appIDs) == 0 {
+		return "", errors.New("steam auth: no AppID configured")
+	}
+
+	var rejected error
+	for _, appID := range appIDs {
+		id, err := v.verifyWith(ctx, appID, claimed, ticket)
+		switch {
+		case err == nil:
+			v.rememberGood(appID)
+			v.store(ticket, id)
+			return id, nil
+		case id != "":
+			// The ticket is good and belongs to somebody other than the client
+			// claimed to be. That is an answer about this ticket, not a reason
+			// to go asking the next app about it.
+			v.rememberGood(appID)
+			return id, err
+		case errors.Is(err, ErrRejected):
+			// Steam does not say "wrong app", it says "invalid ticket", so a
+			// rejection is only final once every app has turned it down.
+			if rejected == nil {
+				rejected = err
+			}
+		default:
+			// A transport or HTTP failure is not the ticket's fault and asking
+			// another app would only repeat it.
+			return "", err
+		}
+	}
+	return "", rejected
+}
+
+// orderedAppIDs is AppIDs with the one that verified the previous ticket first.
+func (v *WebAPIVerifier) orderedAppIDs() []uint32 {
+	v.mu.Lock()
+	first := v.lastGood
+	v.mu.Unlock()
+
+	out := make([]uint32, 0, len(v.AppIDs))
+	for _, id := range v.AppIDs {
+		if id != 0 && id == first {
+			out = append(out, id)
+		}
+	}
+	for _, id := range v.AppIDs {
+		if id != 0 && id != first {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+func (v *WebAPIVerifier) rememberGood(appID uint32) {
+	v.mu.Lock()
+	v.lastGood = appID
+	v.mu.Unlock()
+}
+
+// verifyWith asks Steam about a ticket as one app. A ticket issued for another
+// app comes back rejected, which is what makes trying each of them safe.
+func (v *WebAPIVerifier) verifyWith(ctx context.Context, appID uint32, claimed wire.SteamID, ticket string) (wire.SteamID, error) {
 	base := v.BaseURL
 	if base == "" {
 		base = "https://api.steampowered.com"
 	}
 	q := url.Values{}
 	q.Set("key", v.APIKey)
-	q.Set("appid", strconv.FormatUint(uint64(v.AppID), 10))
+	q.Set("appid", strconv.FormatUint(uint64(appID), 10))
 	q.Set("ticket", ticket)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
@@ -142,7 +214,6 @@ func (v *WebAPIVerifier) Verify(ctx context.Context, claimed wire.SteamID, ticke
 		// verified identity wins and the caller can log the mismatch.
 		return id, fmt.Errorf("%w: claimed %s, ticket belongs to %s", ErrRejected, claimed, id)
 	}
-	v.store(ticket, id)
 	return id, nil
 }
 

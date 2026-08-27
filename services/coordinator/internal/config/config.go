@@ -43,6 +43,26 @@ type AuthConfig struct {
 	SteamAPIKey string `json:"steam_api_key"`
 	// AppID the tickets are issued for. Team Frontress playtest is 5147520.
 	AppID uint32 `json:"app_id"`
+	// AppIDs are further apps whose tickets are accepted. The same build is
+	// published under both the playtest and the main app (5147380), and a
+	// ticket is only good for the app its client is running as, so a
+	// coordinator serving players from both needs both listed.
+	AppIDs []uint32 `json:"app_ids"`
+}
+
+// AppIDList is every app whose tickets are accepted, AppID first, without
+// duplicates or zeroes.
+func (a AuthConfig) AppIDList() []uint32 {
+	out := make([]uint32, 0, len(a.AppIDs)+1)
+	seen := map[uint32]bool{}
+	for _, id := range append([]uint32{a.AppID}, a.AppIDs...) {
+		if id == 0 || seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	return out
 }
 
 // Verified reports whether this mode produces identities the game may trust.
@@ -399,7 +419,7 @@ func (c Config) Validate() error {
 		if c.Auth.SteamAPIKey == "" {
 			return errors.New("auth.steam_api_key is required for auth.mode webapi")
 		}
-		if c.Auth.AppID == 0 {
+		if len(c.Auth.AppIDList()) == 0 {
 			return errors.New("auth.app_id is required for auth.mode webapi")
 		}
 	default:
