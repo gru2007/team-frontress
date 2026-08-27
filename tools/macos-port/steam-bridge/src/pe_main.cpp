@@ -904,6 +904,60 @@ STEAM_BRIDGE_EXPORT int __cdecl SteamGameServer_GetIPCCallCount( void )
     return client ? (int)client->GetIPCCallCount() : 0;
 }
 
+
+/* ---------------------------------------------------- temporary crash trap */
+
+/* On with the launcher's TC2_DEBUG=1, or on its own with TC2_BRIDGE_TRAP=1.
+ * The bridge is the first of our own PE modules
+ * in the process, so it is where a vectored handler can be installed to print
+ * the stack of a first-chance access violation before the engine's own handler
+ * swallows it and exits. Diagnostic only; not part of the bridge's job. */
+static LONG CALLBACK steam_bridge_trap( EXCEPTION_POINTERS *info )
+{
+    const EXCEPTION_RECORD *rec = info->ExceptionRecord;
+    CONTEXT ctx = *info->ContextRecord;
+
+    if (rec->ExceptionCode != EXCEPTION_ACCESS_VIOLATION) return EXCEPTION_CONTINUE_SEARCH;
+
+    steam_bridge_log( "TRAP: access violation at %p %s %p",
+                      rec->ExceptionAddress,
+                      rec->ExceptionInformation[0] ? "writing" : "reading",
+                      (void *)rec->ExceptionInformation[1] );
+
+    for (int frame = 0; frame < 24 && ctx.Rip; frame++)
+    {
+        char path[MAX_PATH] = "";
+        HMODULE module = NULL;
+        ULONG64 image_base = 0, establisher = 0;
+        PRUNTIME_FUNCTION function;
+        void *handler_data;
+
+        if (GetModuleHandleExA( GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                                GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                (LPCSTR)ctx.Rip, &module ) && module)
+            GetModuleFileNameA( module, path, sizeof(path) );
+
+        steam_bridge_log( "TRAP:   #%02d %p  %s+0x%llx", frame, (void *)ctx.Rip,
+                          path[0] ? path : "(unknown)",
+                          module ? (unsigned long long)(ctx.Rip - (ULONG64)module) : 0ull );
+
+        function = RtlLookupFunctionEntry( ctx.Rip, &image_base, NULL );
+        if (!function)
+        {
+            /* A leaf function: the return address is where RSP points. */
+            ctx.Rip = *(ULONG64 *)ctx.Rsp;
+            ctx.Rsp += 8;
+        }
+        else
+        {
+            RtlVirtualUnwind( UNW_FLAG_NHANDLER, image_base, ctx.Rip, function,
+                              &ctx, &handler_data, &establisher, NULL );
+        }
+    }
+
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
 /* ------------------------------------------------------------- entry point */
 
 extern "C" BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, void *reserved )
@@ -917,6 +971,11 @@ extern "C" BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, void *reserved
         steam_bridge_self = instance;
         steam_bridge_debug = GetEnvironmentVariableA( "TC2_STEAM_BRIDGE_DEBUG", NULL, 0 ) != 0;
         InitializeCriticalSection( &steam_bridge_lock );
+        if (steam_bridge_debug || GetEnvironmentVariableA( "TC2_BRIDGE_TRAP", NULL, 0 ))
+        {
+            steam_bridge_debug = true;
+            AddVectoredExceptionHandler( 1, steam_bridge_trap );
+        }
         if (!steam_bridge_load_unixlib())
         {
             /* Deliberately not fatal: the DLL still loads and every entry

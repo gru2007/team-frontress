@@ -191,10 +191,76 @@ def header_versions(header_dir):
     return versions
 
 
+def header_vtables(header_dir):
+    """The vtable each interface has in the headers the game is built against.
+
+    steam_api.json describes the interfaces as the SDK it shipped with has
+    them, and that is the right description of what native Steam serves -- but
+    the vtable the *game* dispatches through is the one in these headers, and
+    the two are not the same shape. Between the headers here and SDK 1.65,
+    ISteamNetworkingUtils gained InitRelayNetworkAccess in slot 1, ISteamClient
+    and ISteamUtils lost deprecated methods from the middle, and every slot
+    after the change moved. A vtable built in JSON order sends
+    CheckPingDataUpToDate( float ) to ParsePingLocationString( const char *,
+    SteamNetworkPingLocation_t & ), which reads 512 bytes from what was a
+    float -- an access violation deep in the client with nothing to point at
+    the bridge.
+
+    So the order comes from the headers, and steam_api.json supplies the
+    thunks. A slot the SDK no longer describes gets the unbridged stub.
+    """
+    tables = {}
+    if not os.path.isdir(header_dir):
+        return tables
+
+    class_re = re.compile(r"\bclass\s+(ISteam\w+)\b[^;{]*\{")
+    # Stops at the first ; { or } so that an inline body is never mistaken for
+    # a declaration; a pure virtual declaration always reaches its '(' first.
+    method_re = re.compile(r"\bvirtual\b[^;{}]*?(\w+)\s*\(")
+
+    for name in sorted(os.listdir(header_dir)):
+        if not name.endswith(".h"):
+            continue
+        with open(os.path.join(header_dir, name), errors="replace") as handle:
+            text = handle.read()
+        text = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
+        text = re.sub(r"//[^\n]*", " ", text)
+
+        for match in class_re.finditer(text):
+            classname = match.group(1)
+            if classname in tables:
+                continue
+            start = text.index("{", match.start())
+            depth, index = 0, start
+            while index < len(text):
+                if text[index] == "{":
+                    depth += 1
+                elif text[index] == "}":
+                    depth -= 1
+                    if not depth:
+                        break
+                index += 1
+            body = text[start + 1:index]
+
+            methods = []
+            for method in method_re.finditer(body):
+                # A virtual destructor takes a slot but is never called across
+                # the bridge, and its name is the class's.
+                if method.start(1) and body[method.start(1) - 1] == "~":
+                    continue
+                methods.append(method.group(1))
+            if methods:
+                tables[classname] = methods
+    return tables
+
+
 class Generator:
-    def __init__(self, api, header_versions=None):
+    def __init__(self, api, header_versions=None, header_vtables=None):
         self.api = api
         self.header_versions = header_versions or {}
+        self.header_vtables = header_vtables or {}
+        self.vtable_notes = []
+        self.vtable_cache = {}
         self.interfaces = api["interfaces"]
         self.iface_names = [i["classname"] for i in self.interfaces]
         self.iface_set = set(self.iface_names)
@@ -370,6 +436,44 @@ class Generator:
         return "static %s __cdecl %s( %s )" % (method["returntype"].strip(), name,
                                                ", ".join(args))
 
+    def vtable_slots(self, iface, methods):
+        """The vtable to hand the game: one entry per slot the headers declare.
+
+        Matching is by name and in order, so an overload set keeps its relative
+        order. Methods the SDK describes but the game's headers do not have are
+        simply not in its vtable; they stay reachable through the flat exports.
+        """
+        cached = self.vtable_cache.get(iface["classname"])
+        if cached is not None:
+            return cached
+
+        order = self.header_vtables.get(iface["classname"])
+        if not order:
+            cached = [(method, method["methodname"]) for method in methods]
+            self.vtable_cache[iface["classname"]] = cached
+            return cached
+
+        remaining = {}
+        for method in methods:
+            remaining.setdefault(method["methodname"], []).append(method)
+
+        slots, missing = [], []
+        for name in order:
+            candidates = remaining.get(name)
+            if candidates:
+                slots.append((candidates.pop(0), name))
+            else:
+                slots.append((None, name))
+                missing.append(name)
+
+        if missing or len(order) != len(methods):
+            self.vtable_notes.append(
+                "%s: %d slots from the headers, %d described by the SDK%s"
+                % (iface["classname"], len(order), len(methods),
+                   ("; stubbed: " + ", ".join(missing)) if missing else ""))
+        self.vtable_cache[iface["classname"]] = slots
+        return slots
+
     def msvc_return_adapter(self, method, name):
         """The MSVC-shaped entry point for a method GCC would return in RAX."""
         ret = method["returntype"].strip()
@@ -508,8 +612,11 @@ class Generator:
                 continue
             out.append("static void * const vtable_%s[] =" % iface["classname"])
             out.append("{")
-            for method in methods:
-                if method["methodname_flat"] in UNBRIDGED:
+            for method, name in self.vtable_slots(iface, methods):
+                if method is None:
+                    out.append("    (void *)steam_bridge_unbridged, /* %s: not in "
+                               "the SDK description */" % name)
+                elif method["methodname_flat"] in UNBRIDGED:
                     out.append("    (void *)steam_bridge_unbridged, /* %s */"
                                % method["methodname"])
                 elif method["returntype"].strip() in MSVC_MEMORY_RETURN:
@@ -526,7 +633,8 @@ class Generator:
             version = self.iface_version(iface)
             if methods:
                 out.append('    { "%s", "%s", vtable_%s, %d },'
-                           % (iface["classname"], version, iface["classname"], len(methods)))
+                           % (iface["classname"], version, iface["classname"],
+                              len(self.vtable_slots(iface, methods))))
             else:
                 out.append('    { "%s", "%s", NULL, 0 },' % (iface["classname"], version))
         out.append("};")
@@ -1051,7 +1159,8 @@ def main():
     api = load(path)
     os.makedirs(OUT, exist_ok=True)
 
-    generator = Generator(api, header_versions(os.path.dirname(path)))
+    headers = os.path.dirname(path)
+    generator = Generator(api, header_versions(headers), header_vtables(headers))
     generator.collect()
     generator.emit_iface_enum()
     # Must precede the params header: it establishes which structs have a
@@ -1064,6 +1173,8 @@ def main():
     local = generator.emit_pe_local()
     exports = generator.emit_def(CORE_EXPORTS, local)
 
+    for note in generator.vtable_notes:
+        print("vtable %s" % note)
     print("bridged %d methods across %d interfaces, %d exports"
           % (len(generator.calls), len(generator.interfaces), len(exports)))
 
