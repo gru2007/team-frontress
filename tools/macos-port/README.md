@@ -25,10 +25,36 @@ Team Frontress.app/Contents/
         └── lib/wine/x86_64-unix/    d9mtmetal.so,  winemetal.so,  steam_api64.so
 ```
 
-The mutable Wine prefix lives in
-`~/Library/Application Support/Team Frontress/prefix` and is never part of the
-depot. The launcher writes `~/Library/Logs/Team Frontress/launcher.log`, keeping
-the previous run alongside it as `launcher.log.previous`.
+Nothing under the `.app` is ever written to at runtime. Everything mutable lives
+in `~/Library/Application Support/Team Frontress`:
+
+```text
+~/Library/Application Support/Team Frontress/
+├── prefix/                          the Wine prefix
+└── game/                            the client the launcher actually runs
+```
+
+and the log is `~/Library/Logs/Team Frontress/launcher.log`, with the previous
+run kept next to it as `launcher.log.previous`.
+
+### Why the client does not run from inside the bundle
+
+A Source client writes next to its own binary: `console.log`, `config.cfg`,
+`steam_appid.txt`, the DXVK/D9MT shader caches, screenshots, downloads. Doing
+that inside the `.app` breaks two things at once. The bundle's code signature
+seals `Contents/Resources`, so the first write invalidates it; and Steam sees
+depot files that no longer match the manifest, so it wants to repair the install
+under the player every time. Between them that is a game that starts, writes one
+file and disappears, which is exactly what the port did.
+
+So the launcher stages `Contents/Resources/game` into
+`~/Library/Application Support/Team Frontress/game` and runs it from there. The
+first stage is `cp -Rc`, which is `clonefile(2)`: on APFS the copy is instant and
+occupies no additional disk space, and a write to the copy never touches the
+bundle's blocks. Later launches only re-sync when the bundle changed, with
+`rsync -rlt`, so a depot update reaches the copy while everything the player
+wrote — configs, `custom/`, demos, caches — is left alone. `TC2_GAME_DIR`
+overrides where that copy lives.
 
 ## Where the assets come from
 
@@ -69,12 +95,25 @@ to be supplied.
 | --- | --- |
 | Wine | [`wine-devel-11.16-osx64`](https://github.com/Gcenx/macOS_Wine_builds/releases/tag/11.16) — vanilla rather than staging, since D9MT's `winemetal` is a third-party builtin and staging's patches are a variable this port does not need |
 | Wine's `COPYING.LIB` | `gitlab.winehq.org/wine/wine` at `wine-11.16` — the builds do not ship it |
-| D9MT | [`d9mt-x64.zip` from `gru2007/d9mt-builded` v0.1](https://github.com/gru2007/d9mt-builded/releases/tag/v0.1) |
+| D9MT | [`d9mt-x64.zip` from `gru2007/d9mt-builded` v0.1](https://github.com/gru2007/d9mt-builded/releases/tag/v0.1) — an x86_64 build of [`neo773/d9mt`](https://github.com/neo773/d9mt), whose own releases are arm64 for CrossOver and will not load under an x86_64 Wine |
 | Steamworks | none — set `STEAMWORKS_SDK_ZIP`, `STEAMWORKS_REDIST_DYLIB` or `STEAMWORKS_REDIST_URL` |
 
 Every input takes a local path as readily as a URL, so an archive already on
 disk is reused rather than downloaded again. The SDK zip and the bare dylib are
 both accepted.
+
+D9MT is unpacked by name rather than by layout: `d3d9.dll` (or `d3d9fe.dll`,
+which is what upstream's build script produces and which is deployed under the
+other name), plus a `.dll`/`.so` pair for each of `winemetal` and `d9mtmetal`,
+wherever in the archive they happen to sit. What comes out is the layout
+`build-depot.sh` wants:
+
+```text
+<dest>/d9mt/
+├── d3d9.dll                     goes next to tc2_win64.exe
+├── x86_64-windows/{winemetal,d9mtmetal}.dll    Wine builtins
+└── x86_64-unix/{winemetal,d9mtmetal}.so        their unixlibs
+```
 
 ```bash
 STEAMWORKS_SDK_ZIP=~/steamworks_sdk_165.zip \
@@ -103,6 +142,35 @@ append-only, and the sixth carves a field out of reserved space in a struct only
 repository, so it stays consistent with the game rather than with whichever
 `libsteam_api.dylib` is shipped alongside it.
 
+### What the build checks
+
+Each of these is invisible in a directory listing and each one is a client that
+starts and vanishes with nothing in the log, so `build-depot.sh` refuses to
+produce a bundle until they hold:
+
+| check | why |
+| --- | --- |
+| `d9mtmetal.so`, `winemetal.so`, `steam_api64.so` and `libsteam_api.dylib` carry Wine's architecture | a unixlib is loaded into the Wine process itself; an arm64 one next to an x86_64 Wine does not load at all |
+| `d3d9.dll`, `d9mtmetal.dll`, `winemetal.dll`, `steam_api64.dll` are x86-64 PE images | the client is x86-64 |
+| the three Wine-side DLLs carry winebuild's `Wine builtin DLL` marker | without it Wine logs *"found in WINEDLLPATH but not a builtin, ignoring"*, never pairs the DLL with its `.so`, and D3D9 creation fails inside the client. Anything unmarked is stamped by `steam-bridge/mark-builtin.py` |
+| the bundle contains no symlinks | see below |
+| the bundle's executable is executable and starts with `#!` | it is what Steam runs |
+| the Wine binary's signature carries `allow-jit` | the entitlements are the only reason the nested binaries are signed one at a time |
+
+### Symlinks
+
+The depot is delivered by SteamPipe, whose file format has no symlink in it: a
+player ends up with whatever the depot builder made of one. A Wine tree that
+arrives with `bin/wine64` or a versioned dylib missing is a client that exits
+before it prints anything, and a link that came back as a copy invalidates the
+bundle's signature just as surely as a new file would.
+
+`build-depot.sh` therefore resolves every symlink in the bundle into a real file
+before signing — repeatedly, since a link to a directory is replaced by a copy of
+that directory, links and all — and fails if any survive. It costs some tens of
+megabytes of duplicated dylibs and it makes the delivered bundle byte-identical
+to the signed one.
+
 ### Signing
 
 Innermost-first, and on purpose. Wine and D9MT both write pages
@@ -130,13 +198,51 @@ Two jobs in `.github/workflows/build.yml`:
   the job says so and finishes green — a macOS depot that cannot be built is not
   a reason to hold up a Windows and Linux release.
 
-The bundle travels between jobs as a tar, not as loose files: the Wine tree is
-full of symlinks and executable bits, and an `.app` that lost either does not
-launch.
+The bundle travels between jobs as a tar, not as loose files: an artifact upload
+of loose files does not keep executable bits, and an `.app` that lost them does
+not launch. A verification step then re-checks the finished bundle on the macOS
+runner — signature, executable bit, interpreter line, no symlinks — because none
+of that can be checked again on the Linux runner that publishes it.
 
 `publish-steam` pushes depot `5147523` alongside the Windows and Linux depots
 in a single BuildID when the macOS lane produced a bundle, and leaves that depot
 at its previous content when it did not.
+
+## When it does not start
+
+The launcher's whole job on a bad launch is to leave something behind, so start
+with the log:
+
+```bash
+open ~/Library/Logs/Team\ Frontress/
+```
+
+It records the bundle path, the macOS version and architecture, what Wine is,
+where Team Fortress 2 was found, and the client's exit status. The same output
+also goes to stderr, so Steam's own console log has a copy. If the client dies
+within a minute of starting, the launcher puts the last lines of that log in an
+alert rather than exiting quietly.
+
+For more than that, run it by hand with Wine's loader tracing on:
+
+```bash
+TC2_DEBUG=1 "/path/to/Team Frontress.app/Contents/MacOS/team-frontress"
+```
+
+which turns on `WINEDEBUG=+loaddll,+module,+seh` and the bridge's own logging —
+enough to see which module failed to load, which is what almost every "it opens
+and closes" report turns out to be.
+
+| symptom | cause |
+| --- | --- |
+| `Bad CPU type in executable`, or an alert about Rosetta | an x86_64 Wine on Apple silicon without Rosetta 2: `softwareupdate --install-rosetta --agree-to-license` |
+| `err:module:import_dll Library winemetal.dll not found` | the D9MT builtins did not reach the prefix; delete `~/Library/Application Support/Team Frontress/prefix` and launch again |
+| `found in WINEDLLPATH but not a builtin, ignoring` | a Wine-side DLL without the builtin marker — a build-time check now stamps these |
+| the client starts and exits with no log at all | the bundle executable never ran: check that `Contents/MacOS/team-frontress` survived with its executable bit |
+| the game runs but Steam features do not | the bridge could not load Valve's library; `TC2_DEBUG=1` makes it say why |
+
+Deleting `~/Library/Application Support/Team Frontress` resets the prefix and
+the staged client without touching the install.
 
 ## Licensing
 

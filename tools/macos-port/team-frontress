@@ -2,51 +2,164 @@
 #
 # Team Frontress macOS launcher.
 #
-# Finds the user's Team Fortress 2 install through native Steam, translates it
-# into a Windows path, and starts the Windows client under the embedded Wine
+# Finds the user's Team Fortress 2 install through native Steam, stages the
+# Windows client somewhere writable, and starts it under the embedded Wine
 # runtime with D9MT on Metal and the Steamworks bridge in place.
+#
+# Nothing here ever writes inside the .app. The Windows client puts console.log,
+# config.cfg, the DXVK/D9MT shader caches, screenshots and downloads next to its
+# own binary; doing that inside the bundle breaks the bundle's code signature on
+# the first run and makes Steam see the depot as modified on every launch. So
+# the client runs out of a per-user copy instead, made with APFS clones so the
+# copy costs neither time nor disk space.
 
 set -u
 
 CONTENTS_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+APP_DIR="$(dirname "${CONTENTS_DIR}")"
 RESOURCES_DIR="${CONTENTS_DIR}/Resources"
-GAME_DIR="${RESOURCES_DIR}/game"
+BUNDLED_GAME_DIR="${RESOURCES_DIR}/game"
 WINE_ROOT="${RESOURCES_DIR}/wine"
 SUPPORT_DIR="${HOME}/Library/Application Support/Team Frontress"
 WINEPREFIX="${SUPPORT_DIR}/prefix"
+GAME_DIR="${TC2_GAME_DIR:-${SUPPORT_DIR}/game}"
 LOG_DIR="${HOME}/Library/Logs/Team Frontress"
-LOG_FILE="${LOG_DIR}/launcher.log"
 
-mkdir -p "${SUPPORT_DIR}" "${LOG_DIR}"
+# ---------------------------------------------------------------- diagnostics
+
+# The log has to survive a launcher that dies before it reaches the game, which
+# is the failure players actually hit, so it is opened first and it never
+# depends on anything under the bundle being right.
+if ! mkdir -p "${LOG_DIR}" 2>/dev/null; then
+	LOG_DIR="${TMPDIR:-/tmp}"
+fi
+LOG_FILE="${LOG_DIR}/launcher.log"
 
 # One run's log, not every run's. A player asked for a log after a crash should
 # not have to find the right session inside a file that has been growing since
 # install.
 if [ -f "${LOG_FILE}" ]; then
-	mv -f "${LOG_FILE}" "${LOG_FILE}.previous"
+	mv -f "${LOG_FILE}" "${LOG_FILE}.previous" 2>/dev/null || true
 fi
-exec >"${LOG_FILE}" 2>&1
 
-printf 'Team Frontress launcher: %s\n' "$(date)"
+# tee rather than a plain redirect: the file is what a player can send, and the
+# copy on stderr is what Steam records in its own console log. A launcher whose
+# output goes only into a file it may have failed to create is how a crash ends
+# up with no diagnostics at all.
+if : >"${LOG_FILE}" 2>/dev/null; then
+	exec > >(/usr/bin/tee "${LOG_FILE}") 2>&1
+else
+	LOG_FILE=""
+fi
 
 alert() {
-	TC2_ALERT_TEXT="$1" /usr/bin/osascript <<'APPLESCRIPT' >/dev/null
+	TC2_ALERT_TEXT="$1" /usr/bin/osascript <<'APPLESCRIPT' >/dev/null 2>&1
 display alert "Team Frontress" message (system attribute "TC2_ALERT_TEXT") as critical
 APPLESCRIPT
 }
+
+ALERTED=0
+
+fail() {
+	printf 'error: %s\n' "$1"
+	ALERTED=1
+	if [ -n "${LOG_FILE}" ]; then
+		alert "$1
+
+Details: ${LOG_FILE}"
+	else
+		alert "$1"
+	fi
+	exit 1
+}
+
+# Anything that gets this far without an explanation still owes the player one:
+# a launcher that exits silently is indistinguishable from a game that never
+# started, which is exactly what a Steam status flickering for a second looks
+# like.
+on_exit() {
+	local status=$?
+	if [ ${status} -ne 0 ] && [ ${ALERTED} -eq 0 ]; then
+		local detail=""
+		if [ -n "${LOG_FILE}" ]; then
+			# tee is still draining; give it a moment before reading back.
+			sleep 1
+			detail="$(/usr/bin/tail -n 12 "${LOG_FILE}" 2>/dev/null)"
+		fi
+		alert "Team Frontress stopped unexpectedly (exit ${status}).
+
+${detail}
+
+Full log: ${LOG_FILE:-none}"
+	fi
+	return ${status}
+}
+trap on_exit EXIT
+
+printf 'Team Frontress launcher: %s\n' "$(date)"
+printf 'bundle:     %s\n' "${APP_DIR}"
+printf 'macOS:      %s (%s)\n' "$(/usr/bin/sw_vers -productVersion 2>/dev/null)" "$(/usr/bin/uname -m)"
+printf 'log:        %s\n' "${LOG_FILE:-<none>}"
+
+case "${APP_DIR}" in
+	*/AppTranslocation/*)
+		fail "macOS is running Team Frontress from a temporary read-only copy (App Translocation). Move the app out of the folder it was downloaded to, or launch it from Steam."
+		;;
+esac
+
+# ------------------------------------------------------------ the Wine runtime
+
+WINE="${WINE_ROOT}/bin/wine64"
+if [ ! -x "${WINE}" ]; then
+	WINE="${WINE_ROOT}/bin/wine"
+fi
+
+if [ ! -x "${WINE}" ]; then
+	fail "The embedded open-source Wine runtime is missing or is not executable. Verify the integrity of the game files in Steam."
+fi
+
+# file(1) rather than lipo: lipo lives in the Command Line Tools, and calling it
+# on a machine that has none pops up Apple's installer instead of answering.
+WINE_KIND="$(/usr/bin/file -b "${WINE}" 2>/dev/null || echo unknown)"
+printf 'wine:       %s (%s)\n' "${WINE}" "${WINE_KIND}"
+
+# An x86_64 Wine on Apple silicon needs Rosetta, and without it exec fails with
+# nothing but "Bad CPU type in executable" -- a one-second flash in Steam.
+case "${WINE_KIND}" in *arm64*) WINE_HAS_ARM64=1 ;; *) WINE_HAS_ARM64=0 ;; esac
+if [ "$(/usr/bin/uname -m)" = "arm64" ] && [ "${WINE_HAS_ARM64}" = "0" ]; then
+	if [ ! -f /Library/Apple/usr/libexec/oah/libRosettaRuntime ] \
+		&& [ ! -d /Library/Apple/usr/share/rosetta ] \
+		&& ! /usr/bin/pgrep -x oahd >/dev/null 2>&1; then
+		fail "Rosetta 2 is required to run Team Frontress on Apple silicon.
+
+Install it from the Terminal with:
+softwareupdate --install-rosetta --agree-to-license"
+	fi
+	printf 'rosetta:    present\n'
+fi
+
+NATIVE_STEAM_API="${RESOURCES_DIR}/steam/libsteam_api.dylib"
+if [ ! -f "${NATIVE_STEAM_API}" ]; then
+	fail "The Steamworks library is missing from this install. Verify the integrity of the game files in Steam."
+fi
+
+if [ ! -f "${BUNDLED_GAME_DIR}/tc2_win64.exe" ]; then
+	fail "The Windows client is missing from this install. Verify the integrity of the game files in Steam."
+fi
+
+# ------------------------------------------------------------- Team Fortress 2
 
 find_tf2() {
 	local steam_root="${HOME}/Library/Application Support/Steam"
 	local library manifest install_dir candidate
 	local libraries="${steam_root}"
 
+	# awk rather than perl: Apple has been deprecating the scripting runtimes it
+	# ships, and every key in a VDF file is a quoted token, so the fourth
+	# quote-delimited field of a "path" line is the path.
 	if [ -f "${steam_root}/steamapps/libraryfolders.vdf" ]; then
-		libraries="${libraries}"$'\n'"$(/usr/bin/perl -ne '
-			while (/"path"\s+"((?:\\.|[^"])*)"/g) {
-				$p = $1;
-				$p =~ s/\\\\/\\/g;
-				print "$p\n";
-			}
+		libraries="${libraries}"$'\n'"$(/usr/bin/awk -F'"' '
+			/"path"/ { gsub(/\\\\/, "\\", $4); print $4 }
 		' "${steam_root}/steamapps/libraryfolders.vdf")"
 	fi
 
@@ -55,7 +168,7 @@ find_tf2() {
 		manifest="${library}/steamapps/appmanifest_440.acf"
 		[ -f "${manifest}" ] || continue
 
-		install_dir="$(/usr/bin/perl -ne 'if (/"installdir"\s+"([^"]+)"/) { print $1; exit }' "${manifest}")"
+		install_dir="$(/usr/bin/awk -F'"' '/"installdir"/ { print $4; exit }' "${manifest}")"
 		[ -n "${install_dir}" ] || continue
 		candidate="${library}/steamapps/common/${install_dir}"
 
@@ -70,29 +183,63 @@ find_tf2() {
 	return 1
 }
 
-WINE="${WINE_ROOT}/bin/wine64"
-if [ ! -x "${WINE}" ]; then
-	WINE="${WINE_ROOT}/bin/wine"
-fi
-
-if [ ! -x "${WINE}" ]; then
-	alert "The embedded open-source Wine runtime is missing. Reinstall Team Frontress."
-	exit 1
-fi
-
-NATIVE_STEAM_API="${RESOURCES_DIR}/steam/libsteam_api.dylib"
-if [ ! -f "${NATIVE_STEAM_API}" ]; then
-	alert "The Steamworks library is missing from this install. Reinstall Team Frontress."
-	exit 1
-fi
-
 TF2_DIR="${TC2_TF2_DIR_UNIX:-$(find_tf2 || true)}"
 if [ -z "${TF2_DIR}" ] || [ ! -f "${TF2_DIR}/bin/x64/launcher.dll" ]; then
 	printf 'no Windows Team Fortress 2 install found\n'
+	ALERTED=1
 	"${RESOURCES_DIR}/install-tf2"
 	exit 1
 fi
-printf 'Team Fortress 2: %s\n' "${TF2_DIR}"
+printf 'tf2:        %s\n' "${TF2_DIR}"
+
+# ------------------------------------------------- the writable game directory
+
+# The bundle stays exactly as it was signed and as Steam downloaded it; the
+# client runs out of this copy and writes whatever it likes into it.
+stage_game() {
+	local stamp_file="${GAME_DIR}/.frontress-stage"
+	local stamp
+
+	stamp="$(/usr/bin/stat -f '%m/%z' "${BUNDLED_GAME_DIR}/tc2_win64.exe" 2>/dev/null)"
+	stamp="${stamp} $(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "${CONTENTS_DIR}/Info.plist" 2>/dev/null)"
+
+	if [ -f "${stamp_file}" ] && [ "$(cat "${stamp_file}" 2>/dev/null)" = "${stamp}" ]; then
+		printf 'game:       %s (already staged)\n' "${GAME_DIR}"
+		return 0
+	fi
+
+	mkdir -p "${SUPPORT_DIR}" "$(dirname "${GAME_DIR}")" || return 1
+
+	if [ ! -d "${GAME_DIR}" ]; then
+		printf 'staging the client into %s\n' "${GAME_DIR}"
+		# -c is clonefile(2): on APFS this is instant and costs no disk space,
+		# and a write to the copy never touches the bundle's blocks. ditto is
+		# the fallback for anything that is not APFS.
+		if ! /bin/cp -Rc "${BUNDLED_GAME_DIR}" "${GAME_DIR}" 2>/dev/null; then
+			printf 'clone unavailable on this filesystem; copying instead\n'
+			rm -rf "${GAME_DIR}"
+			/usr/bin/ditto "${BUNDLED_GAME_DIR}" "${GAME_DIR}" || return 1
+		fi
+	else
+		# An update to the depot has to reach the staged copy, and only the
+		# files that changed: everything the player wrote (configs, custom/,
+		# caches, demos) is not in the bundle and is left alone.
+		printf 'updating the staged client in %s\n' "${GAME_DIR}"
+		/usr/bin/rsync -rlt "${BUNDLED_GAME_DIR}/" "${GAME_DIR}/" || return 1
+	fi
+
+	# Steam ownership is checked through the Steamworks bridge; a stray
+	# steam_appid.txt next to the binary would bypass it.
+	rm -f "${GAME_DIR}/steam_appid.txt"
+
+	printf '%s' "${stamp}" >"${stamp_file}" || return 1
+}
+
+if ! stage_game; then
+	fail "Team Frontress could not prepare its game files in ${GAME_DIR}. Check that the disk is not full and that the folder is writable."
+fi
+
+# ------------------------------------------------------------- the Wine prefix
 
 export WINEPREFIX
 export WINEDEBUG="${WINEDEBUG:--all}"
@@ -107,13 +254,33 @@ export WINEDLLOVERRIDES="d3d9=n;winemetal=b;d9mtmetal=b;steam_api64=b${WINEDLLOV
 # Where the bridge's unix half dlopens Valve's library from.
 export TC2_NATIVE_STEAM_API="${NATIVE_STEAM_API}"
 
+if [ "${TC2_DEBUG:-0}" = "1" ]; then
+	# Everything a "it just closes" report needs: which module failed to load,
+	# and what the bridge and D9MT had to say about it.
+	export WINEDEBUG="+loaddll,+module,+seh"
+	export TC2_STEAM_BRIDGE_DEBUG=1
+	printf 'debug:      on (WINEDEBUG=%s)\n' "${WINEDEBUG}"
+	# Slow on a multi-gigabyte bundle, which is why it is not on every launch:
+	# an invalid seal here means something changed the bundle after it was
+	# signed, and LaunchServices can refuse to start it at all.
+	printf 'signature:  '
+	/usr/bin/codesign --verify --strict "${APP_DIR}" 2>&1 && printf 'valid\n'
+fi
+
 if [ ! -f "${WINEPREFIX}/system.reg" ]; then
 	printf 'creating the Wine prefix\n'
-	mkdir -p "${WINEPREFIX}"
-	if ! "${WINE}" wineboot -u; then
-		alert "Wine could not initialize its prefix. See ${LOG_FILE}."
-		exit 1
+	mkdir -p "${WINEPREFIX}" || fail "Team Frontress could not create ${WINEPREFIX}."
+	# The overrides describe a game that is not running yet, and wineboot has no
+	# use for them; leaving them set only risks a prefix built around a builtin
+	# that is not installed into it yet.
+	if ! env -u WINEDLLOVERRIDES "${WINE}" wineboot -u; then
+		fail "Wine could not initialize its prefix. See ${LOG_FILE}."
 	fi
+fi
+
+SYSTEM32="${WINEPREFIX}/drive_c/windows/system32"
+if [ ! -d "${SYSTEM32}" ]; then
+	fail "The Wine prefix in ${WINEPREFIX} is incomplete. Delete that folder and launch again."
 fi
 
 # Wine only goes looking for a builtin once the DLL name has resolved to a file
@@ -122,26 +289,55 @@ fi
 # a file here the load fails with ERROR_MOD_NOT_FOUND and never reaches the
 # builtin at all. Copying the real builtin is what makes the name resolve; Wine
 # then maps it as a builtin and pairs it with its unixlib.
-SYSTEM32="${WINEPREFIX}/drive_c/windows/system32"
 for dll in winemetal d9mtmetal steam_api64; do
 	source_dll="${WINE_ROOT}/lib/wine/x86_64-windows/${dll}.dll"
 	if [ ! -f "${source_dll}" ]; then
-		printf 'builtin missing from the runtime: %s\n' "${source_dll}"
-		continue
+		fail "The translation layer is incomplete: ${dll}.dll is missing from this install. Verify the integrity of the game files in Steam."
 	fi
 	if ! /usr/bin/cmp -s "${source_dll}" "${SYSTEM32}/${dll}.dll"; then
 		printf 'installing builtin %s into the prefix\n' "${dll}"
-		cp -f "${source_dll}" "${SYSTEM32}/${dll}.dll"
+		if ! cp -f "${source_dll}" "${SYSTEM32}/${dll}.dll"; then
+			fail "Team Frontress could not install ${dll}.dll into its Wine prefix."
+		fi
 	fi
 done
 
 TC2_TF2_DIR="$("${WINE}" winepath -w "${TF2_DIR}" | tr -d '\r')"
 if [ -z "${TC2_TF2_DIR}" ]; then
-	alert "Wine could not translate the Team Fortress 2 install path."
-	exit 1
+	fail "Wine could not translate the Team Fortress 2 install path."
 fi
 export TC2_TF2_DIR
-printf 'Team Fortress 2 (windows path): %s\n' "${TC2_TF2_DIR}"
+printf 'tf2 (win):  %s\n' "${TC2_TF2_DIR}"
 
-cd "${GAME_DIR}" || exit 1
-exec "${WINE}" "${GAME_DIR}/tc2_win64.exe" -game tc2 "$@"
+# ---------------------------------------------------------------------- launch
+
+cd "${GAME_DIR}" || fail "Team Frontress could not enter ${GAME_DIR}."
+
+printf 'launching:  %s -game tc2 %s\n' "${GAME_DIR}/tc2_win64.exe" "$*"
+
+# Not exec: when the client dies on the way up -- a missing builtin, a Metal
+# device D9MT cannot open, a Wine prefix from an older runtime -- the player
+# gets an explanation instead of a Steam status that blinks and goes away.
+STARTED_AT=${SECONDS}
+"${WINE}" "${GAME_DIR}/tc2_win64.exe" -game tc2 "$@"
+STATUS=$?
+RAN_FOR=$((SECONDS - STARTED_AT))
+
+printf 'client exited with status %d after %ds\n' "${STATUS}" "${RAN_FOR}"
+
+# A failure on the way up is what this whole path exists for, and it is what the
+# player needs told. A non-zero exit after a session -- the engine's own exit
+# code on a crash at shutdown, say -- goes in the log and nowhere else: a modal
+# alert every time someone quits the game would be worse than useless.
+ALERTED=1
+if [ "${STATUS}" -ne 0 ] && [ "${RAN_FOR}" -lt 60 ]; then
+	sleep 1
+	DETAIL="$([ -n "${LOG_FILE}" ] && /usr/bin/tail -n 12 "${LOG_FILE}" 2>/dev/null)"
+	alert "Team Frontress closed right after starting (status ${STATUS}).
+
+${DETAIL}
+
+Full log: ${LOG_FILE:-none}"
+fi
+
+exit "${STATUS}"

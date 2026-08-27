@@ -520,9 +520,32 @@ jobs:
           STEAMWORKS_REDIST_DYLIB="${GITHUB_WORKSPACE}/runtime/steam/libsteam_api.dylib" \
             ./tools/macos-port/build-depot.sh
 
-      # A tar, not the directory itself: the Wine tree is full of symlinks and
-      # executable bits that an artifact upload of loose files does not keep,
-      # and an .app that lost either of those does not launch.
+      # The checks that cannot be made on a Linux runner and are not worth
+      # finding out about from a player: the bundle is signed and sealed, its
+      # executable is runnable, and nothing in it is a symlink SteamPipe would
+      # deliver as something else.
+      - name: Verify the app bundle
+        if: steps.gate.outputs.ready == '1'
+        run: |
+          set -euo pipefail
+          APP="game_dist_macos/Team Frontress.app"
+          test -d "${APP}"
+          test -x "${APP}/Contents/MacOS/team-frontress"
+          codesign --verify --deep --strict "${APP}"
+          links="$(find "${APP}" -type l | head -n 5)"
+          if [ -n "${links}" ]; then
+            echo "::error::the bundle still contains symlinks, which SteamPipe does not deliver:"
+            echo "${links}"
+            exit 1
+          fi
+          echo "wine:  $(file -b "${APP}/Contents/Resources/wine/bin/wine64" 2>/dev/null || file -b "${APP}/Contents/Resources/wine/bin/wine")"
+          echo "d9mt:  $(file -b "${APP}/Contents/Resources/wine/lib/wine/x86_64-unix/d9mtmetal.so")"
+          echo "steam: $(file -b "${APP}/Contents/Resources/steam/libsteam_api.dylib")"
+          du -sh "${APP}"
+
+      # A tar, not the directory itself: executable bits are not kept by an
+      # artifact upload of loose files, and an .app that lost them does not
+      # launch.
       - name: Pack the app bundle
         if: steps.gate.outputs.ready == '1'
         run: |
