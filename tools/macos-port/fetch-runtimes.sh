@@ -96,17 +96,66 @@ fetch "${MACOS_WINE_LICENSE_URL}" "${DEST}/wine/COPYING.LIB"
 test -s "${DEST}/wine/COPYING.LIB"
 
 # -- D9MT ---------------------------------------------------------------------
+#
+# D9MT is five files in whatever arrangement the build that produced them
+# happened to use, so each one is located by name and then put where
+# build-depot.sh looks for it. Getting this wrong is not a build failure, it is
+# a client that starts and disappears, so the pieces are checked here as well.
 printf '== D9MT\n'
 fetch "${MACOS_D9MT_URL}" "${WORK}/d9mt.archive"
 extract "${WORK}/d9mt.archive" "${WORK}/d9mt"
 
-D9MT_TREE="$(find "${WORK}/d9mt" -maxdepth 3 -type f -name d3d9.dll -print -quit)"
-D9MT_TREE="${D9MT_TREE%/d3d9.dll}"
-if [ -z "${D9MT_TREE}" ]; then
-	printf 'No d3d9.dll inside %s\n' "${MACOS_D9MT_URL}" >&2
+mkdir -p "${DEST}/d9mt/x86_64-windows" "${DEST}/d9mt/x86_64-unix"
+
+find_one() {
+	# The first match wins, but a package that carries the same name twice is
+	# worth saying so about rather than picking blindly.
+	# head closing the pipe early would fail the whole pipeline under
+	# pipefail, so the list is collected first.
+	local found
+	found="$(find "$1" -type f -name "$2" 2>/dev/null | sort || true)"
+	printf '%s' "${found%%$'\n'*}"
+}
+
+# The driver is built as d3d9fe.dll upstream and deployed as d3d9.dll; both
+# names are accepted, and the deployed name is the one written out.
+D9MT_D3D9="$(find_one "${WORK}/d9mt" 'd3d9.dll')"
+if [ -z "${D9MT_D3D9}" ]; then
+	D9MT_D3D9="$(find_one "${WORK}/d9mt" 'd3d9fe.dll')"
+fi
+if [ -z "${D9MT_D3D9}" ]; then
+	printf 'No d3d9.dll or d3d9fe.dll inside %s\n' "${MACOS_D9MT_URL}" >&2
+	printf 'Contents:\n' >&2
+	find "${WORK}/d9mt" -type f | sed 's/^/  /' >&2
 	exit 1
 fi
-/usr/bin/ditto "${D9MT_TREE}" "${DEST}/d9mt"
+cp "${D9MT_D3D9}" "${DEST}/d9mt/d3d9.dll"
+
+for part in winemetal d9mtmetal; do
+	for side in dll so; do
+		src="$(find_one "${WORK}/d9mt" "${part}.${side}")"
+		if [ -z "${src}" ]; then
+			printf 'No %s.%s inside %s\n' "${part}" "${side}" "${MACOS_D9MT_URL}" >&2
+			printf 'Both halves of a Wine builtin are required: the PE and its unixlib.\n' >&2
+			find "${WORK}/d9mt" -type f | sed 's/^/  /' >&2
+			exit 1
+		fi
+		if [ "${side}" = "dll" ]; then
+			cp "${src}" "${DEST}/d9mt/x86_64-windows/${part}.dll"
+		else
+			cp "${src}" "${DEST}/d9mt/x86_64-unix/${part}.so"
+		fi
+	done
+done
+
+# A unixlib is loaded into the Wine process, so its architecture is not a
+# preference. Reported here, and enforced by build-depot.sh.
+WINE_KIND="$(/usr/bin/file -b "${DEST}/wine/bin/wine64" 2>/dev/null \
+	|| /usr/bin/file -b "${DEST}/wine/bin/wine" 2>/dev/null || echo unknown)"
+for unixlib in "${DEST}/d9mt/x86_64-unix"/*.so; do
+	printf '   %-16s %s\n' "$(basename "${unixlib}")" "$(/usr/bin/file -b "${unixlib}")"
+done
+printf '   %-16s %s\n' "wine" "${WINE_KIND}"
 
 # -- Steamworks ---------------------------------------------------------------
 printf '== Steamworks redistributable\n'
@@ -147,7 +196,7 @@ if ! /usr/bin/file -b "${REDIST}" | grep -q "Mach-O"; then
 fi
 
 printf '\nruntimes ready in %s\n' "${DEST}"
-printf '  wine  %s\n' "$(/usr/bin/file -b "${DEST}/wine/bin/wine" 2>/dev/null || echo missing)"
+printf '  wine  %s\n' "${WINE_KIND}"
 printf '  d9mt  %s\n' "$(ls "${DEST}/d9mt" | tr '\n' ' ')"
 printf '  steam %s\n' "$(/usr/bin/file -b "${REDIST}")"
 printf '\nBuild the depot with:\n'

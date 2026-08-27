@@ -20,9 +20,19 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.action-games</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<!-- TCC kills a process that touches a protected resource without a purpose
+	     string in the bundle it was launched from, and the two the game reaches
+	     for are voice chat and the LAN server browser. Both are prompts a player
+	     can decline; neither is a reason to lose the process. -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Team Frontress uses your microphone for in-game voice chat.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Team Frontress looks for game servers on your local network.</string>
 </dict>
 </plist>

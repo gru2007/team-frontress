@@ -220,7 +220,7 @@ static bool GetGameInstallDir( const char *pRootDir, char *pszBuf, int nBufSize,
 		// A path that does not hold a Team Fortress 2 install would otherwise
 		// surface much later as a failure to load launcher.dll.
 		char szLauncher[MAX_PATH];
-		_snprintf( szLauncher, sizeof( szLauncher ), "%s\\bin\\x64\\launcher.dll", pszBuf );
+		_snprintf( szLauncher, sizeof( szLauncher ), "%s\\" PLATFORM_BIN_DIR "\\launcher.dll", pszBuf );
 		szLauncher[sizeof( szLauncher ) - 1] = '\0';
 
 		if ( GetFileAttributesA( szLauncher ) == INVALID_FILE_ATTRIBUTES )
