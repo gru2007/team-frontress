@@ -14,6 +14,7 @@ operational half.
 | | | |
 | --- | --- | --- |
 | `5147520` | Team Frontress Playtest | the game. Clients and dedicated servers both run **as** this |
+| `5147380` | Team Frontress | the main app. The same client build, published under it as well |
 | `5150320` | Team Frontress Dedicated Server | a Steam **Tool**. Only how the server payload is shipped and updated |
 
 The distinction bites once: the dedicated package ships in the Tool's depot, but
@@ -24,6 +25,38 @@ is serving. `game_clean/copy_server.sh` writes it; do not "fix" it.
 to authenticate a server whose `steam.inf` version does not match what the app
 expects, so a hand-edited `steam.inf` is worth checking first when nothing
 authenticates.
+
+### Two apps, one build
+
+A release is compiled and packaged once, with the playtest AppID in it, and then
+published twice. The AppID lives in the content as well as in the SteamPipe
+build script -- `tc2/steam.inf`, `tc2/gameinfo.txt`, `tc2/gameinfo_server.txt` --
+so between the two uploads CI runs
+
+```bash
+./game_clean/retarget_appid.sh <content_dir> 5147380
+```
+
+which rewrites those three files and refuses to continue if a stamp did not
+take. Which app, which depots and which beta branch the second upload goes to
+are the `STEAM_MAIN_APPID`, `STEAM_MAIN_DEPOT_WIN` / `_LINUX` / `_MAC` and
+`STEAM_MAIN_BRANCH` repository variables; the defaults are `5147380`, its three
+`+1/+2/+3` depots and the `prerelease` branch. Set `STEAM_MAIN_APPID` to `none`
+to publish the playtest alone, or `STEAM_MAIN_BRANCH` to `none` to upload
+without setting anything live.
+
+Two places are deliberately not stamped:
+
+- **The launcher binaries.** `MOD_APPID` from `launcher_main_tc2.vpc` is only
+  used when nothing set `SteamAppId` in the environment, and Steam always sets
+  it for the app it launched. It decides which app a build run outside Steam
+  attaches to, and that stays the playtest.
+- **The macOS bundle**, because editing it would break its code signature. Its
+  launcher stamps the copy it stages out of the bundle with the AppID Steam
+  launched it with, so one signed bundle serves both apps.
+
+The dedicated server is not part of this. It ships under Tool `5150320` and
+keeps running as `5147520`.
 
 ## 1. The dedicated server
 

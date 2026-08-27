@@ -576,6 +576,16 @@ jobs:
       STEAM_DEPOT_WIN: ${{ vars.STEAM_DEPOT_WIN }}
       STEAM_DEPOT_LINUX: ${{ vars.STEAM_DEPOT_LINUX }}
       STEAM_DEPOT_MAC: ${{ vars.STEAM_DEPOT_MAC || '5147523' }}
+      # The same build also ships under the main app. Only the AppID it is
+      # stamped and published with differs; retarget_appid.sh does the stamping.
+      # Set STEAM_MAIN_APPID to 'none' to publish the playtest alone, and
+      # STEAM_MAIN_BRANCH to 'none' to upload without setting anything live.
+      STEAM_MAIN_APPID: ${{ vars.STEAM_MAIN_APPID || '5147380' }}
+      STEAM_MAIN_DEPOT_WIN: ${{ vars.STEAM_MAIN_DEPOT_WIN || '5147381' }}
+      STEAM_MAIN_DEPOT_LINUX: ${{ vars.STEAM_MAIN_DEPOT_LINUX || '5147382' }}
+      STEAM_MAIN_DEPOT_MAC: ${{ vars.STEAM_MAIN_DEPOT_MAC || '5147383' }}
+      STEAM_MAIN_BRANCH: ${{ vars.STEAM_MAIN_BRANCH || 'prerelease' }}
+      # The dedicated server ships under its own Tool, unchanged by any of that.
       STEAM_DS_APPID: 5150320
       STEAM_DS_DEPOT_LINUX: 5150321
       STEAM_USERNAME: ${{ secrets.STEAM_USERNAME }}
@@ -613,9 +623,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends 7zip
 
-      - name: Publish client depots to default
-        env:
-          STEAM_BRANCH: prerelease
+      # Both apps are published from these same directories, so the checks, the
+      # unpacking and the executable bits happen once, here, and each publish
+      # step is then only a stamp and an upload.
+      - name: Stage the client content
         run: |
           set -euo pipefail
           WIN_DIR="${GITHUB_WORKSPACE}/publish-artifacts/steam-client-windows"
@@ -625,6 +636,7 @@ jobs:
 
           if [ ! -f "${WIN_DIR}/STEAM_READY" ] || [ ! -f "${LINUX_DIR}/STEAM_READY" ]; then
             echo "::warning::Client Steam publish skipped: both Windows and Linux must finish successfully before default is changed."
+            echo "CLIENT_READY=0" >> "${GITHUB_ENV}"
             exit 0
           fi
 
@@ -649,6 +661,62 @@ jobs:
             echo "::warning::No macOS bundle in this release; depot ${STEAM_DEPOT_MAC} is left unchanged."
           fi
 
+          {
+            echo "CLIENT_READY=1"
+            echo "WIN_DIR=${WIN_DIR}"
+            echo "LINUX_DIR=${LINUX_DIR}"
+            echo "MAC_CONTENT_DIR=${MAC_ARGS}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Publish client depots to the playtest app
+        if: env.CLIENT_READY == '1'
+        env:
+          STEAM_BRANCH: prerelease
+        run: |
+          set -euo pipefail
+          # The content was packaged with the playtest AppID in it, so nothing
+          # is stamped here; the main app is the one that needs retargeting.
+          STEAM_WIN_DIR="${WIN_DIR}" \
+          STEAM_LINUX_DIR="${LINUX_DIR}" \
+          STEAM_MAC_DIR="${MAC_CONTENT_DIR:-}" \
+            ./game_clean/steampipe.sh
+
+      # The AppID is inside the content as well as in the build script -- in
+      # steam.inf and in both gameinfo files -- so the same directories are
+      # re-stamped for the main app and uploaded again. Windows and Linux are
+      # plain directories and are stamped in place. The macOS bundle is signed
+      # and cannot be, and does not have to be: its launcher stamps the copy it
+      # stages out of the bundle with the AppID Steam launched it with, so one
+      # bundle serves both apps.
+      - name: Publish client depots to the main app
+        if: env.CLIENT_READY == '1'
+        run: |
+          set -euo pipefail
+
+          if [ -z "${STEAM_MAIN_APPID}" ] || [ "${STEAM_MAIN_APPID}" = "none" ]; then
+            echo "::notice::STEAM_MAIN_APPID is not set; this release goes to the playtest app only."
+            exit 0
+          fi
+
+          ./game_clean/retarget_appid.sh "${WIN_DIR}" "${STEAM_MAIN_APPID}"
+          ./game_clean/retarget_appid.sh "${LINUX_DIR}" "${STEAM_MAIN_APPID}"
+
+          MAC_ARGS="${MAC_CONTENT_DIR:-}"
+          if [ -z "${STEAM_MAIN_DEPOT_MAC}" ] || [ "${STEAM_MAIN_DEPOT_MAC}" = "none" ]; then
+            MAC_ARGS=""
+            echo "::warning::No macOS depot configured for AppID ${STEAM_MAIN_APPID}; the bundle goes to the playtest only."
+          fi
+
+          BRANCH="${STEAM_MAIN_BRANCH}"
+          if [ "${BRANCH}" = "none" ]; then
+            BRANCH=""
+          fi
+
+          STEAM_APPID="${STEAM_MAIN_APPID}" \
+          STEAM_DEPOT_WIN="${STEAM_MAIN_DEPOT_WIN}" \
+          STEAM_DEPOT_LINUX="${STEAM_MAIN_DEPOT_LINUX}" \
+          STEAM_DEPOT_MAC="${STEAM_MAIN_DEPOT_MAC}" \
+          STEAM_BRANCH="${BRANCH}" \
           STEAM_WIN_DIR="${WIN_DIR}" \
           STEAM_LINUX_DIR="${LINUX_DIR}" \
           STEAM_MAC_DIR="${MAC_ARGS}" \
