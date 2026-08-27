@@ -99,6 +99,34 @@ OPAQUE_STRUCTS = {
 # with no vtable and any method handing one back returns NULL.
 OPAQUE_IFACES = {"ISteamNetworkingFakeUDPPort"}
 
+# Methods that carry a filesystem path.  Native Steam answers with POSIX paths
+# and takes POSIX paths, and the Windows process on the other side of the bridge
+# can use neither, so these are translated in the thunk -- see path_convert.cpp.
+#
+# "out" names buffers the native side fills in; "length" marks a method whose
+# return value is the length of that buffer, which changes with the path.
+# "in" names paths travelling the other way.
+#
+# ISteamApps::GetAppInstallDir is the one that decides whether the port works at
+# all: the engine resolves |appid_440| in gameinfo.txt through it, so every VPK
+# Team Fortress 2 supplies is mounted from whatever it returns.
+PATH_PARAMS = {
+    ("ISteamApps", "GetAppInstallDir"):
+        {"out": [("pchFolder", "cchFolderBufferSize")], "length": True},
+    ("ISteamAppList", "GetAppInstallDir"):
+        {"out": [("pchDirectory", "cchNameMax")], "length": True},
+    ("ISteamUGC", "GetItemInstallInfo"): {"out": [("pchFolder", "cchFolderSize")]},
+    ("ISteamUser", "GetUserDataFolder"): {"out": [("pchBuffer", "cubBuffer")]},
+    ("ISteamUGC", "SetItemContent"): {"in": ["pszContentFolder"]},
+    ("ISteamUGC", "BInitWorkshopForGameServer"): {"in": ["pszFolder"]},
+    ("ISteamInput", "SetInputActionManifestFilePath"):
+        {"in": ["pchInputActionManifestAbsolutePath"]},
+}
+
+
+def path_params(iface, method):
+    return PATH_PARAMS.get((iface["classname"], method["methodname"]), {})
+
 
 def load(path):
     with open(path) as handle:
@@ -340,12 +368,19 @@ class Generator:
             out.append("    struct u_%s_params params{};" % flat)
             out.append("    params.linux_side = steam_bridge_native( _self );")
 
+            paths = path_params(iface, method)
+            path_in = set(paths.get("in", []))
+
             writeback = []
             for index, param in enumerate(method["params"]):
                 pname = param_name(param, index)
                 ptype = param["paramtype"].strip()
                 _, is_ref = field_type(ptype)
                 converting = self.converts(ptype)
+
+                if pname in path_in:
+                    out.append("    params.%s = steam_bridge_path_in( %s );" % (pname, pname))
+                    continue
                 # Response interfaces and callback function pointers are PE
                 # objects travelling the other way; they are wrapped on the Unix
                 # side, where the System V trampoline has to live anyway.
@@ -380,6 +415,23 @@ class Generator:
 
             out.append("    STEAM_BRIDGE_CALL( u_%s, &params );" % flat)
             out += writeback
+
+            # A path Steam wrote into the caller's buffer, turned into one the
+            # Windows side can open.  Where the method reports the length, the
+            # translated length is what it now has to report.
+            for pname, size_name in paths.get("out", []):
+                if paths.get("length"):
+                    # Only when the call succeeded: on failure the buffer is
+                    # whatever the caller left in it, not a path.
+                    out.append("    if (params._ret)")
+                    out.append("    {")
+                    out.append("        unsigned int translated = steam_bridge_path_out( "
+                               "%s, (unsigned int)%s );" % (pname, size_name))
+                    out.append("        if (translated) params._ret = translated;")
+                    out.append("    }")
+                else:
+                    out.append("    if (params._ret) steam_bridge_path_out( "
+                               "%s, (unsigned int)%s );" % (pname, size_name))
 
             ret = method["returntype"].strip()
             converting_ret = self.converts(ret)

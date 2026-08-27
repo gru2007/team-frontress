@@ -69,6 +69,14 @@ That ordering is deliberate twice over: native Steamworks would answer with a
 POSIX path the Windows launcher cannot open, and the assets stay reachable even
 when the Steam bridge is not working.
 
+That covers the launcher. The engine finds the same install for itself, and by a
+different route: `gameinfo.txt` mounts Team Fortress 2's content as
+`|appid_440|tf/tf2_misc.vpk`, which the engine resolves through
+`ISteamApps::GetAppInstallDir`. Native Steam answers that with a POSIX path, so
+the bridge translates it — see [the bridge's README](steam-bridge/README.md#paths).
+Without that translation the engine mounts nothing at all, which is a client
+that starts and disappears no matter what the launcher got right.
+
 If no Windows install of app 440 is present, `install-tf2` puts the two console
 commands on the clipboard and opens the Steam Console. Steam exposes no
 documented way to submit a console command to a client that is already running,

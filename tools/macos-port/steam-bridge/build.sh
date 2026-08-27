@@ -69,6 +69,7 @@ printf '== building the PE half (%s)\n' "${MINGW_PREFIX}"
 	-o "${OUTPUT_DIR}/x86_64-windows/steam_api64.dll" \
 	"${SCRIPT_DIR}/src/pe_main.cpp" \
 	"${SCRIPT_DIR}/src/pack_manual.cpp" \
+	"${SCRIPT_DIR}/src/path_convert.cpp" \
 	"${SCRIPT_DIR}/generated/pack_convert.cpp" \
 	"${SCRIPT_DIR}/generated/pe_flat.cpp" \
 	"${SCRIPT_DIR}/generated/pe_local.cpp" \
