@@ -250,3 +250,25 @@ func TestModesExpandToTheVanillaPool(t *testing.T) {
 		t.Fatalf("koth expanded to %d maps, want the whole koth list", len(got))
 	}
 }
+
+func TestAppIDListCoversBothApps(t *testing.T) {
+	a := AuthConfig{Mode: "webapi", SteamAPIKey: "k", AppID: 5147520, AppIDs: []uint32{5147380, 5147520, 0}}
+	got := a.AppIDList()
+	if len(got) != 2 || got[0] != 5147520 || got[1] != 5147380 {
+		t.Fatalf("AppIDList = %v, want the two apps once each, app_id first", got)
+	}
+
+	// app_ids alone is enough: an operator who only serves the main app should
+	// not have to repeat it in app_id.
+	c := validConfig()
+	c.Auth = AuthConfig{Mode: "webapi", SteamAPIKey: "k", AppIDs: []uint32{5147380}}
+	if err := c.Validate(); err != nil {
+		t.Errorf("auth.app_ids without auth.app_id was refused: %v", err)
+	}
+
+	c = validConfig()
+	c.Auth = AuthConfig{Mode: "webapi", SteamAPIKey: "k"}
+	if err := c.Validate(); err == nil {
+		t.Error("auth.mode webapi was accepted with no app to verify tickets against")
+	}
+}

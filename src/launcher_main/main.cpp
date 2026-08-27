@@ -89,8 +89,13 @@ static void *Launcher_GetProcAddress( void *pHandle, const char *pszName )
 #endif
 
 static const AppId_t k_unTF2AppId = 440;
+// The client is published under two apps -- the playtest and the main app --
+// out of one build. Which one a copy is running as comes from Steam at launch,
+// not from here: these are only for asking Steam where an app is installed.
 static const AppId_t k_unSDK2013MPAppId = 5147520;
-static const AppId_t k_unSDK2013DSAppId = 5147380;
+static const AppId_t k_unMainAppId = 5147380;
+// The dedicated server ships as a Steam Tool of its own.
+static const AppId_t k_unSDK2013DSAppId = 5150320;
 
 #ifdef MOD_LAUNCHER
 static const AppId_t k_unMyModAppid = MOD_APPID;
@@ -272,10 +277,15 @@ static bool GetGameInstallDir( const char *pRootDir, char *pszBuf, int nBufSize,
 			unLength = pSteamApps->GetAppInstallDir( k_unSDK2013DSAppId, pszBuf, nBufSize );
 		}
 #ifdef _WIN32
-		// on Windows, also allow MP to be used for dedicated
+		// on Windows, also allow either of the client apps to be used for dedicated
 		if ( unLength == 0 && pSteamApps->BIsAppInstalled( k_unSDK2013MPAppId ) )
 		{
 			unLength = pSteamApps->GetAppInstallDir( k_unSDK2013MPAppId, pszBuf, nBufSize );
+		}
+
+		if ( unLength == 0 && pSteamApps->BIsAppInstalled( k_unMainAppId ) )
+		{
+			unLength = pSteamApps->GetAppInstallDir( k_unMainAppId, pszBuf, nBufSize );
 		}
 #endif
 	}
@@ -310,10 +320,10 @@ static bool GetGameInstallDir( const char *pRootDir, char *pszBuf, int nBufSize,
 		{
 #ifdef _WIN32
 			// On Windows, we prompt for Multiplayer since we can use it and less chance for duplication for a user that may want it in the future (since they don't already have it).
-			MessageBox( 0, "Team Fortress 2 (440) and Source SDK 2013 Multiplayer (243750) must be installed to launch this mod.", "Launcher Error", MB_OK );
+			MessageBox( 0, "Team Fortress 2 (440) and Team Frontress (5147380 or 5147520) must be installed to launch this mod.", "Launcher Error", MB_OK );
 #else
 			// On Posix, there's no choice but the dedicated server app.
-			MessageBox( 0, "Team Fortress 2 (440) and Source SDK 2013 Dedicated Server (244310) must be installed to launch this mod.", "Launcher Error", MB_OK );
+			MessageBox( 0, "Team Fortress 2 (440) and Team Frontress Dedicated Server (5150320) must be installed to launch this mod.", "Launcher Error", MB_OK );
 #endif
 		}
 		else

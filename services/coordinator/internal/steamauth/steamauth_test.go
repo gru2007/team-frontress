@@ -21,7 +21,7 @@ func fakeSteam(t *testing.T, body string) *WebAPIVerifier {
 		_, _ = w.Write([]byte(body))
 	}))
 	t.Cleanup(srv.Close)
-	return &WebAPIVerifier{APIKey: "k", AppID: 5147520, BaseURL: srv.URL, Client: srv.Client()}
+	return &WebAPIVerifier{APIKey: "k", AppIDs: []uint32{5147520}, BaseURL: srv.URL, Client: srv.Client()}
 }
 
 func TestWebAPIAcceptsAGoodTicket(t *testing.T) {
@@ -35,6 +35,53 @@ func TestWebAPIAcceptsAGoodTicket(t *testing.T) {
 	}
 	if !v.Verified() {
 		t.Error("webapi verification did not report itself as verified")
+	}
+}
+
+// The game ships under two AppIDs and a ticket is only good for the one its
+// client is running as, so a coordinator serving both has to ask each in turn.
+func TestWebAPIAcceptsATicketFromTheSecondApp(t *testing.T) {
+	var asked []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		appID := r.URL.Query().Get("appid")
+		asked = append(asked, appID)
+		w.Header().Set("Content-Type", "application/json")
+		if appID != "5147380" {
+			_, _ = w.Write([]byte(`{"response":{"error":{"errorcode":101,"errordesc":"Invalid ticket"}}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"response":{"params":{"result":"OK","steamid":"76561198000000001"}}}`))
+	}))
+	t.Cleanup(srv.Close)
+	v := &WebAPIVerifier{APIKey: "k", AppIDs: []uint32{5147520, 5147380}, BaseURL: srv.URL, Client: srv.Client()}
+
+	got, err := v.Verify(context.Background(), realID, "abc")
+	if err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if got != realID {
+		t.Fatalf("id = %s, want %s", got, realID)
+	}
+	if len(asked) != 2 || asked[0] != "5147520" || asked[1] != "5147380" {
+		t.Fatalf("asked = %v, want both apps in order", asked)
+	}
+
+	// The app that answered goes first next time, so a lobby on one app does
+	// not pay for the other one on every ticket.
+	asked = nil
+	if _, err := v.Verify(context.Background(), realID, "def"); err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if len(asked) != 1 || asked[0] != "5147380" {
+		t.Fatalf("asked = %v, want only the app that verified the last ticket", asked)
+	}
+}
+
+func TestWebAPIRefusesATicketNoAppRecognises(t *testing.T) {
+	v := fakeSteam(t, `{"response":{"error":{"errorcode":101,"errordesc":"Invalid ticket"}}}`)
+	v.AppIDs = []uint32{5147520, 5147380}
+	if _, err := v.Verify(context.Background(), realID, "abc"); !errors.Is(err, ErrRejected) {
+		t.Fatalf("err = %v, want ErrRejected", err)
 	}
 }
 

@@ -40,7 +40,17 @@ rm -f "${SERVER_CLEAN_DIR}/update_dedicated.sh"
 # though the depot itself belongs to Tool AppID 5150320.
 cp -f "${DEV_DIR}/tc2/gameinfo_server.txt" "${SERVER_CLEAN_DIR}/tc2/gameinfo.txt"
 cp -f "${DEV_DIR}/tc2/gameinfo_server.txt" "${SERVER_CLEAN_DIR}/tc2/gameinfo_server.txt"
-printf '5147520\n' > "${SERVER_CLEAN_DIR}/steam_appid.txt"
+
+# Read, not repeated: steam.inf is where the AppID the game runs as is written
+# down, and retarget_appid.sh restamps it when a payload is prepared for another
+# app. A steam_appid.txt that disagreed with it would be a server running as one
+# app while serving the content of another.
+SERVER_APPID="$(sed -n 's/^appID=//p' "${SERVER_CLEAN_DIR}/tc2/steam.inf" | tr -d '\r')"
+if ! [[ "${SERVER_APPID}" =~ ^[0-9]+$ ]]; then
+  echo "tc2/steam.inf carries no appID=; the dedicated payload would run as nothing." >&2
+  exit 1
+fi
+printf '%s\n' "${SERVER_APPID}" > "${SERVER_CLEAN_DIR}/steam_appid.txt"
 
 chmod +x   "${SERVER_CLEAN_DIR}/tc2_linux64"   "${SERVER_CLEAN_DIR}/start_dedicated_tc2.sh"   "${SERVER_CLEAN_DIR}/steamcmd_update.sh"   "${SERVER_CLEAN_DIR}/srcds_run_64"
 
@@ -68,7 +78,7 @@ fi
 
 echo "Dedicated artifact ready: ${SERVER_CLEAN_DIR}"
 echo "  SteamPipe Tool: 5150320"
-echo "  Runtime AppID:   5147520"
+echo "  Runtime AppID:   ${SERVER_APPID}"
 echo "  Build version:   ${SERVER_VERSION}"
 echo "  dependencies:    cd game_server_dist && ./steamcmd_update.sh"
 echo "  run:             GSLT=... ./start_dedicated_tc2.sh +map ctf_2fort +ip 0.0.0.0 -port 27015"

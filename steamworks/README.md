@@ -9,9 +9,8 @@ directory ships with the game or is read at runtime.
 
 Steam's friends list renders the `steam_display` key the client sets
 (`#Frontress_RichPresence_Display`) by looking it up in **the app's own**
-uploaded rich presence localization. Until these files are uploaded for
-appID 5147520 the friends list shows nothing at all, however correct the
-client is -- which is why the in-game friends panel has always worked and the
+uploaded rich presence localization. Until these files are uploaded the friends
+list shows nothing at all, however correct the client is -- which is why the in-game friends panel has always worked and the
 Steam one has not: the in-game panel reads the `status` key, which the client
 localizes itself out of `tf_*.txt`.
 
@@ -20,6 +19,11 @@ To upload:
 1. Steamworks -> the app -> Community -> Rich Presence Localization
 2. Upload one file per language, then publish to the default branch.
 3. Restart the Steam client; it caches the token table per app.
+
+The game is published under two apps -- the playtest `5147520` and the main app
+`5147380` -- and the table is per app, so this has to be done for both. A player
+on the app that was missed sees an empty friends list entry while everyone else
+looks fine.
 
 The keys the client sets live in `ClientModeTFNormal::UpdateSteamRichPresence`
 (`src/game/client/tf/clientmode_tf.cpp`): `state`, `matchgrouploc`,

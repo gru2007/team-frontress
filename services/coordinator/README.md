@@ -142,6 +142,13 @@ verifies the client's Steam auth session ticket against
 `ISteamUserAuth/AuthenticateUserTicket`. This is the only mode that produces an
 identity anything should be enforced on.
 
+The game is published under more than one AppID -- the playtest `5147520` and
+the main app `5147380` -- and a ticket is only good for the app its client is
+running as. `"app_ids": [5147380]` lists the rest; a ticket is offered to each
+app in turn until one recognises it, and the app that answered is tried first
+next time, so serving both costs one extra call rather than one per ticket.
+Leave `app_ids` out if only one app is in use.
+
 ### Server pool
 
 Providers are tried in order, so a fallback is just a second entry.
