@@ -115,12 +115,11 @@ static bool steam_bridge_load_unixlib( void )
 
 static CRITICAL_SECTION steam_bridge_lock;
 
-struct steam_bridge_proxy_entry
-{
-    struct steam_bridge_proxy proxy;
-};
-
-static struct steam_bridge_proxy_entry *steam_bridge_proxies;
+/* An array of pointers, not of proxies.  The game holds the proxy itself --
+ * that address is its interface pointer for the life of the process -- so the
+ * proxies cannot live inside a block that realloc is allowed to move. Only the
+ * index moves. */
+static struct steam_bridge_proxy **steam_bridge_proxies;
 static unsigned int steam_bridge_proxy_count;
 static unsigned int steam_bridge_proxy_capacity;
 
@@ -140,7 +139,7 @@ void *steam_bridge_wrap( enum steam_bridge_iface_id iface, void *native )
      * has to keep mapping to one proxy for the life of the process. */
     for (unsigned int i = 0; i < steam_bridge_proxy_count; i++)
     {
-        struct steam_bridge_proxy *existing = &steam_bridge_proxies[i].proxy;
+        struct steam_bridge_proxy *existing = steam_bridge_proxies[i];
         if (existing->native == native && existing->iface == (int)iface)
         {
             LeaveCriticalSection( &steam_bridge_lock );
@@ -157,11 +156,19 @@ void *steam_bridge_wrap( enum steam_bridge_iface_id iface, void *native )
             LeaveCriticalSection( &steam_bridge_lock );
             return NULL;
         }
-        steam_bridge_proxies = (struct steam_bridge_proxy_entry *)grown;
+        steam_bridge_proxies = (struct steam_bridge_proxy **)grown;
         steam_bridge_proxy_capacity = capacity;
     }
 
-    struct steam_bridge_proxy *proxy = &steam_bridge_proxies[steam_bridge_proxy_count++].proxy;
+    struct steam_bridge_proxy *proxy =
+        (struct steam_bridge_proxy *)calloc( 1, sizeof(*proxy) );
+    if (!proxy)
+    {
+        LeaveCriticalSection( &steam_bridge_lock );
+        return NULL;
+    }
+    steam_bridge_proxies[steam_bridge_proxy_count++] = proxy;
+
     proxy->vtable = steam_bridge_ifaces[iface].vtable;
     proxy->native = native;
     proxy->iface = (int)iface;
@@ -457,7 +464,17 @@ STEAM_BRIDGE_EXPORT const char * __cdecl SteamAPI_GetSteamInstallPath( void )
     struct steam_bridge_install_path_params params;
     memset( &params, 0, sizeof(params) );
     steam_bridge_call( steam_bridge_call_get_steam_install_path, &params );
-    return params._ret;
+    if (!params._ret) return NULL;
+
+    /* Native Steam answers with a POSIX path.  The caller is a Windows process
+     * that will try to open it, so it gets one it can open. */
+    static thread_local char path[MAX_PATH * 4];
+    size_t length = strlen( params._ret );
+    if (length + 1 > sizeof(path)) return params._ret;
+
+    memcpy( path, params._ret, length + 1 );
+    steam_bridge_path_out( path, (unsigned int)sizeof(path) );
+    return path;
 }
 
 /* ------------------------------------------------------------ interfaces */

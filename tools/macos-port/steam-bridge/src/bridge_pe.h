@@ -37,6 +37,16 @@ struct steam_bridge_proxy
     int iface;
 };
 
+/* Path translation at the boundary.  Native Steam speaks POSIX paths and the
+ * Windows process cannot open one; see path_convert.cpp.
+ *
+ * steam_bridge_path_out converts an out-buffer in place and returns the new
+ * length including the NUL, or 0 when nothing was converted -- which is what a
+ * method returning a length has to report.  steam_bridge_path_in converts the
+ * other way and returns a pointer valid until the next call on this thread. */
+unsigned int steam_bridge_path_out( char *buffer, unsigned int size );
+const char *steam_bridge_path_in( const char *path );
+
 void *steam_bridge_native( void *proxy );
 void *steam_bridge_wrap( enum steam_bridge_iface_id iface, void *native );
 void *steam_bridge_find_user_interface( const char *version );

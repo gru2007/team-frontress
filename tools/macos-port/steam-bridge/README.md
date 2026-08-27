@@ -48,6 +48,35 @@ that are genuinely irregular, in `src/`: the lifecycle and callback registry
 and two packing converters for structs with private members
 (`pack_manual.cpp`).
 
+## Paths
+
+The one value whose meaning changes at the boundary. Native Steam answers with
+POSIX paths and takes POSIX paths; the Windows process on the other side can use
+neither.
+
+This is not a corner case: `gameinfo.txt` mounts Team Fortress 2's content as
+`|appid_440|tf/tf2_misc.vpk`, and the engine resolves that token through
+`ISteamApps::GetAppInstallDir`. Handed `/Users/…/Team Fortress 2`, the Windows
+engine looks for `\Users\…` on the current drive, finds nothing, and comes up
+with no content at all.
+
+So every method that carries a path is translated in its thunk, listed in
+`PATH_PARAMS` in `generate.py` and implemented in `src/path_convert.cpp`:
+
+| direction | methods |
+| --- | --- |
+| native → game | `ISteamApps::GetAppInstallDir`, `ISteamAppList::GetAppInstallDir`, `ISteamUGC::GetItemInstallInfo`, `ISteamUser::GetUserDataFolder`, `SteamAPI_GetSteamInstallPath` |
+| game → native | `ISteamUGC::SetItemContent`, `ISteamUGC::BInitWorkshopForGameServer`, `ISteamInput::SetInputActionManifestFilePath` |
+
+The translation itself is Wine's own — `wine_get_dos_file_name` and
+`wine_get_unix_file_name`, the pair `winepath` uses — reached with
+`GetProcAddress` rather than an import, because they have moved between
+`kernel32` and `kernelbase` and an unresolvable import stops the builtin from
+loading at all. The fallback is the drive every prefix has: wineboot maps `Z:`
+to `/`. A method that reports the length of the buffer it filled reports the
+translated length; a path that no longer fits is left as Steam wrote it rather
+than truncated.
+
 ## Callbacks
 
 The obvious implementation registers the game's `CCallbackBase` objects with
@@ -212,5 +241,13 @@ Deliberate, and all in areas Source 2013 does not reach:
 - **Arrays of a struct whose two layouts differ** are passed through raw. No
   method the engine calls takes one; the SDK's array parameters are all of
   types that pack identically.
+- **`SteamNetConnectionStatusChangedCallback_t` delivered through
+  `SetGlobalCallback_SteamNetConnectionStatusChanged`** reaches the game
+  unconverted, and it is one of the 85 structs whose two layouts differ. The
+  packing converters live on the PE side, where the Windows-layout type exists,
+  and this callback is invoked from the Unix side, so converting it needs the PE
+  half to hand a converter down at attach time. It is in the same
+  `ISteamNetworkingSockets` area as the gap above. The other five function-
+  pointer callbacks the bridge wraps pack identically and are unaffected.
 - **Interface versions other than the ones in this SDK** are matched by prefix
   and bridged with this SDK's vtable, with a warning in the log.
