@@ -18,8 +18,13 @@
 # depots), skip the argument and set STEAM_WIN_DIR, STEAM_LINUX_DIR and/or
 # STEAM_MAC_DIR.
 #
+# The same content is published under both apps: the playtest as packaged, and
+# the main app after ./retarget_appid.sh has stamped the AppID that is inside
+# the content. Run that first when uploading anywhere other than the playtest.
+#
 # Environment:
-#   STEAM_APPID         app to build into        (default 5147520, Team Frontress Playtest)
+#   STEAM_APPID         app to build into        (default 5147520, Team Frontress Playtest;
+#                                                 5147380 is the main app)
 #   STEAM_DEPOT_WIN     Windows content depot    (default STEAM_APPID + 1)
 #   STEAM_DEPOT_LINUX   Linux content depot      (default STEAM_APPID + 2)
 #   STEAM_DEPOT_MAC     macOS content depot      (default STEAM_APPID + 3)

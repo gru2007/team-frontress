@@ -192,16 +192,28 @@ if [ -z "${TF2_DIR}" ] || [ ! -f "${TF2_DIR}/bin/x64/launcher.dll" ]; then
 fi
 printf 'tf2:        %s\n' "${TF2_DIR}"
 
+# ---------------------------------------------------------- the app we run as
+
+# One bundle is published under both the playtest and the main app, so which of
+# them this is comes from Steam, which sets these for the app it launched. The
+# fallback is for a bundle started by hand, outside Steam.
+export SteamAppId="${SteamAppId:-5147520}"
+export SteamGameId="${SteamGameId:-${SteamAppId}}"
+printf 'appid:      %s\n' "${SteamAppId}"
+
 # ------------------------------------------------- the writable game directory
 
 # The bundle stays exactly as it was signed and as Steam downloaded it; the
 # client runs out of this copy and writes whatever it likes into it.
 stage_game() {
 	local stamp_file="${GAME_DIR}/.frontress-stage"
-	local stamp
+	local stamp gameinfo
 
 	stamp="$(/usr/bin/stat -f '%m/%z' "${BUNDLED_GAME_DIR}/tc2_win64.exe" 2>/dev/null)"
 	stamp="${stamp} $(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "${CONTENTS_DIR}/Info.plist" 2>/dev/null)"
+	# Part of the stamp: a player who owns both apps and switches between them
+	# gets the staged copy re-stamped instead of the other app's leftovers.
+	stamp="${stamp} appid=${SteamAppId}"
 
 	if [ -f "${stamp_file}" ] && [ "$(cat "${stamp_file}" 2>/dev/null)" = "${stamp}" ]; then
 		printf 'game:       %s (already staged)\n' "${GAME_DIR}"
@@ -232,6 +244,22 @@ stage_game() {
 	# steam_appid.txt next to the binary would bypass it.
 	rm -f "${GAME_DIR}/steam_appid.txt"
 
+	# The depot carries whichever AppID it was published under, and the engine
+	# reads these two files to decide which app it is part of. Stamping the
+	# bundle would break its signature; this copy is ours to write, so the app
+	# Steam launched is what the client sees.
+	if [ -f "${GAME_DIR}/tc2/steam.inf" ]; then
+		/usr/bin/sed -i '' -E \
+			"s/^([[:space:]]*appID=)[0-9]+[[:space:]]*$/\\1${SteamAppId}/" \
+			"${GAME_DIR}/tc2/steam.inf" || return 1
+	fi
+	for gameinfo in gameinfo.txt gameinfo_server.txt; do
+		[ -f "${GAME_DIR}/tc2/${gameinfo}" ] || continue
+		/usr/bin/sed -i '' -E \
+			"s/^([[:space:]]*SteamAppId[[:space:]]+)[0-9]+[[:space:]]*$/\\1${SteamAppId}/" \
+			"${GAME_DIR}/tc2/${gameinfo}" || return 1
+	done
+
 	printf '%s' "${stamp}" >"${stamp_file}" || return 1
 }
 
@@ -243,8 +271,6 @@ fi
 
 export WINEPREFIX
 export WINEDEBUG="${WINEDEBUG:--all}"
-export SteamAppId="${SteamAppId:-5147520}"
-export SteamGameId="${SteamGameId:-5147520}"
 
 # d3d9 native: D9MT's frontend ships next to the .exe. The other three are Wine
 # builtins living in the runtime's own directories, which is also where their

@@ -1,7 +1,10 @@
 # Team Frontress macOS depot
 
 This directory builds a self-contained `Team Frontress.app` around the Windows
-x64 client, and it is the content of Steam depot **5147523**.
+x64 client, and it is the content of Steam depot **5147523** (the playtest) and
+of the main app's macOS depot. One bundle serves both: it is signed, so it is
+never stamped with an AppID after the fact, and the launcher stamps the copy it
+stages out of the bundle with the AppID Steam launched it with instead.
 
 There is no macOS build of the engine. The Windows client runs under an
 embedded Wine runtime, D3D9 is translated to Metal by D9MT, and Steamworks
@@ -230,7 +233,9 @@ of that can be checked again on the Linux runner that publishes it.
 
 `publish-steam` pushes depot `5147523` alongside the Windows and Linux depots
 in a single BuildID when the macOS lane produced a bundle, and leaves that depot
-at its previous content when it did not.
+at its previous content when it did not. The same tar is then pushed to the main
+app's macOS depot in that app's own BuildID — unchanged, because the AppID it
+runs as comes from Steam at launch rather than from anything inside the bundle.
 
 ## When it does not start
 

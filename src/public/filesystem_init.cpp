@@ -622,6 +622,7 @@ struct Source1AppidInfo_t
 	{ 550, "Left 4 Dead 2" },
 	{ 630, "Alien Swarm" },
 
+	{ 5147380, "Team Frontress" },
 	{ 5147520, "Team Frontress Playtest" },
 	{ 5150320, "Team Frontress Dedicated Server" },
 
