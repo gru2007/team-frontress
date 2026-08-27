@@ -16,6 +16,7 @@ Team Frontress.app/Contents/
 ├── Info.plist
 ├── MacOS/team-frontress             the launcher
 └── Resources/
+    ├── lib/libmacdrvshim.dylib      what D9MT expects CrossOver's Wine to have
     ├── game/                        the packaged Windows client + D9MT's d3d9.dll
     ├── install-tf2                  the app-440 prompt
     ├── licenses/
@@ -82,6 +83,21 @@ commands on the clipboard and opens the Steam Console. Steam exposes no
 documented way to submit a console command to a client that is already running,
 and no global `steam_dev.cfg` is installed, so no other macOS game is switched
 to Windows depots behind the player's back.
+
+## What D9MT expects of Wine
+
+D9MT is developed against CrossOver's Wine and uses two things CodeWeavers add
+to it: an `ntdll.__wine_unix_call` export, and a `macdrv_functions` table on the
+Cocoa driver's unixlib. Neither exists in an LGPL Wine, and each is fatal on its
+own — the first aborts the client the moment D9MT crosses into its unixlib, the
+second leaves a client that runs and never presents a frame.
+
+`wine-compat/` supplies both without patching Wine: a rebuilt `d9mtmetal.dll`
+that dispatches unix calls the way upstream does, and `libmacdrvshim.dylib`,
+which answers the `macdrv_functions` lookup in terms of AppKit and is inserted
+into the Wine process by the launcher. It has its own
+[README](wine-compat/README.md). Like the bridge, it is built from source by CI
+on every run.
 
 ## The Steam bridge
 

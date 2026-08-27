@@ -651,6 +651,7 @@ game_src/tc2/pak1/scenes
 # steam_api.json by build.sh on every build, so it is not carried here.
 /tools/macos-port/steam-bridge/generated/
 /tools/macos-port/steam-bridge/dist/
+/tools/macos-port/wine-compat/dist/
 /tools/macos-port/steamworks-probe
 /game_dist_macos/
 

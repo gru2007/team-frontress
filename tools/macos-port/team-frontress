@@ -254,6 +254,22 @@ export WINEDLLOVERRIDES="d3d9=n;winemetal=b;d9mtmetal=b;steam_api64=b${WINEDLLOV
 # Where the bridge's unix half dlopens Valve's library from.
 export TC2_NATIVE_STEAM_API="${NATIVE_STEAM_API}"
 
+# D9MT asks the Wine process for the Cocoa view behind the game's window through
+# symbols only CrossOver's Wine exports; libmacdrvshim answers that lookup on the
+# LGPL runtime shipped here. Without it the client runs, and presents nothing:
+# "d9mt: Presenter: CreateMetalViewFromHWND failed" on every frame.
+#
+# Set here rather than inherited: dyld strips DYLD_* from the environment of a
+# restricted binary, and /bin/bash -- this script's interpreter -- is one, so a
+# value exported by whatever launched the bundle never reaches Wine anyway. Wine
+# itself carries the entitlement that lets the insertion take effect.
+MACDRV_SHIM="${RESOURCES_DIR}/lib/libmacdrvshim.dylib"
+if [ -f "${MACDRV_SHIM}" ]; then
+	export DYLD_INSERT_LIBRARIES="${MACDRV_SHIM}${DYLD_INSERT_LIBRARIES:+:${DYLD_INSERT_LIBRARIES}}"
+else
+	printf 'warning:    libmacdrvshim.dylib is missing; D9MT will not be able to present\n'
+fi
+
 if [ "${TC2_DEBUG:-0}" = "1" ]; then
 	# Everything a "it just closes" report needs: which module failed to load,
 	# and what the bridge and D9MT had to say about it.

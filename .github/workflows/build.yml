@@ -503,6 +503,13 @@ jobs:
           name: steam-bridge-macos
           path: publish-artifacts/steam-bridge
 
+      # For tools/macos-port/wine-compat: the PE half of D9MT's Metal unixlib is
+      # rebuilt here against upstream Wine's ntdll, and that needs a cross
+      # compiler the runner does not ship.
+      - name: Install mingw-w64
+        if: steps.gate.outputs.ready == '1'
+        run: brew install mingw-w64
+
       - name: Fetch the Wine runtime, D9MT and the Steamworks library
         if: steps.gate.outputs.ready == '1'
         run: ./tools/macos-port/fetch-runtimes.sh runtime

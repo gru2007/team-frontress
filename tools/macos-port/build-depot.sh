@@ -15,6 +15,8 @@
 # Optional:
 #   STEAM_BRIDGE_DIR          a prebuilt bridge; by default it is built here
 #                             from tools/macos-port/steam-bridge
+#   WINE_COMPAT_DIR           prebuilt wine-compat pieces; by default they are
+#                             built here from tools/macos-port/wine-compat
 #   RELEASE_VERSION           CFBundleShortVersionString
 #   BUILD_NUMBER              CFBundleVersion
 #   CODESIGN_IDENTITY         signing identity; ad-hoc if unset
@@ -24,6 +26,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SCRIPT_DIR="${ROOT}/tools/macos-port"
 BRIDGE_DIR="${SCRIPT_DIR}/steam-bridge"
+COMPAT_SRC_DIR="${SCRIPT_DIR}/wine-compat"
 OUTPUT_DIR="${1:-${ROOT}/game_dist_macos}"
 APP_DIR="${OUTPUT_DIR}/Team Frontress.app"
 CONTENTS_DIR="${APP_DIR}/Contents"
@@ -169,8 +172,10 @@ printf '   %-22s %s\n' "wine" "${WINE_ARCHS}"
 # D9MT is three files that have to agree with each other and with Wine: the
 # PE frontend that ships next to the .exe, and a builtin/unixlib pair per
 # translated DLL.
+# d9mtmetal.dll is the one file of the package that is not shipped as it comes:
+# d9mt builds it against CrossOver's ntdll, and wine-compat rebuilds it for the
+# Wine this bundle carries. Its unixlib half below is the package's own.
 require_pe_x64 "${D9MT_DIST_DIR}/d3d9.dll" "d3d9.dll"
-require_pe_x64 "${D9MT_DIST_DIR}/x86_64-windows/d9mtmetal.dll" "d9mtmetal.dll"
 require_pe_x64 "${D9MT_DIST_DIR}/x86_64-windows/winemetal.dll" "winemetal.dll"
 require_arch_of_wine "${D9MT_DIST_DIR}/x86_64-unix/d9mtmetal.so" "d9mtmetal.so"
 require_arch_of_wine "${D9MT_DIST_DIR}/x86_64-unix/winemetal.so" "winemetal.so"
@@ -192,10 +197,22 @@ require_pe_x64 "${STEAM_BRIDGE_DIR}/x86_64-windows/steam_api64.dll" "steam_api64
 require_arch_of_wine "${STEAM_BRIDGE_DIR}/x86_64-unix/steam_api64.so" "steam_api64.so"
 require_file "${STEAM_BRIDGE_DIR}/LICENSE"
 
+# What D9MT needs from CrossOver's Wine and cannot get from an LGPL one; source
+# in this repository, so built here for the same reason the bridge is.
+if [ -z "${WINE_COMPAT_DIR:-}" ]; then
+	printf '== building the Wine compatibility pieces\n'
+	"${COMPAT_SRC_DIR}/build.sh" "${COMPAT_SRC_DIR}/dist"
+	WINE_COMPAT_DIR="${COMPAT_SRC_DIR}/dist"
+fi
+
+require_pe_x64 "${WINE_COMPAT_DIR}/x86_64-windows/d9mtmetal.dll" "d9mtmetal.dll"
+require_arch_of_wine "${WINE_COMPAT_DIR}/lib/libmacdrvshim.dylib" "libmacdrvshim.dylib"
+
 rm -rf "${OUTPUT_DIR}"
 mkdir -p "${CONTENTS_DIR}/MacOS" "${RESOURCES_DIR}/licenses" \
 	"${RESOURCES_DIR}/wine/lib/wine/x86_64-windows" \
 	"${RESOURCES_DIR}/wine/lib/wine/x86_64-unix" \
+	"${RESOURCES_DIR}/lib" \
 	"${RESOURCES_DIR}/steam"
 
 /usr/bin/ditto "${TC2_WINDOWS_DIR}" "${RESOURCES_DIR}/game"
@@ -206,7 +223,8 @@ cp "${SCRIPT_DIR}/install-tf2" "${RESOURCES_DIR}/install-tf2"
 chmod +x "${CONTENTS_DIR}/MacOS/team-frontress" "${RESOURCES_DIR}/install-tf2"
 
 cp "${D9MT_DIST_DIR}/d3d9.dll" "${RESOURCES_DIR}/game/d3d9.dll"
-cp "${D9MT_DIST_DIR}/x86_64-windows/d9mtmetal.dll" "${RESOURCES_DIR}/wine/lib/wine/x86_64-windows/"
+cp "${WINE_COMPAT_DIR}/x86_64-windows/d9mtmetal.dll" "${RESOURCES_DIR}/wine/lib/wine/x86_64-windows/"
+cp "${WINE_COMPAT_DIR}/lib/libmacdrvshim.dylib" "${RESOURCES_DIR}/lib/"
 cp "${D9MT_DIST_DIR}/x86_64-windows/winemetal.dll" "${RESOURCES_DIR}/wine/lib/wine/x86_64-windows/"
 cp "${D9MT_DIST_DIR}/x86_64-unix/d9mtmetal.so" "${RESOURCES_DIR}/wine/lib/wine/x86_64-unix/"
 cp "${D9MT_DIST_DIR}/x86_64-unix/winemetal.so" "${RESOURCES_DIR}/wine/lib/wine/x86_64-unix/"
@@ -316,7 +334,7 @@ sign_macho() {
 
 while IFS= read -r -d '' binary; do
 	sign_macho "${binary}"
-done < <(find "${RESOURCES_DIR}/wine" "${RESOURCES_DIR}/steam" \
+done < <(find "${RESOURCES_DIR}/wine" "${RESOURCES_DIR}/steam" "${RESOURCES_DIR}/lib" \
 	-type f \( -perm -u+x -o -name '*.dylib' -o -name '*.so' \) -print0)
 
 /usr/bin/codesign --force --timestamp=none --sign "${IDENTITY}" "${APP_DIR}"
@@ -362,6 +380,7 @@ for required in \
 	"${RESOURCES_DIR}/wine/lib/wine/x86_64-unix/d9mtmetal.so" \
 	"${RESOURCES_DIR}/wine/lib/wine/x86_64-unix/steam_api64.so" \
 	"${RESOURCES_DIR}/steam/libsteam_api.dylib" \
+	"${RESOURCES_DIR}/lib/libmacdrvshim.dylib" \
 	"${RESOURCES_DIR}/install-tf2" \
 ; do
 	require_file "${required}"
