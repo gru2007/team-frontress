@@ -61,6 +61,23 @@ FNPTR_TYPES = {
     "FnSteamNetworkingMessagesSessionFailed",
 }
 
+# Return types MSVC hands back through a hidden buffer and mingw-w64 does not.
+#
+# The MS x64 ABI returns a class of size 1, 2, 4 or 8 in RAX -- but MSVC makes
+# an exception for a class with a user-declared constructor and returns it
+# through a caller-provided buffer instead, passed as the argument after `this`
+# and handed back in RAX. GCC applies only the size rule, so a thunk it compiles
+# puts the value in RAX where the game reads a pointer:
+#
+#     call   *0x10(%rax)          ; ISteamUser::GetSteamID
+#     mov    (%rax),%rcx          ; MSVC dereferences what came back
+#
+# and the client dies on the first call with the SteamID itself as the address.
+# CSteamID is the only type in this SDK the two compilers disagree about: every
+# other by-value return is either a scalar typedef or larger than 8 bytes, where
+# both use the buffer. A new one would have to be added here.
+MSVC_MEMORY_RETURN = {"CSteamID"}
+
 # ISteamClient::GetISteamGenericInterface hands back an interface chosen by a
 # runtime string.  There is no static type to build a vtable from, so it is not
 # bridged; Source never calls it.
@@ -353,6 +370,23 @@ class Generator:
         return "static %s __cdecl %s( %s )" % (method["returntype"].strip(), name,
                                                ", ".join(args))
 
+    def msvc_return_adapter(self, method, name):
+        """The MSVC-shaped entry point for a method GCC would return in RAX."""
+        ret = method["returntype"].strip()
+        args = ["void *_self", "%s *_ret" % ret]
+        call = ["_self"]
+        for index, param in enumerate(method["params"]):
+            pname = param_name(param, index)
+            args.append("%s %s" % (param["paramtype"].strip(), pname))
+            call.append(pname)
+        return ["static %s * __cdecl %s( %s )" % (ret, name, ", ".join(args)),
+                "{",
+                "    *_ret = thunk_%s( %s );" % (method["methodname_flat"],
+                                                 ", ".join(call)),
+                "    return _ret;",
+                "}",
+                ""]
+
     def emit_pe_thunks(self):
         out = [BANNER.format(version=self.api.get("version", "bundled")),
                "#include \"bridge_pe.h\"",
@@ -462,6 +496,9 @@ class Generator:
             out.append("}")
             out.append("")
 
+            if method["returntype"].strip() in MSVC_MEMORY_RETURN:
+                out += self.msvc_return_adapter(method, "msvc_thunk_" + flat)
+
         # Vtables, in declaration order.  A generated vtable is the whole point
         # of the PE side: MSVC lays an interface out exactly this way, so the
         # game's virtual dispatch lands on our thunk with `this` in RCX.
@@ -475,6 +512,8 @@ class Generator:
                 if method["methodname_flat"] in UNBRIDGED:
                     out.append("    (void *)steam_bridge_unbridged, /* %s */"
                                % method["methodname"])
+                elif method["returntype"].strip() in MSVC_MEMORY_RETURN:
+                    out.append("    (void *)msvc_thunk_%s," % method["methodname_flat"])
                 else:
                     out.append("    (void *)thunk_%s," % method["methodname_flat"])
             out.append("};")
@@ -509,18 +548,29 @@ class Generator:
 
         for iface, method in self.calls:
             flat = method["methodname_flat"]
+            ret_type = method["returntype"].strip()
+            memory_return = ret_type in MSVC_MEMORY_RETURN
             args = ["%s *_self" % iface["classname"]]
+            if memory_return:
+                # The caller is MSVC here too, so the flat export takes the
+                # hidden buffer the same way the vtable thunk does.
+                args.append("%s *_ret" % ret_type)
             call = ["_self"]
             for index, param in enumerate(method["params"]):
                 pname = param_name(param, index)
                 ptype = param["paramtype"].strip()
                 args.append("%s %s" % (ptype, pname))
                 call.append(pname)
-            out.append("STEAM_BRIDGE_EXPORT %s __cdecl %s( %s )"
-                       % (method["returntype"].strip(), flat, ", ".join(args)))
+            out.append("STEAM_BRIDGE_EXPORT %s%s __cdecl %s( %s )"
+                       % (ret_type, " *" if memory_return else "", flat,
+                          ", ".join(args)))
             out.append("{")
-            ret = "" if method["returntype"].strip() == "void" else "return "
-            out.append("    %sthunk_%s( %s );" % (ret, flat, ", ".join(call)))
+            if memory_return:
+                out.append("    *_ret = thunk_%s( %s );" % (flat, ", ".join(call)))
+                out.append("    return _ret;")
+            else:
+                ret = "" if ret_type == "void" else "return "
+                out.append("    %sthunk_%s( %s );" % (ret, flat, ", ".join(call)))
             out.append("}")
             out.append("")
 
