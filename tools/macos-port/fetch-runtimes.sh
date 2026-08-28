@@ -38,7 +38,7 @@ DEST="${1:-${ROOT}/macos-runtimes}"
 # does not need. Swap wine-devel for wine-staging in the URL to try it.
 MACOS_WINE_URL="${MACOS_WINE_URL:-https://github.com/Gcenx/macOS_Wine_builds/releases/download/11.16/wine-devel-11.16-osx64.tar.xz}"
 MACOS_WINE_LICENSE_URL="${MACOS_WINE_LICENSE_URL:-https://gitlab.winehq.org/wine/wine/-/raw/wine-11.16/COPYING.LIB}"
-MACOS_D9MT_URL="${MACOS_D9MT_URL:-https://github.com/gru2007/d9mt-builded/releases/download/v0.2/d9mt-x64.zip}"
+MACOS_D9MT_URL="${MACOS_D9MT_URL:-https://github.com/gru2007/d9mt-builded/releases/download/v0.3/d9mt-x64.zip}"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "${WORK}"' EXIT
