@@ -122,7 +122,7 @@ to be supplied.
 | --- | --- |
 | Wine | [`wine-devel-11.16-osx64`](https://github.com/Gcenx/macOS_Wine_builds/releases/tag/11.16) — vanilla rather than staging, since D9MT's `winemetal` is a third-party builtin and staging's patches are a variable this port does not need |
 | Wine's `COPYING.LIB` | `gitlab.winehq.org/wine/wine` at `wine-11.16` — the builds do not ship it |
-| D9MT | [`d9mt-x64.zip` from `gru2007/d9mt-builded` v0.1](https://github.com/gru2007/d9mt-builded/releases/tag/v0.1) — an x86_64 build of [`neo773/d9mt`](https://github.com/neo773/d9mt), whose own releases are arm64 for CrossOver and will not load under an x86_64 Wine |
+| D9MT | [`d9mt-x64.zip` from `gru2007/d9mt-builded` v0.4](https://github.com/gru2007/d9mt-builded/releases/tag/v0.4) — an x86_64 build of [`neo773/d9mt`](https://github.com/neo773/d9mt), whose own releases are arm64 for CrossOver and will not load under an x86_64 Wine |
 | Steamworks | none — set `STEAMWORKS_SDK_ZIP`, `STEAMWORKS_REDIST_DYLIB` or `STEAMWORKS_REDIST_URL` |
 
 Every input takes a local path as readily as a URL, so an archive already on
@@ -269,33 +269,61 @@ and closes" report turns out to be.
 | `found in WINEDLLPATH but not a builtin, ignoring` | a Wine-side DLL without the builtin marker — a build-time check now stamps these |
 | the client starts and exits with no log at all | the bundle executable never ran: check that `Contents/MacOS/team-frontress` survived with its executable bit |
 | the game runs but Steam features do not | the bridge could not load Valve's library; `TC2_DEBUG=1` makes it say why |
-| the world is black for a while after a map loads, HUD and viewmodel fine | D9MT is still building Metal pipelines for the map's shaders and skips the draws that need them; see below |
+| the world is black after a map loads, HUD and viewmodel fine | a framebuffer copy the engine reads back the same frame was dropped by D9MT; see below |
 
 Deleting `~/Library/Application Support/Team Frontress` resets the prefix and
 the staged client without touching the install.
 
 ### A black world with a working HUD
 
-D9MT compiles a Metal pipeline per shader-and-state combination the game uses,
-in the background, and **skips** any draw whose pipeline is not built yet. The
-first time a map is played, that is most of the world — so the screen is black
-while the HUD, the viewmodel and the nameplates (whose pipelines are ready
-first) draw normally on top of it. It clears itself as the pipelines land.
+Source does not hand the finished frame straight to the swap chain. Several
+passes copy the framebuffer into a render-target texture and then paint that
+texture back over the whole screen. The glow outlines are the clearest case:
+`CGlowObjectManager::RenderGlowModels` copies the finished scene into
+`_rt_GlowGameSceneBackup`, clears the framebuffer to black, draws every glowing
+entity in flat team colour, copies *those* out to `_rt_GlowColor`, and paints
+the backup back over the framebuffer (`glow_outline_effect.cpp`); image-space
+motion blur and the engine's post processing do the same through
+`_rt_FullFrameFB`.
 
-D9MT writes `d3d9fe.log` next to the client it runs, which is the staged copy,
-not the bundle:
+Drop the first of those copies and the backup texture is never written, so the
+pass that restores it paints a full-screen black rectangle over everything drawn
+so far — the world, the players, the props. What survives is whatever is drawn
+after it: the glow silhouettes, the viewmodel, the HUD, the nameplates. That is
+the whole symptom. The main menu draws no 3D scene and runs none of these
+passes, so it is unaffected, which is what makes this look like a map-loading
+problem when it is not one.
+
+D9MT reports a dropped copy on the `err:` channel, which Wine sends to the
+launcher's log:
 
 ```bash
-grep 'PSO stall' ~/Library/Application\ Support/Team\ Frontress/game/d3d9fe.log
+grep 'err: *d9mt' ~/Library/Logs/Team\ Frontress/launcher.log | sort | uniq -c
 ```
 
-A `d9mt: PSO stall:` line about once a second, with the compile queue depths, is
-this and nothing else. The pipelines are recorded in `d9mt_pso_cache.bin` in the
-same folder and pre-compiled on the next launch, so a warm run is much shorter;
-deleting that file forces a cold one. `D9MT_PSO_DEADLINE_MS` (default 100) sets
-how long a draw waits for its pipeline before compiling it on the frame thread
-instead — lower trades frame hitches for less missing geometry, `0` never
-compiles inline and lets the world fill in whenever the workers get there.
+`blitImageView:` lines there, at a couple per frame, are this failure and
+nothing else. Two of them are it, and both are fixed in D9MT 0.4:
+
+| line | what it was |
+| --- | --- |
+| `failed to create 2D source view` | the d3d9 front-end hands the copy's source over as a view created with transfer usage, and D9MT would only build a Metal texture from a view that was sampled, storage or an attachment. So it dropped *every* `StretchRect` that scales or converts — which is every copy in that pass, since the glow targets are `RGBA16161616F` under HDR while the back buffer is not. |
+| `multisampled blit not implemented` | with antialiasing on, the source of the same copy is the multisampled scene, and Metal cannot sample a multisampled texture. D9MT now resolves it into a temporary single-sample image and copies from that, the way the present path already did. |
+
+Turning antialiasing off is not a workaround for an older D9MT: it only silences
+the second line, and the first one drops the copy on its own. Any other
+`blitImageView:` line is a copy D9MT still cannot perform, and it names the
+operation.
+
+Pipeline compilation is a different symptom. D9MT builds a Metal pipeline per
+shader-and-state combination the game uses; a draw whose pipeline is not ready
+waits for it, so a cold map costs frame hitches rather than missing geometry.
+The pipelines are recorded in `d9mt_pso_cache.bin` next to the staged client and
+replayed on the next launch, so a warm run is much shorter; deleting that file
+forces a cold one. `D9MT_ASYNC_SKIP=1` restores the dxvk-async behaviour of
+skipping those draws instead — faster, and geometry appears when it appears —
+and `D9MT_PSO_DEADLINE_MS` (default 100) then sets how long a draw may be
+skipped before the frame thread compiles the pipeline itself. D9MT's own
+`d3d9fe.log`, next to the staged client, carries the stall report.
 
 ## Licensing
 
