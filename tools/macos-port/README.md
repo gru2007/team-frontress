@@ -269,9 +269,33 @@ and closes" report turns out to be.
 | `found in WINEDLLPATH but not a builtin, ignoring` | a Wine-side DLL without the builtin marker — a build-time check now stamps these |
 | the client starts and exits with no log at all | the bundle executable never ran: check that `Contents/MacOS/team-frontress` survived with its executable bit |
 | the game runs but Steam features do not | the bridge could not load Valve's library; `TC2_DEBUG=1` makes it say why |
+| the world is black for a while after a map loads, HUD and viewmodel fine | D9MT is still building Metal pipelines for the map's shaders and skips the draws that need them; see below |
 
 Deleting `~/Library/Application Support/Team Frontress` resets the prefix and
 the staged client without touching the install.
+
+### A black world with a working HUD
+
+D9MT compiles a Metal pipeline per shader-and-state combination the game uses,
+in the background, and **skips** any draw whose pipeline is not built yet. The
+first time a map is played, that is most of the world — so the screen is black
+while the HUD, the viewmodel and the nameplates (whose pipelines are ready
+first) draw normally on top of it. It clears itself as the pipelines land.
+
+D9MT writes `d3d9fe.log` next to the client it runs, which is the staged copy,
+not the bundle:
+
+```bash
+grep 'PSO stall' ~/Library/Application\ Support/Team\ Frontress/game/d3d9fe.log
+```
+
+A `d9mt: PSO stall:` line about once a second, with the compile queue depths, is
+this and nothing else. The pipelines are recorded in `d9mt_pso_cache.bin` in the
+same folder and pre-compiled on the next launch, so a warm run is much shorter;
+deleting that file forces a cold one. `D9MT_PSO_DEADLINE_MS` (default 100) sets
+how long a draw waits for its pipeline before compiling it on the frame thread
+instead — lower trades frame hitches for less missing geometry, `0` never
+compiles inline and lets the world fill in whenever the workers get there.
 
 ## Licensing
 
