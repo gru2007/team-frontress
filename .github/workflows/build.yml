@@ -444,10 +444,10 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 60
     env:
-      # Wine and D9MT default to the builds tools/macos-port/fetch-runtimes.sh
-      # names; set the variables only to pin something else.
+      # Wine can be pinned with a repository variable. D9MT intentionally uses
+      # releases/latest in fetch-runtimes.sh so an old variable cannot silently
+      # keep a fixed driver out of a new depot.
       MACOS_WINE_URL: ${{ vars.MACOS_WINE_URL }}
-      MACOS_D9MT_URL: ${{ vars.MACOS_D9MT_URL }}
       # No default is possible: the Steamworks SDK is under the Steamworks SDK
       # Access Agreement. The secret may hold either the SDK zip or the bare
       # macOS libsteam_api.dylib.

@@ -31,6 +31,47 @@ static const float k_flPi = 3.14159265f;
 #define CAMPAIGN_FILE	"resource/ui/frontress_campaign.res"
 #define NEWS_FILE		"resource/ui/frontress_news.res"
 
+struct MenuTextFallback_t
+{
+	const char *pszToken;
+	const char *pszEnglish;
+};
+
+// The repository only supplies the Russian overlay; the full English token
+// table remains in the game's pak.  These fallbacks keep a non-Russian client
+// readable when it encounters one of our new, loose-resource tokens.
+static const MenuTextFallback_t s_MenuTextFallbacks[] =
+{
+	{ "#Frontress_Menu_Campaign", "CAMPAIGN" },
+	{ "#Frontress_Menu_NoCampaign", "No campaign is running." },
+	{ "#Frontress_Menu_Matchmaking", "MATCHMAKING" },
+	{ "#Frontress_Menu_NotQueued", "Not queued" },
+	{ "#Frontress_Menu_MatchFull", "Match full - starting a server" },
+	{ "#Frontress_Menu_Searching", "Searching for a match" },
+	{ "#Frontress_Menu_ServerReady", "Server ready - joining" },
+	{ "#Frontress_Menu_Connecting", "Connecting to the server" },
+	{ "#Frontress_Menu_InMatch", "In a match" },
+	{ "#Frontress_Menu_QueueHint", "Press Find a Game to join a queue." },
+	{ "#Frontress_Menu_Contacting", "Contacting the coordinator..." },
+	{ "#Frontress_Menu_CoordinatorUnavailable", "Coordinator unavailable." },
+	{ "#Frontress_Menu_Updates", "UPDATES" },
+	{ "#Frontress_Menu_NoNews", "No news." },
+	{ "#Frontress_Menu_Friends", "FRIENDS" },
+	{ "#Frontress_Menu_ExampleLine", "Example Line" },
+	{ "#Frontress_Menu_RedHQ", "RED HQ" },
+	{ "#Frontress_Menu_RailYard", "Rail Yard" },
+	{ "#Frontress_Menu_Foundry", "Foundry" },
+	{ "#Frontress_Menu_BluHQ", "BLU HQ" },
+	{ "#Frontress_Menu_NewsDate24Aug", "24 AUG" },
+	{ "#Frontress_Menu_NewsDate23Aug", "23 AUG" },
+	{ "#Frontress_Menu_NewsMatchmakingTitle", "Matchmaking is live" },
+	{ "#Frontress_Menu_NewsMatchmakingBody", "Queue from Find a Game. The coordinator forms the match and hands you the server." },
+	{ "#Frontress_Menu_NewsVGuiTitle", "The VGUI menu is back" },
+	{ "#Frontress_Menu_NewsVGuiBody", "tf_main_menu_html 0 is the default again while the web menu is repaired." },
+	{ "#Frontress_Menu_NewsCampaignTitle", "Campaign, work in progress" },
+	{ "#Frontress_Menu_NewsCampaignBody", "The line above is a demo. Fronts move once the coordinator publishes them." },
+};
+
 //-----------------------------------------------------------------------------
 static void TextToUnicode( const char *pszText, wchar_t *pwszOut, int nSizeInBytes )
 {
@@ -49,9 +90,36 @@ static void TextToUnicode( const char *pszText, wchar_t *pwszOut, int nSizeInByt
 			V_wcsncpy( pwszOut, pwszFound, nSizeInBytes );
 			return;
 		}
+
+		for ( int i = 0; i < ARRAYSIZE( s_MenuTextFallbacks ); ++i )
+		{
+			if ( !V_stricmp( pszText, s_MenuTextFallbacks[i].pszToken ) )
+			{
+				g_pVGuiLocalize->ConvertANSIToUnicode( s_MenuTextFallbacks[i].pszEnglish,
+				                                           pwszOut, nSizeInBytes );
+				return;
+			}
+		}
 	}
 
 	g_pVGuiLocalize->ConvertANSIToUnicode( pszText, pwszOut, nSizeInBytes );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Build a localized menu sentence with named substitutions.  Keeping
+//          these strings in the game's language file is important here: this
+//          panel is painted by hand, so it cannot rely on a .res Label to do
+//          localization for it.
+//-----------------------------------------------------------------------------
+static bool LocalizedText( const char *pszToken, KeyValues *pVariables,
+	                       wchar_t *pwszOut, int nSizeInBytes )
+{
+	const wchar_t *pwszFormat = g_pVGuiLocalize->Find( pszToken );
+	if ( !pwszFormat )
+		return false;
+
+	g_pVGuiLocalize->ConstructString( pwszOut, nSizeInBytes, pwszFormat, pVariables );
+	return true;
 }
 
 //=============================================================================
@@ -256,7 +324,7 @@ void CTFMenuCardPanel::Paint()
 // CTFCampaignMapPanel
 //=============================================================================
 CTFCampaignMapPanel::CTFCampaignMapPanel( Panel *pParent, const char *pszName )
-	: BaseClass( pParent, pszName, "CAMPAIGN" )
+	: BaseClass( pParent, pszName, "#Frontress_Menu_Campaign" )
 {
 	m_nFrontNode     = -1;
 	m_eFrontAttacker = k_eSide_Neutral;
@@ -326,7 +394,7 @@ void CTFCampaignMapPanel::Reload()
 	m_wszStatus[0] = L'\0';
 	m_wszStage[0]  = L'\0';
 
-	TextToUnicode( "No campaign is running.", m_wszEmpty, sizeof( m_wszEmpty ) );
+	TextToUnicode( "#Frontress_Menu_NoCampaign", m_wszEmpty, sizeof( m_wszEmpty ) );
 
 	KeyValuesAD pCampaign( "Campaign" );
 	if ( !pCampaign->LoadFromFile( g_pFullFileSystem, CAMPAIGN_FILE, NULL ) )
@@ -375,14 +443,28 @@ void CTFCampaignMapPanel::Reload()
 			char szNodeName[ 64 ];
 			g_pVGuiLocalize->ConvertUnicodeToANSI( m_Nodes[ m_nFrontNode ].wszName, szNodeName, sizeof( szNodeName ) );
 
-			CFmtStr strStatus( "%s attacking %s",
-			                   m_eFrontAttacker == k_eSide_Blu ? "BLU" : "RED",
-			                   szNodeName );
-			TextToUnicode( strStatus.Get(), m_wszStatus, sizeof( m_wszStatus ) );
+			KeyValuesAD pStatusVars( "CampaignStatus" );
+			pStatusVars->SetString( "team", m_eFrontAttacker == k_eSide_Blu ? "BLU" : "RED" );
+			pStatusVars->SetString( "node", szNodeName );
+			if ( !LocalizedText( "#Frontress_Menu_Attacking", pStatusVars,
+			                     m_wszStatus, sizeof( m_wszStatus ) ) )
+			{
+				CFmtStr strStatus( "%s attacking %s",
+				                   m_eFrontAttacker == k_eSide_Blu ? "BLU" : "RED", szNodeName );
+				TextToUnicode( strStatus.Get(), m_wszStatus, sizeof( m_wszStatus ) );
+			}
 
-			CFmtStr strStage( "stage %d/%d  %s", m_nStage, m_nStageCount,
-			                  pFront->GetString( "map", "" ) );
-			TextToUnicode( strStage.Get(), m_wszStage, sizeof( m_wszStage ) );
+			KeyValuesAD pStageVars( "CampaignStage" );
+			pStageVars->SetInt( "stage", m_nStage );
+			pStageVars->SetInt( "stages", m_nStageCount );
+			pStageVars->SetString( "map", pFront->GetString( "map", "" ) );
+			if ( !LocalizedText( "#Frontress_Menu_Stage", pStageVars,
+			                     m_wszStage, sizeof( m_wszStage ) ) )
+			{
+				CFmtStr strStage( "stage %d/%d  %s", m_nStage, m_nStageCount,
+				                  pFront->GetString( "map", "" ) );
+				TextToUnicode( strStage.Get(), m_wszStage, sizeof( m_wszStage ) );
+			}
 		}
 	}
 }
@@ -558,7 +640,7 @@ void CTFCampaignMapPanel::Paint()
 // CTFQueueInfoPanel
 //=============================================================================
 CTFQueueInfoPanel::CTFQueueInfoPanel( Panel *pParent, const char *pszName )
-	: BaseClass( pParent, pszName, "MATCHMAKING" )
+	: BaseClass( pParent, pszName, "#Frontress_Menu_Matchmaking" )
 {
 	m_flBar       = 0.f;
 	m_flBarTarget = 0.f;
@@ -616,36 +698,46 @@ void CTFQueueInfoPanel::Paint()
 	// still searching but nobody else is needed, the match is full and it is
 	// off reserving a server -- which is a wait worth naming, because it is
 	// the one that looks like nothing is happening.
-	const char *pszState = "Not queued";
+	const char *pszState = "#Frontress_Menu_NotQueued";
 	Color colState = m_colDim;
+	const CTFMMBackend::Status_t &status = pBackend->GetStatus();
+
+	// An unavailable coordinator is not merely a population statistic.  Put it
+	// in the prominent state line as well as the service footer so the player
+	// immediately understands why matchmaking cannot start.
+	if ( status.bChecked && !status.bValid && eState == k_eTFMMState_Idle )
+	{
+		pszState = "#Frontress_Menu_CoordinatorUnavailable";
+		colState = Color( 192, 28, 0, 255 );
+	}
 
 	switch ( eState )
 	{
 	case k_eTFMMState_Searching:
 		if ( nNeed == 0 && nHave > 0 )
 		{
-			pszState = "Match full - starting a server";
+			pszState = "#Frontress_Menu_MatchFull";
 			colState = m_colAccent;
 		}
 		else
 		{
-			pszState = "Searching for a match";
+			pszState = "#Frontress_Menu_Searching";
 			colState = m_colTitle;
 		}
 		break;
 
 	case k_eTFMMState_MatchReady:
-		pszState = "Server ready - joining";
+		pszState = "#Frontress_Menu_ServerReady";
 		colState = Color( 94, 150, 49, 255 );
 		break;
 
 	case k_eTFMMState_Connecting:
-		pszState = "Connecting to the server";
+		pszState = "#Frontress_Menu_Connecting";
 		colState = Color( 94, 150, 49, 255 );
 		break;
 
 	case k_eTFMMState_InMatch:
-		pszState = "In a match";
+		pszState = "#Frontress_Menu_InMatch";
 		colState = m_colTitle;
 		break;
 
@@ -706,13 +798,21 @@ void CTFQueueInfoPanel::Paint()
 	{
 		const int nSeconds = (int)pBackend->GetQueueSeconds();
 
-		CFmtStr strDetail( "%d:%02d in queue   -   %d waiting, %d more needed",
-		                   nSeconds / 60, nSeconds % 60, nHave, nNeed );
-		TextToUnicode( strDetail.Get(), wszLine, sizeof( wszLine ) );
+		char szTime[16];
+		V_snprintf( szTime, sizeof( szTime ), "%d:%02d", nSeconds / 60, nSeconds % 60 );
+		KeyValuesAD pQueueVars( "QueueDetail" );
+		pQueueVars->SetString( "time", szTime );
+		pQueueVars->SetInt( "waiting", nHave );
+		pQueueVars->SetInt( "needed", nNeed );
+		if ( !LocalizedText( "#Frontress_Menu_QueueDetail", pQueueVars, wszLine, sizeof( wszLine ) ) )
+		{
+			CFmtStr strDetail( "%s in queue   -   %d waiting, %d more needed", szTime, nHave, nNeed );
+			TextToUnicode( strDetail.Get(), wszLine, sizeof( wszLine ) );
+		}
 	}
 	else
 	{
-		TextToUnicode( "Press Find a Game to join a queue.", wszLine, sizeof( wszLine ) );
+		TextToUnicode( "#Frontress_Menu_QueueHint", wszLine, sizeof( wszLine ) );
 	}
 
 	if ( nY + nSmallTall <= nBottom - nSmallTall )
@@ -733,31 +833,44 @@ void CTFQueueInfoPanel::Paint()
 	}
 
 	// Along the bottom, always: how busy the service is.
-	const CTFMMBackend::Status_t &status = pBackend->GetStatus();
 	if ( !status.bChecked )
 	{
-		TextToUnicode( "Contacting the coordinator...", wszLine, sizeof( wszLine ) );
+		TextToUnicode( "#Frontress_Menu_Contacting", wszLine, sizeof( wszLine ) );
 		DrawTextAt( m_hSmallFont, m_colDim, x, nBottom - nSmallTall, wszLine );
 	}
 	else if ( status.bValid )
 	{
 		if ( status.bServerCapacityKnown )
 		{
-			CFmtStr strPop( "%d online   -   %d matches live   -   %d servers free",
-			                status.nOnlinePlayers, status.nLiveMatches, status.nFreeServers );
-			TextToUnicode( strPop.Get(), wszLine, sizeof( wszLine ) );
+			KeyValuesAD pPopulationVars( "Population" );
+			pPopulationVars->SetInt( "online", status.nOnlinePlayers );
+			pPopulationVars->SetInt( "matches", status.nLiveMatches );
+			pPopulationVars->SetInt( "servers", status.nFreeServers );
+			if ( !LocalizedText( "#Frontress_Menu_Population", pPopulationVars, wszLine, sizeof( wszLine ) ) )
+			{
+				CFmtStr strPop( "%d online   -   %d matches live   -   %d servers free",
+				                status.nOnlinePlayers, status.nLiveMatches, status.nFreeServers );
+				TextToUnicode( strPop.Get(), wszLine, sizeof( wszLine ) );
+			}
 		}
 		else
 		{
-			CFmtStr strPop( "%d online   -   %d matches live   -   servers on demand",
-			                status.nOnlinePlayers, status.nLiveMatches );
-			TextToUnicode( strPop.Get(), wszLine, sizeof( wszLine ) );
+			KeyValuesAD pPopulationVars( "Population" );
+			pPopulationVars->SetInt( "online", status.nOnlinePlayers );
+			pPopulationVars->SetInt( "matches", status.nLiveMatches );
+			if ( !LocalizedText( "#Frontress_Menu_PopulationOnDemand", pPopulationVars,
+			                     wszLine, sizeof( wszLine ) ) )
+			{
+				CFmtStr strPop( "%d online   -   %d matches live   -   servers on demand",
+				                status.nOnlinePlayers, status.nLiveMatches );
+				TextToUnicode( strPop.Get(), wszLine, sizeof( wszLine ) );
+			}
 		}
 		DrawTextAt( m_hSmallFont, m_colDim, x, nBottom - nSmallTall, wszLine );
 	}
 	else
 	{
-		TextToUnicode( "Coordinator unreachable.", wszLine, sizeof( wszLine ) );
+		TextToUnicode( "#Frontress_Menu_CoordinatorUnavailable", wszLine, sizeof( wszLine ) );
 		DrawTextAt( m_hSmallFont, Color( 192, 28, 0, 255 ), x, nBottom - nSmallTall, wszLine );
 	}
 }
@@ -766,7 +879,7 @@ void CTFQueueInfoPanel::Paint()
 // CTFMenuNewsPanel
 //=============================================================================
 CTFMenuNewsPanel::CTFMenuNewsPanel( Panel *pParent, const char *pszName )
-	: BaseClass( pParent, pszName, "UPDATES" )
+	: BaseClass( pParent, pszName, "#Frontress_Menu_Updates" )
 {
 	m_wszEmpty[0] = L'\0';
 }
@@ -784,7 +897,7 @@ void CTFMenuNewsPanel::Reload()
 {
 	m_Items.RemoveAll();
 
-	TextToUnicode( "No news.", m_wszEmpty, sizeof( m_wszEmpty ) );
+	TextToUnicode( "#Frontress_Menu_NoNews", m_wszEmpty, sizeof( m_wszEmpty ) );
 
 	KeyValuesAD pNews( "News" );
 	if ( !pNews->LoadFromFile( g_pFullFileSystem, NEWS_FILE, NULL ) )
@@ -846,7 +959,7 @@ void CTFMenuNewsPanel::Paint()
 // CTFMenuFriendsPanel
 //=============================================================================
 CTFMenuFriendsPanel::CTFMenuFriendsPanel( Panel *pParent, const char *pszName )
-	: BaseClass( pParent, pszName, "FRIENDS" )
+	: BaseClass( pParent, pszName, "#Frontress_Menu_Friends" )
 {
 	m_pFriends = new CSteamFriendsListPanel( this, "SteamFriendsList" );
 

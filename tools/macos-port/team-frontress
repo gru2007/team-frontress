@@ -207,10 +207,16 @@ printf 'appid:      %s\n' "${SteamAppId}"
 # client runs out of this copy and writes whatever it likes into it.
 stage_game() {
 	local stamp_file="${GAME_DIR}/.frontress-stage"
-	local stamp gameinfo
+	local stamp d9mt_hash gameinfo
 
 	stamp="$(/usr/bin/stat -f '%m/%z' "${BUNDLED_GAME_DIR}/tc2_win64.exe" 2>/dev/null)"
 	stamp="${stamp} $(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "${CONTENTS_DIR}/Info.plist" 2>/dev/null)"
+	if ! d9mt_hash="$(/usr/bin/shasum -a 256 "${BUNDLED_GAME_DIR}/d3d9.dll" 2>/dev/null | /usr/bin/cut -d ' ' -f 1)" \
+		|| [ -z "${d9mt_hash}" ]; then
+		printf 'bundled D9MT driver is missing or unreadable\n' >&2
+		return 1
+	fi
+	stamp="${stamp} d9mt=${d9mt_hash}"
 	# Part of the stamp: a player who owns both apps and switches between them
 	# gets the staged copy re-stamped instead of the other app's leftovers.
 	stamp="${stamp} appid=${SteamAppId}"
@@ -238,6 +244,9 @@ stage_game() {
 		# caches, demos) is not in the bundle and is left alone.
 		printf 'updating the staged client in %s\n' "${GAME_DIR}"
 		/usr/bin/rsync -rlt "${BUNDLED_GAME_DIR}/" "${GAME_DIR}/" || return 1
+		# rsync's size/mtime quick check is not an identity check. The hash above
+		# brought us here because this exact driver changed, so always replace it.
+		/bin/cp -f "${BUNDLED_GAME_DIR}/d3d9.dll" "${GAME_DIR}/d3d9.dll" || return 1
 	fi
 
 	# Steam ownership is checked through the Steamworks bridge; a stray

@@ -397,6 +397,13 @@ void CTFMatchmakingDashboard::OnCommand( const char *command )
 		// fallback for when it is not.
 		if ( TFMMBackend()->BActive() )
 		{
+			// The button is disabled from the coordinator's status below, but
+			// commands can also arrive through keyboard/controller navigation.
+			// Do not open a playlist that can only submit a request to a service
+			// we already know is unavailable.
+			if ( !TFMMBackend()->GetStatus().bValid )
+				return;
+
 			PopStack( 100, k_eSideRight ); // All y'all
 			PushSlidePanel( GetDashboardPanel().GetTypedPanel< CMatchMakingDashboardSidePanel >( k_ePlayList ) );
 			CHudMainMenuOverride *pMMOverride = (CHudMainMenuOverride*)( gViewPortInterface->FindPanelByName( PANEL_MAINMENUOVERRIDE ) );
@@ -653,6 +660,7 @@ void CTFMatchmakingDashboard::OnTick()
 	SetMouseInputEnabled( BIsExpanded() );
 
 	UpdateTopBarVisibility();
+	UpdateFindAGameAvailability();
 }
 
 //-----------------------------------------------------------------------------
@@ -1342,6 +1350,22 @@ void CTFMatchmakingDashboard::UpdateFindAGameButton()
 {
 	int nPlayButtonYPos = GetStackForSide( k_eSideRight ).IsEmpty() ? YRES( 0 ) : YRES( -50 );
 	g_pClientMode->GetViewportAnimationController()->RunAnimationCommand( m_pPlayButton, "ypos", nPlayButtonYPos, 0.0f, 0.4f, vgui::AnimationController::INTERPOLATOR_SIMPLESPLINE, 0.8f, true, false );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: The stock FIND GAME button used to be gated by Valve GC
+//          connectivity.  Frontress owns matchmaking now, so its public
+//          status response is the authority instead.  Waiting for a successful
+//          response, and disabling again after a failed poll, prevents the
+//          player from opening a queue UI that cannot submit its request.
+//-----------------------------------------------------------------------------
+void CTFMatchmakingDashboard::UpdateFindAGameAvailability()
+{
+	const CTFMMBackend *pBackend = TFMMBackend();
+	const bool bEnabled = !pBackend->BActive() || pBackend->GetStatus().bValid;
+
+	if ( m_pPlayButton->IsEnabled() != bEnabled )
+		m_pPlayButton->SetEnabled( bEnabled );
 }
 
 void CTFMatchmakingDashboard::UpdateDisconnectAndResume()

@@ -9,13 +9,13 @@
 // x and y are 0..1 across the map area, so the layout survives any resolution.
 "Campaign"
 {
-	"name"		"Example Line"
+	"name"		"#Frontress_Menu_ExampleLine"
 
 	"nodes"
 	{
 		"red_hq"
 		{
-			"name"		"RED HQ"
+			"name"		"#Frontress_Menu_RedHQ"
 			"owner"		"RED"
 			"x"			"0.00"
 			"y"			"0.30"
@@ -23,7 +23,7 @@
 
 		"yard"
 		{
-			"name"		"Rail Yard"
+			"name"		"#Frontress_Menu_RailYard"
 			"owner"		"RED"
 			"x"			"0.33"
 			"y"			"0.62"
@@ -31,7 +31,7 @@
 
 		"works"
 		{
-			"name"		"Foundry"
+			"name"		"#Frontress_Menu_Foundry"
 			"owner"		"BLU"
 			"x"			"0.67"
 			"y"			"0.30"
@@ -39,7 +39,7 @@
 
 		"blu_hq"
 		{
-			"name"		"BLU HQ"
+			"name"		"#Frontress_Menu_BluHQ"
 			"owner"		"BLU"
 			"x"			"1.00"
 			"y"			"0.62"

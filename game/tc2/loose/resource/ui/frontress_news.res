@@ -10,23 +10,23 @@
 	{
 		"1"
 		{
-			"date"	"24 AUG"
-			"title"	"Matchmaking is live"
-			"body"	"Queue from Find a Game. The coordinator forms the match and hands you the server."
+			"date"	"#Frontress_Menu_NewsDate24Aug"
+			"title"	"#Frontress_Menu_NewsMatchmakingTitle"
+			"body"	"#Frontress_Menu_NewsMatchmakingBody"
 		}
 
 		"2"
 		{
-			"date"	"24 AUG"
-			"title"	"The VGUI menu is back"
-			"body"	"tf_main_menu_html 0 is the default again while the web menu is repaired."
+			"date"	"#Frontress_Menu_NewsDate24Aug"
+			"title"	"#Frontress_Menu_NewsVGuiTitle"
+			"body"	"#Frontress_Menu_NewsVGuiBody"
 		}
 
 		"3"
 		{
-			"date"	"23 AUG"
-			"title"	"Campaign, work in progress"
-			"body"	"The line above is a demo. Fronts move once the coordinator publishes them."
+			"date"	"#Frontress_Menu_NewsDate23Aug"
+			"title"	"#Frontress_Menu_NewsCampaignTitle"
+			"body"	"#Frontress_Menu_NewsCampaignBody"
 		}
 	}
 }

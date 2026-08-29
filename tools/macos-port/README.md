@@ -57,7 +57,9 @@ first stage is `cp -Rc`, which is `clonefile(2)`: on APFS the copy is instant an
 occupies no additional disk space, and a write to the copy never touches the
 bundle's blocks. Later launches only re-sync when the bundle changed, with
 `rsync -rlt`, so a depot update reaches the copy while everything the player
-wrote — configs, `custom/`, demos, caches — is left alone. `TC2_GAME_DIR`
+wrote — configs, `custom/`, demos, caches — is left alone. The stage stamp
+includes the bundled `d3d9.dll` SHA-256 and that file is copied explicitly, so
+an updated D9MT cannot be hidden by rsync's size/mtime shortcut. `TC2_GAME_DIR`
 overrides where that copy lives.
 
 ## Where the assets come from
@@ -122,7 +124,7 @@ to be supplied.
 | --- | --- |
 | Wine | [`wine-devel-11.16-osx64`](https://github.com/Gcenx/macOS_Wine_builds/releases/tag/11.16) — vanilla rather than staging, since D9MT's `winemetal` is a third-party builtin and staging's patches are a variable this port does not need |
 | Wine's `COPYING.LIB` | `gitlab.winehq.org/wine/wine` at `wine-11.16` — the builds do not ship it |
-| D9MT | [`d9mt-x64.zip` from `gru2007/d9mt-builded` v0.4](https://github.com/gru2007/d9mt-builded/releases/tag/v0.4) — an x86_64 build of [`neo773/d9mt`](https://github.com/neo773/d9mt), whose own releases are arm64 for CrossOver and will not load under an x86_64 Wine |
+| D9MT | [`d9mt-x64.zip` from the latest `gru2007/d9mt-builded` release](https://github.com/gru2007/d9mt-builded/releases/latest) — an x86_64 build of [`neo773/d9mt`](https://github.com/neo773/d9mt), whose own releases are arm64 for CrossOver and will not load under an x86_64 Wine |
 | Steamworks | none — set `STEAMWORKS_SDK_ZIP`, `STEAMWORKS_REDIST_DYLIB` or `STEAMWORKS_REDIST_URL` |
 
 Every input takes a local path as readily as a URL, so an archive already on
@@ -218,9 +220,9 @@ Two jobs in `.github/workflows/build.yml`:
   nothing but `mingw-w64` and the SDK headers in this repository, so it runs on
   every build.
 - **`macos`** waits for the Windows client and assembles the app bundle. It
-  runs `fetch-runtimes.sh`, so Wine and D9MT need no configuration;
-  `vars.MACOS_WINE_URL` and `vars.MACOS_D9MT_URL` only exist to pin something
-  else. The one thing it must be given is **`secrets.STEAMWORKS_REDIST_URL`**,
+  runs `fetch-runtimes.sh`, so Wine and D9MT need no configuration. Wine can be
+  pinned with `vars.MACOS_WINE_URL`; CI always takes D9MT from its latest GitHub
+  release. The one thing it must be given is **`secrets.STEAMWORKS_REDIST_URL`**,
   pointing at the SDK zip or the bare `libsteam_api.dylib`. Without that secret
   the job says so and finishes green — a macOS depot that cannot be built is not
   a reason to hold up a Windows and Linux release.

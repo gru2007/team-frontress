@@ -164,6 +164,7 @@ private:
 	void UpdateJoinPartyLobbyPanel();
 
 	void UpdateFindAGameButton();
+	void UpdateFindAGameAvailability();
 	void UpdateDisconnectAndResume();
 	void UpdateDimmer();
 	void UpdateTopBarVisibility();

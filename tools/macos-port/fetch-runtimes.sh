@@ -3,10 +3,9 @@
 # Fetch the three binary runtimes the macOS depot needs but this repository
 # cannot carry, and lay them out the way build-depot.sh expects.
 #
-# The defaults below are the builds this port is developed against. Override any
-# of them to test a different one; the layout handling is written against what
-# each project actually ships, not against a fixed path, so a version bump
-# usually needs nothing but a new URL.
+# Wine stays pinned to the build this port is developed against. D9MT follows
+# its latest GitHub release so a driver fix does not require a Team Frontress
+# source change. Override either URL only for a local or rollback test.
 #
 # Each of these takes a URL or a local path, so an archive you already have on
 # disk can be used without downloading it again.
@@ -38,7 +37,7 @@ DEST="${1:-${ROOT}/macos-runtimes}"
 # does not need. Swap wine-devel for wine-staging in the URL to try it.
 MACOS_WINE_URL="${MACOS_WINE_URL:-https://github.com/Gcenx/macOS_Wine_builds/releases/download/11.16/wine-devel-11.16-osx64.tar.xz}"
 MACOS_WINE_LICENSE_URL="${MACOS_WINE_LICENSE_URL:-https://gitlab.winehq.org/wine/wine/-/raw/wine-11.16/COPYING.LIB}"
-MACOS_D9MT_URL="${MACOS_D9MT_URL:-https://github.com/gru2007/d9mt-builded/releases/download/v0.4/d9mt-x64.zip}"
+MACOS_D9MT_URL="${MACOS_D9MT_URL:-https://github.com/gru2007/d9mt-builded/releases/latest/download/d9mt-x64.zip}"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "${WORK}"' EXIT
