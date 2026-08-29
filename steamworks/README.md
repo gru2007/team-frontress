@@ -3,21 +3,6 @@
 Files here are uploaded on the Steamworks partner site. Nothing in this
 directory ships with the game or is read at runtime.
 
-## Inventory service
-
-`inventory/itemdefs.json`, and `inventory/README.md` for what to do with it.
-
-The app has an inventory of its own, separate from the Team Fortress backpack:
-the Steam Inventory Service, on our appid, holding items we define. The JSON is
-the whole of it -- Steam hosts the definitions and the client reads them back,
-so an item is a publish rather than a build. Everything in it is free, and has
-to stay that way; the Source SDK licence does not let this project sell
-anything.
-
-Like rich presence, item definitions are per app, so they have to be published
-to both the playtest `5147520` and the main app `5147380` -- and so do the items
-players own in them, which do not cross between the two.
-
 ## Rich presence
 
 `rich_presence_english.vdf` / `rich_presence_russian.vdf`
