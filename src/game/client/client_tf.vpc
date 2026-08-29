@@ -934,6 +934,13 @@ $Project "Client (TF)"
 				$File	"$SRCDIR\game\client\tf\frontress\tf_mainmenu_info.h"
 				$File	"$SRCDIR\game\client\tf\frontress\tf_mainmenu_info.cpp"
 
+				// Team Frontress: the app's own Steam Inventory Service items,
+				// which are not the Team Fortress backpack.
+				$File	"$SRCDIR\game\client\tf\frontress\tf_steam_inventory.h"
+				$File	"$SRCDIR\game\client\tf\frontress\tf_steam_inventory.cpp"
+				$File	"$SRCDIR\game\client\tf\frontress\tf_inventory_panel.h"
+				$File	"$SRCDIR\game\client\tf\frontress\tf_inventory_panel.cpp"
+
 				$File	"$SRCDIR\game\client\tf\tf_gc_client.cpp"
 				$File	"$SRCDIR\game\client\tf\tf_gc_client.h"
 				$File	"$SRCDIR\game\client\tf\tf_partyclient.cpp"
