@@ -26,7 +26,7 @@
 		// The running server itself must use the Playtest game AppID: clients
 		// run as 5147520 and Valve's dedicated-server packaging model puts the
 		// game AppID, not the Tool AppID, into steam_appid.txt.
-		SteamAppId				5147520
+		SteamAppId				5147380
 
 		SearchPaths
 		{
