@@ -197,7 +197,7 @@ printf 'tf2:        %s\n' "${TF2_DIR}"
 # One bundle is published under both the playtest and the main app, so which of
 # them this is comes from Steam, which sets these for the app it launched. The
 # fallback is for a bundle started by hand, outside Steam.
-export SteamAppId="${SteamAppId:-5147520}"
+export SteamAppId="${SteamAppId:-5147380}"
 export SteamGameId="${SteamGameId:-${SteamAppId}}"
 printf 'appid:      %s\n' "${SteamAppId}"
 

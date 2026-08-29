@@ -31,8 +31,8 @@ int main(int argc, char **argv)
 		return 2;
 	}
 
-	setenv("SteamAppId", "5147520", 0);
-	setenv("SteamGameId", "5147520", 0);
+	setenv("SteamAppId", "5147380", 0);
+	setenv("SteamGameId", "5147380", 0);
 
 	void *library = dlopen(argv[1], RTLD_NOW | RTLD_LOCAL);
 	if (!library)

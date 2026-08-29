@@ -24,7 +24,7 @@
 	{
 		// Team Frontress Playtest. This is the app the client is published
 		// under on SteamPipe, so it is the app Steam initialises us as.
-		SteamAppId				5147520
+		SteamAppId				5147380
 
 		SearchPaths
 		{

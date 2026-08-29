@@ -23,7 +23,7 @@
 # the content. Run that first when uploading anywhere other than the playtest.
 #
 # Environment:
-#   STEAM_APPID         app to build into        (default 5147520, Team Frontress Playtest;
+#   STEAM_APPID         app to build into        (default 5147380, Team Frontress Playtest;
 #                                                 5147380 is the main app)
 #   STEAM_DEPOT_WIN     Windows content depot    (default STEAM_APPID + 1)
 #   STEAM_DEPOT_LINUX   Linux content depot      (default STEAM_APPID + 2)
@@ -49,7 +49,7 @@ set -euo pipefail
 
 source ./shared.sh
 
-STEAM_APPID="${STEAM_APPID:-5147520}"
+STEAM_APPID="${STEAM_APPID:-5147380}"
 STEAM_DEPOT_WIN="${STEAM_DEPOT_WIN:-$((STEAM_APPID + 1))}"
 STEAM_DEPOT_LINUX="${STEAM_DEPOT_LINUX:-$((STEAM_APPID + 2))}"
 STEAM_DEPOT_MAC="${STEAM_DEPOT_MAC:-$((STEAM_APPID + 3))}"
