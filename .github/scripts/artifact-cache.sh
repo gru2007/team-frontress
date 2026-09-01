@@ -85,6 +85,14 @@ do_restore() {
 
     tar_extract "$archive" "$dest" || cold "artifact ${id} did not unpack"
 
+    # tar restores mtime but cannot restore ctime or inode numbers, so git's
+    # stat cache misses on every extracted file and calls the whole tree dirty.
+    # Refresh it before checkout so only sources changed since the cached build
+    # are rewritten and handed to MSBuild as newer than their object files.
+    if [ -e "$dest/.git" ]; then
+        git -C "$dest" update-index --refresh > /dev/null 2>&1 || true
+    fi
+
     # The archive's size, not the extracted tree's: du over a restored build
     # tree is a walk of a hundred thousand files, and this runs on Windows too.
     echo "restored ${name} from artifact ${id} ($(du -h "$archive" | cut -f1) packed)"
