@@ -1,31 +1,34 @@
 #!/bin/bash
 #
-# Team Fortress 2 for Windows is what supplies the engine and the assets, and
-# the macOS Steam client will not install a Windows depot on its own. Steam has
-# no documented IPC endpoint for handing a console command to a client that is
-# already running, so the command goes to the clipboard and the player pastes
-# it. Nothing global is written: the platform override applies to this console
-# session only, so other macOS games keep installing macOS depots.
+# Downloads only the Team Fortress 2 depot the launcher is missing. This does
+# not change Steam's platform or install a second full copy of the game.
 
 set -u
 
-COMMAND=$'@sSteamCmdForcePlatformType windows\napp_install 440'
+case "${1:-}" in
+	content)
+		COMMAND='download_depot 440 441'
+		REQUIREMENT='Team Fortress 2 content depot 441'
+		;;
+	engine)
+		COMMAND='download_depot 440 232251'
+		REQUIREMENT='Team Fortress 2 engine depot 232251'
+		;;
+	*)
+		printf 'usage: %s content|engine\n' "$0" >&2
+		exit 2
+		;;
+esac
+
 printf '%s' "${COMMAND}" | /usr/bin/pbcopy
+/usr/bin/open 'steam://open/console'
 
-if ! /usr/bin/pgrep -x steam_osx >/dev/null 2>&1; then
-	# Steam accepts console commands prefixed with + during initial startup,
-	# so a cold start can do the whole thing without the player pasting
-	# anything. The clipboard path below stays as the fallback.
-	/usr/bin/open -a Steam --args -console +@sSteamCmdForcePlatformType windows +app_install 440
-	/bin/sleep 3
-fi
-
-/usr/bin/open 'steam://nav/console'
-
-TC2_STEAM_COMMAND="${COMMAND}" /usr/bin/osascript <<'APPLESCRIPT' >/dev/null
+TC2_STEAM_COMMAND="${COMMAND}" TC2_STEAM_REQUIREMENT="${REQUIREMENT}" \
+	/usr/bin/osascript <<'APPLESCRIPT' >/dev/null
 set theCommand to system attribute "TC2_STEAM_COMMAND"
-display dialog "Team Fortress 2 for Windows is required." & return & return & ¬
-	"The install command is already in your clipboard. Paste it into the Steam Console, wait for app 440 to finish downloading, then launch Team Frontress again." & return & return & ¬
+set theRequirement to system attribute "TC2_STEAM_REQUIREMENT"
+display dialog theRequirement & " is required." & return & return & ¬
+	"The depot command is already in your clipboard. Paste it into the Steam Console, wait for the download to complete, then launch Team Frontress again." & return & return & ¬
 	theCommand ¬
 	with title "Team Frontress" buttons {"OK"} default button 1
 APPLESCRIPT

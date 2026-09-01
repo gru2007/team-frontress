@@ -2,8 +2,8 @@
 #
 # Team Frontress macOS launcher.
 #
-# Finds the user's Team Fortress 2 install through native Steam, stages the
-# Windows client somewhere writable, and starts it under the embedded Wine
+# Finds Team Fortress 2's content and engine depot through native Steam, stages
+# the Windows client somewhere writable, and starts it under the embedded Wine
 # runtime with D9MT on Metal and the Steamworks bridge in place.
 #
 # Nothing here ever writes inside the .app. The Windows client puts console.log,
@@ -149,48 +149,71 @@ fi
 
 # ------------------------------------------------------------- Team Fortress 2
 
-find_tf2() {
+steam_roots() {
 	local steam_root="${HOME}/Library/Application Support/Steam"
-	local library manifest install_dir candidate
-	local libraries="${steam_root}"
+
+	# download_depot in the macOS Steam Console writes relative to the client
+	# executable rather than to the normal library root.
+	printf '%s\n' "${steam_root}/Steam.AppBundle/Steam/Contents/MacOS"
+	printf '%s\n' "${steam_root}"
 
 	# awk rather than perl: Apple has been deprecating the scripting runtimes it
 	# ships, and every key in a VDF file is a quoted token, so the fourth
 	# quote-delimited field of a "path" line is the path.
 	if [ -f "${steam_root}/steamapps/libraryfolders.vdf" ]; then
-		libraries="${libraries}"$'\n'"$(/usr/bin/awk -F'"' '
+		/usr/bin/awk -F'"' '
 			/"path"/ { gsub(/\\\\/, "\\", $4); print $4 }
-		' "${steam_root}/steamapps/libraryfolders.vdf")"
+		' "${steam_root}/steamapps/libraryfolders.vdf"
 	fi
+}
 
-	while IFS= read -r library; do
-		[ -n "${library}" ] || continue
-		manifest="${library}/steamapps/appmanifest_440.acf"
-		[ -f "${manifest}" ] || continue
+find_tf2_content() {
+	local root candidate
 
-		install_dir="$(/usr/bin/awk -F'"' '/"installdir"/ { print $4; exit }' "${manifest}")"
-		[ -n "${install_dir}" ] || continue
-		candidate="${library}/steamapps/common/${install_dir}"
-
-		# The Windows depot specifically: a macOS-platform install of app 440
-		# has a manifest but none of the binaries this needs.
-		if [ -f "${candidate}/bin/x64/launcher.dll" ]; then
+	while IFS= read -r root; do
+		[ -n "${root}" ] || continue
+		candidate="${root}/steamapps/content/app_440/depot_441"
+		if [ -f "${candidate}/tf/tf2_misc_dir.vpk" ]; then
 			printf '%s\n' "${candidate}"
 			return 0
 		fi
-	done <<<"${libraries}"
+	done < <(steam_roots)
 
 	return 1
 }
 
-TF2_DIR="${TC2_TF2_DIR_UNIX:-$(find_tf2 || true)}"
-if [ -z "${TF2_DIR}" ] || [ ! -f "${TF2_DIR}/bin/x64/launcher.dll" ]; then
-	printf 'no Windows Team Fortress 2 install found\n'
+find_tf2_engine() {
+	local root candidate
+
+	while IFS= read -r root; do
+		[ -n "${root}" ] || continue
+		candidate="${root}/steamapps/content/app_440/depot_232251"
+		if [ -f "${candidate}/bin/x64/launcher.dll" ]; then
+			printf '%s\n' "${candidate}"
+			return 0
+		fi
+	done < <(steam_roots)
+
+	return 1
+}
+
+TF2_CONTENT_DIR="${TC2_TF2_CONTENT_DIR_UNIX:-$(find_tf2_content || true)}"
+if [ -z "${TF2_CONTENT_DIR}" ] || [ ! -f "${TF2_CONTENT_DIR}/tf/tf2_misc_dir.vpk" ]; then
+	printf 'Team Fortress 2 content depot 441 not found\n'
 	ALERTED=1
-	"${RESOURCES_DIR}/install-tf2"
+	"${RESOURCES_DIR}/install-tf2" content
 	exit 1
 fi
-printf 'tf2:        %s\n' "${TF2_DIR}"
+printf 'tf2 content: %s\n' "${TF2_CONTENT_DIR}"
+
+TF2_ENGINE_DIR="${TC2_TF2_DIR_UNIX:-$(find_tf2_engine || true)}"
+if [ -z "${TF2_ENGINE_DIR}" ] || [ ! -f "${TF2_ENGINE_DIR}/bin/x64/launcher.dll" ]; then
+	printf 'Team Fortress 2 engine depot 232251 not found\n'
+	ALERTED=1
+	"${RESOURCES_DIR}/install-tf2" engine
+	exit 1
+fi
+printf 'tf2 engine:  %s\n' "${TF2_ENGINE_DIR}"
 
 # ---------------------------------------------------------- the app we run as
 
@@ -207,6 +230,7 @@ printf 'appid:      %s\n' "${SteamAppId}"
 # client runs out of this copy and writes whatever it likes into it.
 stage_game() {
 	local stamp_file="${GAME_DIR}/.frontress-stage"
+	local content_link="${GAME_DIR}/tf2_content"
 	local stamp d9mt_hash gameinfo
 
 	stamp="$(/usr/bin/stat -f '%m/%z' "${BUNDLED_GAME_DIR}/tc2_win64.exe" 2>/dev/null)"
@@ -217,11 +241,13 @@ stage_game() {
 		return 1
 	fi
 	stamp="${stamp} d9mt=${d9mt_hash}"
+	stamp="${stamp} content=${TF2_CONTENT_DIR}"
 	# Part of the stamp: a player who owns both apps and switches between them
 	# gets the staged copy re-stamped instead of the other app's leftovers.
 	stamp="${stamp} appid=${SteamAppId}"
 
-	if [ -f "${stamp_file}" ] && [ "$(cat "${stamp_file}" 2>/dev/null)" = "${stamp}" ]; then
+	if [ -f "${stamp_file}" ] && [ "$(cat "${stamp_file}" 2>/dev/null)" = "${stamp}" ] \
+		&& [ -L "${content_link}" ] && [ "$(readlink "${content_link}")" = "${TF2_CONTENT_DIR}" ]; then
 		printf 'game:       %s (already staged)\n' "${GAME_DIR}"
 		return 0
 	fi
@@ -249,6 +275,15 @@ stage_game() {
 		/bin/cp -f "${BUNDLED_GAME_DIR}/d3d9.dll" "${GAME_DIR}/d3d9.dll" || return 1
 	fi
 
+	# Console depot downloads are not registered as app installs, so Valve's
+	# |appid_440| resolver cannot find depot 441. Keep the external depot
+	# untouched and expose it through the writable staged game instead.
+	if [ -e "${content_link}" ] && [ ! -L "${content_link}" ]; then
+		printf '%s exists and is not a symbolic link\n' "${content_link}" >&2
+		return 1
+	fi
+	ln -sfn "${TF2_CONTENT_DIR}" "${content_link}" || return 1
+
 	# Steam ownership is checked through the Steamworks bridge; a stray
 	# steam_appid.txt next to the binary would bypass it.
 	rm -f "${GAME_DIR}/steam_appid.txt"
@@ -266,6 +301,9 @@ stage_game() {
 		[ -f "${GAME_DIR}/tc2/${gameinfo}" ] || continue
 		/usr/bin/sed -i '' -E \
 			"s/^([[:space:]]*SteamAppId[[:space:]]+)[0-9]+[[:space:]]*$/\\1${SteamAppId}/" \
+			"${GAME_DIR}/tc2/${gameinfo}" || return 1
+		/usr/bin/sed -i '' \
+			's#|appid_440|#|gameinfo_path|../tf2_content/#g' \
 			"${GAME_DIR}/tc2/${gameinfo}" || return 1
 	done
 
@@ -353,12 +391,12 @@ for dll in winemetal d9mtmetal steam_api64; do
 	fi
 done
 
-TC2_TF2_DIR="$("${WINE}" winepath -w "${TF2_DIR}" | tr -d '\r')"
+TC2_TF2_DIR="$("${WINE}" winepath -w "${TF2_ENGINE_DIR}" | tr -d '\r')"
 if [ -z "${TC2_TF2_DIR}" ]; then
-	fail "Wine could not translate the Team Fortress 2 install path."
+	fail "Wine could not translate the Team Fortress 2 engine depot path."
 fi
 export TC2_TF2_DIR
-printf 'tf2 (win):  %s\n' "${TC2_TF2_DIR}"
+printf 'tf2 engine (win): %s\n' "${TC2_TF2_DIR}"
 
 # ---------------------------------------------------------------------- launch
 

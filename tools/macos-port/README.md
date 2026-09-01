@@ -9,8 +9,9 @@ stages out of the bundle with the AppID Steam launched it with instead.
 There is no macOS build of the engine. The Windows client runs under an
 embedded Wine runtime, D3D9 is translated to Metal by D9MT, and Steamworks
 calls are forwarded to the *native* macOS Steam client the player already runs.
-Team Fortress 2's Windows depot supplies the engine binaries and the assets, as
-it does on every other platform.
+Team Fortress 2's shared assets come from depot `441` and the Windows engine
+comes from depot `232251`. Both are downloaded separately without changing
+Steam's platform or installing a second full copy of the game.
 
 ## Runtime layout
 
@@ -64,30 +65,34 @@ overrides where that copy lives.
 
 ## Where the assets come from
 
-The launcher reads native Steam's `libraryfolders.vdf`, finds
-`appmanifest_440.acf` in each library, and accepts the first install that
-actually has `bin/x64/launcher.dll` — the Windows depot, not a macOS one. It
-translates that path with `winepath -w` and exports it as `TC2_TF2_DIR`.
+The launcher handles content and engine files separately. It finds the shared
+content under `steamapps/content/app_440/depot_441` by its
+`tf/tf2_misc_dir.vpk` and the Windows engine under
+`steamapps/content/app_440/depot_232251` by its `bin/x64/launcher.dll`.
+On macOS, Steam Console downloads live below
+`Steam.AppBundle/Steam/Contents/MacOS`; configured Steam library roots are also
+searched as a fallback.
+
+The engine depot path is translated with `winepath -w` and exported as
+`TC2_TF2_DIR`.
 
 `GetGameInstallDir` in `src/launcher_main/main.cpp` uses `TC2_TF2_DIR` in
 preference to asking Steamworks, and does so *before* loading Steam at all.
-That ordering is deliberate twice over: native Steamworks would answer with a
-POSIX path the Windows launcher cannot open, and the assets stay reachable even
-when the Steam bridge is not working.
+That ordering is deliberate: the Windows launcher needs its engine before the
+filesystem is mounted, while the shared assets are mounted later from the
+staged content link.
 
-That covers the launcher. The engine finds the same install for itself, and by a
-different route: `gameinfo.txt` mounts Team Fortress 2's content as
-`|appid_440|tf/tf2_misc.vpk`, which the engine resolves through
-`ISteamApps::GetAppInstallDir`. Native Steam answers that with a POSIX path, so
-the bridge translates it — see [the bridge's README](steam-bridge/README.md#paths).
-Without that translation the engine mounts nothing at all, which is a client
-that starts and disappears no matter what the launcher got right.
+That covers the launcher DLL. A Console depot is not registered as an app
+install, so Valve's `|appid_440|` resolver cannot find depot 441. The staged
+game gets a `tf2_content` symlink to the depot, and its writable copy of
+`gameinfo.txt` replaces `|appid_440|` with
+`|gameinfo_path|../tf2_content/`. Neither the signed app bundle nor Steam's
+downloaded files are modified.
 
-If no Windows install of app 440 is present, `install-tf2` puts the two console
-commands on the clipboard and opens the Steam Console. Steam exposes no
-documented way to submit a console command to a client that is already running,
-and no global `steam_dev.cfg` is installed, so no other macOS game is switched
-to Windows depots behind the player's back.
+If either depot is absent, `install-tf2` puts `download_depot 440 441` or
+`download_depot 440 232251` on the clipboard and opens the Steam Console. No
+platform override is used and no other macOS game is switched to Windows
+depots.
 
 ## What D9MT expects of Wine
 

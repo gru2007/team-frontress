@@ -204,13 +204,11 @@ static bool LoadSteam( const char *pRootDir )
 static bool GetGameInstallDir( const char *pRootDir, char *pszBuf, int nBufSize, bool bDedicated )
 {
 #if defined( _WIN32 )
-	// On the macOS port the host resolves Team Fortress 2 out of the native
-	// Steam library and hands it over already translated to a Windows path.
+	// On the macOS port the host resolves Team Fortress 2's Windows engine depot
+	// out of the native Steam library and translates it to a Windows path.
 	// Windows-only: the Wine build of the client is the only consumer.
-	// This is checked before Steam is touched at all: native Steamworks
-	// answers GetAppInstallDir with a POSIX path the Windows launcher cannot
-	// use, so asking it would be worse than not asking, and the assets have to
-	// be reachable even when the Steam bridge is not.
+	// This is checked before Steam is touched at all: native Steamworks points
+	// app 440 at the content install, which deliberately has no Windows engine.
 	const char *pszHostTF2Dir = getenv( "TC2_TF2_DIR" );
 	if ( !bDedicated && pszHostTF2Dir && pszHostTF2Dir[0] )
 	{
@@ -222,7 +220,7 @@ static bool GetGameInstallDir( const char *pRootDir, char *pszBuf, int nBufSize,
 
 		strcpy( pszBuf, pszHostTF2Dir );
 
-		// A path that does not hold a Team Fortress 2 install would otherwise
+		// A path that does not hold the engine depot would otherwise
 		// surface much later as a failure to load launcher.dll.
 		char szLauncher[MAX_PATH];
 		_snprintf( szLauncher, sizeof( szLauncher ), "%s\\" PLATFORM_BIN_DIR "\\launcher.dll", pszBuf );
@@ -232,7 +230,7 @@ static bool GetGameInstallDir( const char *pRootDir, char *pszBuf, int nBufSize,
 		{
 			char szError[1024];
 			_snprintf( szError, sizeof( szError ),
-				"TC2_TF2_DIR does not point at a Team Fortress 2 install:\n\n%s", pszBuf );
+				"TC2_TF2_DIR does not point at the Team Fortress 2 engine depot:\n\n%s", pszBuf );
 			szError[sizeof( szError ) - 1] = '\0';
 			MessageBox( 0, szError, "Launcher Error", MB_OK );
 			return false;
