@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team Frontress -- Campaign</title>
+<!--
+  The campaign map on the main menu.
+
+  Two views of one page, picked by ?view= :
+     card  - the block in the menu's information column. A picture, no controls;
+             the VGUI card above it turns any click into "open the theater".
+     full  - the theater, where a node can be picked and the war read properly.
+
+  It draws whatever GET /v1/campaign says, and asks the game for things by
+  POSTing one line to /v1/campaign/command. Both are served by the game's own
+  local server (see src/game/shared/gamestate/gamestate.cpp), so the page has no
+  network access of its own and nothing here needs a build step.
+
+  ?demo=1 draws the sample war below without a game behind it, which is how the
+  screenshots in the pull request were taken.
+-->
+<style>
+@font-face {
+	font-family: "TF2";
+	src: url("./fonts/TF2.woff2") format("woff2");
+	font-display: swap;
+}
+@font-face {
+	font-family: "TF2 Secondary";
+	src: url("./fonts/TF2Secondary.woff2") format("woff2");
+	font-display: swap;
+}
+@font-face {
+	font-family: "TF2 Build";
+	src: url("./fonts/TF2Build.woff2") format("woff2");
+	font-display: swap;
+}
+
+:root {
+	--red: #c23b2c;
+	--red-bright: #f4705a;
+	--red-deep: #6e1c14;
+	--blu: #4a7fa8;
+	--blu-bright: #7cc0ec;
+	--blu-deep: #17384f;
+	--tan: #ded3bb;
+	--tan-dim: #9a8f79;
+	--ink: #0d0b0a;
+	--paper: #171310;
+	--paper-2: #221c17;
+	--gold: #e8b563;
+	--live: #ffd07a;
+
+	/* Everything scales off the panel, because the panel is 300 units wide in
+	   the menu column and most of the screen in the theater. */
+	--u: min(0.92vw, 1.72vh);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+	background: var(--ink);
+	color: var(--tan);
+	font-family: "TF2 Secondary", "Trebuchet MS", system-ui, sans-serif;
+	-webkit-font-smoothing: antialiased;
+	cursor: default;
+	user-select: none;
+}
+
+body.view-card { --u: min(3.4vw, 3.4vh); }
+
+/* ------------------------------------------------------------------ shell */
+#shell {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	background:
+		radial-gradient(120% 90% at 50% 0%, #2a211a 0%, #151110 55%, #0b0908 100%);
+}
+
+body.view-full #shell {
+	border: 1px solid #4a3c30;
+	box-shadow: 0 0 0 1px #0a0806 inset, 0 2vh 6vh rgba(0,0,0,.7);
+}
+
+/* ------------------------------------------------------------------ header */
+#header {
+	display: none;
+	align-items: baseline;
+	gap: calc(var(--u) * 1.2);
+	padding: calc(var(--u) * .9) calc(var(--u) * 1.5);
+	border-bottom: 1px solid #3a2f26;
+	background: linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,0));
+	flex: none;
+}
+body.view-full #header { display: flex; }
+
+#title {
+	font-family: "TF2", "TF2 Secondary", sans-serif;
+	font-size: calc(var(--u) * 1.9);
+	letter-spacing: .06em;
+	color: var(--tan);
+	text-transform: uppercase;
+	text-shadow: 0 .2vh 0 #000;
+}
+#subtitle {
+	font-size: calc(var(--u) * .95);
+	color: var(--tan-dim);
+	letter-spacing: .08em;
+	text-transform: uppercase;
+}
+#headerStats {
+	margin-left: auto;
+	display: flex;
+	gap: calc(var(--u) * 1.6);
+	align-items: baseline;
+	/* the theater's close button is a VGUI control sitting above this page, so
+	   the top-right corner has to stay clear of anything clickable */
+	padding-right: calc(var(--u) * 2);
+}
+.stat { text-align: right; }
+.stat b {
+	display: block;
+	font-family: "TF2 Build", "TF2", monospace;
+	font-size: calc(var(--u) * 1.5);
+	color: var(--tan);
+	line-height: 1;
+}
+.stat span {
+	font-size: calc(var(--u) * .8);
+	color: var(--tan-dim);
+	letter-spacing: .1em;
+	text-transform: uppercase;
+}
+.stat.off b { color: #8a3b30; }
+
+/* ------------------------------------------------------------------- body */
+#body { flex: 1; display: flex; min-height: 0; }
+
+#mapWrap {
+	position: relative;
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+}
+
+/* the field of influence is painted small into this and then blown up inside
+   the map, so territory and the nodes that cause it can never drift apart */
+#terrain { display: none; }
+
+#map { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+/* ---------------------------------------------------------------- sidebar */
+#side {
+	display: none;
+	width: 27%;
+	min-width: 15vw;
+	max-width: 34vw;
+	flex-direction: column;
+	gap: calc(var(--u) * .7);
+	padding: calc(var(--u) * .9);
+	border-left: 1px solid #3a2f26;
+	background: linear-gradient(180deg, rgba(12,9,8,.92), rgba(12,9,8,.75));
+	overflow: hidden;
+}
+body.view-full #side { display: flex; }
+
+.panel {
+	background: rgba(0,0,0,.35);
+	border: 1px solid #382c23;
+	border-radius: calc(var(--u) * .25);
+	padding: calc(var(--u) * .7) calc(var(--u) * .85);
+	min-height: 0;
+}
+.panel h2 {
+	font-family: "TF2", sans-serif;
+	font-size: calc(var(--u) * 1.05);
+	letter-spacing: .12em;
+	color: var(--gold);
+	text-transform: uppercase;
+	margin-bottom: calc(var(--u) * .42);
+	display: flex;
+	align-items: center;
+	gap: calc(var(--u) * .5);
+}
+.panel h2:after {
+	content: "";
+	flex: 1;
+	height: 1px;
+	background: linear-gradient(90deg, #4a3c30, transparent);
+}
+
+#selName {
+	font-family: "TF2", sans-serif;
+	font-size: calc(var(--u) * 1.6);
+	line-height: 1.1;
+	text-transform: uppercase;
+}
+#selOwner {
+	font-size: calc(var(--u) * .85);
+	letter-spacing: .12em;
+	text-transform: uppercase;
+	margin-bottom: calc(var(--u) * .6);
+}
+.owner-RED { color: var(--red-bright); }
+.owner-BLU { color: var(--blu-bright); }
+.owner-NEUTRAL { color: var(--tan-dim); }
+
+.row {
+	display: flex;
+	justify-content: space-between;
+	gap: calc(var(--u) * .6);
+	font-size: calc(var(--u) * .92);
+	padding: calc(var(--u) * .18) 0;
+	border-bottom: 1px dotted #332a22;
+}
+.row:last-child { border-bottom: 0; }
+.row span {
+	color: var(--tan-dim);
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.row b { font-weight: normal; color: var(--tan); font-family: "TF2 Build", monospace; }
+
+.stages { display: flex; gap: calc(var(--u) * .3); margin: calc(var(--u) * .5) 0; }
+.pip {
+	flex: 1;
+	height: calc(var(--u) * .45);
+	background: #2b231d;
+	border: 1px solid #453629;
+}
+.pip.done { background: var(--gold); border-color: var(--gold); }
+.pip.live { background: var(--live); border-color: #fff0c4; animation: pulse 1.6s infinite; }
+
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+
+#deploy {
+	margin-top: calc(var(--u) * .8);
+	display: block;
+	flex: none;
+	width: 100%;
+	padding: calc(var(--u) * .75) 0;
+	font-family: "TF2", sans-serif;
+	font-size: calc(var(--u) * 1.15);
+	letter-spacing: .1em;
+	text-transform: uppercase;
+	color: #1a1310;
+	background: linear-gradient(180deg, #f0c070, #c9873a);
+	border: 1px solid #7d5324;
+	border-radius: calc(var(--u) * .2);
+	cursor: pointer;
+	text-shadow: 0 1px 0 rgba(255,255,255,.35);
+}
+#deploy:hover { background: linear-gradient(180deg, #ffdc9a, #dc9a45); }
+#deploy:disabled { opacity: .4; cursor: default; background: #4a4038; color: #a89988; }
+#deploy.here { background: linear-gradient(180deg, #9fd07a, #5d9740); border-color: #3f6b2b; }
+
+#sideScroll {
+	flex: 1 1 auto;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+	gap: calc(var(--u) * .7);
+	overflow-y: auto;
+	overflow-x: hidden;
+}
+#sideScroll::-webkit-scrollbar { width: calc(var(--u) * .3); }
+#sideScroll::-webkit-scrollbar-thumb { background: #4a3c30; }
+#sideScroll > .panel { flex: 0 0 auto; }
+.list { overflow: hidden; }
+.list > div { overflow: hidden; min-height: 0; }
+.more { font-size: calc(var(--u) * .8); color: var(--tan-dim); padding-top: calc(var(--u) * .2); }
+.item {
+	display: flex;
+	align-items: center;
+	gap: calc(var(--u) * .55);
+	padding: calc(var(--u) * .26) 0;
+	font-size: calc(var(--u) * .92);
+	border-bottom: 1px dotted #332a22;
+}
+.item:last-child { border-bottom: 0; }
+.item .dot {
+	width: calc(var(--u) * .55);
+	height: calc(var(--u) * .55);
+	border-radius: 50%;
+	flex: none;
+}
+.item .who { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item .num { font-family: "TF2 Build", monospace; color: var(--tan); }
+.item .sub { color: var(--tan-dim); font-size: calc(var(--u) * .8); }
+
+.bar {
+	position: relative;
+	height: calc(var(--u) * .5);
+	background: #241d18;
+	border: 1px solid #3d3128;
+	overflow: hidden;
+}
+.bar > i {
+	position: absolute;
+	inset: 0 auto 0 0;
+	display: block;
+	background: linear-gradient(90deg, #7a9c4d, #b9d97a);
+}
+.bar.hot > i { background: linear-gradient(90deg, #b8642c, #f0a95a); }
+
+/* ------------------------------------------------------------------ footer */
+#footer {
+	flex: none;
+	display: flex;
+	align-items: center;
+	gap: calc(var(--u) * .8);
+	padding: calc(var(--u) * .5) calc(var(--u) * 1.2);
+	border-top: 1px solid #3a2f26;
+	background: rgba(0,0,0,.5);
+	font-size: calc(var(--u) * .85);
+	color: var(--tan-dim);
+	letter-spacing: .06em;
+	text-transform: uppercase;
+	white-space: nowrap;
+	overflow: hidden;
+}
+.key { display: flex; align-items: center; gap: calc(var(--u) * .35); }
+.key i {
+	width: calc(var(--u) * .8);
+	height: calc(var(--u) * .8);
+	display: block;
+	border: 1px solid rgba(0,0,0,.5);
+}
+#hint { margin-left: auto; color: var(--gold); }
+
+/* card view: a strip along the bottom instead of a sidebar */
+#cardBar {
+	display: none;
+	flex: none;
+	flex-direction: column;
+	gap: calc(var(--u) * .25);
+	padding: calc(var(--u) * .5) calc(var(--u) * .7) calc(var(--u) * .6);
+	background: linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.75) 40%);
+	border-top: 1px solid #34291f;
+}
+body.view-card #cardBar { display: flex; }
+body.view-card #footer { display: none; }
+
+#cardFront {
+	display: flex;
+	align-items: baseline;
+	gap: calc(var(--u) * .4);
+	font-size: calc(var(--u) * .95);
+	white-space: nowrap;
+	overflow: hidden;
+}
+#cardFront b { font-family: "TF2", sans-serif; letter-spacing: .04em; }
+#cardMeta {
+	display: flex;
+	justify-content: space-between;
+	font-size: calc(var(--u) * .8);
+	color: var(--tan-dim);
+	letter-spacing: .06em;
+	text-transform: uppercase;
+}
+#cardOpen { color: var(--gold); }
+
+/* ------------------------------------------------------------------ badges */
+#demoBadge {
+	position: absolute;
+	top: calc(var(--u) * .6);
+	left: calc(var(--u) * .6);
+	padding: calc(var(--u) * .15) calc(var(--u) * .5);
+	font-size: calc(var(--u) * .72);
+	letter-spacing: .16em;
+	text-transform: uppercase;
+	color: #ffd9a0;
+	background: rgba(120, 60, 20, .55);
+	border: 1px solid #9a5c25;
+	border-radius: calc(var(--u) * .15);
+	z-index: 5;
+}
+#demoBadge.hidden { display: none; }
+
+#offline {
+	position: absolute;
+	inset: 0;
+	display: none;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+	padding: calc(var(--u) * 2);
+	font-size: calc(var(--u) * 1);
+	color: var(--tan-dim);
+	letter-spacing: .08em;
+	text-transform: uppercase;
+	background: rgba(10,8,7,.8);
+	z-index: 6;
+}
+body.offline #offline { display: flex; }
+
+/* --------------------------------------------------------------- map bits */
+.nodeHit { cursor: pointer; }
+body.view-card .nodeHit { cursor: default; }
+.label {
+	font-family: "TF2 Secondary", sans-serif;
+	paint-order: stroke;
+	stroke: rgba(0,0,0,.85);
+	stroke-width: 3px;
+	stroke-linejoin: round;
+}
+.labelName { font-size: 13px; letter-spacing: .04em; }
+.labelSub  { font-size: 10px; fill: #b9ad94; letter-spacing: .08em; }
+.frontLine { animation: march 2.6s linear infinite; }
+@keyframes march { to { stroke-dashoffset: -36; } }
+.spark { animation: spark 3.2s ease-in-out infinite; }
+@keyframes spark { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
+.breathe { animation: breathe 2.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes breathe { 0%,100% { opacity: .18; transform: scale(1); } 50% { opacity: .5; transform: scale(1.35); } }
+</style>
+</head>
+<body>
+
+<div id="shell">
+	<div id="header">
+		<div>
+			<div id="title">The Frontline</div>
+			<div id="subtitle">Campaign</div>
+		</div>
+		<div id="headerStats"></div>
+	</div>
+
+	<div id="body">
+		<div id="mapWrap">
+			<canvas id="terrain" width="220" height="140"></canvas>
+			<svg id="map" viewBox="0 0 1000 620" preserveAspectRatio="xMidYMid slice"></svg>
+			<div id="demoBadge" class="hidden">Demo</div>
+			<div id="offline"></div>
+		</div>
+
+		<div id="side">
+			<div id="sideScroll">
+			<div class="panel" id="selPanel">
+				<h2 data-t="node">Node</h2>
+				<div id="selName">--</div>
+				<div id="selOwner">--</div>
+				<div id="selBody"></div>
+			</div>
+
+			<div class="panel list" id="battlePanel">
+				<h2 data-t="battles">Live battles</h2>
+				<div id="battles"></div>
+			</div>
+
+			<div class="panel list" id="serverPanel">
+				<h2 data-t="servers">Servers</h2>
+				<div id="regions"></div>
+				<div id="servers"></div>
+			</div>
+
+			<div class="panel" id="queuePanel">
+				<h2 data-t="queueTitle">Matchmaking</h2>
+				<div id="queueBody"></div>
+			</div>
+			</div>
+
+			<button id="deploy" data-t="deploy">Deploy here</button>
+		</div>
+	</div>
+
+	<div id="cardBar">
+		<div id="cardFront"></div>
+		<div id="cardMeta">
+			<span id="cardPop"></span>
+			<span id="cardOpen" data-t="openMap">Open the map</span>
+		</div>
+	</div>
+
+	<div id="footer">
+		<div class="key"><i style="background:#c23b2c"></i><span>RED</span></div>
+		<div class="key"><i style="background:#4a7fa8"></i><span>BLU</span></div>
+		<div class="key"><i style="background:#e8b563"></i><span data-t="front">Front</span></div>
+		<div class="key"><i style="background:#6b6255"></i><span data-t="supply">Supply line</span></div>
+		<div id="hint" data-t="hint">Click a node to pick where you deploy</div>
+	</div>
+</div>
+
+<script>
+"use strict";
+
+//---------------------------------------------------------------- the words
+var STRINGS = {
+	en: {
+		node: "Node", battles: "Live battles", servers: "Servers",
+		deploy: "Deploy here", deployed: "Deploying here", front: "Front",
+		supply: "Supply line", hint: "Click a node to pick where you deploy",
+		openMap: "Open the map", online: "Online", matches: "Matches",
+		free: "Servers free", onDemand: "On demand", owner: "Held by",
+		garrison: "Fighting here", stage: "Stage", map: "Map", kind: "Operation",
+		attacking: "%a% attacking %n%", quiet: "The line is quiet",
+		noCampaign: "No campaign is running", waiting: "Waiting for the game...",
+		coordinatorDown: "Coordinator unavailable", neutral: "Nobody",
+		empty: "Nothing here yet", idle: "Idle", region: "Region",
+		queueSearching: "In queue", queueReady: "Server ready",
+		queueConnecting: "Connecting", queueInMatch: "In a match",
+		queueIdle: "Not queued", hq: "Headquarters", players: "players",
+		breakthrough: "Breakthrough", assault: "Assault", advance: "Advance",
+		skirmish: "Skirmish", capture: "Capture", demo: "Demo",
+		selectPrompt: "Pick a node", queueTitle: "Matchmaking", type: "Type",
+		k_command: "Headquarters", k_rail: "Railhead", k_industrial: "Industry",
+		k_supply: "Depot", k_water: "Waterworks", k_mining: "Quarry site",
+		waiting2: "%h% waiting, %n% more needed", regions: "By region",
+		population: "Population"
+	},
+	ru: {
+		node: "Точка", battles: "Идут бои", servers: "Серверы",
+		deploy: "Высадиться здесь", deployed: "Точка выбрана", front: "Фронт",
+		supply: "Линия снабжения", hint: "Выберите точку дислокации",
+		openMap: "Открыть карту", online: "В сети", matches: "Матчей",
+		free: "Серверов", onDemand: "По запросу", owner: "Контроль",
+		garrison: "Сейчас в бою", stage: "Этап", map: "Карта", kind: "Операция",
+		attacking: "%a% штурмует %n%", quiet: "На фронте тихо",
+		noCampaign: "Кампания не запущена", waiting: "Ожидание игры...",
+		coordinatorDown: "Координатор недоступен", neutral: "Никто",
+		empty: "Пока пусто", idle: "Простой", region: "Регион",
+		queueSearching: "В очереди", queueReady: "Сервер готов",
+		queueConnecting: "Подключение", queueInMatch: "В матче",
+		queueIdle: "Не в очереди", hq: "Штаб", players: "игроков",
+		breakthrough: "Прорыв", assault: "Штурм", advance: "Наступление",
+		skirmish: "Стычка", capture: "Захват", demo: "Демо",
+		selectPrompt: "Выберите точку", queueTitle: "Поиск матча", type: "Тип",
+		k_command: "Штаб", k_rail: "Узел железной дороги", k_industrial: "Производство",
+		k_supply: "Склад", k_water: "Водозабор", k_mining: "Разработка",
+		waiting2: "в очереди %h%, нужно ещё %n%", regions: "По регионам",
+		population: "Население"
+	}
+};
+
+var lang = "en";
+function T( key ) {
+	var table = STRINGS[ lang ] || STRINGS.en;
+	return table[ key ] !== undefined ? table[ key ] : ( STRINGS.en[ key ] || key );
+}
+
+//------------------------------------------------------------- the sample war
+// Only used by ?demo=1, which is the page opened in a browser rather than by
+// the game. The game always sends its own.
+var SAMPLE = {
+	version: 1, lang: "english", demo: true, name: "Example Line", deploy: "",
+	nodes: [
+		{ id:"red_hq", name:"RED HQ", owner:"RED", x:0.07, y:0.50, hq:true, kind:"command", region:"EU", players:0, battles:0 },
+		{ id:"yard", name:"Rail Yard", owner:"RED", x:0.24, y:0.22, hq:false, kind:"rail", region:"EU", players:6, battles:0 },
+		{ id:"depot", name:"Sawmill Depot", owner:"RED", x:0.22, y:0.79, hq:false, kind:"supply", region:"EU", players:0, battles:0 },
+		{ id:"works", name:"Foundry 17", owner:"RED", x:0.45, y:0.55, hq:false, kind:"industrial", region:"EU", players:21, battles:1 },
+		{ id:"reservoir", name:"Reservoir", owner:"BLU", x:0.53, y:0.18, hq:false, kind:"water", region:"EU", players:11, battles:1 },
+		{ id:"quarry", name:"Quarry", owner:"BLU", x:0.62, y:0.83, hq:false, kind:"mining", region:"RU", players:0, battles:0 },
+		{ id:"junction", name:"Iron Junction", owner:"BLU", x:0.78, y:0.47, hq:false, kind:"rail", region:"RU", players:0, battles:0 },
+		{ id:"blu_hq", name:"BLU HQ", owner:"BLU", x:0.94, y:0.52, hq:true, kind:"command", region:"RU", players:0, battles:0 }
+	],
+	edges: [
+		{a:"red_hq",b:"yard"},{a:"red_hq",b:"depot"},{a:"yard",b:"works"},{a:"depot",b:"works"},
+		{a:"yard",b:"reservoir"},{a:"works",b:"reservoir"},{a:"works",b:"quarry"},{a:"depot",b:"quarry"},
+		{a:"reservoir",b:"junction"},{a:"quarry",b:"junction"},{a:"junction",b:"blu_hq"}
+	],
+	fronts: [
+		{ node:"works", attacker:"BLU", stage:2, stages:3, progress:0.62, players:21, kind:"assault", map:"cp_gravelpit", server:"eu-1" },
+		{ node:"reservoir", attacker:"RED", stage:1, stages:3, progress:0.28, players:11, kind:"skirmish", map:"koth_viaduct", server:"eu-2" }
+	],
+	servers: [
+		{ id:"eu-1", name:"Frankfurt #1", region:"EU", map:"cp_gravelpit", node:"works", players:21, max:24 },
+		{ id:"eu-2", name:"Frankfurt #2", region:"EU", map:"koth_viaduct", node:"reservoir", players:11, max:24 },
+		{ id:"ru-1", name:"Moscow #1", region:"RU", map:"", node:"junction", players:0, max:24 }
+	],
+	status: { checked:true, valid:true, serversKnown:true, name:"Frontress", online:47, matches:2, servers:3 },
+	queue: { state:"searching", group:"Casual 12v12", have:11, need:13, seconds:74, detail:"" }
+};
+
+//--------------------------------------------------------------------- setup
+var params  = new URLSearchParams( location.search );
+
+// ?lang=ru only affects ?demo=1: with a game behind the page the language is
+// the game's, and comes down with the document.
+var demoLang = params.get( "lang" );
+var view    = params.get( "view" ) === "full" ? "full" : "card";
+var isDemo  = params.get( "demo" ) === "1";
+var isFull  = view === "full";
+
+document.body.classList.add( isFull ? "view-full" : "view-card" );
+
+var svgNS = "http://www.w3.org/2000/svg";
+var xlinkNS = "http://www.w3.org/1999/xlink";
+
+// The map's own coordinates. The width is fixed so strokes and type keep the
+// same weight; the height follows the panel, so the theater fills a wide
+// dialog and a tall card equally well.
+var VB_W = 1000, VB_H = 620;
+var PAD_X = 100, PAD_Y = 90;
+
+var svg     = document.getElementById( "map" );
+var terrain = document.getElementById( "terrain" );
+var tctx    = terrain.getContext( "2d" );
+
+var data     = null;
+var selected = null;
+
+//------------------------------------------------------------------- helpers
+function el( name, attrs, parent ) {
+	var node = document.createElementNS( svgNS, name );
+	if ( attrs ) {
+		for ( var k in attrs ) {
+			if ( attrs[k] !== null && attrs[k] !== undefined ) node.setAttribute( k, attrs[k] );
+		}
+	}
+	if ( parent ) parent.appendChild( node );
+	return node;
+}
+
+function div( className, text, parent ) {
+	var node = document.createElement( "div" );
+	if ( className ) node.className = className;
+	if ( text !== undefined && text !== null ) node.textContent = text;
+	if ( parent ) parent.appendChild( node );
+	return node;
+}
+
+function geometry() {
+	var box = document.getElementById( "mapWrap" ).getBoundingClientRect();
+	var aspect = ( box.height || 1 ) / ( box.width || 1 );
+
+	VB_W = isFull ? 1000 : 700;
+	VB_H = Math.round( Math.max( 260, Math.min( 2400, VB_W * aspect ) ) );
+
+	PAD_X = VB_W * 0.10;
+	PAD_Y = VB_H * 0.15;
+
+	svg.setAttribute( "viewBox", "0 0 " + VB_W + " " + VB_H );
+	svg.setAttribute( "preserveAspectRatio", "xMidYMid meet" );
+}
+
+function mapX( n ) { return PAD_X + n.x * ( VB_W - PAD_X * 2 ); }
+function mapY( n ) { return PAD_Y + n.y * ( VB_H - PAD_Y * 2 ); }
+
+function sideColor( owner, bright ) {
+	if ( owner === "RED" ) return bright ? "#f4705a" : "#c23b2c";
+	if ( owner === "BLU" ) return bright ? "#7cc0ec" : "#4a7fa8";
+	return bright ? "#c3b79c" : "#6b6255";
+}
+
+function nodeById( id ) {
+	if ( !data || !id ) return null;
+	for ( var i = 0; i < data.nodes.length; i++ ) {
+		if ( data.nodes[i].id === id ) return data.nodes[i];
+	}
+	return null;
+}
+
+function frontForNode( id ) {
+	if ( !data || !data.fronts ) return null;
+	for ( var i = 0; i < data.fronts.length; i++ ) {
+		if ( data.fronts[i].node === id ) return data.fronts[i];
+	}
+	return null;
+}
+
+function kindName( kind ) {
+	var known = { breakthrough:1, assault:1, advance:1, skirmish:1 };
+	return known[ kind ] ? T( kind ) : ( kind || "--" );
+}
+
+// What a node is when nothing is being fought over it. Unknown flavours are
+// passed through: the campaign file may say anything, and inventing a
+// translation for a word we have never seen would be worse than showing it.
+function nodeKindName( node ) {
+	var known = { command:1, rail:1, industrial:1, supply:1, water:1, mining:1 };
+	if ( node.hq ) return T( "k_command" );
+	return known[ node.kind ] ? T( "k_" + node.kind ) : ( node.kind || "--" );
+}
+
+function post( line ) {
+	// Fire and forget: the game answers 204, and the map finds out what came of
+	// it from the next document rather than from the reply.
+	try {
+		fetch( "/v1/campaign/command", { method: "POST", body: line } ).catch( function () {} );
+	} catch ( e ) { /* opened in a browser with no game behind it */ }
+}
+
+//------------------------------------------------------------ the front line
+//
+// Territory is not drawn from a list of shapes -- there is no such list. Every
+// node pulls the ground around it towards its own side, and the line where the
+// two pulls cancel out is the front. The map is then right by construction:
+// take a node and the line moves, with no second description of the war to
+// keep in step.
+//
+function field( px, py ) {
+	var sum = 0, weightSum = 0;
+
+	for ( var i = 0; i < data.nodes.length; i++ ) {
+		var n = data.nodes[i];
+		if ( n.owner !== "RED" && n.owner !== "BLU" ) continue;
+
+		var dx = ( px - mapX( n ) ) / VB_W;
+		var dy = ( py - mapY( n ) ) / VB_W;
+		var d2 = dx * dx + dy * dy + 0.0035;
+
+		// A headquarters holds more ground than an outpost, and a node with a
+		// battle on it is being pushed hard enough to bend the line.
+		var w = ( n.hq ? 1.9 : 1.0 ) + Math.min( n.players || 0, 32 ) / 40;
+		var pull = w / d2;
+
+		sum += ( n.owner === "RED" ? pull : -pull );
+		weightSum += pull;
+	}
+
+	return { value: sum, density: weightSum };
+}
+
+function paintTerrain() {
+	var w = 160;
+	var h = Math.max( 60, Math.round( w * VB_H / VB_W ) );
+
+	terrain.width = w;
+	terrain.height = h;
+
+	var img = tctx.createImageData( w, h );
+	var px = img.data;
+
+	for ( var yi = 0; yi < h; yi++ ) {
+		for ( var xi = 0; xi < w; xi++ ) {
+			var f = field( ( xi + 0.5 ) / w * VB_W, ( yi + 0.5 ) / h * VB_H );
+			var hold = Math.min( 1, Math.abs( f.value ) / Math.max( f.density, 0.0001 ) );
+			var near = Math.min( 1, f.density / 420 );
+			var t = Math.pow( hold, 0.9 ) * ( 0.45 + 0.55 * Math.pow( near, 0.5 ) );
+			var o = ( yi * w + xi ) * 4;
+
+			if ( f.value >= 0 ) {
+				px[o]   = 128 + 70 * t;
+				px[o+1] = 42 + 16 * t;
+				px[o+2] = 33 + 12 * t;
+			} else {
+				px[o]   = 30 + 14 * t;
+				px[o+1] = 68 + 40 * t;
+				px[o+2] = 104 + 58 * t;
+			}
+			px[o+3] = 30 + 175 * t;
+		}
+	}
+
+	tctx.putImageData( img, 0, 0 );
+	return terrain.toDataURL();
+}
+
+// Marching squares over the same field, for the one line that has to be sharp.
+function frontRuns() {
+	var cols = 76;
+	var rows = Math.max( 24, Math.round( cols * VB_H / VB_W ) );
+
+	var val = [], dens = [];
+	for ( var r = 0; r <= rows; r++ ) {
+		val[r] = []; dens[r] = [];
+		for ( var c = 0; c <= cols; c++ ) {
+			var f = field( c / cols * VB_W, r / rows * VB_H );
+			val[r][c] = f.value;
+			dens[r][c] = f.density;
+		}
+	}
+
+	function cut( a, b ) { return a / ( a - b ); }
+
+	var segments = [];
+	for ( var r2 = 0; r2 < rows; r2++ ) {
+		for ( var c2 = 0; c2 < cols; c2++ ) {
+			// Out where nothing is near, the line between two distant nodes is
+			// arithmetic rather than a front. Leave it off the map.
+			var density = ( dens[r2][c2] + dens[r2][c2+1] + dens[r2+1][c2] + dens[r2+1][c2+1] ) / 4;
+			if ( density < 70 ) continue;
+
+			var tl = val[r2][c2], tr = val[r2][c2+1];
+			var bl = val[r2+1][c2], br = val[r2+1][c2+1];
+			var idx = ( tl > 0 ? 8 : 0 ) | ( tr > 0 ? 4 : 0 ) | ( br > 0 ? 2 : 0 ) | ( bl > 0 ? 1 : 0 );
+			if ( idx === 0 || idx === 15 ) continue;
+
+			var x0 = c2 / cols * VB_W, x1 = ( c2 + 1 ) / cols * VB_W;
+			var y0 = r2 / rows * VB_H, y1 = ( r2 + 1 ) / rows * VB_H;
+
+			var top    = [ x0 + ( x1 - x0 ) * cut( tl, tr ), y0 ];
+			var bottom = [ x0 + ( x1 - x0 ) * cut( bl, br ), y1 ];
+			var left   = [ x0, y0 + ( y1 - y0 ) * cut( tl, bl ) ];
+			var right  = [ x1, y0 + ( y1 - y0 ) * cut( tr, br ) ];
+
+			var pair = {
+				1:[left,bottom], 2:[bottom,right], 3:[left,right], 4:[top,right],
+				5:[left,top], 6:[top,bottom], 7:[left,top], 8:[left,top],
+				9:[top,bottom], 10:[left,bottom], 11:[top,right],
+				12:[left,right], 13:[bottom,right], 14:[left,bottom]
+			}[ idx ];
+
+			if ( pair ) segments.push( pair );
+		}
+	}
+
+	// Stitch the loose segments into runs so the front can be one stroked line
+	// with one animation on it, rather than a thousand dashes. Walk both ways
+	// from each seed, or a contour first met in its middle comes out as two.
+	var key = function ( p ) { return Math.round( p[0] ) + ":" + Math.round( p[1] ); };
+	var fromStart = {}, fromEnd = {};
+	segments.forEach( function ( seg, i ) {
+		( fromStart[ key( seg[0] ) ] = fromStart[ key( seg[0] ) ] || [] ).push( i );
+		( fromEnd[ key( seg[1] ) ] = fromEnd[ key( seg[1] ) ] || [] ).push( i );
+	} );
+
+	function pick( table, point ) {
+		var list = table[ key( point ) ] || [];
+		for ( var i = 0; i < list.length; i++ ) {
+			if ( !used[ list[i] ] ) return list[i];
+		}
+		return -1;
+	}
+
+	var used = [];
+	var runs = [];
+
+	segments.forEach( function ( seg, i ) {
+		if ( used[i] ) return;
+		used[i] = true;
+
+		var run = [ seg[0], seg[1] ];
+
+		for ( var f = 0; f < 5000; f++ ) {
+			var next = pick( fromStart, run[ run.length - 1 ] );
+			if ( next < 0 ) break;
+			used[ next ] = true;
+			run.push( segments[ next ][1] );
+		}
+
+		for ( var b = 0; b < 5000; b++ ) {
+			var prev = pick( fromEnd, run[0] );
+			if ( prev < 0 ) break;
+			used[ prev ] = true;
+			run.unshift( segments[ prev ][0] );
+		}
+
+		if ( run.length > 2 ) runs.push( run );
+	} );
+
+	return runs;
+}
+
+// A run of points as a smooth path, so the front reads as drawn rather than
+// as sampled.
+function smoothPath( pts ) {
+	if ( pts.length < 3 ) return "";
+
+	var d = "M" + pts[0][0].toFixed(1) + " " + pts[0][1].toFixed(1);
+	for ( var i = 0; i < pts.length - 1; i++ ) {
+		var mx = ( pts[i][0] + pts[i+1][0] ) / 2;
+		var my = ( pts[i][1] + pts[i+1][1] ) / 2;
+		d += " Q" + pts[i][0].toFixed(1) + " " + pts[i][1].toFixed(1) + " " +
+		     mx.toFixed(1) + " " + my.toFixed(1);
+	}
+	var last = pts[ pts.length - 1 ];
+	d += " L" + last[0].toFixed(1) + " " + last[1].toFixed(1);
+	return d;
+}
+
+//----------------------------------------------------------------- the paper
+function defineFilters( defs ) {
+	var grid = el( "pattern", { id:"grid", width:44, height:44, patternUnits:"userSpaceOnUse" }, defs );
+	el( "path", { d:"M44 0H0V44", fill:"none", stroke:"rgba(222,205,170,.10)", "stroke-width":1 }, grid );
+
+	var coarse = el( "pattern", { id:"gridCoarse", width:176, height:176, patternUnits:"userSpaceOnUse" }, defs );
+	el( "path", { d:"M176 0H0V176", fill:"none", stroke:"rgba(222,205,170,.16)", "stroke-width":1.4 }, coarse );
+
+	var grain = el( "filter", { id:"grain", x:"0", y:"0", width:"100%", height:"100%" }, defs );
+	el( "feTurbulence", { type:"fractalNoise", baseFrequency:"0.85", numOctaves:"3" }, grain );
+	el( "feColorMatrix", { type:"saturate", values:"0" }, grain );
+
+	var soft = el( "filter", { id:"soft", x:"-15%", y:"-15%", width:"130%", height:"130%" }, defs );
+	el( "feGaussianBlur", { stdDeviation:"14" }, soft );
+
+	var glow = el( "filter", { id:"glow", x:"-80%", y:"-80%", width:"260%", height:"260%" }, defs );
+	el( "feGaussianBlur", { stdDeviation:"9", result:"b" }, glow );
+	var merge = el( "feMerge", {}, glow );
+	el( "feMergeNode", { in:"b" }, merge );
+	el( "feMergeNode", { in:"SourceGraphic" }, merge );
+
+	var vig = el( "radialGradient", { id:"vig", cx:"50%", cy:"46%", r:"78%" }, defs );
+	el( "stop", { offset:"50%", "stop-color":"#000", "stop-opacity":"0" }, vig );
+	el( "stop", { offset:"100%", "stop-color":"#000", "stop-opacity":".8" }, vig );
+
+	[ [ "heatRED", "#ff9d78" ], [ "heatBLU", "#8fd0ff" ], [ "heatNEUTRAL", "#ffce7a" ] ]
+		.forEach( function ( pair ) {
+			var heat = el( "radialGradient", { id:pair[0] }, defs );
+			el( "stop", { offset:"0%", "stop-color":pair[1], "stop-opacity":".34" }, heat );
+			el( "stop", { offset:"60%", "stop-color":pair[1], "stop-opacity":".10" }, heat );
+			el( "stop", { offset:"100%", "stop-color":pair[1], "stop-opacity":"0" }, heat );
+		} );
+}
+
+// Two crossed sabres, for a node with a battle running on it.
+function battleMark( parent, x, y, size ) {
+	var g = el( "g", { transform:"translate(" + x + "," + y + ") scale(" + ( size / 12 ) + ")" }, parent );
+
+	el( "circle", { cx:0, cy:0, r:12, fill:"#140e0a", stroke:"#8a6432", "stroke-width":2 }, g );
+
+	var blades = el( "g", { "class":"spark" }, g );
+	[ 45, -45 ].forEach( function ( angle ) {
+		var b = el( "g", { transform:"rotate(" + angle + ")" }, blades );
+		el( "line", { x1:0, y1:-8, x2:0, y2:5, stroke:"#ffe1ab", "stroke-width":2.2,
+		              "stroke-linecap":"round" }, b );
+		el( "line", { x1:-3.4, y1:5, x2:3.4, y2:5, stroke:"#c8894a", "stroke-width":2.2,
+		              "stroke-linecap":"round" }, b );
+	} );
+}
+
+//---------------------------------------------------------------- the drawing
+function draw() {
+	svg.textContent = "";
+
+	if ( !data || !data.nodes || data.nodes.length === 0 ) return;
+
+	geometry();
+
+	var defs    = el( "defs", {}, svg );
+	var gGround = el( "g", {}, svg );
+	var gHeat   = el( "g", {}, svg );
+	var gFront  = el( "g", {}, svg );
+	var gEdges  = el( "g", {}, svg );
+	var gNodes  = el( "g", {}, svg );
+	var gLabels = el( "g", {}, svg );
+
+	defineFilters( defs );
+
+	// --- the ground: influence first, then the paper it is printed on
+	var image = el( "image", { x:0, y:0, width:VB_W, height:VB_H,
+	                           preserveAspectRatio:"none", filter:"url(#soft)" }, gGround );
+	var url = paintTerrain();
+	image.setAttribute( "href", url );
+	image.setAttributeNS( xlinkNS, "xlink:href", url );
+
+	el( "rect", { x:0, y:0, width:VB_W, height:VB_H, fill:"url(#grid)" }, gGround );
+	el( "rect", { x:0, y:0, width:VB_W, height:VB_H, fill:"url(#gridCoarse)" }, gGround );
+	el( "rect", { x:0, y:0, width:VB_W, height:VB_H, filter:"url(#grain)", opacity:".045" }, gGround );
+
+	// --- where the people are, before anything is drawn on top of them
+	data.nodes.forEach( function ( n ) {
+		if ( !n.players ) return;
+		var r = 48 + Math.min( n.players, 32 ) * 2.4;
+		el( "circle", { cx:mapX( n ), cy:mapY( n ), r:r,
+		                fill:"url(#heat" + ( n.owner || "NEUTRAL" ) + ")" }, gHeat );
+	} );
+
+	// --- the front line: a shadow, a dark bed, the moving line, and the ticks
+	//     that say which side is pushing
+	frontRuns().forEach( function ( run ) {
+		var d = smoothPath( run );
+		if ( !d ) return;
+
+		el( "path", { d:d, fill:"none", stroke:"rgba(255,186,102,.16)", "stroke-width":26,
+		              "stroke-linecap":"round", "stroke-linejoin":"round", filter:"url(#glow)" }, gFront );
+		el( "path", { d:d, fill:"none", stroke:"rgba(24,15,11,.9)", "stroke-width":6,
+		              "stroke-linecap":"round", "stroke-linejoin":"round" }, gFront );
+		el( "path", { "class":"frontLine", d:d, fill:"none", stroke:"#f0b463", "stroke-width":3.2,
+		              "stroke-dasharray":"16 10", "stroke-linecap":"round" }, gFront );
+
+		for ( var i = 3; i < run.length - 3; i += 7 ) {
+			var a = run[ i - 2 ], b = run[ i + 2 ];
+			var dx = b[0] - a[0], dy = b[1] - a[1];
+			var len = Math.sqrt( dx * dx + dy * dy ) || 1;
+			var nx = -dy / len, ny = dx / len;
+
+			// point the tick into whichever side the ground belongs to
+			var probe = field( run[i][0] + nx * 12, run[i][1] + ny * 12 );
+			var dir = probe.value > 0 ? 1 : -1;
+
+			el( "line", { x1:run[i][0], y1:run[i][1],
+			              x2:run[i][0] + nx * 9 * dir, y2:run[i][1] + ny * 9 * dir,
+			              stroke:"#c8894a", "stroke-width":2.4, "stroke-linecap":"round" }, gFront );
+		}
+	} );
+
+	// --- supply lines
+	data.edges.forEach( function ( e ) {
+		var a = nodeById( e.a ), b = nodeById( e.b );
+		if ( !a || !b ) return;
+
+		var contested = a.owner !== b.owner;
+		var ax = mapX( a ), ay = mapY( a ), bx = mapX( b ), by = mapY( b );
+
+		el( "line", { x1:ax, y1:ay, x2:bx, y2:by, stroke:"rgba(0,0,0,.5)", "stroke-width":9,
+		              "stroke-linecap":"round" }, gEdges );
+		el( "line", { x1:ax, y1:ay, x2:bx, y2:by,
+		              stroke: contested ? "rgba(240,180,99,.9)" : "rgba(196,182,152,.42)",
+		              "stroke-width": contested ? 3.6 : 2.6,
+		              "stroke-dasharray": contested ? "9 8" : null,
+		              "stroke-linecap":"round" }, gEdges );
+	} );
+
+	// --- nodes
+	data.nodes.forEach( function ( n ) {
+		var x = mapX( n ), y = mapY( n );
+		var front = frontForNode( n.id );
+		var r = n.hq ? 26 : 20;
+
+		var g = el( "g", { "class":"nodeHit", "data-id":n.id }, gNodes );
+
+		// the capture backdrop: how far the attacker has got around the node,
+		// behind the node itself so the marker stays readable
+		if ( front ) {
+			el( "circle", { cx:x, cy:y, r:r + 30, fill:sideColor( front.attacker, false ),
+			                "class":"breathe" }, g );
+
+			var pr = r + 14;
+			var frac = Math.max( 0.02, Math.min( 1, front.progress ) );
+			var circ = 2 * Math.PI * pr;
+			el( "circle", { cx:x, cy:y, r:pr, fill:"none", stroke:"rgba(0,0,0,.55)", "stroke-width":7 }, g );
+			el( "circle", { cx:x, cy:y, r:pr, fill:"none", stroke:sideColor( front.attacker, true ),
+			                "stroke-width":7, "stroke-linecap":"round",
+			                "stroke-dasharray": ( circ * frac ).toFixed(1) + " " + circ.toFixed(1),
+			                transform:"rotate(-90 " + x + " " + y + ")" }, g );
+		}
+
+		// the marker: a hexagon, larger and ringed for a headquarters
+		var pts = [];
+		for ( var i = 0; i < 6; i++ ) {
+			var a = Math.PI / 6 + i * Math.PI / 3;
+			pts.push( ( x + r * Math.cos( a ) ).toFixed(1) + "," + ( y + r * Math.sin( a ) ).toFixed(1) );
+		}
+		var inner = [];
+		for ( var j = 0; j < 6; j++ ) {
+			var a2 = Math.PI / 6 + j * Math.PI / 3;
+			inner.push( ( x + r * 0.66 * Math.cos( a2 ) ).toFixed(1) + "," +
+			            ( y + r * 0.66 * Math.sin( a2 ) ).toFixed(1) );
+		}
+
+		el( "polygon", { points:pts.join(" "), fill:"rgba(0,0,0,.55)", transform:"translate(0,4)" }, g );
+		el( "polygon", { points:pts.join(" "), fill:sideColor( n.owner, false ),
+		                 stroke:"#0f0b09", "stroke-width":3 }, g );
+		el( "polygon", { points:inner.join(" "), fill:"none", stroke:sideColor( n.owner, true ),
+		                 "stroke-width":1.6, opacity:".85" }, g );
+
+		if ( n.hq ) {
+			el( "circle", { cx:x, cy:y, r:6.5, fill:"#0f0b09" }, g );
+			el( "circle", { cx:x, cy:y, r:3.2, fill:sideColor( n.owner, true ) }, g );
+		}
+
+		if ( n.battles > 0 ) battleMark( g, x - r * 1.25, y - r * 1.25, 17 );
+
+		// how many people are on it, as a tag under the marker
+		if ( n.players > 0 ) {
+			var tagW = 46, tagH = 21;
+			el( "rect", { x:x - tagW / 2, y:y + r + 4, width:tagW, height:tagH, rx:4,
+			              fill:"#130e0b", stroke:"#5a442c", "stroke-width":1.5 }, g );
+			var tag = el( "text", { x:x, y:y + r + 19, "text-anchor":"middle",
+			                        "class":"label labelSub", fill:"#ffd9a0", stroke:"none" }, g );
+			tag.textContent = "● " + n.players;
+		}
+
+		if ( selected === n.id ) {
+			var sel = [];
+			for ( var k = 0; k < 6; k++ ) {
+				var a3 = Math.PI / 6 + k * Math.PI / 3;
+				sel.push( ( x + ( r + 10 ) * Math.cos( a3 ) ).toFixed(1) + "," +
+				          ( y + ( r + 10 ) * Math.sin( a3 ) ).toFixed(1) );
+			}
+			el( "polygon", { points:sel.join(" "), fill:"none", stroke:"#ffe9b8",
+			                 "stroke-width":2.5, "stroke-dasharray":"7 5", opacity:".95" }, g );
+		}
+
+		if ( data.deploy === n.id ) {
+			el( "path", { d:"M" + x + " " + ( y - r - 14 ) + " l 10 -16 h -20 z", fill:"#9fd07a",
+			              stroke:"#1d2c17", "stroke-width":2 }, g );
+		}
+
+		// hit area, generous: this is a menu, not a strategy game
+		el( "circle", { cx:x, cy:y, r:r + 24, fill:"transparent" }, g );
+	} );
+
+	// --- labels last, so nothing is drawn over them
+	data.nodes.forEach( function ( n ) {
+		var x = mapX( n ), y = mapY( n );
+		var r = n.hq ? 26 : 20;
+		var front = frontForNode( n.id );
+		var lift = n.players > 0 ? 26 : 0;
+
+		var name = el( "text", { x:x, y:y + r + 20 + lift, "text-anchor":"middle",
+		                         "class":"label labelName",
+		                         fill: front ? "#ffe6bd" : "#e6dcc4" }, gLabels );
+		name.textContent = n.name;
+
+		var subText = front
+			? kindName( front.kind ) + "  " + front.stage + "/" + front.stages
+			: ( n.region || ( n.hq ? T( "hq" ) : "" ) );
+
+		if ( subText ) {
+			var sub = el( "text", { x:x, y:y + r + 35 + lift, "text-anchor":"middle",
+			                        "class":"label labelSub",
+			                        fill: front ? "#f0b463" : "#a2977f" }, gLabels );
+			sub.textContent = subText;
+		}
+	} );
+
+	el( "rect", { x:0, y:0, width:VB_W, height:VB_H, fill:"url(#vig)", "pointer-events":"none" }, svg );
+
+	if ( isFull ) {
+		Array.prototype.forEach.call( svg.querySelectorAll( ".nodeHit" ), function ( g ) {
+			g.addEventListener( "click", function () {
+				selected = g.getAttribute( "data-id" );
+				draw();
+				fillSidebar();
+			} );
+		} );
+	}
+}
+
+//----------------------------------------------------------------- the words
+function row2( host, label, value ) {
+	var r = div( "row", null, host );
+	var s = document.createElement( "span" ); s.textContent = label; r.appendChild( s );
+	var b = document.createElement( "b" ); b.textContent = value; r.appendChild( b );
+}
+
+function statusLine() {
+	if ( !data ) return "";
+	if ( !data.fronts || data.fronts.length === 0 ) return T( "quiet" );
+
+	var f = data.fronts[0];
+	var n = nodeById( f.node );
+	return T( "attacking" ).replace( "%a%", f.attacker ).replace( "%n%", n ? n.name : f.node );
+}
+
+function fillHeader() {
+	var host = document.getElementById( "headerStats" );
+	host.textContent = "";
+
+	document.getElementById( "title" ).textContent = data.name || "Campaign";
+	document.getElementById( "subtitle" ).textContent = statusLine();
+
+	var st = data.status || {};
+	function stat( value, label, off ) {
+		var box = div( "stat" + ( off ? " off" : "" ), null, host );
+		var b = document.createElement( "b" ); b.textContent = value; box.appendChild( b );
+		var s = document.createElement( "span" ); s.textContent = label; box.appendChild( s );
+	}
+
+	if ( !st.checked ) {
+		stat( "--", T( "online" ), true );
+	} else if ( !st.valid ) {
+		stat( "!", T( "coordinatorDown" ), true );
+	} else {
+		stat( st.online, T( "online" ) );
+		stat( st.matches, T( "matches" ) );
+		stat( st.serversKnown ? st.servers : "~", T( "free" ) );
+	}
+}
+
+function fillSidebar() {
+	if ( !isFull ) return;
+
+	var n = nodeById( selected ) || nodeById( data.deploy ) ||
+	        ( data.fronts && data.fronts[0] ? nodeById( data.fronts[0].node ) : null ) ||
+	        data.nodes[0];
+
+	if ( n ) selected = n.id;
+
+	var nameEl = document.getElementById( "selName" );
+	var ownEl  = document.getElementById( "selOwner" );
+	var body   = document.getElementById( "selBody" );
+	body.textContent = "";
+
+	if ( !n ) {
+		nameEl.textContent = T( "selectPrompt" );
+		ownEl.textContent = "";
+		return;
+	}
+
+	nameEl.textContent = n.name;
+	ownEl.className = "owner-" + n.owner;
+	ownEl.textContent = T( "owner" ) + ": " + ( n.owner === "NEUTRAL" ? T( "neutral" ) : n.owner );
+
+	function row( label, value ) {
+		var r = div( "row", null, body );
+		var s = document.createElement( "span" ); s.textContent = label; r.appendChild( s );
+		var b = document.createElement( "b" ); b.textContent = value; r.appendChild( b );
+	}
+
+	var front = frontForNode( n.id );
+	if ( front ) {
+		row( T( "kind" ), kindName( front.kind ) );
+		row( T( "map" ), front.map || "--" );
+		row( T( "garrison" ), front.players + " " + T( "players" ) );
+
+		var pips = div( "stages", null, body );
+		for ( var i = 1; i <= Math.max( 1, front.stages ); i++ ) {
+			div( "pip" + ( i < front.stage ? " done" : i === front.stage ? " live" : "" ), "", pips );
+		}
+
+		var bar = div( "bar hot", null, body );
+		var fill = document.createElement( "i" );
+		fill.style.width = Math.round( Math.max( 2, front.progress * 100 ) ) + "%";
+		bar.appendChild( fill );
+	} else {
+		row( T( "region" ), n.region || "--" );
+		row( T( "garrison" ), ( n.players || 0 ) + " " + T( "players" ) );
+		row( T( "type" ), nodeKindName( n ) );
+	}
+
+	// live battles
+	var battles = document.getElementById( "battles" );
+	battles.textContent = "";
+	if ( !data.fronts || data.fronts.length === 0 ) {
+		div( "item sub", T( "quiet" ), battles );
+	} else {
+		data.fronts.slice( 0, 3 ).forEach( function ( f ) {
+			var node = nodeById( f.node );
+			var item = div( "item", null, battles );
+			var dot = div( "dot", "", item );
+			dot.style.background = sideColor( f.attacker, true );
+			var who = div( "who", null, item );
+			div( null, ( node ? node.name : f.node ), who );
+			div( "sub", kindName( f.kind ) + "  ·  " + ( f.map || "--" ), who );
+			div( "num", f.players, item );
+		} );
+
+		if ( data.fronts.length > 3 ) {
+			div( "more", "+" + ( data.fronts.length - 3 ), battles );
+		}
+	}
+
+	// servers, so it is obvious where people actually are
+	var servers = document.getElementById( "servers" );
+	servers.textContent = "";
+	if ( !data.servers || data.servers.length === 0 ) {
+		div( "item sub", T( "empty" ), servers );
+	} else {
+		data.servers.slice( 0, 3 ).forEach( function ( s ) {
+			var item = div( "item", null, servers );
+			var dot = div( "dot", "", item );
+			dot.style.background = s.players > 0 ? "#9fd07a" : "#5a5044";
+			var who = div( "who", null, item );
+			div( null, s.name, who );
+			div( "sub", ( s.region || "--" ) + "  ·  " + ( s.map || T( "idle" ) ), who );
+			div( "num", s.players + "/" + s.max, item );
+		} );
+
+		if ( data.servers.length > 3 ) {
+			div( "more", "+" + ( data.servers.length - 3 ), servers );
+		}
+	}
+
+	// where the population actually is, which is the thing a player wants to
+	// know before picking a side of the map to fight on
+	var regions = document.getElementById( "regions" );
+	regions.textContent = "";
+
+	var byRegion = {};
+	( data.servers || [] ).forEach( function ( srv ) {
+		var name = srv.region || "--";
+		byRegion[ name ] = ( byRegion[ name ] || 0 ) + ( srv.players || 0 );
+	} );
+
+	var names = Object.keys( byRegion );
+	var busiest = 1;
+	names.forEach( function ( name ) { busiest = Math.max( busiest, byRegion[ name ] ); } );
+
+	names.sort( function ( a, b ) { return byRegion[b] - byRegion[a]; } ).forEach( function ( name ) {
+		var item = div( "item", null, regions );
+		var who = div( "who", null, item );
+		div( null, name, who );
+		var bar = div( "bar", null, who );
+		var fill = document.createElement( "i" );
+		fill.style.width = Math.round( 100 * byRegion[ name ] / busiest ) + "%";
+		bar.appendChild( fill );
+		div( "num", byRegion[ name ], item );
+	} );
+
+	// what matchmaking is doing, so the map is not a second place to be told
+	// nothing about the queue you are standing in
+	var q = data.queue || {};
+	var queueBody = document.getElementById( "queueBody" );
+	queueBody.textContent = "";
+
+	var stateName = {
+		searching: "queueSearching", ready: "queueReady",
+		connecting: "queueConnecting", inmatch: "queueInMatch"
+	}[ q.state ] || "queueIdle";
+
+	row2( queueBody, T( stateName ), q.group || "--" );
+
+	if ( q.state === "searching" ) {
+		var total = Math.max( 1, ( q.have || 0 ) + ( q.need || 0 ) );
+		var qbar = div( "bar hot", null, queueBody );
+		var qfill = document.createElement( "i" );
+		qfill.style.width = Math.round( 100 * ( q.have || 0 ) / total ) + "%";
+		qbar.appendChild( qfill );
+
+		var mins = Math.floor( ( q.seconds || 0 ) / 60 );
+		var secs = ( q.seconds || 0 ) % 60;
+		row2( queueBody,
+		      T( "waiting2" ).replace( "%h%", q.have || 0 ).replace( "%n%", q.need || 0 ),
+		      mins + ":" + ( secs < 10 ? "0" : "" ) + secs );
+	}
+
+	var deploy = document.getElementById( "deploy" );
+	var here = data.deploy && data.deploy === selected;
+	deploy.textContent = here ? T( "deployed" ) : T( "deploy" );
+	deploy.classList.toggle( "here", !!here );
+	deploy.disabled = !selected;
+}
+
+function fillCard() {
+	if ( isFull ) return;
+
+	var host = document.getElementById( "cardFront" );
+	host.textContent = "";
+
+	var f = data.fronts && data.fronts[0];
+	if ( f ) {
+		var n = nodeById( f.node );
+		var b = document.createElement( "b" );
+		b.textContent = f.attacker;
+		b.style.color = sideColor( f.attacker, true );
+		host.appendChild( b );
+		var rest = document.createElement( "span" );
+		rest.textContent = " → " + ( n ? n.name : f.node ) + "  ·  " +
+		                   kindName( f.kind ) + " " + f.stage + "/" + f.stages;
+		host.appendChild( rest );
+	} else {
+		host.textContent = statusLine();
+	}
+
+	var st = data.status || {};
+	var pop = document.getElementById( "cardPop" );
+	if ( !st.checked ) {
+		pop.textContent = "--";
+	} else if ( !st.valid ) {
+		pop.textContent = T( "coordinatorDown" );
+	} else {
+		pop.textContent = st.online + " " + T( "online" ) + "  ·  " +
+		                  st.matches + " " + T( "matches" );
+	}
+}
+
+function render() {
+	if ( !data ) return;
+
+	lang = ( data.lang && data.lang.toLowerCase().indexOf( "russ" ) === 0 ) ? "ru" : "en";
+	Array.prototype.forEach.call( document.querySelectorAll( "[data-t]" ), function ( node ) {
+		node.textContent = T( node.getAttribute( "data-t" ) );
+	} );
+
+	document.getElementById( "demoBadge" ).classList.toggle( "hidden", !data.demo );
+	document.getElementById( "demoBadge" ).textContent = T( "demo" );
+
+	var empty = !data.nodes || data.nodes.length === 0;
+	document.body.classList.toggle( "offline", empty );
+	document.getElementById( "offline" ).textContent = empty ? T( "noCampaign" ) : "";
+
+	draw();
+	fillHeader();
+	fillSidebar();
+	fillCard();
+}
+
+//---------------------------------------------------------------- the feed
+var everAnswered = false;
+
+function poll() {
+	if ( isDemo ) {
+		data = SAMPLE;
+		if ( demoLang === "ru" ) {
+			data.lang = "russian";
+			var ruNames = {
+				red_hq:"Штаб RED", yard:"Железнодорожный двор", depot:"Лесопилка-склад",
+				works:"Литейная 17", reservoir:"Водохранилище", quarry:"Карьер",
+				junction:"Железный узел", blu_hq:"Штаб BLU"
+			};
+			data.name = "Пример линии фронта";
+			data.nodes.forEach( function ( n ) { if ( ruNames[ n.id ] ) n.name = ruNames[ n.id ]; } );
+		}
+		everAnswered = true;
+		render();
+		return;
+	}
+
+	fetch( "/v1/campaign", { cache: "no-store" } ).then( function ( r ) {
+		return r.json();
+	} ).then( function ( doc ) {
+		if ( !doc || !doc.version ) throw new Error( "empty" );
+		everAnswered = true;
+		data = doc;
+		render();
+	} ).catch( function () {
+		if ( everAnswered ) return;		// a dropped poll is not worth a flicker
+		document.body.classList.add( "offline" );
+		document.getElementById( "offline" ).textContent = T( "waiting" );
+	} );
+}
+
+document.getElementById( "deploy" ).addEventListener( "click", function () {
+	if ( !selected ) return;
+	post( "deploy " + selected );
+	// Show it immediately; the next document confirms it.
+	if ( data ) { data.deploy = selected; }
+	draw();
+	fillSidebar();
+} );
+
+// The map redraws on resize because the front line is computed in the map's own
+// coordinates but the canvas behind it is not.
+var resizeTimer = null;
+window.addEventListener( "resize", function () {
+	if ( resizeTimer ) clearTimeout( resizeTimer );
+	resizeTimer = setTimeout( render, 120 );
+} );
+
+poll();
+setInterval( poll, isFull ? 1500 : 2500 );
+</script>
+</body>
+</html>

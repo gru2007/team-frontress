@@ -9,6 +9,7 @@
 #include "tf_mainmenu_info.h"
 
 #include "tf_mm_backend.h"
+#include "tf_campaign_map.h"
 
 #include "fmtstr.h"
 #include "filesystem.h"
@@ -28,7 +29,6 @@ using namespace vgui;
 
 static const float k_flPi = 3.14159265f;
 
-#define CAMPAIGN_FILE	"resource/ui/frontress_campaign.res"
 #define NEWS_FILE		"resource/ui/frontress_news.res"
 
 struct MenuTextFallback_t
@@ -57,11 +57,16 @@ static const MenuTextFallback_t s_MenuTextFallbacks[] =
 	{ "#Frontress_Menu_Updates", "UPDATES" },
 	{ "#Frontress_Menu_NoNews", "No news." },
 	{ "#Frontress_Menu_Friends", "FRIENDS" },
+	{ "#Frontress_Menu_CloseMap", "CLOSE  (ESC)" },
 	{ "#Frontress_Menu_ExampleLine", "Example Line" },
 	{ "#Frontress_Menu_RedHQ", "RED HQ" },
 	{ "#Frontress_Menu_RailYard", "Rail Yard" },
 	{ "#Frontress_Menu_Foundry", "Foundry" },
 	{ "#Frontress_Menu_BluHQ", "BLU HQ" },
+	{ "#Frontress_Menu_SawmillDepot", "Sawmill Depot" },
+	{ "#Frontress_Menu_Reservoir", "Reservoir" },
+	{ "#Frontress_Menu_Quarry", "Quarry" },
+	{ "#Frontress_Menu_IronJunction", "Iron Junction" },
 	{ "#Frontress_Menu_NewsDate24Aug", "24 AUG" },
 	{ "#Frontress_Menu_NewsDate23Aug", "23 AUG" },
 	{ "#Frontress_Menu_NewsMatchmakingTitle", "Matchmaking is live" },
@@ -73,7 +78,7 @@ static const MenuTextFallback_t s_MenuTextFallbacks[] =
 };
 
 //-----------------------------------------------------------------------------
-static void TextToUnicode( const char *pszText, wchar_t *pwszOut, int nSizeInBytes )
+void TFMenu_TextToUnicode( const char *pszText, wchar_t *pwszOut, int nSizeInBytes )
 {
 	if ( !pszText || !pszText[0] )
 	{
@@ -111,7 +116,7 @@ static void TextToUnicode( const char *pszText, wchar_t *pwszOut, int nSizeInByt
 //          panel is painted by hand, so it cannot rely on a .res Label to do
 //          localization for it.
 //-----------------------------------------------------------------------------
-static bool LocalizedText( const char *pszToken, KeyValues *pVariables,
+bool TFMenu_LocalizedText( const char *pszToken, KeyValues *pVariables,
 	                       wchar_t *pwszOut, int nSizeInBytes )
 {
 	const wchar_t *pwszFormat = g_pVGuiLocalize->Find( pszToken );
@@ -161,7 +166,7 @@ void CTFMenuCardPanel::ApplySchemeSettings( IScheme *pScheme )
 	SetPaintBackgroundType( 0 );
 	SetBgColor( Color( 0, 0, 0, 90 ) );
 
-	TextToUnicode( m_strTitleToken.Get(), m_wszTitle, sizeof( m_wszTitle ) );
+	TFMenu_TextToUnicode( m_strTitleToken.Get(), m_wszTitle, sizeof( m_wszTitle ) );
 }
 
 //-----------------------------------------------------------------------------
@@ -326,11 +331,8 @@ void CTFMenuCardPanel::Paint()
 CTFCampaignMapPanel::CTFCampaignMapPanel( Panel *pParent, const char *pszName )
 	: BaseClass( pParent, pszName, "#Frontress_Menu_Campaign" )
 {
-	m_nFrontNode     = -1;
-	m_eFrontAttacker = k_eSide_Neutral;
-	m_nStage         = 0;
-	m_nStageCount    = 0;
 	m_wszStatus[0]   = L'\0';
+	m_wszStage[0]    = L'\0';
 	m_wszEmpty[0]    = L'\0';
 	m_nWhiteTexture  = -1;
 	m_flPulse        = 0.f;
@@ -358,133 +360,76 @@ void CTFCampaignMapPanel::ApplySchemeSettings( IScheme *pScheme )
 }
 
 //-----------------------------------------------------------------------------
-CTFCampaignMapPanel::ESide CTFCampaignMapPanel::SideFromString( const char *pszSide )
-{
-	if ( !V_stricmp( pszSide, "RED" ) )
-		return k_eSide_Red;
-	if ( !V_stricmp( pszSide, "BLU" ) || !V_stricmp( pszSide, "BLUE" ) )
-		return k_eSide_Blu;
-
-	return k_eSide_Neutral;
-}
-
-//-----------------------------------------------------------------------------
-int CTFCampaignMapPanel::FindNode( const char *pszID ) const
-{
-	FOR_EACH_VEC( m_Nodes, i )
-	{
-		if ( !V_stricmp( m_Nodes[i].strID.Get(), pszID ) )
-			return i;
-	}
-
-	return -1;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Read the campaign. Everything drawn below comes from this file --
-//			the panel has no idea what a front is called.
+// Purpose: Re-read the campaign and rebuild the two sentences under the map.
+//			The campaign itself lives in CTFCampaignModel, which the web map
+//			reads too -- this panel only draws it.
 //-----------------------------------------------------------------------------
 void CTFCampaignMapPanel::Reload()
 {
-	m_Nodes.RemoveAll();
-	m_Edges.RemoveAll();
-	m_nFrontNode  = -1;
-	m_nStage      = 0;
-	m_nStageCount = 0;
 	m_wszStatus[0] = L'\0';
 	m_wszStage[0]  = L'\0';
 
-	TextToUnicode( "#Frontress_Menu_NoCampaign", m_wszEmpty, sizeof( m_wszEmpty ) );
+	TFMenu_TextToUnicode( "#Frontress_Menu_NoCampaign", m_wszEmpty, sizeof( m_wszEmpty ) );
 
-	KeyValuesAD pCampaign( "Campaign" );
-	if ( !pCampaign->LoadFromFile( g_pFullFileSystem, CAMPAIGN_FILE, NULL ) )
+	CTFCampaignFeed *pFeed = TFCampaignFeed();
+	pFeed->Reload();
+
+	const CTFCampaignModel &model = pFeed->Model();
+	const CTFCampaignModel::Front_t *pFront = model.PrimaryFront();
+	if ( !pFront )
 		return;
 
-	KeyValues *pNodes = pCampaign->FindKey( "nodes" );
-	for ( KeyValues *pNode = pNodes ? pNodes->GetFirstTrueSubKey() : NULL;
-	      pNode != NULL;
-	      pNode = pNode->GetNextTrueSubKey() )
-	{
-		const int iNode = m_Nodes.AddToTail();
-		Node_t &node = m_Nodes[ iNode ];
+	const CTFCampaignModel::Node_t &node = model.Nodes()[ pFront->nNode ];
 
-		node.strID  = pNode->GetName();
-		node.eOwner = SideFromString( pNode->GetString( "owner", "" ) );
-		node.flX    = clamp( pNode->GetFloat( "x", 0.5f ), 0.f, 1.f );
-		node.flY    = clamp( pNode->GetFloat( "y", 0.5f ), 0.f, 1.f );
-		TextToUnicode( pNode->GetString( "name", node.strID.Get() ), node.wszName, sizeof( node.wszName ) );
+	const char *pszAttacker = ( pFront->eAttacker == k_eTFCampaignSide_Blu ) ? "BLU" : "RED";
+
+	// The name is already wide, and a Cyrillic node name does not survive a trip
+	// through the ANSI codepage on its way into the sentence.
+	KeyValuesAD pStatusVars( "CampaignStatus" );
+	pStatusVars->SetString( "team", pszAttacker );
+	pStatusVars->SetWString( "node", node.wszName );
+	if ( !TFMenu_LocalizedText( "#Frontress_Menu_Attacking", pStatusVars,
+	                            m_wszStatus, sizeof( m_wszStatus ) ) )
+	{
+		// Only a client with no string for the token gets here, which is to say
+		// an English one, whose node names are ASCII.
+		char szNodeName[ 128 ];
+		szNodeName[0] = '\0';
+		V_UnicodeToUTF8( node.wszName, szNodeName, sizeof( szNodeName ) );
+
+		CFmtStr strStatus( "%s attacking %s", pszAttacker, szNodeName );
+		TFMenu_TextToUnicode( strStatus.Get(), m_wszStatus, sizeof( m_wszStatus ) );
 	}
 
-	KeyValues *pEdges = pCampaign->FindKey( "edges" );
-	for ( KeyValues *pEdge = pEdges ? pEdges->GetFirstTrueSubKey() : NULL;
-	      pEdge != NULL;
-	      pEdge = pEdge->GetNextTrueSubKey() )
+	KeyValuesAD pStageVars( "CampaignStage" );
+	pStageVars->SetInt( "stage", pFront->nStage );
+	pStageVars->SetInt( "stages", pFront->nStageCount );
+	pStageVars->SetString( "map", pFront->strMap.Get() );
+	if ( !TFMenu_LocalizedText( "#Frontress_Menu_Stage", pStageVars,
+	                            m_wszStage, sizeof( m_wszStage ) ) )
 	{
-		const int nA = FindNode( pEdge->GetString( "a", "" ) );
-		const int nB = FindNode( pEdge->GetString( "b", "" ) );
-		if ( nA < 0 || nB < 0 )
-			continue;
-
-		const int iEdge = m_Edges.AddToTail();
-		m_Edges[ iEdge ].nA = nA;
-		m_Edges[ iEdge ].nB = nB;
-	}
-
-	KeyValues *pFront = pCampaign->FindKey( "front" );
-	if ( pFront )
-	{
-		m_nFrontNode     = FindNode( pFront->GetString( "node", "" ) );
-		m_eFrontAttacker = SideFromString( pFront->GetString( "attacker", "" ) );
-		m_nStage         = pFront->GetInt( "stage", 0 );
-		m_nStageCount    = pFront->GetInt( "stages", 0 );
-
-		if ( m_nFrontNode >= 0 )
-		{
-			char szNodeName[ 64 ];
-			g_pVGuiLocalize->ConvertUnicodeToANSI( m_Nodes[ m_nFrontNode ].wszName, szNodeName, sizeof( szNodeName ) );
-
-			KeyValuesAD pStatusVars( "CampaignStatus" );
-			pStatusVars->SetString( "team", m_eFrontAttacker == k_eSide_Blu ? "BLU" : "RED" );
-			pStatusVars->SetString( "node", szNodeName );
-			if ( !LocalizedText( "#Frontress_Menu_Attacking", pStatusVars,
-			                     m_wszStatus, sizeof( m_wszStatus ) ) )
-			{
-				CFmtStr strStatus( "%s attacking %s",
-				                   m_eFrontAttacker == k_eSide_Blu ? "BLU" : "RED", szNodeName );
-				TextToUnicode( strStatus.Get(), m_wszStatus, sizeof( m_wszStatus ) );
-			}
-
-			KeyValuesAD pStageVars( "CampaignStage" );
-			pStageVars->SetInt( "stage", m_nStage );
-			pStageVars->SetInt( "stages", m_nStageCount );
-			pStageVars->SetString( "map", pFront->GetString( "map", "" ) );
-			if ( !LocalizedText( "#Frontress_Menu_Stage", pStageVars,
-			                     m_wszStage, sizeof( m_wszStage ) ) )
-			{
-				CFmtStr strStage( "stage %d/%d  %s", m_nStage, m_nStageCount,
-				                  pFront->GetString( "map", "" ) );
-				TextToUnicode( strStage.Get(), m_wszStage, sizeof( m_wszStage ) );
-			}
-		}
+		CFmtStr strStage( "stage %d/%d  %s", pFront->nStage, pFront->nStageCount,
+		                  pFront->strMap.Get() );
+		TFMenu_TextToUnicode( strStage.Get(), m_wszStage, sizeof( m_wszStage ) );
 	}
 }
 
 //-----------------------------------------------------------------------------
-Color CTFCampaignMapPanel::SideColor( ESide eSide, int nAlpha ) const
+Color CTFCampaignMapPanel::SideColor( int eSide, int nAlpha ) const
 {
-	const Color &base = ( eSide == k_eSide_Red ) ? m_colRed
-	                  : ( eSide == k_eSide_Blu ) ? m_colBlu
-	                                             : m_colNeutral;
+	const Color &base = ( eSide == k_eTFCampaignSide_Red ) ? m_colRed
+	                  : ( eSide == k_eTFCampaignSide_Blu ) ? m_colBlu
+	                                                       : m_colNeutral;
 
 	return Color( base.r(), base.g(), base.b(), nAlpha );
 }
 
 //-----------------------------------------------------------------------------
-void CTFCampaignMapPanel::NodePos( const Node_t &node, int x, int y, int wide, int tall,
+void CTFCampaignMapPanel::NodePos( float flX, float flY, int x, int y, int wide, int tall,
                                    int &outX, int &outY ) const
 {
-	outX = x + (int)( node.flX * wide );
-	outY = y + (int)( node.flY * tall );
+	outX = x + (int)( flX * wide );
+	outY = y + (int)( flY * tall );
 }
 
 //-----------------------------------------------------------------------------
@@ -551,7 +496,10 @@ void CTFCampaignMapPanel::Paint()
 	int x, y, wide, tall;
 	GetContentBounds( x, y, wide, tall );
 
-	if ( m_Nodes.Count() == 0 )
+	const CTFCampaignModel &model = TFCampaignFeed()->Model();
+	const CUtlVector< CTFCampaignModel::Node_t > &nodes = model.Nodes();
+
+	if ( nodes.Count() == 0 )
 	{
 		DrawTextAt( m_hBodyFont, m_colDim,
 		            x + ( wide - TextWidth( m_hBodyFont, m_wszEmpty ) ) / 2,
@@ -576,14 +524,14 @@ void CTFCampaignMapPanel::Paint()
 	const int nPlotH = MAX( 1, nMapTall - nRadius * 2 );
 
 	// Edges first, so the discs sit on top of them.
-	FOR_EACH_VEC( m_Edges, i )
+	FOR_EACH_VEC( model.Edges(), i )
 	{
-		const Node_t &a = m_Nodes[ m_Edges[i].nA ];
-		const Node_t &b = m_Nodes[ m_Edges[i].nB ];
+		const CTFCampaignModel::Node_t &a = nodes[ model.Edges()[i].nA ];
+		const CTFCampaignModel::Node_t &b = nodes[ model.Edges()[i].nB ];
 
 		int ax, ay, bx, by;
-		NodePos( a, nPlotX, nPlotY, nPlotW, nPlotH, ax, ay );
-		NodePos( b, nPlotX, nPlotY, nPlotW, nPlotH, bx, by );
+		NodePos( a.flX, a.flY, nPlotX, nPlotY, nPlotW, nPlotH, ax, ay );
+		NodePos( b.flX, b.flY, nPlotX, nPlotY, nPlotW, nPlotH, bx, by );
 
 		// A line between two nodes of the same side is held territory. A line
 		// between different sides is where the fighting is.
@@ -594,32 +542,44 @@ void CTFCampaignMapPanel::Paint()
 		DrawThickLine( ax, ay, bx, by, bContested ? nEdge + 1 : nEdge, color );
 	}
 
-	// The live front, pulsing over its node.
-	if ( m_nFrontNode >= 0 )
+	// The live fronts, pulsing over their nodes.
+	FOR_EACH_VEC( model.Fronts(), i )
 	{
+		const CTFCampaignModel::Front_t &front = model.Fronts()[i];
+
 		int fx, fy;
-		NodePos( m_Nodes[ m_nFrontNode ], nPlotX, nPlotY, nPlotW, nPlotH, fx, fy );
+		NodePos( nodes[ front.nNode ].flX, nodes[ front.nNode ].flY,
+		         nPlotX, nPlotY, nPlotW, nPlotH, fx, fy );
 
 		const float flWave = 0.5f + 0.5f * sinf( m_flPulse * 2.5f );
 		const int nRing = nRadius + 3 + (int)( flWave * nRadius * 0.8f );
 		const int nRingAlpha = (int)( 40.f + ( 1.f - flWave ) * 110.f );
 
-		DrawDisc( fx, fy, nRing, SideColor( m_eFrontAttacker, nRingAlpha ) );
+		DrawDisc( fx, fy, nRing, SideColor( front.eAttacker, nRingAlpha ) );
 	}
 
 	// Nodes.
-	FOR_EACH_VEC( m_Nodes, i )
+	FOR_EACH_VEC( nodes, i )
 	{
-		const Node_t &node = m_Nodes[i];
+		const CTFCampaignModel::Node_t &node = nodes[i];
 
 		int nx, ny;
-		NodePos( node, nPlotX, nPlotY, nPlotW, nPlotH, nx, ny );
+		NodePos( node.flX, node.flY, nPlotX, nPlotY, nPlotW, nPlotH, nx, ny );
 
 		DrawDisc( nx, ny, nRadius + 1, Color( 0, 0, 0, 160 ) );
 		DrawDisc( nx, ny, nRadius, SideColor( node.eOwner, 255 ) );
 
-		// Held nodes get a quiet label, the contested one gets a bright one.
-		const bool bFront = ( i == m_nFrontNode );
+		// Held nodes get a quiet label, a contested one gets a bright one.
+		bool bFront = false;
+		FOR_EACH_VEC( model.Fronts(), iFront )
+		{
+			if ( model.Fronts()[ iFront ].nNode == i )
+			{
+				bFront = true;
+				break;
+			}
+		}
+
 		const int nNameW = TextWidth( m_hSmallFont, node.wszName );
 
 		DrawTextAt( m_hSmallFont, bFront ? m_colTitle : m_colDim,
@@ -754,7 +714,7 @@ void CTFQueueInfoPanel::Paint()
 	// sized by the column, not by how much there is to say.
 	int nY = y;
 
-	TextToUnicode( pszState, wszLine, sizeof( wszLine ) );
+	TFMenu_TextToUnicode( pszState, wszLine, sizeof( wszLine ) );
 	DrawTextAt( m_hBodyFont, colState, x, nY, wszLine );
 
 	// The match group, right-aligned against the state.
@@ -804,15 +764,15 @@ void CTFQueueInfoPanel::Paint()
 		pQueueVars->SetString( "time", szTime );
 		pQueueVars->SetInt( "waiting", nHave );
 		pQueueVars->SetInt( "needed", nNeed );
-		if ( !LocalizedText( "#Frontress_Menu_QueueDetail", pQueueVars, wszLine, sizeof( wszLine ) ) )
+		if ( !TFMenu_LocalizedText( "#Frontress_Menu_QueueDetail", pQueueVars, wszLine, sizeof( wszLine ) ) )
 		{
 			CFmtStr strDetail( "%s in queue   -   %d waiting, %d more needed", szTime, nHave, nNeed );
-			TextToUnicode( strDetail.Get(), wszLine, sizeof( wszLine ) );
+			TFMenu_TextToUnicode( strDetail.Get(), wszLine, sizeof( wszLine ) );
 		}
 	}
 	else
 	{
-		TextToUnicode( "#Frontress_Menu_QueueHint", wszLine, sizeof( wszLine ) );
+		TFMenu_TextToUnicode( "#Frontress_Menu_QueueHint", wszLine, sizeof( wszLine ) );
 	}
 
 	if ( nY + nSmallTall <= nBottom - nSmallTall )
@@ -828,14 +788,14 @@ void CTFQueueInfoPanel::Paint()
 	if ( eState == k_eTFMMState_Searching && pszNote && pszNote[0] &&
 	     nY + nSmallTall <= nBottom - nSmallTall )
 	{
-		TextToUnicode( pszNote, wszLine, sizeof( wszLine ) );
+		TFMenu_TextToUnicode( pszNote, wszLine, sizeof( wszLine ) );
 		DrawTextAt( m_hSmallFont, m_colAccent, x, nY, wszLine );
 	}
 
 	// Along the bottom, always: how busy the service is.
 	if ( !status.bChecked )
 	{
-		TextToUnicode( "#Frontress_Menu_Contacting", wszLine, sizeof( wszLine ) );
+		TFMenu_TextToUnicode( "#Frontress_Menu_Contacting", wszLine, sizeof( wszLine ) );
 		DrawTextAt( m_hSmallFont, m_colDim, x, nBottom - nSmallTall, wszLine );
 	}
 	else if ( status.bValid )
@@ -846,11 +806,11 @@ void CTFQueueInfoPanel::Paint()
 			pPopulationVars->SetInt( "online", status.nOnlinePlayers );
 			pPopulationVars->SetInt( "matches", status.nLiveMatches );
 			pPopulationVars->SetInt( "servers", status.nFreeServers );
-			if ( !LocalizedText( "#Frontress_Menu_Population", pPopulationVars, wszLine, sizeof( wszLine ) ) )
+			if ( !TFMenu_LocalizedText( "#Frontress_Menu_Population", pPopulationVars, wszLine, sizeof( wszLine ) ) )
 			{
 				CFmtStr strPop( "%d online   -   %d matches live   -   %d servers free",
 				                status.nOnlinePlayers, status.nLiveMatches, status.nFreeServers );
-				TextToUnicode( strPop.Get(), wszLine, sizeof( wszLine ) );
+				TFMenu_TextToUnicode( strPop.Get(), wszLine, sizeof( wszLine ) );
 			}
 		}
 		else
@@ -858,19 +818,19 @@ void CTFQueueInfoPanel::Paint()
 			KeyValuesAD pPopulationVars( "Population" );
 			pPopulationVars->SetInt( "online", status.nOnlinePlayers );
 			pPopulationVars->SetInt( "matches", status.nLiveMatches );
-			if ( !LocalizedText( "#Frontress_Menu_PopulationOnDemand", pPopulationVars,
+			if ( !TFMenu_LocalizedText( "#Frontress_Menu_PopulationOnDemand", pPopulationVars,
 			                     wszLine, sizeof( wszLine ) ) )
 			{
 				CFmtStr strPop( "%d online   -   %d matches live   -   servers on demand",
 				                status.nOnlinePlayers, status.nLiveMatches );
-				TextToUnicode( strPop.Get(), wszLine, sizeof( wszLine ) );
+				TFMenu_TextToUnicode( strPop.Get(), wszLine, sizeof( wszLine ) );
 			}
 		}
 		DrawTextAt( m_hSmallFont, m_colDim, x, nBottom - nSmallTall, wszLine );
 	}
 	else
 	{
-		TextToUnicode( "#Frontress_Menu_CoordinatorUnavailable", wszLine, sizeof( wszLine ) );
+		TFMenu_TextToUnicode( "#Frontress_Menu_CoordinatorUnavailable", wszLine, sizeof( wszLine ) );
 		DrawTextAt( m_hSmallFont, Color( 192, 28, 0, 255 ), x, nBottom - nSmallTall, wszLine );
 	}
 }
@@ -897,7 +857,7 @@ void CTFMenuNewsPanel::Reload()
 {
 	m_Items.RemoveAll();
 
-	TextToUnicode( "#Frontress_Menu_NoNews", m_wszEmpty, sizeof( m_wszEmpty ) );
+	TFMenu_TextToUnicode( "#Frontress_Menu_NoNews", m_wszEmpty, sizeof( m_wszEmpty ) );
 
 	KeyValuesAD pNews( "News" );
 	if ( !pNews->LoadFromFile( g_pFullFileSystem, NEWS_FILE, NULL ) )
@@ -911,9 +871,9 @@ void CTFMenuNewsPanel::Reload()
 		const int iItem = m_Items.AddToTail();
 		Item_t &item = m_Items[ iItem ];
 
-		TextToUnicode( pItem->GetString( "date", "" ),  item.wszDate,  sizeof( item.wszDate ) );
-		TextToUnicode( pItem->GetString( "title", "" ), item.wszTitle, sizeof( item.wszTitle ) );
-		TextToUnicode( pItem->GetString( "body", "" ),  item.wszBody,  sizeof( item.wszBody ) );
+		TFMenu_TextToUnicode( pItem->GetString( "date", "" ),  item.wszDate,  sizeof( item.wszDate ) );
+		TFMenu_TextToUnicode( pItem->GetString( "title", "" ), item.wszTitle, sizeof( item.wszTitle ) );
+		TFMenu_TextToUnicode( pItem->GetString( "body", "" ),  item.wszBody,  sizeof( item.wszBody ) );
 	}
 }
 
@@ -1007,13 +967,29 @@ void CTFMenuFriendsPanel::PerformLayout()
 CTFMainMenuInfoPanel::CTFMainMenuInfoPanel( Panel *pParent, const char *pszName )
 	: BaseClass( pParent, pszName )
 {
-	m_pCampaign = new CTFCampaignMapPanel( this, "CampaignMap" );
+	m_pCampaignWeb    = NULL;
+	m_pCampaign       = NULL;
+	m_pCampaignDialog = NULL;
+
+	if ( tf_campaign_map_html.GetBool() )
+	{
+		// The theater belongs to the menu, not to this column: it covers the
+		// screen. The column is where the card that opens it lives.
+		m_pCampaignDialog = new CTFCampaignMapDialog( pParent, "CampaignMapDialog" );
+		m_pCampaignWeb    = new CTFCampaignWebCard( this, "CampaignMap", m_pCampaignDialog );
+	}
+	else
+	{
+		m_pCampaign = new CTFCampaignMapPanel( this, "CampaignMap" );
+	}
+
 	m_pQueue    = new CTFQueueInfoPanel( this, "QueueInfo" );
 	m_pNews     = new CTFMenuNewsPanel( this, "News" );
 
-	// Nothing in the column is clickable, and a panel that ate the cursor over
-	// the right third of the menu would be a bug, not a feature.
-	SetMouseInputEnabled( false );
+	// The campaign card is the one thing in the column a player can click, and
+	// a parent that refuses the mouse refuses it for its children too. The
+	// other cards keep saying no for themselves.
+	SetMouseInputEnabled( m_pCampaignWeb != NULL );
 	SetKeyBoardInputEnabled( false );
 	SetPaintBackgroundEnabled( false );
 }
@@ -1033,15 +1009,40 @@ void CTFMainMenuInfoPanel::PerformLayout()
 	const int nNewsH     = nBody - nCampaignH - nQueueH;
 
 	int nY = 0;
-	m_pCampaign->SetBounds( 0, nY, nWide, nCampaignH ); nY += nCampaignH + nGap;
+	if ( m_pCampaignWeb )
+	{
+		m_pCampaignWeb->SetBounds( 0, nY, nWide, nCampaignH );
+	}
+	else
+	{
+		m_pCampaign->SetBounds( 0, nY, nWide, nCampaignH );
+	}
+	nY += nCampaignH + nGap;
 	m_pQueue->SetBounds( 0, nY, nWide, nQueueH );       nY += nQueueH + nGap;
 	m_pNews->SetBounds( 0, nY, nWide, nNewsH );
 }
 
 //-----------------------------------------------------------------------------
+void CTFMainMenuInfoPanel::CloseCampaignMap()
+{
+	if ( m_pCampaignDialog )
+	{
+		m_pCampaignDialog->CloseDialog();
+	}
+}
+
+//-----------------------------------------------------------------------------
 void CTFMainMenuInfoPanel::Reload()
 {
-	m_pCampaign->Reload();
+	if ( m_pCampaignWeb )
+	{
+		m_pCampaignWeb->Reload();
+	}
+	else
+	{
+		m_pCampaign->Reload();
+	}
+
 	m_pNews->Reload();
 	InvalidateLayout();
 	Repaint();

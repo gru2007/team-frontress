@@ -23,6 +23,19 @@
 
 namespace vgui { class Label; }
 class CExButton;
+class KeyValues;
+
+//-----------------------------------------------------------------------------
+// Text for a panel that paints itself. A leading # is a localization token, and
+// a token this repository ships without a translation still reads in English
+// rather than as its own name. Shared with the campaign map.
+//-----------------------------------------------------------------------------
+void TFMenu_TextToUnicode( const char *pszText, wchar_t *pwszOut, int nSizeInBytes );
+
+// A localized sentence with named substitutions, false when the language file
+// has no such token -- the caller then builds an English one by hand.
+bool TFMenu_LocalizedText( const char *pszToken, KeyValues *pVariables,
+                           wchar_t *pwszOut, int nSizeInBytes );
 
 //-----------------------------------------------------------------------------
 // One card in the column: a titled box. The cards paint their own chrome so
@@ -68,8 +81,14 @@ private:
 };
 
 //-----------------------------------------------------------------------------
-// The campaign line: nodes owned by a side, edges between them, and the front
-// currently being fought over. Read from resource/ui/frontress_campaign.res.
+// The campaign line, drawn with VGUI's own surface: nodes owned by a side, the
+// edges between them, and a ring on the front that is live.
+//
+// This is the fallback. The campaign card is normally the web map (see
+// tf_campaign_map.h), which can draw territory, a front line and a capture
+// backdrop; this one is what tf_campaign_map_html 0 gets, and what is left if
+// the web view cannot start. Both read the same campaign, through
+// CTFCampaignModel.
 //-----------------------------------------------------------------------------
 class CTFCampaignMapPanel : public CTFMenuCardPanel
 {
@@ -85,42 +104,14 @@ public:
 	void Reload();
 
 private:
-	enum ESide
-	{
-		k_eSide_Neutral = 0,
-		k_eSide_Red,
-		k_eSide_Blu,
-	};
-
-	struct Node_t
-	{
-		CUtlString strID;
-		wchar_t    wszName[ 32 ];
-		ESide      eOwner;
-		float      flX;			// 0..1 across the map area
-		float      flY;			// 0..1 down the map area
-	};
-
-	struct Edge_t
-	{
-		int nA;
-		int nB;
-	};
-
-	int   FindNode( const char *pszID ) const;
-	void  NodePos( const Node_t &node, int x, int y, int wide, int tall, int &outX, int &outY ) const;
+	// Takes the side as an int rather than the model's enum so this header does
+	// not have to know about the model at all -- the map's own header includes
+	// this one, for the card chrome.
+	void  NodePos( float flX, float flY, int x, int y, int wide, int tall, int &outX, int &outY ) const;
 	void  DrawDisc( int cx, int cy, int nRadius, const Color &color );
 	void  DrawThickLine( int x0, int y0, int x1, int y1, int nThickness, const Color &color );
-	Color SideColor( ESide eSide, int nAlpha ) const;
-	static ESide SideFromString( const char *pszSide );
+	Color SideColor( int eSide, int nAlpha ) const;
 
-	CUtlVector< Node_t > m_Nodes;
-	CUtlVector< Edge_t > m_Edges;
-
-	int     m_nFrontNode;		// index into m_Nodes, -1 when nothing is live
-	ESide   m_eFrontAttacker;
-	int     m_nStage;
-	int     m_nStageCount;
 	wchar_t m_wszStatus[ 96 ];
 	wchar_t m_wszStage[ 96 ];
 	wchar_t m_wszEmpty[ 96 ];
@@ -209,8 +200,21 @@ public:
 
 	void Reload();
 
+	// Shut the full-screen campaign map, if it is open. The menu calls this
+	// when the column itself is taken down -- in a game the menu is the pause
+	// screen, which is no place for a war map.
+	void CloseCampaignMap();
+
 private:
-	CTFCampaignMapPanel *m_pCampaign;
+	// Exactly one of these is built, by tf_campaign_map_html: the web map, or
+	// the line VGUI draws itself.
+	class CTFCampaignWebCard *m_pCampaignWeb;
+	CTFCampaignMapPanel      *m_pCampaign;
+
+	// The theater the web card's button opens. Lives on the menu rather than in
+	// the column so it can cover the screen; NULL with the web map off.
+	class CTFCampaignMapDialog *m_pCampaignDialog;
+
 	CTFQueueInfoPanel   *m_pQueue;
 	CTFMenuNewsPanel    *m_pNews;
 };
