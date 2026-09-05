@@ -2,9 +2,9 @@
 #
 # Team Frontress macOS launcher.
 #
-# Finds Team Fortress 2's content and engine depot through native Steam, stages
-# the Windows client somewhere writable, and starts it under the embedded Wine
-# runtime with D9MT on Metal and the Steamworks bridge in place.
+# Prepares Team Fortress 2's content and engine depots through Steam's CDN,
+# stages the Windows client somewhere writable, and starts it under the embedded
+# Wine runtime with D9MT on Metal and the Steamworks bridge in place.
 #
 # Nothing here ever writes inside the .app. The Windows client puts console.log,
 # config.cfg, the DXVK/D9MT shader caches, screenshots and downloads next to its
@@ -138,6 +138,22 @@ softwareupdate --install-rosetta --agree-to-license"
 	printf 'rosetta:    present\n'
 fi
 
+# The pinned Gcenx Wine build links winegstreamer.so against the official
+# system-wide framework rather than carrying those multimedia libraries.
+GSTREAMER_LIB="/Library/Frameworks/GStreamer.framework/Libraries/libgstreamer-1.0.0.dylib"
+if [ ! -f "${GSTREAMER_LIB}" ]; then
+	fail "The GStreamer 1.28.5 universal runtime required by Wine is not installed for all users.
+
+Download the official macOS package from:
+https://gstreamer.freedesktop.org/data/pkg/osx/1.28.5/gstreamer-1.0-1.28.5-universal.pkg"
+fi
+GSTREAMER_KIND="$(/usr/bin/file -b "${GSTREAMER_LIB}" 2>/dev/null || echo unknown)"
+case "${GSTREAMER_KIND}" in
+	*x86_64*) ;;
+	*) fail "The installed GStreamer framework does not contain the x86_64 runtime required by Wine. Install the official GStreamer 1.28.5 universal package." ;;
+esac
+printf 'gstreamer:  %s (%s)\n' "${GSTREAMER_LIB}" "${GSTREAMER_KIND}"
+
 NATIVE_STEAM_API="${RESOURCES_DIR}/steam/libsteam_api.dylib"
 if [ ! -f "${NATIVE_STEAM_API}" ]; then
 	fail "The Steamworks library is missing from this install. Verify the integrity of the game files in Steam."
@@ -149,69 +165,31 @@ fi
 
 # ------------------------------------------------------------- Team Fortress 2
 
-steam_roots() {
-	local steam_root="${HOME}/Library/Application Support/Steam"
+TF2_CONTENT_DIR="${TC2_TF2_CONTENT_DIR_UNIX:-${SUPPORT_DIR}/runtime/depot-441}"
+TF2_ENGINE_DIR="${TC2_TF2_DIR_UNIX:-${SUPPORT_DIR}/runtime/depot-232251}"
 
-	# download_depot in the macOS Steam Console writes relative to the client
-	# executable rather than to the normal library root.
-	printf '%s\n' "${steam_root}/Steam.AppBundle/Steam/Contents/MacOS"
-	printf '%s\n' "${steam_root}"
-
-	# awk rather than perl: Apple has been deprecating the scripting runtimes it
-	# ships, and every key in a VDF file is a quoted token, so the fourth
-	# quote-delimited field of a "path" line is the path.
-	if [ -f "${steam_root}/steamapps/libraryfolders.vdf" ]; then
-		/usr/bin/awk -F'"' '
-			/"path"/ { gsub(/\\\\/, "\\", $4); print $4 }
-		' "${steam_root}/steamapps/libraryfolders.vdf"
+# Development overrides can point at an existing pair. A normal player always
+# goes through the native helper: it obtains current manifests from Steam,
+# keeps partial writes outside the active runtime, and never opens Terminal.
+if [ -z "${TC2_TF2_CONTENT_DIR_UNIX:-}" ] || [ -z "${TC2_TF2_DIR_UNIX:-}" ]; then
+	CONTENT_HELPER="${RESOURCES_DIR}/helpers/tf2-content-helper"
+	if [ ! -x "${CONTENT_HELPER}" ]; then
+		fail "The TF2 content downloader is missing from this install. Verify the integrity of the game files in Steam."
 	fi
-}
+	if ! "${CONTENT_HELPER}"; then
+		# The native helper has already shown the actionable failure.
+		ALERTED=1
+		exit 1
+	fi
+fi
 
-find_tf2_content() {
-	local root candidate
-
-	while IFS= read -r root; do
-		[ -n "${root}" ] || continue
-		candidate="${root}/steamapps/content/app_440/depot_441"
-		if [ -f "${candidate}/tf/tf2_misc_dir.vpk" ]; then
-			printf '%s\n' "${candidate}"
-			return 0
-		fi
-	done < <(steam_roots)
-
-	return 1
-}
-
-find_tf2_engine() {
-	local root candidate
-
-	while IFS= read -r root; do
-		[ -n "${root}" ] || continue
-		candidate="${root}/steamapps/content/app_440/depot_232251"
-		if [ -f "${candidate}/bin/x64/launcher.dll" ]; then
-			printf '%s\n' "${candidate}"
-			return 0
-		fi
-	done < <(steam_roots)
-
-	return 1
-}
-
-TF2_CONTENT_DIR="${TC2_TF2_CONTENT_DIR_UNIX:-$(find_tf2_content || true)}"
-if [ -z "${TF2_CONTENT_DIR}" ] || [ ! -f "${TF2_CONTENT_DIR}/tf/tf2_misc_dir.vpk" ]; then
-	printf 'Team Fortress 2 content depot 441 not found\n'
-	ALERTED=1
-	"${RESOURCES_DIR}/install-tf2" content
-	exit 1
+if [ ! -f "${TF2_CONTENT_DIR}/tf/tf2_misc_dir.vpk" ]; then
+	fail "The verified Team Fortress 2 content depot 441 is incomplete."
 fi
 printf 'tf2 content: %s\n' "${TF2_CONTENT_DIR}"
 
-TF2_ENGINE_DIR="${TC2_TF2_DIR_UNIX:-$(find_tf2_engine || true)}"
-if [ -z "${TF2_ENGINE_DIR}" ] || [ ! -f "${TF2_ENGINE_DIR}/bin/x64/launcher.dll" ]; then
-	printf 'Team Fortress 2 engine depot 232251 not found\n'
-	ALERTED=1
-	"${RESOURCES_DIR}/install-tf2" engine
-	exit 1
+if [ ! -f "${TF2_ENGINE_DIR}/bin/x64/launcher.dll" ]; then
+	fail "The verified Team Fortress 2 engine depot 232251 is incomplete."
 fi
 printf 'tf2 engine:  %s\n' "${TF2_ENGINE_DIR}"
 
@@ -275,7 +253,7 @@ stage_game() {
 		/bin/cp -f "${BUNDLED_GAME_DIR}/d3d9.dll" "${GAME_DIR}/d3d9.dll" || return 1
 	fi
 
-	# Console depot downloads are not registered as app installs, so Valve's
+	# Standalone depot downloads are not registered as app installs, so Valve's
 	# |appid_440| resolver cannot find depot 441. Keep the external depot
 	# untouched and expose it through the writable staged game instead.
 	if [ -e "${content_link}" ] && [ ! -L "${content_link}" ]; then

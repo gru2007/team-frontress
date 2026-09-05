@@ -1,19 +1,20 @@
 #!/bin/bash
 #
-# Fetch the three binary runtimes the macOS depot needs but this repository
+# Fetch the binary runtimes the macOS depot needs but this repository
 # cannot carry, and lay them out the way build-depot.sh expects.
 #
-# Wine stays pinned to the build this port is developed against. D9MT follows
-# its latest GitHub release so a driver fix does not require a Team Frontress
-# source change. Override either URL only for a local or rollback test.
+# Wine and D9MT stay pinned to the builds this port is developed against.
+# Override either URL and its hash only for a local or rollback test.
 #
 # Each of these takes a URL or a local path, so an archive you already have on
 # disk can be used without downloading it again.
 #
 #   MACOS_WINE_URL           Wine for macOS x86_64, as a .tar.xz or .tar.gz
 #                            holding a Wine*.app bundle
+#   MACOS_WINE_SHA256        SHA-256 of that archive
 #   MACOS_WINE_LICENSE_URL   Wine's COPYING.LIB (the builds do not ship it)
 #   MACOS_D9MT_URL           the d9mt-x64 package, .zip or .tar.gz
+#   MACOS_D9MT_SHA256        SHA-256 of that archive
 #
 # Valve's Steamworks redistributable is under the Steamworks SDK Access
 # Agreement, so it has no public default. Give it in whichever form you have:
@@ -36,8 +37,10 @@ DEST="${1:-${ROOT}/macos-runtimes}"
 # third-party Wine builtin, and staging's extra patches are a variable this port
 # does not need. Swap wine-devel for wine-staging in the URL to try it.
 MACOS_WINE_URL="${MACOS_WINE_URL:-https://github.com/Gcenx/macOS_Wine_builds/releases/download/11.16/wine-devel-11.16-osx64.tar.xz}"
+MACOS_WINE_SHA256="${MACOS_WINE_SHA256:-6f9af818b7af6001aeed7818cb32bf0155598c5ea4e3b33380a03cf814e033cd}"
 MACOS_WINE_LICENSE_URL="${MACOS_WINE_LICENSE_URL:-https://gitlab.winehq.org/wine/wine/-/raw/wine-11.16/COPYING.LIB}"
-MACOS_D9MT_URL="${MACOS_D9MT_URL:-https://github.com/gru2007/d9mt-builded/releases/latest/download/d9mt-x64.zip}"
+MACOS_D9MT_URL="${MACOS_D9MT_URL:-https://github.com/gru2007/d9mt-builded/releases/download/v0.4/d9mt-x64.zip}"
+MACOS_D9MT_SHA256="${MACOS_D9MT_SHA256:-1a6ed5f912f833e21f75f055d7fff9fd68cbffea379d2c26cf1cff14abd672fe}"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "${WORK}"' EXIT
@@ -51,6 +54,16 @@ fetch() {
 	else
 		printf '   %s\n' "$1"
 		curl -sSL --fail --retry 3 "$1" -o "$2"
+	fi
+}
+
+verify_sha256() {
+	local expected=$1 path=$2 label=$3 actual
+	actual="$(/usr/bin/shasum -a 256 "${path}" | /usr/bin/cut -d ' ' -f 1)"
+	if [ "${actual}" != "${expected}" ]; then
+		printf '%s SHA-256 mismatch\nexpected: %s\nactual:   %s\n' \
+			"${label}" "${expected}" "${actual}" >&2
+		exit 1
 	fi
 }
 
@@ -77,6 +90,7 @@ mkdir -p "${DEST}"
 # Wine tree several levels down, so the tree is located rather than assumed.
 printf '== Wine\n'
 fetch "${MACOS_WINE_URL}" "${WORK}/wine.archive"
+verify_sha256 "${MACOS_WINE_SHA256}" "${WORK}/wine.archive" "Wine archive"
 extract "${WORK}/wine.archive" "${WORK}/wine"
 
 WINE_TREE="$(find "${WORK}/wine" -maxdepth 5 -type d -path '*/Contents/Resources/wine' -print -quit)"
@@ -102,6 +116,7 @@ test -s "${DEST}/wine/COPYING.LIB"
 # a client that starts and disappears, so the pieces are checked here as well.
 printf '== D9MT\n'
 fetch "${MACOS_D9MT_URL}" "${WORK}/d9mt.archive"
+verify_sha256 "${MACOS_D9MT_SHA256}" "${WORK}/d9mt.archive" "D9MT archive"
 extract "${WORK}/d9mt.archive" "${WORK}/d9mt"
 
 mkdir -p "${DEST}/d9mt/x86_64-windows" "${DEST}/d9mt/x86_64-unix"

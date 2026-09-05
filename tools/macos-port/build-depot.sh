@@ -1,7 +1,8 @@
 #!/bin/bash
 #
-# Assemble the macOS depot: a self-contained Team Frontress.app around the
-# Windows x64 client.
+# Assemble the macOS depot: a Team Frontress.app around the Windows x64 client.
+# The pinned Wine runtime uses the separately installed official GStreamer
+# framework for multimedia support.
 #
 # Inputs:
 #   TC2_WINDOWS_DIR           packaged Windows client (game_dist from the
@@ -9,7 +10,7 @@
 #   WINE_RUNTIME_DIR          an LGPL Wine install tree for macOS x86_64
 #   WINE_LICENSE_FILE         Wine's COPYING.LIB
 #   D9MT_DIST_DIR             the d9mt-x64 package
-#   D9MT_LICENSE_FILE         defaults to the notice in licenses/
+#   D9MT_LICENSE_FILE         license or written redistribution permission
 #   STEAMWORKS_REDIST_DYLIB   Valve's macOS libsteam_api.dylib
 #
 # Optional:
@@ -31,12 +32,12 @@ OUTPUT_DIR="${1:-${ROOT}/game_dist_macos}"
 APP_DIR="${OUTPUT_DIR}/Team Frontress.app"
 CONTENTS_DIR="${APP_DIR}/Contents"
 RESOURCES_DIR="${CONTENTS_DIR}/Resources"
-D9MT_LICENSE_FILE="${D9MT_LICENSE_FILE:-${SCRIPT_DIR}/licenses/D9MT-zlib.txt}"
 
 : "${TC2_WINDOWS_DIR:?Set TC2_WINDOWS_DIR to the packaged Windows client directory}"
 : "${WINE_RUNTIME_DIR:?Set WINE_RUNTIME_DIR to an LGPL Wine install tree}"
 : "${WINE_LICENSE_FILE:?Set WINE_LICENSE_FILE to Wine COPYING.LIB}"
 : "${D9MT_DIST_DIR:?Set D9MT_DIST_DIR to the d9mt-x64 directory}"
+: "${D9MT_LICENSE_FILE:?Set D9MT_LICENSE_FILE to D9MT's license or written redistribution permission}"
 : "${STEAMWORKS_REDIST_DYLIB:?Set STEAMWORKS_REDIST_DYLIB to the macOS libsteam_api.dylib from the Steamworks SDK}"
 
 require_file() {
@@ -164,6 +165,10 @@ fi
 
 require_file "${WINE_LICENSE_FILE}"
 require_file "${D9MT_LICENSE_FILE}"
+if [ ! -s "${D9MT_LICENSE_FILE}" ]; then
+	printf 'D9MT redistribution permission is empty: %s\n' "${D9MT_LICENSE_FILE}" >&2
+	exit 1
+fi
 
 printf '== checking the runtimes\n'
 WINE_ARCHS="$(require_macho "${WINE_BIN}" "wine")"
@@ -213,14 +218,38 @@ mkdir -p "${CONTENTS_DIR}/MacOS" "${RESOURCES_DIR}/licenses" \
 	"${RESOURCES_DIR}/wine/lib/wine/x86_64-windows" \
 	"${RESOURCES_DIR}/wine/lib/wine/x86_64-unix" \
 	"${RESOURCES_DIR}/lib" \
-	"${RESOURCES_DIR}/steam"
+	"${RESOURCES_DIR}/steam" \
+	"${RESOURCES_DIR}/helpers"
 
 /usr/bin/ditto "${TC2_WINDOWS_DIR}" "${RESOURCES_DIR}/game"
 /usr/bin/ditto "${WINE_RUNTIME_DIR}" "${RESOURCES_DIR}/wine"
 cp "${SCRIPT_DIR}/Info.plist" "${CONTENTS_DIR}/Info.plist"
 cp "${SCRIPT_DIR}/team-frontress" "${CONTENTS_DIR}/MacOS/team-frontress"
-cp "${SCRIPT_DIR}/install-tf2" "${RESOURCES_DIR}/install-tf2"
-chmod +x "${CONTENTS_DIR}/MacOS/team-frontress" "${RESOURCES_DIR}/install-tf2"
+chmod +x "${CONTENTS_DIR}/MacOS/team-frontress"
+
+# Build the UI wrapper from this repository for both Mac architectures. It
+# fetches a pinned upstream DepotDownloader into Application Support at runtime.
+printf '== building the TF2 content helper\n'
+SWIFT_COMPAT_FLAGS=(
+	-Xfrontend -disable-autolinking-runtime-compatibility
+	-Xfrontend -disable-autolinking-runtime-compatibility-dynamic-replacements
+	-Xfrontend -disable-autolinking-runtime-compatibility-concurrency
+)
+/usr/bin/xcrun swiftc -O -warnings-as-errors "${SWIFT_COMPAT_FLAGS[@]}" \
+	-target x86_64-apple-macos12.0 \
+	-framework AppKit -framework Security "${SCRIPT_DIR}/tf2-content-helper.swift" \
+	-o "${RESOURCES_DIR}/helpers/tf2-content-helper-x86_64"
+/usr/bin/xcrun swiftc -O -warnings-as-errors "${SWIFT_COMPAT_FLAGS[@]}" \
+	-target arm64-apple-macos12.0 \
+	-framework AppKit -framework Security "${SCRIPT_DIR}/tf2-content-helper.swift" \
+	-o "${RESOURCES_DIR}/helpers/tf2-content-helper-arm64"
+/usr/bin/lipo -create \
+	"${RESOURCES_DIR}/helpers/tf2-content-helper-x86_64" \
+	"${RESOURCES_DIR}/helpers/tf2-content-helper-arm64" \
+	-output "${RESOURCES_DIR}/helpers/tf2-content-helper"
+rm "${RESOURCES_DIR}/helpers/tf2-content-helper-x86_64" \
+	"${RESOURCES_DIR}/helpers/tf2-content-helper-arm64"
+chmod +x "${RESOURCES_DIR}/helpers/tf2-content-helper"
 
 cp "${D9MT_DIST_DIR}/d3d9.dll" "${RESOURCES_DIR}/game/d3d9.dll"
 cp "${WINE_COMPAT_DIR}/x86_64-windows/d9mtmetal.dll" "${RESOURCES_DIR}/wine/lib/wine/x86_64-windows/"
@@ -249,7 +278,9 @@ done
 cp "${WINE_LICENSE_FILE}" "${RESOURCES_DIR}/licenses/Wine-LGPL-2.1.txt"
 cp "${D9MT_LICENSE_FILE}" "${RESOURCES_DIR}/licenses/D9MT.txt"
 cp "${STEAM_BRIDGE_DIR}/LICENSE" "${RESOURCES_DIR}/licenses/Steam-Bridge.txt"
-cp "${ROOT}/thirdpartylegalnotices.txt" "${RESOURCES_DIR}/licenses/" 2>/dev/null || true
+cp "${SCRIPT_DIR}/licenses/DepotDownloader-NOTICE.txt" "${RESOURCES_DIR}/licenses/DepotDownloader.txt"
+cp "${ROOT}/LICENSE" "${RESOURCES_DIR}/licenses/Source-1-SDK.txt"
+cp "${ROOT}/thirdpartylegalnotices.txt" "${RESOURCES_DIR}/licenses/"
 
 if [ -n "${RELEASE_VERSION:-}" ]; then
 	# Tag names arrive as release/1.2.3; CFBundleShortVersionString only takes
@@ -337,6 +368,11 @@ while IFS= read -r -d '' binary; do
 done < <(find "${RESOURCES_DIR}/wine" "${RESOURCES_DIR}/steam" "${RESOURCES_DIR}/lib" \
 	-type f \( -perm -u+x -o -name '*.dylib' -o -name '*.so' \) -print0)
 
+# This process handles a Keychain item. It must not inherit Wine's JIT,
+# DYLD-environment, or disabled-library-validation entitlements.
+/usr/bin/codesign --force --timestamp=none --options runtime \
+	--sign "${IDENTITY}" "${RESOURCES_DIR}/helpers/tf2-content-helper"
+
 /usr/bin/codesign --force --timestamp=none --sign "${IDENTITY}" "${APP_DIR}"
 
 # -- what has to be true of the finished bundle -------------------------------
@@ -381,7 +417,10 @@ for required in \
 	"${RESOURCES_DIR}/wine/lib/wine/x86_64-unix/steam_api64.so" \
 	"${RESOURCES_DIR}/steam/libsteam_api.dylib" \
 	"${RESOURCES_DIR}/lib/libmacdrvshim.dylib" \
-	"${RESOURCES_DIR}/install-tf2" \
+	"${RESOURCES_DIR}/helpers/tf2-content-helper" \
+	"${RESOURCES_DIR}/licenses/DepotDownloader.txt" \
+	"${RESOURCES_DIR}/licenses/Source-1-SDK.txt" \
+	"${RESOURCES_DIR}/licenses/thirdpartylegalnotices.txt" \
 ; do
 	require_file "${required}"
 done
