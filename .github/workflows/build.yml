@@ -127,8 +127,14 @@ jobs:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
 
     steps:
-      # Bootstrap the restore script outside the workspace root. The workspace
-      # must stay clear because the cached tree includes its own .git directory.
+      # Bootstrap the restore script into a subdirectory of its own, because the
+      # workspace root has to stay clear for the cached tree and its .git.
+      #
+      # Only the restore step below may use this copy. The repository checkout
+      # that follows deletes the contents of the workspace whenever it does not
+      # find a matching .git there -- which is exactly what happens on a cold or
+      # a `fresh` run -- and .ci-bootstrap goes with them. Every step after that
+      # checkout uses the script from the checked-out tree instead.
       - name: Checkout the CI scripts (Windows)
         if: matrix.target == 'windows'
         uses: actions/checkout@v6
@@ -258,7 +264,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: bash .ci-bootstrap/.github/scripts/artifact-cache.sh restore vcpkg-windows "$(cd .. && pwd)/vcpkg"
+        run: bash .github/scripts/artifact-cache.sh restore vcpkg-windows "$(cd .. && pwd)/vcpkg"
 
       - name: Install Windows dependencies
         if: matrix.target == 'windows'
@@ -285,7 +291,7 @@ jobs:
         if: ${{ matrix.target == 'windows' && steps.vcpkg.outputs.restored != '1' }}
         shell: bash
         continue-on-error: true
-        run: bash .ci-bootstrap/.github/scripts/artifact-cache.sh pack vcpkg.tar "$(cd .. && pwd)/vcpkg" ./buildtrees ./packages
+        run: bash .github/scripts/artifact-cache.sh pack vcpkg.tar "$(cd .. && pwd)/vcpkg" ./buildtrees ./packages
 
       - name: Upload vcpkg for the next build
         if: ${{ matrix.target == 'windows' && steps.packvcpkg.outputs.packed == '1' }}
@@ -316,8 +322,10 @@ jobs:
           git gc --auto --quiet || true
 
           # Preserve .git and tracked files so the next checkout can retain
-          # their mtimes. Exclude only generated payloads and temporary archives.
-          bash .ci-bootstrap/.github/scripts/artifact-cache.sh pack workspace.tar . \
+          # their mtimes. Exclude only generated payloads and temporary archives
+          # -- .ci-bootstrap among them, since it is re-checked-out every run and
+          # survives into this step only when the cache was already warm.
+          bash .github/scripts/artifact-cache.sh pack workspace.tar . \
             ./workspace.tar ./vcpkg.tar ./.ci-bootstrap \
             ./game_dist ./game_dist_debug ./steam_build \
             './game/tc2/pak1*.vpk'

@@ -1708,6 +1708,12 @@ void CHudMainMenuOverride::OnUpdateMenu( void )
 	if ( m_pInfoPanel )
 	{
 		m_pInfoPanel->SetVisible( bShowMenuBlocks );
+		if ( !bShowMenuBlocks )
+		{
+			// The campaign map is a child of this panel rather than of the
+			// column, so hiding the column does not take it with it.
+			m_pInfoPanel->CloseCampaignMap();
+		}
 	}
 	if ( m_pFriendsPanel )
 	{

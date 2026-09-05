@@ -280,8 +280,10 @@ contain -- which is the whole reason they are on this side of the screen and
 not in the menu's own button list. The first one follows the queue: while a
 search is running it turns red and cancels it.
 
-- **Campaign** -- the war line: nodes coloured by who holds them, the edges
-  between them, and a pulsing ring on the front that is live.
+- **Campaign** -- the war map: territory, the front line between the two sides,
+  the nodes and the supply lines between them, and a capture ring on every node
+  being fought over. It is a web page rather than painted VGUI; see
+  [The campaign map](#the-campaign-map) below. Clicking it opens the theater.
 - **Matchmaking** -- what the queue is doing. While queued it shows the match
   group, how long you have been waiting, how many players are in the queue and
   how many more the coordinator needs, with a bar that fills as they arrive.
@@ -307,8 +309,8 @@ game/tc2/loose/resource/ui/frontress_news.res
 ```
 
 Both ship loose, so they can be edited in an installed game. `x` and `y` on a
-campaign node are 0..1 across the map area, so a line drawn there survives any
-resolution. Delete the `front` block and the map draws quiet.
+campaign node are 0..1 across the map area, so a layout drawn there survives any
+resolution. Delete the `fronts` block and the map draws quiet.
 
 ```
 tf_mainmenu_info_reload
@@ -317,10 +319,59 @@ tf_mainmenu_info_reload
 re-reads both without restarting.
 
 The campaign file is a demo -- it is `services/coordinator/theater.example.json`
-laid out by hand. Its shape is the war layer's own shape (nodes, edges, the
-live front), which is the point: `wire.WarStatus.ActiveFronts` already carries
-exactly this, so pointing the panel at the coordinator later is a change to
-where the data comes from, not to what the panel knows.
+laid out by hand and given a state. Its shape is the war layer's own shape
+(nodes, edges, the live fronts), which is the point: `wire.WarStatus.ActiveFronts`
+already carries exactly this, so pointing the map at the coordinator later is a
+change to where the data comes from, not to what the map knows. While `"demo"
+"1"` is in that file the map wears a DEMO badge, because the population on a
+made-up front is made up too.
+
+### The campaign map
+
+The campaign card and the full-screen theater behind it are one web page,
+`game/tc2/loose/resource/html/campaign.html`, drawn by the same local server
+that serves the HTML menu. VGUI's surface gives us rectangles and textured
+polygons; a war map wants territory, a curved front and a capture ring, so this
+one is HTML.
+
+```
+resource/html/campaign.html?view=card    the block in the information column
+resource/html/campaign.html?view=full    the theater, opened by clicking it
+```
+
+The page holds no data. It reads one document, and asks the game for things by
+posting one line:
+
+```
+GET  /v1/campaign          the war, the coordinator's population, the queue
+POST /v1/campaign/command  "deploy <node>", "close", "reload"
+```
+
+Both are routes on the game's own server (`src/game/shared/gamestate/gamestate.cpp`),
+and the document is built by `CTFCampaignModel::BuildDocument`
+(`src/game/client/tf/frontress/tf_campaign_map.cpp`) once a second while the map
+is on screen. The page has no network access of its own, and nothing in it needs
+a build step -- it is one file, edit it and reopen the menu.
+
+Territory is not a list of shapes. Every node pulls the ground around it towards
+its own side, and the line where the two pulls cancel out is the front, traced
+out of that field. So the map cannot disagree with the campaign: move a node and
+the line moves with it.
+
+What the theater adds over the card: the node you pick (with its garrison, its
+stage plan and the map being played), the live battles, the servers and how the
+population is spread across regions, the queue you are standing in, and
+**Deploy here**, which is where the player says which way they want the war to
+go. That choice lands in `tf_campaign_deploy` and is echoed back on the map;
+handing it to the coordinator is the next piece of work, and this is the hook it
+will use.
+
+```
+tf_campaign_map_html 0
+```
+
+falls back to the old VGUI campaign line, which reads the same campaign file
+through the same model. The theater is not available on the fallback.
 
 ### The server browser
 
