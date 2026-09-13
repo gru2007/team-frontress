@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+  <title>Team Frontress — War Map</title>
+  <link rel="stylesheet" href="war.css">
+</head>
+<body>
+  <main id="shell">
+    <section id="mapPanel" aria-label="War map">
+      <svg id="map" viewBox="0 0 1000 620" role="img" aria-label="Persistent RED versus BLU war map">
+        <defs>
+          <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+            <feDropShadow dx="0" dy="3" stdDeviation="5" flood-opacity="0.45"/>
+          </filter>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#ffffff" stroke-opacity="0.035" stroke-width="1"/>
+          </pattern>
+        </defs>
+        <rect width="1000" height="620" class="map-bg"/>
+        <rect width="1000" height="620" fill="url(#grid)"/>
+        <g id="viewport">
+          <g id="territories"></g>
+          <g id="routes"></g>
+          <g id="markers"></g>
+        </g>
+      </svg>
+      <div id="topbar">
+        <div>
+          <strong id="warName">GLOBAL WAR</strong>
+          <span id="warStatus">—</span>
+        </div>
+        <div id="legend" aria-hidden="true"><span class="redDot"></span>RED <span class="bluDot"></span>BLU</div>
+      </div>
+      <div id="mapHint"></div>
+      <a id="openFull" href="#">OPEN WAR MAP</a>
+    </section>
+
+    <aside id="sidebar">
+      <header>
+        <div class="eyebrow" id="sectorLabel">SECTOR</div>
+        <h1 id="sectorName">—</h1>
+        <div id="sectorMeta">—</div>
+      </header>
+      <section class="stats">
+        <div><span id="ownerLabel">OWNER</span><b id="owner">—</b></div>
+        <div><span id="playersLabel">PLAYERS</span><b id="players">0</b></div>
+        <div><span id="battleLabel">OPERATION</span><b id="battle">—</b></div>
+      </section>
+      <section id="operation" hidden>
+        <div class="eyebrow" id="operationLabel">ACTIVE OPERATION</div>
+        <div class="operationRow"><b id="attacker">—</b><span id="stage">—</span></div>
+        <div class="progress"><i id="progressFill"></i></div>
+        <div id="operationMeta"></div>
+      </section>
+      <button id="deploy" type="button">DEPLOY HERE</button>
+      <p id="note"></p>
+      <footer>
+        <button id="resetView" type="button">RESET VIEW</button>
+        <a id="legacy" href="../campaign-legacy.html">LEGACY MAP</a>
+      </footer>
+    </aside>
+  </main>
+  <script src="war.js"></script>
+</body>
+</html>
