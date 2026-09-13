@@ -1,13 +1,34 @@
 //-----------------------------------------------------------------------------
 //	GAMESTATE.VPC
-//
-//	Project Script
 //-----------------------------------------------------------------------------
 
-$Folder "GameState"
+$Configuration
 {
-	$File "gamestate\gamestate.h"
-	$File "gamestate\gamestate.cpp"
-	$File "gamestate\frontress_instructor.h"
-	$File "gamestate\frontress_instructor.cpp"
+  $Compiler
+  {
+  }
+}
+
+$Project
+{    
+  $Folder "Source Files"
+  {
+    $Folder "Game State"
+    {
+      $File "$SRCDIR\game\shared\gamestate\gamestate.h"
+      $File "$SRCDIR\game\shared\gamestate\frontress_instructor.h"
+      $File "$SRCDIR\game\shared\gamestate\frontress_instructor.cpp"
+      // Not using precompiled header cbase.h
+      $File "$SRCDIR\game\shared\gamestate\gamestate.cpp"
+      {
+        $Configuration
+        {
+          $Compiler
+          {
+            $Create/UsePrecompiledHeader	"Not Using Precompiled Headers"
+          }
+        }
+      }
+    }
+  }
 }
