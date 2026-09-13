@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>Team Frontress — War Map v2</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="./war.css">
+</head>
+<body>
+  <div id="app">
+    <header id="topbar">
+      <div><strong id="campaignName">GLOBAL WAR</strong><span id="campaignMeta">THE GREYLINE</span></div>
+      <div id="status">CONNECTING…</div>
+    </header>
+    <main>
+      <div id="map"></div>
+      <aside id="sidebar">
+        <section class="panel">
+          <div class="eyebrow">SELECTED SECTOR</div>
+          <h1 id="sectorName">—</h1>
+          <div id="sectorOwner" class="owner neutral">NEUTRAL</div>
+          <div class="facts">
+            <div><span>Operation</span><b id="sectorOperation">Quiet</b></div>
+            <div><span>Stage</span><b id="sectorStage">—</b></div>
+            <div><span>Players</span><b id="sectorPlayers">0</b></div>
+            <div><span>Battlefield</span><b id="sectorMap">—</b></div>
+          </div>
+          <button id="deploy">DEPLOY HERE</button>
+        </section>
+        <section class="panel legend">
+          <div><i class="swatch red"></i>RED controlled</div>
+          <div><i class="swatch blu"></i>BLU controlled</div>
+          <div><i class="front"></i>Active front</div>
+          <p>Sectors are authored map geometry. Campaign ownership changes their state; it no longer generates territory from an influence bitmap.</p>
+        </section>
+      </aside>
+    </main>
+    <div id="cardbar"><b id="cardTitle">GLOBAL WAR</b><span id="cardText">Open the war map to inspect the front.</span></div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    if (!window.L) {
+      location.replace('../campaign-legacy.html' + location.search);
+    }
+  </script>
+  <script src="./war.js"></script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+{
+  "type": "FeatureCollection",
+  "name": "frontline",
+  "frontressMap": { "width": 1000, "height": 600, "version": 2 },
+  "features": [
+    {"type":"Feature","id":"sector-red_hq","properties":{"kind":"sector","node":"red_hq","label":"RED HQ","x":75,"y":300},"geometry":{"type":"Polygon","coordinates":[[[0,75],[120,40],[190,145],[175,300],[195,455],[120,560],[0,525],[0,75]]]}},
+    {"type":"Feature","id":"sector-yard","properties":{"kind":"sector","node":"yard","label":"Rail Yard","x":270,"y":150},"geometry":{"type":"Polygon","coordinates":[[[120,40],[420,20],[455,135],[390,245],[330,295],[175,300],[190,145],[120,40]]]}},
+    {"type":"Feature","id":"sector-depot","properties":{"kind":"sector","node":"depot","label":"Sawmill Depot","x":265,"y":455},"geometry":{"type":"Polygon","coordinates":[[[175,300],[330,295],[410,380],[420,565],[120,560],[195,455],[175,300]]]}},
+    {"type":"Feature","id":"sector-works","properties":{"kind":"sector","node":"works","label":"Foundry 17","x":465,"y":330},"geometry":{"type":"Polygon","coordinates":[[[330,295],[390,245],[545,225],[605,330],[555,430],[410,380],[330,295]]]}},
+    {"type":"Feature","id":"sector-reservoir","properties":{"kind":"sector","node":"reservoir","label":"Reservoir","x":545,"y":125},"geometry":{"type":"Polygon","coordinates":[[[420,20],[680,30],[725,155],[640,250],[545,225],[390,245],[455,135],[420,20]]]}},
+    {"type":"Feature","id":"sector-quarry","properties":{"kind":"sector","node":"quarry","label":"Quarry","x":565,"y":495},"geometry":{"type":"Polygon","coordinates":[[[410,380],[555,430],[665,365],[735,465],[690,575],[420,565],[410,380]]]}},
+    {"type":"Feature","id":"sector-junction","properties":{"kind":"sector","node":"junction","label":"Iron Junction","x":760,"y":315},"geometry":{"type":"Polygon","coordinates":[[[640,250],[725,155],[850,145],[895,300],[855,455],[735,465],[665,365],[605,330],[640,250]]]}},
+    {"type":"Feature","id":"sector-blu_hq","properties":{"kind":"sector","node":"blu_hq","label":"BLU HQ","x":925,"y":300},"geometry":{"type":"Polygon","coordinates":[[[850,145],[900,45],[1000,75],[1000,525],[900,555],[855,455],[895,300],[850,145]]]}},
+
+    {"type":"Feature","id":"route-1","properties":{"kind":"route","a":"red_hq","b":"yard","route":"rail"},"geometry":{"type":"LineString","coordinates":[[75,300],[170,225],[270,150]]}},
+    {"type":"Feature","id":"route-2","properties":{"kind":"route","a":"red_hq","b":"depot","route":"road"},"geometry":{"type":"LineString","coordinates":[[75,300],[170,385],[265,455]]}},
+    {"type":"Feature","id":"route-3","properties":{"kind":"route","a":"yard","b":"works","route":"rail"},"geometry":{"type":"LineString","coordinates":[[270,150],[365,230],[465,330]]}},
+    {"type":"Feature","id":"route-4","properties":{"kind":"route","a":"depot","b":"works","route":"road"},"geometry":{"type":"LineString","coordinates":[[265,455],[360,405],[465,330]]}},
+    {"type":"Feature","id":"route-5","properties":{"kind":"route","a":"yard","b":"reservoir","route":"supply"},"geometry":{"type":"LineString","coordinates":[[270,150],[400,105],[545,125]]}},
+    {"type":"Feature","id":"route-6","properties":{"kind":"route","a":"works","b":"reservoir","route":"supply"},"geometry":{"type":"LineString","coordinates":[[465,330],[505,230],[545,125]]}},
+    {"type":"Feature","id":"route-7","properties":{"kind":"route","a":"works","b":"quarry","route":"road"},"geometry":{"type":"LineString","coordinates":[[465,330],[520,420],[565,495]]}},
+    {"type":"Feature","id":"route-8","properties":{"kind":"route","a":"depot","b":"quarry","route":"supply"},"geometry":{"type":"LineString","coordinates":[[265,455],[410,500],[565,495]]}},
+    {"type":"Feature","id":"route-9","properties":{"kind":"route","a":"reservoir","b":"junction","route":"road"},"geometry":{"type":"LineString","coordinates":[[545,125],[650,220],[760,315]]}},
+    {"type":"Feature","id":"route-10","properties":{"kind":"route","a":"quarry","b":"junction","route":"rail"},"geometry":{"type":"LineString","coordinates":[[565,495],[665,410],[760,315]]}},
+    {"type":"Feature","id":"route-11","properties":{"kind":"route","a":"junction","b":"blu_hq","route":"rail"},"geometry":{"type":"LineString","coordinates":[[760,315],[845,305],[925,300]]}}
+  ]
+}
