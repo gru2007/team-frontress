@@ -7,7 +7,25 @@
 #include "materialsystem/imaterialsystemhardwareconfig.h"
 
 #if defined( _WIN32 ) && !defined( _X360 )
+// Avoid pulling the Windows registry/multimedia convenience headers into
+// clientmode_tf.cpp; Source declares several APIs with the same names.
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#define FRONTRESS_DEFINED_WIN32_LEAN_AND_MEAN
+#endif
 #include <windows.h>
+#ifdef FRONTRESS_DEFINED_WIN32_LEAN_AND_MEAN
+#undef WIN32_LEAN_AND_MEAN
+#undef FRONTRESS_DEFINED_WIN32_LEAN_AND_MEAN
+#endif
+// Windows maps these unqualified names to CreateEventA/PlaySoundA, which
+// corrupts IGameEventManager2::CreateEvent and vgui::ISurface::PlaySound.
+#ifdef CreateEvent
+#undef CreateEvent
+#endif
+#ifdef PlaySound
+#undef PlaySound
+#endif
 #include <string>
 
 namespace frontress_sm3
