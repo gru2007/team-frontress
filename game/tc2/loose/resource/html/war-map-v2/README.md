@@ -21,7 +21,13 @@ The page preserves the legacy query contract:
 
 - `?view=card` — compact menu card;
 - `?view=full` — interactive theater;
-- demo mode is the default;
+- standalone demo mode is the default;
 - `?demo=0` opts into the live `/v1/campaign` feed.
+
+The native client always chooses explicitly: a normal game launch uses the live
+feed, while `-frontressdemo` opens `?demo=1` and enables the local-coordinator
+flow: faction choice, DEPLOY, pending-ticket recovery, after-action debrief,
+war history, captured-territory finale, and campaign reset. Tactical maps use
+the adaptive bot settings applied after `frontress_demo.cfg`.
 
 `campaign.html?legacy=1` opens the old renderer without deleting v2 parameters.

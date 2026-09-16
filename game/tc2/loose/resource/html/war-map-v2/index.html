@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
   <title>Team Frontress — War Map</title>
   <link rel="stylesheet" href="war.css">
+  <link rel="stylesheet" href="demo.css">
 </head>
 <body>
   <main id="shell">
@@ -51,16 +52,70 @@
       <section id="operation" hidden>
         <div class="eyebrow" id="operationLabel">ACTIVE OPERATION</div>
         <div class="operationRow"><b id="attacker">—</b><span id="stage">—</span></div>
+        <div id="stageRail" class="stage-rail" aria-label="Operation stages">
+          <span data-stage="1"><i>1</i><b>BREAKTHROUGH</b></span>
+          <span data-stage="2"><i>2</i><b>ADVANCE</b></span>
+          <span data-stage="3"><i>3</i><b>ASSAULT</b></span>
+        </div>
         <div class="progress"><i id="progressFill"></i></div>
         <div id="operationMeta"></div>
       </section>
       <button id="deploy" type="button">DEPLOY HERE</button>
       <p id="note"></p>
+      <nav id="playerJourney" class="player-journey" hidden aria-label="Demo campaign path">
+        <div class="eyebrow" id="journeyLabel">YOUR CAMPAIGN</div>
+        <ol>
+          <li data-journey="1"><i>1</i><span id="journeySide">CHOOSE SIDE</span></li>
+          <li data-journey="2"><i>2</i><span id="journeyFront">CHOOSE FRONT</span></li>
+          <li data-journey="3"><i>3</i><span id="journeyBattle">WIN BATTLE</span></li>
+          <li data-journey="4"><i>4</i><span id="journeyResult">CHANGE THE WAR</span></li>
+        </ol>
+      </nav>
+      <section id="warLog">
+        <div class="eyebrow" id="warLogLabel">WAR LOG</div>
+        <ol id="warEvents"></ol>
+      </section>
       <footer>
         <button id="resetView" type="button">RESET VIEW</button>
+        <button id="resetDemo" type="button" hidden>RESET CAMPAIGN</button>
         <a id="legacy" href="../campaign-legacy.html">LEGACY MAP</a>
       </footer>
     </aside>
+
+    <section id="demoFlow" class="demo-flow" hidden aria-live="polite">
+      <div class="demo-dialog">
+        <div class="eyebrow" id="flowEyebrow">THE SECOND GRAVEL WAR</div>
+        <h2 id="flowTitle">CHOOSE YOUR SIDE</h2>
+        <p id="flowBody"></p>
+        <div id="briefingDetails" class="briefing-details" hidden></div>
+        <div id="briefingStakes" class="briefing-stakes" hidden></div>
+        <div id="flowStats" class="flow-stats" hidden></div>
+        <div id="chooseFaction" class="flow-actions" hidden>
+          <button type="button" data-faction="RED"><b id="factionRedLabel">RED</b><small id="factionRedHint">Defend the industrial network</small></button>
+          <button type="button" data-faction="BLU"><b id="factionBluLabel">BLU</b><small id="factionBluHint">Take Mann Co. infrastructure</small></button>
+        </div>
+        <div id="pendingActions" class="flow-actions" hidden>
+          <button id="rejoinBattle" type="button">REJOIN BATTLE</button>
+          <button id="abandonBattle" type="button" class="secondary">ABANDON</button>
+        </div>
+        <div id="deploymentActions" class="flow-actions" hidden>
+          <button id="joinDeployment" type="button">JOIN BATTLE</button>
+          <button id="cancelDeployment" type="button" class="secondary">BACK</button>
+        </div>
+        <div id="debriefActions" class="flow-actions" hidden>
+          <button id="continueCampaign" type="button">RETURN TO WAR MAP</button>
+        </div>
+        <div id="finalComparison" class="final-comparison" hidden>
+          <div><small id="offlineLabel">OFFLINE DEMO</small><b id="offlineFeatures">Local campaign · AI soldiers · simulated fronts</b></div>
+          <div><small id="playtestLabel">STEAM PLAYTEST</small><b id="playtestFeatures">Shared war · real players · persistent fronts · companies</b></div>
+        </div>
+        <div id="finalActions" class="flow-actions" hidden>
+          <button id="openPlaytest" type="button">FOLLOW THE PLAYTEST</button>
+          <button id="continueOffline" type="button">CONTINUE OFFLINE</button>
+          <button id="restartCampaign" type="button" class="secondary">NEW CAMPAIGN</button>
+        </div>
+      </div>
+    </section>
   </main>
   <script src="war.js"></script>
 </body>

@@ -27,6 +27,8 @@
 #include "tf_mainmenu_info.h"
 
 #include "vgui_controls/EditablePanel.h"
+#include "GameEventListener.h"
+#include "igamesystem.h"
 #include "utlbuffer.h"
 #include "utlstring.h"
 #include "utlvector.h"
@@ -37,11 +39,51 @@ class CInteractiveWebPanel;
 // Which campaign card the menu builds: the web map, or the VGUI line.
 extern ConVar tf_campaign_map_html;
 
+// True only for the self-contained Next Fest-style demo launch. Keep this a
+// launch parameter rather than an archived setting: a player who returns to a
+// normal build must not remain silently routed into simulated battles.
+bool TFCampaignDemoMode();
+
 enum ETFCampaignSide
 {
 	k_eTFCampaignSide_Neutral = 0,
 	k_eTFCampaignSide_Red,
 	k_eTFCampaignSide_Blu,
+};
+
+struct TFCampaignDemoEvent_t
+{
+	int        nSequence;
+	CUtlString strType;
+	CUtlString strTitle;
+	CUtlString strBody;
+	CUtlString strNode;
+};
+
+struct TFCampaignDemoState_t
+{
+	int             nSchemaVersion;
+	ETFCampaignSide ePlayerSide;
+	int             nStage;
+	int             nBattlesPlayed;
+	int             nVictories;
+	int             nDefeats;
+	int             nEventSequence;
+	int             nNextBattleSerial;
+	int             nPendingPlayerTarget;
+	int             nLastSeenUnix;
+	bool            bCompleted;
+	bool            bTerritoryCaptured;
+	bool            bDebriefUnread;
+	CUtlString      strPendingBattleID;
+	CUtlString      strPendingNode;
+	CUtlString      strPendingMap;
+	// Stable semantic key. UI text is resolved at render time so changing the
+	// game language also translates an already-saved after-action report.
+	CUtlString      strLastResultType;
+	CUtlString      strLastResultTitle;
+	CUtlString      strLastResultBody;
+	CUtlVector< TFCampaignDemoEvent_t > vecEvents;
 };
 
 //-----------------------------------------------------------------------------
@@ -120,7 +162,8 @@ public:
 	// The whole document the campaign page reads, as JSON: the war above plus
 	// the queue and the coordinator's population, so the page makes one request
 	// and knows everything.
-	void BuildDocument( CUtlBuffer &buf, const char *pszDeployNode ) const;
+	void BuildDocument( CUtlBuffer &buf, const char *pszDeployNode,
+	                    const TFCampaignDemoState_t *pDemoState = NULL ) const;
 
 private:
 	static ETFCampaignSide SideFromString( const char *pszSide );
@@ -138,10 +181,15 @@ private:
 // Keeps the document the page reads up to date, and carries back what the page
 // asks for. One of these; the panels drive it while they are visible.
 //-----------------------------------------------------------------------------
-class CTFCampaignFeed
+class CTFCampaignFeed : public CAutoGameSystemPerFrame, public CGameEventListener
 {
 public:
 	CTFCampaignFeed();
+	virtual bool Init() OVERRIDE;
+	virtual void Update( float frametime ) OVERRIDE;
+	virtual void LevelInitPostEntity() OVERRIDE;
+	virtual void FireGameEvent( IGameEvent *pEvent ) OVERRIDE;
+	virtual char const *Name() OVERRIDE { return "CTFCampaignFeed"; }
 
 	// Publish the campaign if it is time to, and pick up whatever the page has
 	// asked the game to do. Safe to call every frame; does very little.
@@ -156,15 +204,40 @@ public:
 
 	// True once, when the page's close button was pressed.
 	bool BTakeCloseRequest();
+	bool BTakeOpenRequest();
+	const TFCampaignDemoState_t &DemoState() const { return m_DemoState; }
+	void DebugResolveDemoBattle( int nWinningTeam );
+	void DebugResetDemoCampaign();
+	void DebugSetDemoStage( int nStage );
+	void DebugValidateDemoCampaign() const;
 
 private:
 	void ConsumeCommands();
+	void ResetDemoState();
+	void LoadDemoState();
+	void SaveDemoState();
+	void AppendDemoEvent( const char *pszType, const char *pszTitle,
+	                     const char *pszBody, const char *pszNode );
+	void SelectDemoFaction( const char *pszFaction );
+	void StartDemoBattle( const char *pszNode );
+	void RejoinDemoBattle();
+	void AbandonDemoBattle();
+	void ResolveDemoBattle( int nWinningTeam );
+	bool ValidateDemoState() const;
+	const char *DemoTargetNode() const;
+	const char *DemoStageMap() const;
+	const char *DemoStageKind() const;
+	void LaunchPendingDemoBattle();
 
 	CTFCampaignModel m_model;
 	CUtlString       m_strDeployNode;
 	float            m_flNextPublish;
 	bool             m_bCloseRequested;
+	bool             m_bOpenRequested;
 	bool             m_bLoaded;
+	float            m_flApplyDemoConfigAt;
+	float            m_flReturnToMapAt;
+	TFCampaignDemoState_t m_DemoState;
 };
 
 CTFCampaignFeed *TFCampaignFeed();

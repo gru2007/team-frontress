@@ -89,11 +89,12 @@ static void *Launcher_GetProcAddress( void *pHandle, const char *pszName )
 #endif
 
 static const AppId_t k_unTF2AppId = 440;
-// The client is published under two apps -- the playtest and the main app --
+// The client is published under the playtest, main, and shared-depot demo apps
 // out of one build. Which one a copy is running as comes from Steam at launch,
 // not from here: these are only for asking Steam where an app is installed.
 static const AppId_t k_unSDK2013MPAppId = 5147520;
 static const AppId_t k_unMainAppId = 5147380;
+static const AppId_t k_unDemoAppId = 5260620;
 // The dedicated server ships as a Steam Tool of its own.
 static const AppId_t k_unSDK2013DSAppId = 5150320;
 
@@ -170,15 +171,34 @@ static bool LoadSteam( const char *pRootDir )
 		return false;
 	}
 
-	// Steam sets the app id in the environment for depot launches. Avoid
-	// modifying a signed macOS app bundle when the Wine host already supplied it.
+	// Steam sets the app id in the environment for depot launches. A demo overlay
+	// also deliberately supplies steam_appid.txt, so preserve a valid packaged
+	// identity rather than replacing it with the launcher's hand-run fallback.
 	if ( !getenv( "SteamAppId" ) )
 	{
-		FILE *pFile = fopen( "steam_appid.txt", "w" );
-		if ( pFile )
+		AppId_t unPackagedAppID = 0;
+		FILE *pExisting = fopen( "steam_appid.txt", "r" );
+		if ( pExisting )
 		{
-			fprintf( pFile, "%u\n", k_unMyModAppid );
-			fclose( pFile );
+			unsigned int unReadAppID = 0;
+			if ( fscanf( pExisting, "%u", &unReadAppID ) == 1 )
+				unPackagedAppID = (AppId_t)unReadAppID;
+			fclose( pExisting );
+		}
+		if ( unPackagedAppID != k_unSDK2013MPAppId && unPackagedAppID != k_unMainAppId &&
+		     unPackagedAppID != k_unDemoAppId && unPackagedAppID != k_unSDK2013DSAppId )
+		{
+			unPackagedAppID = 0;
+		}
+
+		if ( unPackagedAppID == 0 )
+		{
+			FILE *pFile = fopen( "steam_appid.txt", "w" );
+			if ( pFile )
+			{
+				fprintf( pFile, "%u\n", k_unMyModAppid );
+				fclose( pFile );
+			}
 		}
 	}
 
