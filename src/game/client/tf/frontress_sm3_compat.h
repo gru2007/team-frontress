@@ -1,13 +1,10 @@
-// Team Frontress shader capability diagnostics.
-// IMPORTANT: This is NOT a Shader Model 2 renderer. The world and player
-// shaders still require SM3. A bypass is offered only if the adapter reports
-// a DX9.0c-class maximum but the engine's current capability check disagrees.
+// Team Frontress: fatal Shader Model 3.0 diagnostics.
+// No runtime bypass: basic world/model shaders require SM3 programs.
 #ifndef FRONTRESS_SM3_COMPAT_H
 #define FRONTRESS_SM3_COMPAT_H
 
 #include "materialsystem/imaterialsystem.h"
 #include "materialsystem/imaterialsystemhardwareconfig.h"
-#include "convar.h"
 
 #if defined( _WIN32 ) && !defined( _X360 )
 #include <windows.h>
@@ -29,6 +26,7 @@ inline std::wstring ToWide( const char *text )
     }
     if ( length <= 0 )
         return L"Unknown";
+
     std::wstring result( length, L'\0' );
     MultiByteToWideChar( codepage, codepage == CP_UTF8 ? MB_ERR_INVALID_CHARS : 0,
                          text, -1, &result[0], length );
@@ -58,13 +56,6 @@ inline std::wstring DetectDisplayName( const MaterialAdapterInfo_t &adapter )
     }
     return name;
 }
-
-inline void SetOptionalSetting( const char *name, int value )
-{
-    ConVarRef setting( name );
-    if ( setting.IsValid() )
-        setting.SetValue( value );
-}
 } // namespace frontress_sm3
 #endif
 
@@ -86,20 +77,15 @@ inline void Frontress_HandleMissingShaderModel3( IMaterialSystem *system,
             system->GetDisplayAdapterInfo( adapterIndex, adapter );
     }
 
-    // A DX level is NOT direct proof of PS/VS 3 support. This gate merely
-    // avoids offering a plainly impossible bypass to DX8/SM2 adapters.
-    const bool canTry = adapterIndex >= 0 &&
-        adapter.m_nMaxDXSupportLevel >= 95 && maxDx >= 95;
-
-    Warning( "Team Frontress: SM3 detection failed; adapter=%d driver=%s, "
-             "VEN=%04X DEV=%04X, dx=%d, max_dx=%d, adapter_max_dx=%d, "
-             "renderer=%s, bypass_offered=%d\n",
+    Warning( "Team Frontress: SM3 requirement failed; adapter=%d driver=%s, "
+             "VEN=%04X DEV=%04X, dx=%d, max_dx=%d, adapter_max_dx=%d, renderer=%s\n",
              adapterIndex, adapter.m_pDriverName, adapter.m_VendorID, adapter.m_DeviceID,
-             activeDx, maxDx, adapter.m_nMaxDXSupportLevel, backend, canTry ? 1 : 0 );
+             activeDx, maxDx, adapter.m_nMaxDXSupportLevel, backend );
 
 #if defined( _WIN32 ) && !defined( _X360 )
     const bool russian = PRIMARYLANGID( GetUserDefaultUILanguage() ) == LANG_RUSSIAN;
-    std::wstring gpu = frontress_sm3::DetectDisplayName( adapter );
+    const std::wstring gpu = adapterIndex >= 0
+        ? frontress_sm3::DetectDisplayName( adapter ) : L"Unknown";
     wchar_t details[512];
     _snwprintf_s( details, ARRAYSIZE( details ), _TRUNCATE,
                 russian ? L"\n\nВидеокарта: %ls\nДрайвер: %ls\nID: %04X:%04X\nАдаптер: %d\nРендерер: %ls\nDX: %d; максимум: %d (адаптер: %d)\nSM3: не обнаружен"
@@ -115,45 +101,15 @@ inline void Frontress_HandleMissingShaderModel3( IMaterialSystem *system,
         ? L"Движок не обнаружил Shader Model 3.0. Он необходим для базовых шейдеров мира и персонажей."
         : L"The engine did not detect Shader Model 3.0. It is required by the core world and character shaders.";
     message += details;
-
-    if ( canTry )
-    {
-        message += russian
-            ? L"\n\nМаксимальный DX-уровень адаптера указывает, что возможна ошибка определения возможностей."
-              L"\n\nДА — продолжить запуск в ЭКСПЕРИМЕНТАЛЬНОМ режиме с уменьшенными эффектами."
-              L"\nНЕТ — выйти (выбрано по умолчанию)."
-              L"\n\nЭто не поддержка SM2: возможны отсутствующие текстуры, артефакты, чёрный экран и вылет."
-              L" Настройки могут сохраниться; восстановите их вручную при необходимости."
-            : L"\n\nThe adapter's maximum DX level suggests a possible capability-detection error."
-              L"\n\nYES — continue in EXPERIMENTAL mode with reduced effects."
-              L"\nNO — exit (default)."
-              L"\n\nThis is not SM2 support: missing textures, artifacts, a black screen or a crash are possible."
-              L" Settings may persist; restore them manually if necessary.";
-        const int answer = MessageBoxW( NULL, message.c_str(), title,
-                                       MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2 | MB_SYSTEMMODAL );
-        if ( answer == IDYES )
-        {
-            // Reduce some optional effects only. These settings CANNOT replace
-            // the SM3 shader binaries used by the basic scene renderer.
-            frontress_sm3::SetOptionalSetting( "mat_motion_blur_enabled", 0 );
-            frontress_sm3::SetOptionalSetting( "mat_specular", 0 );
-            frontress_sm3::SetOptionalSetting( "mat_bumpmap", 0 );
-            frontress_sm3::SetOptionalSetting( "mat_reduceparticles", 1 );
-            frontress_sm3::SetOptionalSetting( "r_shadows", 0 );
-            Warning( "Team Frontress: experimental SM3 detection bypass accepted; no SM2 shader fallback exists.\n" );
-            return;
-        }
-    }
-    else
-    {
-        message += russian
-            ? L"\n\nЭкспериментальный режим недоступен: адаптер не сообщает о DX 9.0c+."
-              L" Попробуйте обновить драйвер, выбрать дискретную видеокарту или другой графический API."
-            : L"\n\nExperimental mode is unavailable: the adapter does not report DX 9.0c+."
-              L" Update the driver, select a discrete GPU, or try another rendering API.";
-        MessageBoxW( NULL, message.c_str(), title, MB_OK | MB_ICONERROR | MB_SYSTEMMODAL );
-    }
-    ExitProcess( 1 ); // The legacy path calls Error() here, which is also fatal.
+    message += russian
+        ? L"\n\nЗапуск остановлен, чтобы избежать повреждённой графики и вылета."
+          L" Проверьте драйвер и выбранную видеокарту. Если видеокарта не поддерживает SM3 аппаратно,"
+          L" смена настроек графики не добавит эту возможность.\n\nНажмите ОК для выхода."
+        : L"\n\nStartup has been stopped to avoid broken rendering and crashes."
+          L" Check the graphics driver and selected GPU. If the GPU lacks SM3 hardware support,"
+          L" graphics settings cannot add it.\n\nPress OK to exit.";
+    MessageBoxW( NULL, message.c_str(), title, MB_OK | MB_ICONERROR | MB_SYSTEMMODAL );
+    ExitProcess( 1 );
 #else
     Error( "Team Frontress requires Shader Model 3.0. GPU driver: %s; VEN=%04X DEV=%04X; "
            "DX=%d max=%d adapter_max=%d backend=%s",
