@@ -101,7 +101,7 @@ inline void Frontress_HandleMissingShaderModel3( IMaterialSystem *system,
     const bool russian = PRIMARYLANGID( GetUserDefaultUILanguage() ) == LANG_RUSSIAN;
     std::wstring gpu = frontress_sm3::DetectDisplayName( adapter );
     wchar_t details[512];
-    swprintf_s( details, ARRAYSIZE( details ),
+    _snwprintf_s( details, ARRAYSIZE( details ), _TRUNCATE,
                 russian ? L"\n\nВидеокарта: %ls\nДрайвер: %ls\nID: %04X:%04X\nАдаптер: %d\nРендерер: %ls\nDX: %d; максимум: %d (адаптер: %d)\nSM3: не обнаружен"
                         : L"\n\nGraphics adapter: %ls\nDriver: %ls\nID: %04X:%04X\nAdapter: %d\nRenderer: %ls\nDX: %d; maximum: %d (adapter: %d)\nSM3: not detected",
                 gpu.c_str(), frontress_sm3::ToWide( adapter.m_pDriverName ).c_str(),
