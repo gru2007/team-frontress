@@ -1,0 +1,26 @@
+name: One-time SM3 diagnostics hardening
+on:
+  push:
+    branches: [feature/sm3-diagnostics-compatibility]
+permissions:
+  contents: write
+jobs:
+  harden:
+    if: github.event.head_commit.message == 'Run one-time bounded GPU formatter hardening'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - run: |
+          python3 -m py_compile tools/harden_sm3_dialog.py
+          python3 tools/harden_sm3_dialog.py
+          python3 tools/harden_sm3_dialog.py
+          grep -q '_snwprintf_s( details, ARRAYSIZE( details ), _TRUNCATE' src/game/client/tf/frontress_sm3_compat.h
+          git diff --check
+      - name: Commit hardening
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/game/client/tf/frontress_sm3_compat.h
+          git diff --cached --quiet || (git commit -m 'Bound GPU diagnostics text safely' && git push)
