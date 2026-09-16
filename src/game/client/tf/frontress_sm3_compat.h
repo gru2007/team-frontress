@@ -1,4 +1,5 @@
-// Team Frontress: fatal Shader Model 3.0 diagnostics.
+﻿// Team Frontress: fatal Shader Model 3.0 diagnostics.
+// Keep the UTF-8 BOM: MSVC must decode Russian wide-string literals as UTF-8.
 // No runtime bypass: basic world/model shaders require SM3 programs.
 #ifndef FRONTRESS_SM3_COMPAT_H
 #define FRONTRESS_SM3_COMPAT_H
