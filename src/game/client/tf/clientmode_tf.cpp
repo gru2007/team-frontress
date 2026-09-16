@@ -430,8 +430,7 @@ void ClientModeTFNormal::Init()
 {
 	if ( !g_pMaterialSystemHardwareConfig->SupportsShaderModel_3_0() )
 	{
-		// SM3 shaders remain mandatory. Only allow an explicit diagnostic bypass
-		// when the adapter itself reports DX 9.0c+ but the engine rejects it.
+		// SM3 is required by the world and model shaders; show GPU diagnostics and exit.
 		Frontress_HandleMissingShaderModel3( materials, g_pMaterialSystemHardwareConfig );
 	}
 
