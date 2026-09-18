@@ -40,7 +40,6 @@ rm -f "${SERVER_CLEAN_DIR}/update_dedicated.sh"
 # though the depot itself belongs to Tool AppID 5150320.
 cp -f "${DEV_DIR}/tc2/gameinfo_server.txt" "${SERVER_CLEAN_DIR}/tc2/gameinfo.txt"
 cp -f "${DEV_DIR}/tc2/gameinfo_server.txt" "${SERVER_CLEAN_DIR}/tc2/gameinfo_server.txt"
-python3 ./frontress_content.py verify "${SERVER_CLEAN_DIR}/tc2"
 
 # Read, not repeated: steam.inf is where the AppID the game runs as is written
 # down, and retarget_appid.sh restamps it when a payload is prepared for another

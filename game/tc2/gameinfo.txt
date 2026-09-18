@@ -39,8 +39,6 @@
 			//game+mod+custom_mod	|appid_440|tf/custom/*
 			// Adding pak folder for tc2 specifically
 			game+mod+custom_mod |gameinfo_path|loose
-			// Built from this checkout; overrides the upstream asset dependency.
-			game+mod+vgui |gameinfo_path|frontress.vpk
 			game+mod+vgui |gameinfo_path|pak1.vpk
 
 			// Now search loose files.  We'll set the directory containing the gameinfo.txt file
