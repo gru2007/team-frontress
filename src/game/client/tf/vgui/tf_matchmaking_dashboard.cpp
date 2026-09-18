@@ -676,10 +676,9 @@ void CTFMatchmakingDashboard::OnTick()
 //-----------------------------------------------------------------------------
 void CTFMatchmakingDashboard::UpdateTopBarVisibility()
 {
-	// HTML supplies its own actions both at the menu (including background
-	// maps) and on pause. Native side panels opened by those actions are
-	// separate siblings and remain available.
-	const bool bWebMenu = tf_main_menu_html.GetBool();
+	// In game this panel is the pause screen's top bar, which the web menu
+	// never replaces.
+	const bool bWebMenu = ( tf_main_menu_html.GetBool() && !engine->IsInGame() );
 
 	// Only when it changes: this runs every tick, and telling a panel it is
 	// already visible still walks its children.
@@ -1415,8 +1414,11 @@ void CTFMatchmakingDashboard::UpdateDimmer()
 	bool bShowDimmer = bAnySlidePanels;
 
 	Panel* pDimmer = GetDashboardPanel().GetPanel( k_eBGDimmer );
-	// Invisible (alpha zero) panels still take part in VGUI hit testing.
-	pDimmer->SetVisible( bShowDimmer );
+	if ( bShowDimmer && !pDimmer->IsVisible() )
+	{
+		// init visibility
+		pDimmer->SetVisible( true );
+	}
 	int nDimmerAlpha = bShowDimmer ? 230 : 0;
 	g_pClientMode->GetViewportAnimationController()->RunAnimationCommand( pDimmer, "alpha", nDimmerAlpha, 0.0f, 0.4f, vgui::AnimationController::INTERPOLATOR_GAIN, 0.8f, true, false );
 	pDimmer->SetMouseInputEnabled( bShowDimmer );

@@ -7,7 +7,6 @@
 #include "clientmode_tf.h"
 #include "confirm_dialog.h"
 #include <vgui/ILocalize.h>
-#include <vgui/IInput.h>
 #include "tf_controls.h"
 #include "tf_gamerules.h"
 #include "tf_statsummary.h"
@@ -76,10 +75,6 @@ extern const char* g_pszLegacyClassSelectVCDWeapons[TF_LAST_NORMAL_CLASS];
 extern int g_iLegacyClassSelectWeaponSlots[TF_LAST_NORMAL_CLASS];
 
 CMOTDManager CHudMainMenuOverride::m_MOTDManager;
-
-static const int kMainMenuWebBackgroundZ = -102;
-// Dashboard notifications use 15000. HTML dialogs must cover the whole menu.
-static const int kMainMenuWebDialogZ = 30000;
 
 void AddSubKeyNamed( KeyValues *pKeys, const char *pszName );
 
@@ -292,22 +287,23 @@ CHudMainMenuOverride::CHudMainMenuOverride( IViewPort *pViewPort ) : BaseClass( 
 	//m_pWatchStreamsPanel = new CTFStreamListPanel( this, "StreamListPanel" );
 	m_pCharacterImagePanel = new ImagePanel( this, "TFCharacterImage" );
 
-	m_bWebInteractiveWindow = false;
+	m_MainMenuWebUiZIndex = -102;
 
 	// Built either way so the convar can be flipped without restarting; when it
 	// is off the panel is simply never shown. ApplySchemeSettings picks the
 	// layout, this is just so it starts out hidden before the first one.
 	m_pMainMenuWebUi = new CInteractiveWebPanel( this, "TFMainMenuWebUi", "ui/index.html", true, false );
-	m_pMainMenuWebUi->SetZPos( kMainMenuWebBackgroundZ );
 	m_pMainMenuWebUi->SetVisible( tf_main_menu_html.GetBool() );
 
-	// The campaign / queue / news column. PerformLayout positions these
-	// runtime controls alongside the resource-defined menu controls.
+	// The campaign / queue / news column. Built in code rather than in the .res
+	// because the .res lives in a pak we do not build; PerformLayout puts it
+	// where the MOTD panel would be.
 	m_pInfoPanel = new CTFMainMenuInfoPanel( this, "FrontressInfo" );
 	m_pInfoPanel->SetZPos( 10 );
 	m_pInfoPanel->SetVisible( false );
 
-	// The friends block, where the stock menu keeps it.
+	// The friends block, where the stock menu keeps it. Same reason as above:
+	// the .res that used to carry it is in a pak we do not build.
 	m_pFriendsPanel = new CTFMenuFriendsPanel( this, "FrontressFriends" );
 	m_pFriendsPanel->SetZPos( 10 );
 	m_pFriendsPanel->SetVisible( false );
@@ -397,8 +393,6 @@ CON_COMMAND( tf_mainmenu_info_reload, "Re-read the main menu's campaign and news
 void CHudMainMenuOverride::UpdateMainMenuChrome()
 {
 	const bool bHtmlMenu = tf_main_menu_html.GetBool();
-	// Layout reloads must not reset an open HTML dialog below native controls.
-	m_pMainMenuWebUi->SetZPos( m_bWebInteractiveWindow ? kMainMenuWebDialogZ : kMainMenuWebBackgroundZ );
 
 	// Shown by the VGUI menu, hidden while the web page is up.
 	auto lambdaVGuiOnly = [ & ]( const char *pszName )
@@ -456,7 +450,6 @@ void CHudMainMenuOverride::UpdateMainMenuWebUiVisibility()
 
 	if ( !tf_main_menu_html.GetBool() && m_pMainMenuWebUi->IsVisible() )
 	{
-		m_bWebInteractiveWindow = false;
 		// Tell the page it is going away, the same way closing the menu
 		// does, so anything it has running stops.
 		if ( GetGameStateManager()->IsReady() )
@@ -579,11 +572,6 @@ void CHudMainMenuOverride::OnGameUIActivated()
 
 void CHudMainMenuOverride::OnGameUIHidden()
 {
-	m_bWebInteractiveWindow = false;
-	if ( m_pMainMenuWebUi )
-		m_pMainMenuWebUi->SetZPos( kMainMenuWebBackgroundZ );
-	if ( m_pInfoPanel )
-		m_pInfoPanel->CloseCampaignMap();
 	IGameEvent* event = gameeventmanager->CreateEvent( "gameui_hidden" );
 	if ( event )
 	{
@@ -605,8 +593,6 @@ void CHudMainMenuOverride::AttachToGameUI( void )
 
 	SetKeyBoardInputEnabled( true );
 	SetMouseInputEnabled( true );
-	// Empty areas of this fullscreen popup must not steal clicks from GameUI.
-	DisableMouseInputForThisPanel( true );
 	SetCursor(dc_arrow);
 	MakePopup();
 	MoveToFront();
@@ -1528,8 +1514,6 @@ void CHudMainMenuOverride::RemoveAllMenuEntries( void )
 void CHudMainMenuOverride::PerformLayout( void )
 {
 	BaseClass::PerformLayout();
-	if ( m_pMainMenuWebUi )
-		m_pMainMenuWebUi->SetBounds( 0, 0, GetWide(), GetTall() );
 
 	bool bFirstButton = true;
 
@@ -2465,10 +2449,13 @@ void CHudMainMenuOverride::UpdatePromotionalCodes( void )
 //-----------------------------------------------------------------------------
 bool CHudMainMenuOverride::IsVisible( void )
 {
-	// GameUI owns the menu lifecycle, including hiding it behind its dialogs.
-	// Do not depend on SteamFriends: offline menus need the same input rules.
-	return BaseClass::IsVisible() && ( !GetClientModeTFNormal()->GameUI()
-		|| GetClientModeTFNormal()->GameUI()->IsMainMenuVisible() );
+	/*
+	// Only draw whenever the main menu is visible
+	if ( GetClientModeTFNormal()->GameUI() && steamapicontext && steamapicontext->SteamFriends() )
+		return GetClientModeTFNormal()->GameUI()->IsMainMenuVisible();
+	return BaseClass::IsVisible();
+	*/
+	return true;
 }
 
 //-----------------------------------------------------------------------------
@@ -2803,10 +2790,8 @@ void CHudMainMenuOverride::OnCommand( const char *command )
 	{
 		if ( m_pMainMenuWebUi )
 		{
-			// Idempotent: nested dialogs or repeated web events must not save an
-			// already-raised Z position and leave the menu permanently on top.
-			m_bWebInteractiveWindow = true;
-			m_pMainMenuWebUi->SetZPos( kMainMenuWebDialogZ );
+			m_MainMenuWebUiZIndex = m_pMainMenuWebUi->GetZPos();
+			m_pMainMenuWebUi->SetZPos( 400 );
 		}
 		return;
 	}
@@ -2814,8 +2799,7 @@ void CHudMainMenuOverride::OnCommand( const char *command )
 	{
 		if ( m_pMainMenuWebUi )
 		{
-			m_bWebInteractiveWindow = false;
-			m_pMainMenuWebUi->SetZPos( kMainMenuWebBackgroundZ );
+			m_pMainMenuWebUi->SetZPos( m_MainMenuWebUiZIndex );
 		}
 		return;
 	}

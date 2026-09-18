@@ -48,9 +48,7 @@ public:
 
 		// The dashboard stays expanded at the main menu, but is reparented out
 		// of this HUD container. Never resurrect an empty fullscreen input popup.
-		SetBounds( 0, 0, g_pClientMode->GetViewport()->GetWide(), g_pClientMode->GetViewport()->GetTall() );
-		const bool bActive = GetMMDashboard()->GetParent() == this
-			&& GetMMDashboard()->IsVisible() && GetMMDashboard()->BIsExpanded();
+		const bool bActive = GetMMDashboard()->GetParent() == this && GetMMDashboard()->BIsExpanded();
 		SetMouseInputEnabled( bActive );
 		SetVisible( bActive );
 	}
@@ -94,10 +92,6 @@ void CMMDashboardParentManager::FireGameEvent( IGameEvent *event )
 
 void CMMDashboardParentManager::UpdateParenting()
 {
-	// Events can be missed during startup/disconnect. Derive the destination
-	// from current engine state, not the last event received.
-	m_bAttachedToGameUI = engine->IsInGame() && !engine->IsLevelMainMenuBackground()
-		&& !enginevgui->IsGameUIVisible();
 	m_bAttachedToGameUI ? AttachToGameUI() : AttachToTopMostPopup();
 }
 
@@ -140,15 +134,51 @@ void CMMDashboardParentManager::AttachToTopMostPopup()
 	// Not being used.  Hide it.
 	if ( m_pHUDPopup )
 	{
-		m_pHUDPopup->SetMouseInputEnabled( false );
 		m_pHUDPopup->SetVisible( false );
 	}
 
-	// Menu widgets belong to the menu. Reparenting them into whichever
-	// fullscreen dialog was just opened puts them over settings/loadout and
-	// even inside that dialog's modal input subtree.
-	Panel *pPopup = NULL;
-	if ( gViewPortInterface )
+	VPanel *top = NULL;
+
+	if ( vgui::surface()->GetPopupCount() > 0 )
+	{
+		tmZone( TELEMETRY_LEVEL0, TMZF_NONE, "%s - Popup traverse", __FUNCTION__ );
+		int nSurfaceWide, nSurfaceTall;
+		vgui::surface()->GetScreenSize( nSurfaceWide, nSurfaceTall );
+
+		// find the highest-level window that is both visible and a popup
+		int nIndex = vgui::surface()->GetPopupCount();
+
+		while ( nIndex )
+		{			
+			top = (VPanel *)vgui::surface()->GetPopup( --nIndex );
+
+			// traverse the hierarchy and check if the popup really is visible
+			if (top &&
+				 // top->IsPopup() &&  // These are right out of of the popups list!!!
+				 top->IsVisible() && 
+				 top->IsKeyBoardInputEnabled() && 
+				 !vgui::surface()->IsMinimized((VPANEL)top)  )
+			{
+				Panel *pPopup = ipanel()->GetPanel( (VPANEL)top, GetControlsModuleName());
+				if ( pPopup && pPopup->GetParent() != g_pClientMode->GetViewport() )
+				{
+					int nPanelWide, nPanelTall;
+					pPopup->GetSize( nPanelWide, nPanelTall );
+
+					if ( nPanelWide == nSurfaceWide && nPanelTall == nSurfaceTall )
+					{
+						break;
+					}
+				}
+			}
+
+			top = NULL;
+		} 
+	}
+
+	Panel *pPopup = ipanel()->GetPanel( (VPANEL)top, GetControlsModuleName());
+
+	if ( !pPopup && gViewPortInterface )
 	{
 		pPopup = (CHudMainMenuOverride*)( gViewPortInterface->FindPanelByName( PANEL_MAINMENUOVERRIDE ) );
 	}

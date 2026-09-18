@@ -42,8 +42,6 @@
 			game+mod+custom_mod	|gameinfo_path|../tf2/tf/custom/*
 			// Adding pak folder for tc2 specifically
 			game+mod+custom_mod |gameinfo_path|loose
-			// Same resource revision as the clients (also used by shared demo depots).
-			game+mod+vgui |gameinfo_path|frontress.vpk
 			game+mod+vgui |gameinfo_path|pak1.vpk
 
 			// Now search loose files.  We'll set the directory containing the gameinfo.txt file
