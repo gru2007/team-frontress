@@ -2,8 +2,8 @@ name: Build & publish
 
 on:
   push:
-    branches:
-      - "main"
+    # branches:
+    #  - "**"
     tags:
       - "release/*"
       - "private/*"
