@@ -16,6 +16,8 @@ $Project
     $Folder "Game State"
     {
       $File "$SRCDIR\game\shared\gamestate\gamestate.h"
+      $File "$SRCDIR\game\shared\gamestate\frontress_instructor.h"
+      $File "$SRCDIR\game\shared\gamestate\frontress_instructor.cpp"
       // Not using precompiled header cbase.h
       $File "$SRCDIR\game\shared\gamestate\gamestate.cpp"
       {

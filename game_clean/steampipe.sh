@@ -28,6 +28,11 @@
 #   STEAM_DEPOT_LINUX   Linux content depot      (default STEAM_APPID + 2)
 #   STEAM_WIN_DIR       Windows content dir      (overrides the positional arg)
 #   STEAM_LINUX_DIR     Linux content dir        (overrides the positional arg)
+#   STEAM_GENERIC_DIR   platform-neutral content dir for one overlay depot
+#   STEAM_DEPOT_GENERIC depot receiving STEAM_GENERIC_DIR (required with it)
+#   STEAM_INCLUDE_APPID_FILE
+#                       1 permits steam_appid.txt in this upload. Keep disabled
+#                       for normal client depots; intended for a demo overlay.
 #   STEAM_BRANCH        beta branch to set live  (empty = upload only, set live by hand)
 #   STEAM_USERNAME      Steam builder account    (required)
 #   STEAM_CONFIG_VDF    base64 of a config.vdf already logged in as that
@@ -54,6 +59,9 @@ STEAM_USERNAME="${STEAM_USERNAME:-}"
 STEAM_CONFIG_VDF="${STEAM_CONFIG_VDF:-}"
 STEAM_PASSWORD="${STEAM_PASSWORD:-}"
 STEAMPIPE_PREVIEW="${STEAMPIPE_PREVIEW:-0}"
+STEAM_GENERIC_DIR="${STEAM_GENERIC_DIR:-}"
+STEAM_DEPOT_GENERIC="${STEAM_DEPOT_GENERIC:-}"
+STEAM_INCLUDE_APPID_FILE="${STEAM_INCLUDE_APPID_FILE:-0}"
 
 # The dist dir for the platform we're running on, unless told otherwise.
 PLATFORM_DIR="${CLEAN_DIR}"
@@ -64,12 +72,27 @@ fi
 WIN_DIR="${STEAM_WIN_DIR:-}"
 LINUX_DIR="${STEAM_LINUX_DIR:-}"
 
-if [ -z "${WIN_DIR}" ] && [ -z "${LINUX_DIR}" ]; then
+if [ -z "${WIN_DIR}" ] && [ -z "${LINUX_DIR}" ] && [ -z "${STEAM_GENERIC_DIR}" ]; then
   if [ "${PLATFORM}" = "win" ]; then
     WIN_DIR="${PLATFORM_DIR}"
   elif [ "${PLATFORM}" = "linux" ]; then
     LINUX_DIR="${PLATFORM_DIR}"
   fi
+fi
+
+if [ -n "${STEAM_GENERIC_DIR}" ] && [ -z "${STEAM_DEPOT_GENERIC}" ]; then
+  echo "STEAM_DEPOT_GENERIC is required when STEAM_GENERIC_DIR is set." >&2
+  exit 2
+fi
+
+if [ "${STEAM_INCLUDE_APPID_FILE}" != "0" ] && [ "${STEAM_INCLUDE_APPID_FILE}" != "1" ]; then
+  echo "STEAM_INCLUDE_APPID_FILE must be 0 or 1." >&2
+  exit 2
+fi
+
+if [ "${STEAM_INCLUDE_APPID_FILE}" = "1" ] && { [ -n "${WIN_DIR}" ] || [ -n "${LINUX_DIR}" ] || [ -z "${STEAM_GENERIC_DIR}" ]; }; then
+  echo "steam_appid.txt is allowed only in an isolated generic overlay depot." >&2
+  exit 2
 fi
 
 if [ -n "${RELEASE_VERSION:-}" ]; then
@@ -126,6 +149,11 @@ if [ -n "${LINUX_DIR}" ]; then
   LINUX_DIR=$(abs_path "${LINUX_DIR}")
 fi
 
+if [ -n "${STEAM_GENERIC_DIR}" ]; then
+  check_content_dir "Generic" "${STEAM_GENERIC_DIR}"
+  STEAM_GENERIC_DIR=$(abs_path "${STEAM_GENERIC_DIR}")
+fi
+
 BUILD_DIR="${BIN_DIR}/../steam_build"
 rm -rf "${BUILD_DIR}"
 mkdir -p "${BUILD_DIR}/output"
@@ -157,11 +185,12 @@ write_depot_script() {
 		"recursive"	"1"
 	}
 
-	// Debug info ships out of band (game_dist_debug), and steam_appid.txt must
-	// never ship in the client depot because it bypasses Steam ownership checks.
+	// Debug info ships out of band (game_dist_debug).
 	"FileExclusion"	"*.pdb"
 	"FileExclusion"	"*.dbg"
-	"FileExclusion"	"steam_appid.txt"
+$(if [ "${STEAM_INCLUDE_APPID_FILE}" != "1" ]; then
+    printf '\t"FileExclusion"\t"steam_appid.txt"\n'
+  fi)
 }
 EOF
 }
@@ -177,6 +206,12 @@ fi
 if [ -n "${LINUX_DIR}" ]; then
   write_depot_script "${STEAM_DEPOT_LINUX}" "${LINUX_DIR}"
   DEPOT_ENTRIES="${DEPOT_ENTRIES}		\"${STEAM_DEPOT_LINUX}\"	\"$(script_path "${BUILD_DIR}/depot_${STEAM_DEPOT_LINUX}.vdf")\"
+"
+fi
+
+if [ -n "${STEAM_GENERIC_DIR}" ]; then
+  write_depot_script "${STEAM_DEPOT_GENERIC}" "${STEAM_GENERIC_DIR}"
+  DEPOT_ENTRIES="${DEPOT_ENTRIES}		\"${STEAM_DEPOT_GENERIC}\"	\"$(script_path "${BUILD_DIR}/depot_${STEAM_DEPOT_GENERIC}.vdf")\"
 "
 fi
 

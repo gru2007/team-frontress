@@ -1,31 +1,86 @@
-// Run with Node 20+ and Playwright installed (see docs/CAMPAIGN_DEMO.md).
+// Run with Node 20+ and Playwright installed (see docs/frontress-demo.md).
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { join } from 'node:path';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const root = new URL('../game/tc2/loose/resource/html/', import.meta.url);
-let browser, server, origin;
+const repoRoot = new URL('../', import.meta.url);
+
+const nodes = [
+	{ id:'red_hq', name:'RED HQ', owner:'RED', x:.07, y:.5, hq:true, kind:'command', region:'EU' },
+	{ id:'yard', name:'Rail Yard', owner:'RED', x:.24, y:.22, kind:'rail', region:'EU' },
+	{ id:'works', name:'Foundry 17', owner:'RED', x:.45, y:.55, kind:'industrial', region:'EU' },
+	{ id:'reservoir', name:'Reservoir', owner:'BLU', x:.53, y:.18, kind:'water', region:'EU' },
+	{ id:'junction', name:'Iron Junction', owner:'BLU', x:.78, y:.47, kind:'rail', region:'EU' },
+	{ id:'blu_hq', name:'BLU HQ', owner:'BLU', x:.94, y:.52, hq:true, kind:'command', region:'EU' }
+];
+const edges = [{a:'red_hq',b:'yard'},{a:'yard',b:'works'},{a:'works',b:'reservoir'},{a:'reservoir',b:'junction'},{a:'junction',b:'blu_hq'}];
+
+const liveCampaign = {
+	version:1, lang:'english', demo:false, name:'Live fixture', deploy:'', nodes, edges,
+	fronts:[{node:'works',attacker:'BLU',stage:2,stages:3,progress:.62,players:7,kind:'assault',map:'cp_gravelpit'}],
+	status:{checked:true,valid:true,serversKnown:true,name:'Frontress',online:7,matches:1,servers:1}, queue:{state:'idle'}
+};
+
+function demoCampaign(overrides = {}) {
+	const state = Object.assign({
+		schemaVersion:1, faction:'NEUTRAL', needsFaction:true, stage:1, stages:3, teamSize:4,
+		battlesPlayed:0, victories:0, defeats:0, completed:false, territoryCaptured:false,
+		debriefUnread:false, target:'', pendingBattleId:'', pendingNode:'', pendingMap:'', lastResult:'', lastTitle:'', lastBody:'', events:[]
+	}, overrides);
+	if (!Object.prototype.hasOwnProperty.call(overrides,'teamSize')) state.teamSize=[4,6,9][state.stage-1] || 4;
+	const selected = !state.needsFaction && state.faction !== 'NEUTRAL';
+	const target = state.faction === 'RED' ? 'reservoir' : 'works';
+	const front = state.completed && state.territoryCaptured
+		? [{node:state.faction === 'RED'?'junction':'yard',attacker:state.faction,stage:1,stages:3,progress:.08,players:0,kind:'new front',map:'Playtest',locked:true}]
+		: selected && !state.completed
+			? [{node:target,attacker:state.faction,stage:state.stage,stages:3,progress:.15,players:state.pendingBattleId?state.teamSize*2:0,kind:['breakthrough','advance','assault'][state.stage-1],map:(state.faction==='RED'?['koth_viaduct','cp_badlands','cp_foundry']:['cp_gorge','pl_badwater','cp_dustbowl'])[state.stage-1],server:'local'}]
+			: [];
+	if (selected && !state.completed) front.push({node:state.faction === 'RED'?'yard':'junction',attacker:state.faction === 'RED'?'BLU':'RED',stage:1,stages:3,progress:.2,players:0,kind:'simulated front',map:'world tick',server:'local simulation',locked:true});
+	state.target = selected ? target : '';
+	return {version:1,lang:'english',demo:true,name:'Iron Frontier',deploy:'',nodes:structuredClone(nodes),edges:structuredClone(edges),fronts:front,status:{checked:true,valid:true,serversKnown:true,name:'Local War Coordinator',online:1,matches:state.pendingBattleId?1:0,servers:1},queue:{state:'idle'},demoState:state};
+}
+
+let browser, server, origin, campaignResponse, campaignStatus, commands;
+
+function applyCommand(body) {
+	if (!campaignResponse?.demoState) return;
+	const [verb, arg] = body.trim().split(/\s+/, 2);
+	const old = campaignResponse.demoState;
+	if (verb === 'select_faction' && (arg === 'RED' || arg === 'BLU')) campaignResponse = demoCampaign({...old,faction:arg,needsFaction:false});
+	if (verb === 'deploy' && campaignResponse.fronts.some(front => front.node === arg && !front.locked)) campaignResponse = demoCampaign({...old,pendingBattleId:'demo_00001',pendingNode:arg,pendingMap:campaignResponse.fronts[0].map});
+	if (verb === 'abandon') campaignResponse = demoCampaign({...old,pendingBattleId:'',pendingNode:'',pendingMap:''});
+	if (verb === 'ack_debrief') campaignResponse = demoCampaign({...old,debriefUnread:false});
+	if (verb === 'reset_demo') campaignResponse = demoCampaign();
+}
 
 before(async () => {
+	campaignResponse = liveCampaign; campaignStatus = 200; commands = [];
 	server = createServer(async (req, res) => {
-		const path = new URL(req.url, 'http://localhost').pathname;
-		if (path !== '/campaign.html' && !/^\/fonts\/[\w.-]+\.woff2$/.test(path)) {
-			res.writeHead(404).end();
-			return;
+		const url = new URL(req.url, 'http://localhost');
+		if (url.pathname === '/v1/campaign') {
+			res.writeHead(campaignStatus, {'Content-Type':'application/json','Cache-Control':'no-store'});
+			res.end(JSON.stringify(campaignResponse)); return;
 		}
+		if (url.pathname === '/v1/campaign/command' && req.method === 'POST') {
+			let body=''; for await (const chunk of req) body += chunk;
+			commands.push(body); applyCommand(body); res.writeHead(204).end(); return;
+		}
+		const relative=decodeURIComponent(url.pathname).replace(/^\/+/, '');
+		if (!relative || relative.includes('..')) { res.writeHead(404).end(); return; }
 		try {
-			const body = await readFile(new URL(path.slice(1), root));
-			res.writeHead(200, { 'Content-Type': path.endsWith('.html') ? 'text/html; charset=utf-8' : 'font/woff2' }).end(body);
+			const body=await readFile(new URL(relative,root));
+			const type=relative.endsWith('.html')?'text/html; charset=utf-8':relative.endsWith('.js')?'text/javascript; charset=utf-8':relative.endsWith('.css')?'text/css; charset=utf-8':relative.endsWith('.geojson')?'application/geo+json':'application/octet-stream';
+			res.writeHead(200,{'Content-Type':type}).end(body);
 		} catch { res.writeHead(404).end(); }
 	});
-	await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-	origin = `http://127.0.0.1:${server.address().port}`;
-	browser = await chromium.launch({ headless: true });
+	await new Promise(resolve => server.listen(0,'127.0.0.1',resolve));
+	origin=`http://127.0.0.1:${server.address().port}`;
+	browser=await chromium.launch({headless:true});
 });
 
 after(async () => {
@@ -33,321 +88,145 @@ after(async () => {
 	await new Promise(resolve => server ? server.close(resolve) : resolve());
 });
 
-async function open(context, view = 'full', extra = '&lang=ru') {
-	const page = await context.newPage();
-	const errors = [];
-	page.on('pageerror', error => errors.push(error.message));
-	page.errors = errors;
-	await page.goto(`${origin}/campaign.html?view=${view}${extra}`);
-	await page.waitForFunction(() => document.querySelectorAll('.nodeHit').length === 8);
-	await page.evaluate(() => document.fonts.ready);
-	return page;
+async function open(context, query) {
+	const page=await context.newPage(), errors=[];
+	page.on('pageerror',error => errors.push(error.message)); page.errors=errors;
+	await page.goto(`${origin}/campaign.html?${query}`); await page.waitForSelector('.sector'); return page;
 }
 
-test('demo is offline, localized, and cannot send deploy commands', async () => {
-	const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+test('offline battle config fills around the human and uses bot-supported maps', async () => {
+	const [source, config, botCycle] = await Promise.all([
+		readFile(new URL('src/game/client/tf/frontress/tf_campaign_map.cpp',repoRoot),'utf8'),
+		readFile(new URL('game/tc2/cfg/frontress_demo.cfg',repoRoot),'utf8'),
+		readFile(new URL('game/tc2/cfg/mapcycle_quickplay_bots.txt',repoRoot),'utf8')
+	]);
+	const mapBlock=source.match(/s_pszBluMaps[\s\S]*?s_pszRedMaps[^;]+;/)?.[0] || '';
+	const authoredMaps=Array.from(mapBlock.matchAll(/"((?:cp|pl|koth)_[a-z0-9_]+)"/g),match=>match[1]);
+	const supported=new Set(botCycle.split(/\r?\n/).map(line=>line.trim()).filter(Boolean));
+	assert.deepEqual(authoredMaps,['cp_gorge','pl_badwater','cp_dustbowl','koth_viaduct','cp_badlands','cp_foundry']);
+	for (const map of authoredMaps) assert.equal(supported.has(map),true,`${map} must remain in the bot mapcycle`);
+	assert.match(config,/^tf_bot_quota_mode fill$/m); assert.match(config,/^tf_bot_quota 0$/m);
+	assert.match(config,/^tf_bot_auto_vacate 0$/m); assert.match(config,/^tf_bot_offline_practice 1$/m);
+	assert.match(config,/^mp_waitingforplayers_cancel 1$/m);
+	assert.match(config,/^mp_stalemate_enable 0$/m);
+	assert.match(config,/^mp_winlimit 1$/m); assert.match(config,/^mp_maxrounds 1$/m);
+	assert.match(source,/exec frontress_demo\.cfg\\njointeam %s\\ntf_bot_quota %d/);
+	assert.match(source,/nWinningTeam == TEAM_UNASSIGNED/);
+	assert.match(source,/strLastResultType = bStalemate \? "STALEMATE" : "REPULSED"/);
+	assert.match(source,/DemoLocalizedResultText/);
+});
+
+test('campaign redirect preserves demo mode and standalone fallback opens faction choice', async () => {
+	const context=await browser.newContext({viewport:{width:1440,height:900}}); campaignStatus=503;
 	try {
-		const page = await open(context);
-		const commands = [];
-		page.on('request', req => { if (req.method() === 'POST') commands.push(req.postData()); });
-		await page.locator('.nodeHit[data-id="quarry"]').click();
-		await page.locator('#deploy').click();
-		assert.equal(await page.locator('#selName').textContent(), 'Карьер');
-		assert.equal(await page.locator('#deploy').textContent(), 'Сектор отмечен');
-		assert.equal(await page.locator('#queuePanel').isVisible(), false);
-		assert.equal(await page.locator('#demoBadge').isVisible(), true);
-		assert.deepEqual(commands, []);
-		assert.deepEqual(page.errors, []);
+		const page=await open(context,'view=full&demo=1&lang=ru&embedded=1'); const url=new URL(page.url());
+		assert.equal(url.pathname,'/war-map-v2/index.html'); assert.equal(url.searchParams.get('demo'),'1');
+		assert.equal(await page.locator('.sector').count(),8); assert.equal(await page.locator('#warStatus').textContent(),'ОФЛАЙН-ДЕМО');
+		assert.equal(await page.locator('#demoFlow').isVisible(),true); assert.match(await page.locator('#flowTitle').textContent(),/ВЫБЕРИТЕ/);
+		assert.equal(await page.locator('#chooseFaction').isVisible(),true);
+		assert.deepEqual(await page.locator('#playerJourney li').allTextContents(),['1ВЫБРАТЬ СТОРОНУ','2ВЫБРАТЬ ФРОНТ','3БОЙ С БОТАМИ','4ИЗМЕНИТЬ ФРОНТ']);
+		assert.equal(await page.locator('#playerJourney li.current').getAttribute('data-journey'),'1');
+		for (const id of ['pendingActions','deploymentActions','debriefActions','finalActions','flowStats','briefingDetails','briefingStakes','finalComparison'])
+			assert.equal(await page.locator(`#${id}`).isVisible(),false,`${id} must stay hidden on faction choice`);
+		assert.deepEqual(page.errors,[]);
+	} finally { campaignStatus=200; await context.close(); }
+});
+
+test('faction selection creates the authored front and DEPLOY creates one battle ticket', async () => {
+	const context=await browser.newContext(); commands=[]; campaignResponse=demoCampaign();
+	try {
+		const page=await open(context,'view=full&demo=1&embedded=1');
+		await page.locator('[data-faction="BLU"]').click(); await page.waitForFunction(() => !document.querySelector('#demoFlow').offsetParent);
+		assert.equal(await page.locator('#playerJourney li.current').getAttribute('data-journey'),'2');
+		assert.equal((await page.locator('.sector[data-id="works"]').getAttribute('class')).includes('front'),true);
+		await page.locator('.sector[data-id="yard"]').click(); assert.equal(await page.locator('#deploy').isDisabled(),true);
+		await page.locator('.sector[data-id="works"]').click(); assert.equal(await page.locator('#deploy').isDisabled(),false);
+		await page.locator('#deploy').click(); await page.waitForFunction(() => document.querySelector('#deploymentActions').offsetParent !== null);
+		assert.match(await page.locator('#briefingDetails').textContent(),/4v4/);
+		assert.match(await page.locator('#briefingDetails').textContent(),/cp_gorge/);
+		assert.match(await page.locator('#briefingStakes').textContent(),/Advance/);
+		assert.match(await page.locator('#briefingStakes').textContent(),/remains at Breakthrough/);
+		assert.deepEqual(commands,['select_faction BLU']);
+		await page.locator('#joinDeployment').click(); await page.waitForFunction(() => document.querySelector('#pendingActions').offsetParent !== null);
+		assert.equal(await page.locator('#playerJourney li.current').getAttribute('data-journey'),'3');
+		assert.deepEqual(commands,['select_faction BLU','deploy works']); assert.deepEqual(page.errors,[]);
 	} finally { await context.close(); }
 });
 
-test('three complete cycles are periodic, bounded, and preserve SVG nodes', async () => {
-	const context = await browser.newContext();
+test('pending ticket can be abandoned without advancing campaign', async () => {
+	const context=await browser.newContext(); commands=[];
+	campaignResponse=demoCampaign({faction:'RED',needsFaction:false,pendingBattleId:'demo_00007',pendingNode:'reservoir',pendingMap:'koth_viaduct'});
 	try {
-		const page = await open(context);
-		const result = await page.evaluate(() => {
-			const element = document.querySelector('.frontLine');
-			const original = demoState(0);
-			let maxSeam = 0;
-			for (let cycle = 0; cycle < 3; cycle++) {
-				for (let i = 0; i <= 64; i++) {
-					const time = cycle * DEMO_DURATION + i * 1000;
-					const state = demoState(time);
-					if (state.blu < 0 || state.blu > 1 || state.red < 0 || state.red > 1) throw new Error('unbounded');
-					demoClock.pausedAt = time;
-					updateDemo();
-				}
-				const a = demoState((cycle + 1) * DEMO_DURATION - 1);
-				const b = demoState((cycle + 1) * DEMO_DURATION + 1);
-				maxSeam = Math.max(maxSeam, Math.abs(a.blu - b.blu), Math.abs(a.red - b.red));
-			}
-			const before = element.getAttribute('d');
-			demoClock.pausedAt = DEMO_DURATION * .4;
-			updateDemo();
-			return { maxSeam, original, repeated:demoState(DEMO_DURATION * 3),
-				persistent:element === document.querySelector('.frontLine'),
-				territoryMoves:before !== element.getAttribute('d'),
-				invalid: /NaN|Infinity/.test(document.querySelector('#map').innerHTML) };
-		});
-		assert.deepEqual(result.original, result.repeated);
-		assert.ok(result.maxSeam < .00001);
-		assert.equal(result.persistent, true);
-		assert.equal(result.territoryMoves, true);
-		assert.equal(result.invalid, false);
-		assert.deepEqual(page.errors, []);
+		const page=await open(context,'view=full&demo=1'); assert.equal(await page.locator('#pendingActions').isVisible(),true);
+		await page.locator('#abandonBattle').click(); await page.waitForFunction(() => !document.querySelector('#demoFlow').offsetParent);
+		assert.deepEqual(commands,['abandon']); assert.equal(campaignResponse.demoState.stage,1); assert.equal(campaignResponse.demoState.battlesPlayed,0);
 	} finally { await context.close(); }
 });
 
-test('card and theater share time, geometry, and pause/resume', async () => {
-	const context = await browser.newContext();
+test('debrief and war history render coordinator events as text and acknowledge once', async () => {
+	const context=await browser.newContext(); commands=[];
+	campaignResponse=demoCampaign({faction:'BLU',needsFaction:false,stage:2,battlesPlayed:1,victories:1,debriefUnread:true,lastResult:'ADVANCED',lastTitle:'OPERATION ADVANCED',lastBody:'Victory opened the next stage.',events:[{sequence:1,type:'OPERATION_ADVANCED',title:'<b>SAFE TITLE</b>',body:'The line moved.',node:'works'}]});
 	try {
-		const card = await open(context, 'card');
-		const full = await open(context);
-		await full.locator('#pauseDemo').click();
-		await card.waitForFunction(() => demoClock.pausedAt !== null);
-		const snapshot = page => page.evaluate(() => ({ time:demoTime(), state:demoState(demoTime()),
-			nodes:data.nodes.map(n => [n.id, mapX(n), mapY(n)]), field:field(500, 200) }));
-		assert.deepEqual(await snapshot(card), await snapshot(full));
-		const path = await full.locator('.frontLine').getAttribute('d');
-		await full.waitForTimeout(350);
-		assert.equal(await full.locator('.frontLine').getAttribute('d'), path);
-		await full.locator('#pauseDemo').click();
-		await card.waitForFunction(() => demoClock.pausedAt === null);
-		assert.ok(Math.abs((await snapshot(card)).time - (await snapshot(full)).time) < 100);
-		assert.equal(await card.locator('.labelName').count(), 2);
-		assert.equal(await full.locator('.labelName').count(), 8);
+		const page=await open(context,'view=full&demo=1'); assert.equal(await page.locator('#debriefActions').isVisible(),true);
+		assert.match(await page.locator('#note').textContent(),/6v6/);
+		assert.equal(await page.locator('#warEvents b').count(),0); assert.equal(await page.locator('#warEvents strong').textContent(),'OPERATION ADVANCED');
+		assert.equal(await page.locator('#playerJourney li.current').getAttribute('data-journey'),'4');
+		await page.locator('#continueCampaign').click(); await page.waitForFunction(() => !document.querySelector('#demoFlow').offsetParent);
+		assert.deepEqual(commands,['ack_debrief']); assert.deepEqual(page.errors,[]);
 	} finally { await context.close(); }
 });
 
-test('four captures change ownership, rings, defense and supply without replacing nodes', async () => {
-	const context = await browser.newContext({ viewport:{width:1440, height:900} });
+test('Russian localization covers saved results, legacy events and battle meaning', async () => {
+	const context=await browser.newContext(); commands=[];
+	campaignResponse=demoCampaign({faction:'RED',needsFaction:false,stage:1,battlesPlayed:1,defeats:1,debriefUnread:true,lastResult:'STALEMATE',lastTitle:'STALEMATE - OFFENSIVE REPULSED',lastBody:'English legacy fallback.',events:[
+		{sequence:1,type:'FACTION_CHOSEN',title:'RED MOBILIZED',body:'English legacy fallback.',node:'reservoir'},
+		{sequence:2,type:'BATTLE_RESULT',title:'STALEMATE',body:'English legacy fallback.',node:'reservoir'},
+		{sequence:3,type:'OPERATION_REPULSED',title:'OFFENSIVE REPULSED',body:'English legacy fallback.',node:'reservoir'}
+	]});
+	campaignResponse.lang='russian';
 	try {
-		const page = await open(context);
-		const result = await page.evaluate(() => {
-			demoClock.offset = 0;
-			const nodes = [...document.querySelectorAll('.nodeHit')];
-			const snapshots = [];
-			for (const time of [0, 11999, 12000, 15000, 24000, 29999, 30000, 33000, 43999, 44000, 47000, 55999, 56000, 59000, 63999, 64000]) {
-				demoClock.pausedAt = time;
-				updateDemo();
-				snapshots.push({time, works:nodeById('works').owner, reservoir:nodeById('reservoir').owner,
-					worksProgress:data.fronts[0].progress, reservoirProgress:data.fronts[1].progress,
-					worksActive:data.fronts[0].active,
-					fill:document.querySelector('[data-id="works"] .nodeFace').getAttribute('fill'),
-					ownerText:document.querySelector('#selOwner').textContent,
-					front:territoryPaths[2].getAttribute('d'),
-					road:demoEdges.find(e => e.a.id === 'works' && e.b.id === 'quarry').road.getAttribute('stroke-dasharray')});
-			}
-			return {snapshots, persistent:nodes.every((n, i) => n === document.querySelectorAll('.nodeHit')[i]),
-				stand:[demoState(23000).red, demoState(24000).red, demoState(25000).red]};
-		});
-		const at = time => result.snapshots.find(s => s.time === time);
-		assert.equal(at(11999).works, 'RED');
-		assert.equal(at(12000).works, 'BLU');
-		assert.equal(at(12000).worksProgress, 1);
-		assert.equal(at(15000).worksActive, false);
-		assert.equal(at(15000).fill, 'rgb(74,127,168)');
-		assert.ok(at(15000).ownerText.includes('BLU'));
-		assert.equal(at(15000).road, 'none');
-		assert.equal(at(29999).reservoir, 'BLU');
-		assert.equal(at(30000).reservoir, 'RED');
-		assert.equal(at(30000).reservoirProgress, 1);
-		assert.equal(at(43999).works, 'BLU');
-		assert.equal(at(44000).works, 'RED');
-		assert.equal(at(44000).worksProgress, 1);
-		assert.equal(at(47000).fill, 'rgb(194,59,44)');
-		assert.equal(at(47000).road, '9 8');
-		assert.equal(at(55999).reservoir, 'RED');
-		assert.equal(at(56000).reservoir, 'BLU');
-		assert.equal(at(56000).reservoirProgress, 1);
-		assert.equal(at(63999).front, at(64000).front);
-		assert.equal(at(63999).works, at(64000).works);
-		assert.equal(at(63999).reservoir, at(64000).reservoir);
-		assert.deepEqual(result.stand, [.42, .42, .42]);
-		assert.equal(result.persistent, true);
-		if (process.env.CAMPAIGN_SCREENSHOTS) {
-			for (const time of [13000, 31000, 45000, 57000]) {
-				await page.evaluate(time => { demoClock.pausedAt = time; updateDemo(); }, time);
-				assert.ok(Number(await page.locator('#captureNotice').evaluate(n => getComputedStyle(n).opacity)) > .9);
-				await page.screenshot({path:join(process.env.CAMPAIGN_SCREENSHOTS, `capture-${time / 1000}.png`)});
-			}
-		}
-		assert.deepEqual(page.errors, []);
+		const page=await open(context,'view=full&demo=1&lang=en');
+		assert.equal(await page.locator('html').getAttribute('lang'),'ru');
+		assert.equal(await page.locator('#flowTitle').textContent(),'НИЧЬЯ — НАСТУПЛЕНИЕ ОТБИТО');
+		assert.match(await page.locator('#flowBody').textContent(),/защитники удержали сектор/i);
+		assert.match(await page.locator('#battle').textContent(),/ПРОРЫВ/);
+		assert.deepEqual(await page.locator('#warEvents strong').allTextContents(),['RED МОБИЛИЗОВАНЫ','НИЧЬЯ','НАСТУПЛЕНИЕ ОТБИТО']);
+		assert.doesNotMatch(await page.locator('#warEvents').textContent(),/English legacy fallback|OFFENSIVE REPULSED/);
+		assert.equal(await page.locator('#playerJourney li.current').getAttribute('data-journey'),'4');
+		assert.deepEqual(page.errors,[]);
 	} finally { await context.close(); }
 });
 
-test('demo front advances every frame with stable dash phase and no raster work', async t => {
-	const context = await browser.newContext();
+test('captured territory opens a locked next front and finale links to the Playtest', async () => {
+	const context=await browser.newContext(); commands=[];
+	campaignResponse=demoCampaign({faction:'BLU',needsFaction:false,stage:3,battlesPlayed:3,victories:3,completed:true,territoryCaptured:true,lastTitle:'TERRITORY CAPTURED',lastBody:'Foundry 17 now belongs to BLU.',events:[{sequence:4,type:'FRONT_OPENED',title:'NEW FRONT OPENED',body:'The route continues.',node:'yard'}]});
+	campaignResponse.nodes.find(node => node.id === 'works').owner='BLU';
 	try {
-		const page = await open(context);
-		const result = await page.evaluate(() => {
-			paintTerrain = () => { throw new Error('Raster work during playback'); };
-			frontRuns = () => { throw new Error('Contour rebuild during playback'); };
-			demoClock.offset = 0;
-			const frames = [];
-			const start = performance.now();
-			for (let i = 0; i < 180; i++) {
-				demoClock.pausedAt = 11000 + i * 1000 / 60;
-				updateDemo();
-				frames.push({dash:parseFloat(territoryPaths[2].style.strokeDashoffset),
-					path:territoryPaths[2].getAttribute('d')});
-			}
-			return {frames, elapsed:performance.now() - start,
-				length:territoryPaths[2].getAttribute('pathLength'),
-				cssAnimation:getComputedStyle(territoryPaths[2]).animationName};
-		});
-		assert.equal(result.length, '520');
-		assert.equal(result.cssAnimation, 'none');
-		let changed = 0;
-		for (let i = 1; i < result.frames.length; i++) {
-			const previous = result.frames[i - 1], frame = result.frames[i];
-			const movement = ((previous.dash - frame.dash) % 26 + 26) % 26;
-			assert.ok(Math.abs(movement - 1 / 6) < .001, `dash phase at frame ${i}`);
-			assert.equal(frame.path.match(/Q/g).length, previous.path.match(/Q/g).length);
-			if (frame.path !== previous.path) changed++;
-		}
-		assert.ok(changed > 170, 'the contour must not update at a 4 Hz cadence');
-		t.diagnostic(`180 demo updates: ${result.elapsed.toFixed(1)} ms of scripting (not GPU/frame timing)`);
-		const cadence = await page.evaluate(() => new Promise(resolve => {
-			demoClock.pausedAt = null;
-			demoClock.offset = Date.now() - 11000;
-			const intervals = [];
-			let previous;
-			function sample(now) {
-				if (previous !== undefined) intervals.push(now - previous);
-				previous = now;
-				if (intervals.length < 120) requestAnimationFrame(sample);
-				else {
-					intervals.sort((a, b) => a - b);
-					resolve({median:intervals[60], p95:intervals[114], max:intervals[119]});
-				}
-			}
-			requestAnimationFrame(sample);
-		}));
-		t.diagnostic(`Browser RAF during capture: median ${cadence.median.toFixed(1)} ms, p95 ${cadence.p95.toFixed(1)} ms, max ${cadence.max.toFixed(1)} ms (not a native VGUI benchmark)`);
-		assert.deepEqual(page.errors, []);
+		const page=await open(context,'view=full&demo=1'); assert.equal(await page.locator('#finalActions').isVisible(),true);
+		assert.equal(await page.locator('#finalComparison').isVisible(),true); assert.match(await page.locator('#finalComparison').textContent(),/real players/);
+		await page.locator('#openPlaytest').click(); await page.waitForTimeout(100); assert.deepEqual(commands,['open_playtest']);
+		await page.locator('#continueOffline').click(); await page.waitForTimeout(900); assert.equal(await page.locator('#demoFlow').isVisible(),false);
+		await page.locator('.sector[data-id="yard"]').click();
+		assert.equal(await page.locator('#deploy').isDisabled(),true); assert.equal((await page.locator('.sector[data-id="works"]').getAttribute('class')).includes('sector-blu'),true);
 	} finally { await context.close(); }
 });
 
-test('live polling and keyboard selection do not replace animated elements', async () => {
-	const context = await browser.newContext();
+test('normal mode uses the live campaign feed and retains its parameters', async () => {
+	const context=await browser.newContext(); campaignResponse=liveCampaign; campaignStatus=200;
 	try {
-		const fixturePage = await open(context);
-		const fixture = await fixturePage.evaluate(() => JSON.parse(JSON.stringify(SAMPLE)));
-		fixture.demo = false;
-		let fail = false;
-		await context.route('**/v1/campaign', route => route.fulfill({ status:fail ? 503 : 200,
-			contentType:'application/json', body:JSON.stringify(fixture) }));
-		const page = await open(context, 'full', '&demo=0');
-		assert.equal(new URL(await page.locator('#cardOpen').getAttribute('href'), origin).searchParams.get('demo'), '0');
-		await page.evaluate(() => {
-			window.originalFront = document.querySelector('.frontLine');
-			window.originalAnimation = originalFront.getAnimations()[0];
-		});
-		const quarry = page.locator('.nodeHit[data-id="quarry"]');
-		await quarry.focus();
-		await page.keyboard.press('Enter');
-		await page.waitForTimeout(5700);
-		assert.equal(await quarry.getAttribute('aria-pressed'), 'true');
-		assert.equal(await page.evaluate(() => originalFront === document.querySelector('.frontLine')), true);
-		assert.equal(await page.evaluate(() => originalAnimation === originalFront.getAnimations()[0]), true);
-		assert.ok(await page.evaluate(() => originalAnimation.currentTime > 5200));
-		assert.equal(await page.evaluate(() => document.activeElement.getAttribute('data-id')), 'quarry');
-		fail = true;
-		await page.evaluate(() => poll());
-		await page.waitForFunction(() => document.querySelector('#subtitle').textContent.includes('Connection lost'));
-		fail = false;
-		await page.evaluate(() => poll());
-		await page.waitForFunction(() => !document.querySelector('#subtitle').textContent.includes('Connection lost'));
-		assert.deepEqual(page.errors, []);
-	} finally { await context.close(); }
+		const page=await open(context,'view=full&demo=0'); await page.waitForFunction(() => document.querySelector('#warName').textContent === 'Live fixture');
+		assert.equal(await page.locator('.sector').count(),6); assert.equal(await page.locator('#warStatus').textContent(),'LIVE CAMPAIGN');
+		assert.equal(new URL(await page.locator('#openFull').getAttribute('href'),page.url()).searchParams.get('demo'),'0');
+		campaignStatus=503; await page.waitForFunction(() => document.querySelector('#warStatus').textContent.includes('unavailable'),null,{timeout:4500});
+		assert.equal(await page.locator('.sector').count(),6); assert.deepEqual(page.errors,[]);
+	} finally { campaignStatus=200; await context.close(); }
 });
 
-test('standalone open/close, embedded Escape, and game language', async () => {
-	const context = await browser.newContext();
+test('embedded Escape posts close and legacy routing remains available', async () => {
+	const context=await browser.newContext(); commands=[]; campaignResponse=demoCampaign({faction:'BLU',needsFaction:false});
 	try {
-		const card = await open(context, 'card');
-		await card.locator('#cardOpen').click();
-		assert.equal(new URL(card.url()).searchParams.get('view'), 'full');
-		await card.keyboard.press('Escape');
-		await card.waitForURL('**/*view=card*');
-		const commands = [];
-		await context.route('**/v1/campaign/command', route => {
-			commands.push(route.request().postData());
-			return route.fulfill({ status:204 });
-		});
-		await context.route('**/v1/campaign', route => route.fulfill({
-			json:{ lang:'russian', status:{ valid:false } } }));
-		const full = await open(context, 'full', '&embedded=1');
-		await full.waitForFunction(() => document.documentElement.lang === 'ru');
-		await full.locator('.nodeHit[data-id="yard"]').focus();
-		await full.keyboard.press('Escape');
-		await full.waitForTimeout(100);
-		assert.deepEqual(commands, ['close']);
-		assert.equal(await full.locator('#cardPop').textContent(), '');
-	} finally { await context.close(); }
-});
-
-test('desktop, compact card and mobile layouts fit; capture screenshots', async () => {
-	for (const [name, view, width, height] of [
-		['card', 'card', 734, 230], ['card-small', 'card', 360, 180],
-		['full', 'full', 1440, 900], ['mobile', 'full', 390, 844]
-	]) {
-		const context = await browser.newContext({ viewport:{ width, height } });
-		try {
-			const page = await open(context, view);
-			await page.evaluate(() => { demoClock.pausedAt = DEMO_DURATION * .4; updateDemo(); });
-			const bounds = await page.evaluate(() => ({
-				overflow:document.documentElement.scrollWidth > innerWidth,
-				mapHeight:document.querySelector('#mapWrap').getBoundingClientRect().height,
-				buttons:[...document.querySelectorAll('.view-full #deploy, .view-full #closeMap, .view-card #cardOpen')].map(n => {
-					const r = n.getBoundingClientRect(); return r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight;
-				})
-			}));
-			assert.equal(bounds.overflow, false, name);
-			assert.ok(bounds.mapHeight > 100, name);
-			assert.ok(bounds.buttons.every(Boolean), name);
-			assert.deepEqual(page.errors, [], name);
-			if (process.env.CAMPAIGN_SCREENSHOTS) await page.screenshot({ path:join(process.env.CAMPAIGN_SCREENSHOTS, `${name}.png`) });
-		} finally { await context.close(); }
-	}
-});
-
-test('reduced motion produces a stable, usable demo', async () => {
-	const context = await browser.newContext({ reducedMotion:'reduce' });
-	try {
-		const page = await open(context);
-		const path = await page.locator('.frontLine').getAttribute('d');
-		await page.waitForTimeout(400);
-		assert.equal(await page.locator('.frontLine').getAttribute('d'), path);
-		assert.equal(await page.locator('#pauseDemo').isDisabled(), true);
-		assert.equal(await page.locator('.frontLine').evaluate(n => getComputedStyle(n).animationName), 'none');
-		await page.locator('.nodeHit[data-id="quarry"]').click();
-		assert.equal(await page.locator('#selName').textContent(), 'Карьер');
-	} finally { await context.close(); }
-});
-
-test('live loading, empty feed, recovery and disappearance disable stale actions', async () => {
-	const context = await browser.newContext();
-	try {
-		const fixturePage = await open(context);
-		const fixture = await fixturePage.evaluate(() => JSON.parse(JSON.stringify(SAMPLE)));
-		fixture.demo = false;
-		let response = null;
-		await context.route('**/v1/campaign', route => route.fulfill({ json:response }));
-		const page = await context.newPage();
-		await page.goto(`${origin}/campaign.html?view=full&demo=0`);
-		await page.waitForFunction(() => document.body.classList.contains('offline'));
-		assert.equal(await page.locator('#offline').textContent(), 'Waiting for the game...');
-		response = fixture;
-		await page.evaluate(() => poll());
-		await page.waitForFunction(() => document.querySelectorAll('.nodeHit').length === 8);
-		assert.equal(await page.locator('#deploy').isDisabled(), false);
-		response = { ...fixture, nodes:[], fronts:[], edges:[] };
-		await page.evaluate(() => poll());
-		await page.waitForFunction(() => document.querySelector('#deploy').disabled);
-		assert.equal(await page.locator('.nodeHit').count(), 0);
-		assert.equal(await page.locator('#offline').textContent(), 'No campaign is running');
-		assert.equal(await page.evaluate(() => selected), null);
+		const page=await open(context,'view=full&demo=1&embedded=1'); const legacyURL=new URL(await page.locator('#legacy').getAttribute('href'),page.url());
+		assert.equal(legacyURL.pathname,'/campaign-legacy.html'); assert.equal(legacyURL.searchParams.get('demo'),'1');
+		await page.keyboard.press('Escape'); await page.waitForTimeout(50); assert.deepEqual(commands,['close']);
 	} finally { await context.close(); }
 });

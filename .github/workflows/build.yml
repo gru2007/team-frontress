@@ -422,7 +422,7 @@ jobs:
           git clean -xfd -- game src
 
   publish-steam:
-    name: Steam / Playtest + main + dedicated
+    name: Steam / Playtest + main + demo + dedicated
     needs: [build, coordinator]
     if: ${{ !cancelled() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/release/') }}
     runs-on: ubuntu-latest
@@ -440,6 +440,11 @@ jobs:
       STEAM_MAIN_DEPOT_WIN: ${{ vars.STEAM_MAIN_DEPOT_WIN }}
       STEAM_MAIN_DEPOT_LINUX: ${{ vars.STEAM_MAIN_DEPOT_LINUX }}
       STEAM_MAIN_BRANCH: ${{ vars.STEAM_MAIN_BRANCH || 'prerelease' }}
+      # The demo mounts the main app's Windows/Linux depots as Shared Depots in
+      # Steamworks. CI uploads only this app-owned identity overlay.
+      STEAM_DEMO_APPID: 5260620
+      STEAM_DEMO_DEPOT: ${{ vars.STEAM_DEMO_DEPOT || '5260621' }}
+      STEAM_DEMO_BRANCH: ${{ vars.STEAM_DEMO_BRANCH || 'prerelease' }}
       # The dedicated server ships under its own Tool and keeps Playtest identity.
       STEAM_DS_APPID: 5150320
       STEAM_DS_DEPOT_LINUX: 5150321
@@ -528,6 +533,25 @@ jobs:
           STEAM_BRANCH="${STEAM_MAIN_BRANCH}" \
           STEAM_WIN_DIR="${WIN_DIR}" \
           STEAM_LINUX_DIR="${LINUX_DIR}" \
+            ./game_clean/steampipe.sh
+
+      - name: Publish the demo identity overlay
+        if: env.CLIENT_READY == '1' && env.STEAM_MAIN_APPID != 'none' && env.STEAM_DEMO_APPID != 'none'
+        run: |
+          set -euo pipefail
+          DEMO_DIR="${RUNNER_TEMP}/frontress-demo-overlay"
+          rm -rf "${DEMO_DIR}"
+          mkdir -p "${DEMO_DIR}"
+          printf '%s\n' "${STEAM_DEMO_APPID}" > "${DEMO_DIR}/steam_appid.txt"
+          test "$(tr -d '\r\n ' < "${DEMO_DIR}/steam_appid.txt")" = "5260620"
+          test "$(find "${DEMO_DIR}" -type f | wc -l | tr -d ' ')" = "1"
+
+          if [ "${STEAM_DEMO_BRANCH}" = "none" ]; then STEAM_DEMO_BRANCH=""; fi
+          STEAM_APPID="${STEAM_DEMO_APPID}" \
+          STEAM_DEPOT_GENERIC="${STEAM_DEMO_DEPOT}" \
+          STEAM_GENERIC_DIR="${DEMO_DIR}" \
+          STEAM_INCLUDE_APPID_FILE=1 \
+          STEAM_BRANCH="${STEAM_DEMO_BRANCH}" \
             ./game_clean/steampipe.sh
 
       - name: Publish Linux dedicated server to prerelease
