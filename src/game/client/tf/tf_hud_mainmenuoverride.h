@@ -217,7 +217,7 @@ public:
 
 private:
 
-	int						m_MainMenuWebUiZIndex;
+	bool					m_bWebInteractiveWindow;
 
 	vgui::ImagePanel		*m_pCharacterImagePanel;
 	int						 m_iCharacterImageIdx;

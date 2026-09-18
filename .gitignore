@@ -606,6 +606,8 @@ changenotes.md
 !/game/tc2/custom/readme.txt
 
 pak1*.vpk
+/game/tc2/frontress_dir.vpk
+/game/tc2/frontress_content.json
 
 pak.zip
 

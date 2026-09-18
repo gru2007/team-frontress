@@ -1479,7 +1479,8 @@ CTFCampaignMapDialog::CTFCampaignMapDialog( Panel *pParent, const char *pszName 
 	SetMouseInputEnabled( true );
 	SetKeyBoardInputEnabled( true );
 	SetProportional( true );
-	SetZPos( 1000 );
+	// Above dashboard notifications (15000), like other fullscreen menu dialogs.
+	SetZPos( 30000 );
 
 	ivgui()->AddTickSignal( GetVPanel(), 100 );
 }
