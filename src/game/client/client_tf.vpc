@@ -926,6 +926,16 @@ $Project "Client (TF)"
 
 			$Folder	"Matchmaking"
 			{
+				// Team Frontress: matchmaking without a Valve game coordinator.
+				$File	"$SRCDIR\game\client\tf\frontress\tf_mm_backend.h"
+				$File	"$SRCDIR\game\client\tf\frontress\tf_mm_backend.cpp"
+				$File	"$SRCDIR\game\client\tf\frontress\tf_mm_party.cpp"
+				$File	"$SRCDIR\game\client\tf\frontress\tf_mm_coordinator.cpp"
+				$File	"$SRCDIR\game\client\tf\frontress\tf_mainmenu_info.h"
+				$File	"$SRCDIR\game\client\tf\frontress\tf_mainmenu_info.cpp"
+				$File	"$SRCDIR\game\client\tf\frontress\tf_campaign_map.h"
+				$File	"$SRCDIR\game\client\tf\frontress\tf_campaign_map.cpp"
+
 				$File	"$SRCDIR\game\client\tf\tf_gc_client.cpp"
 				$File	"$SRCDIR\game\client\tf\tf_gc_client.h"
 				$File	"$SRCDIR\game\client\tf\tf_partyclient.cpp"
@@ -950,6 +960,10 @@ $Project "Client (TF)"
 				$File	"$SRCDIR\game\shared\tf\tf_matchmaking_shared.cpp"
 				$File	"$SRCDIR\game\shared\tf\tf_gc_shared.h"
 				$File	"$SRCDIR\game\shared\tf\tf_gc_shared.cpp"
+
+				$File	"$SRCDIR\game\shared\greyline\greyline_uniform.cpp"
+				$File	"$SRCDIR\game\shared\greyline\greyline_uniform.h"
+
 				$File	"$SRCDIR\game\shared\tf\tf_match_description.cpp"
 				$File	"$SRCDIR\game\shared\tf\tf_match_description.h"
 				$File	"$SRCDIR\game\shared\tf\tf_match_description_shared.cpp"

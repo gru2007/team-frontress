@@ -1,0 +1,31 @@
+name: Recruiting Bot
+on:
+  pull_request:
+    paths: ['services/recruiting-bot/**', '.github/workflows/recruiting-bot.yml']
+  push:
+    paths: ['services/recruiting-bot/**', '.github/workflows/recruiting-bot.yml']
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/recruiting-bot
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+          cache-dependency-path: services/recruiting-bot/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: services/recruiting-bot/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: find web/assets -type f -name '*.js' -print0 | xargs -0 -r -n1 node --check
+      - run: go test -race ./...
+      - run: go vet ./...
+      - run: CGO_ENABLED=0 go build ./...

@@ -34,6 +34,9 @@ class CInteractiveWebPanel : public EditablePanel
 
     void LoadInteractivePanel();
 
+    // Responsive pages size themselves to the actual viewport, not VGUI units.
+    void SetViewportScaling( bool bEnabled ) { m_bViewportScaling = bEnabled; InvalidateLayout(); }
+
     void ForceFullTextureUpload() { m_pHTML->ForceFullTextureUpload(); }
 
 private:
@@ -41,6 +44,7 @@ private:
 
     bool m_bInited;
     bool m_bLoadOnStart;
+    bool m_bViewportScaling;
     std::string m_szPath;
 
     HTML* m_pHTML;

@@ -1,0 +1,13 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Team Frontress — Campaign</title></head>
+<body style="margin:0;background:#0d0b09;color:#ded3bb;font-family:sans-serif">
+<script>
+(function () {
+  var params = new URLSearchParams(location.search);
+  var legacy = params.get('legacy') === '1';
+  if (legacy) params.delete('legacy');
+  var query = params.toString();
+  location.replace((legacy ? './campaign-legacy.html' : './war-map-v2/index.html') + (query ? '?' + query : ''));
+}());
+</script>
+</body></html>

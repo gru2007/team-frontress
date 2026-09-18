@@ -1,0 +1,14 @@
+{
+  "type": "FeatureCollection",
+  "name": "frontress-frontline-v2",
+  "features": [
+    {"type":"Feature","properties":{"id":"red_hq"},"geometry":{"type":"Polygon","coordinates":[[[20,110],[160,70],[215,165],[180,310],[50,335],[10,245],[20,110]]]}},
+    {"type":"Feature","properties":{"id":"yard"},"geometry":{"type":"Polygon","coordinates":[[[160,70],[350,40],[410,155],[335,255],[215,165],[160,70]]]}},
+    {"type":"Feature","properties":{"id":"depot"},"geometry":{"type":"Polygon","coordinates":[[[50,335],[180,310],[340,345],[390,565],[120,595],[25,485],[50,335]]]}},
+    {"type":"Feature","properties":{"id":"works"},"geometry":{"type":"Polygon","coordinates":[[[215,165],[335,255],[340,345],[390,565],[535,520],[555,335],[500,215],[410,155],[215,165]]]}},
+    {"type":"Feature","properties":{"id":"reservoir"},"geometry":{"type":"Polygon","coordinates":[[[350,40],[650,25],[700,165],[555,335],[500,215],[410,155],[350,40]]]}},
+    {"type":"Feature","properties":{"id":"quarry"},"geometry":{"type":"Polygon","coordinates":[[[390,565],[535,520],[555,335],[705,360],[780,565],[610,605],[390,565]]]}},
+    {"type":"Feature","properties":{"id":"junction"},"geometry":{"type":"Polygon","coordinates":[[[555,335],[700,165],[845,145],[910,275],[865,430],[780,565],[705,360],[555,335]]]}},
+    {"type":"Feature","properties":{"id":"blu_hq"},"geometry":{"type":"Polygon","coordinates":[[[845,145],[965,105],[995,230],[975,475],[865,430],[910,275],[845,145]]]}}
+  ]
+}

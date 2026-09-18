@@ -71,13 +71,32 @@ void CTFPingPanel::ApplySchemeSettings( IScheme *pScheme )
 
 	if ( m_pKeepTeamTogetherCheckBox )
 	{
+		// Ticked and not a choice, which is the truth: the coordinator has
+		// never split a party across teams and cannot be asked to. The
+		// "#TF_MM_ComingSoon" tooltip this used to carry promised a feature
+		// that is not coming because it is already here, so it is gone rather
+		// than replaced -- a new token would have to ship in pak1.vpk, which
+		// is not built from this repo.
 		m_pKeepTeamTogetherCheckBox->SetSelected( true );
 		m_pKeepTeamTogetherCheckBox->SetEnabled( false );
-		m_pKeepTeamTogetherCheckBox->SetTooltip( GetDashboardTooltip( k_eMediumFont ), "#TF_MM_ComingSoon" );
 	}
 
+	// The rest of this panel is Valve's datacenter ping picker, and it reads
+	// CTFGCClientSystem::BHavePingData(), which returns false in this build
+	// and always will: there are no Valve datacenters to ping and no GC to
+	// report their population. The slider filters matchmaking on a ping to
+	// nothing and the list is permanently empty, so neither belongs on screen.
+	const bool bHavePingData = GTFGCClientSystem()->BHavePingData();
+	SetControlVisible( "CustomPingCheckButton", bHavePingData, true );
+	SetControlVisible( "CheckLabel", bHavePingData, true );
+	SetControlVisible( "DescLabel", bHavePingData, true );
+	SetControlVisible( "CurrentPingLabel", bHavePingData, true );
+	SetControlVisible( "PingSlider", bHavePingData, true );
+	SetControlVisible( "DataCenterContainer", bHavePingData, true );
+
 	RegeneratePingPanels();
-	m_pPingSlider->AddActionSignalTarget( this );
+	if ( m_pPingSlider )
+		m_pPingSlider->AddActionSignalTarget( this );
 }
 
 //-----------------------------------------------------------------------------
@@ -246,6 +265,11 @@ void CTFPingPanel::CleanupPingPanels()
 //-----------------------------------------------------------------------------
 void CTFPingPanel::UpdateCurrentPing()
 {
+	// The ping controls are hidden when there is no ping data, which in this
+	// build is always. Nothing below has anything to say in that case.
+	if ( !GTFGCClientSystem()->BHavePingData() )
+		return;
+
 	uint32_t unCustomPingLimit = GTFPartyClient()->GetLocalGroupCriteria().GetCustomPingTolerance();
 	bool bUsePingLimit = ( unCustomPingLimit > 0 );
 	int nLowestDataCenterPing = m_vecDataCenterPingPanels.Count() ? m_vecDataCenterPingPanels[0].m_nPing : 0;

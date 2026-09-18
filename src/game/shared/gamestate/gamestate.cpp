@@ -190,6 +190,39 @@ public:
 		{
 			return "Hello world!";
 		});
+		// The campaign map. A plain document rather than a websocket method
+		// because the page that reads it is not the menu: it is one panel, it
+		// wants the whole war at once, and it must draw something the moment it
+		// loads rather than after a handshake.
+		CROW_ROUTE(app, "/v1/campaign")([&]
+		{
+			crow::response res( GetCampaignDocument() );
+			res.set_header( "Content-Type", "application/json" );
+			res.set_header( "Cache-Control", "no-store" );
+			return res;
+		});
+		// ...and what the page asks the game to do about it. One line, a verb
+		// and its argument. The game reads these on the main thread; nothing is
+		// executed here.
+		CROW_ROUTE(app, "/v1/campaign/command").methods( crow::HTTPMethod::Post )([&]( const crow::request &req )
+		{
+			if ( req.body.size() > 512 )
+			{
+				return crow::response( 413 );
+			}
+
+			{
+				AUTO_LOCK( m_CampaignMutex )
+				// A page nobody is draining commands for must not grow a queue
+				// without end.
+				if ( m_CampaignCommands.size() < 32 )
+				{
+					m_CampaignCommands.push_back( req.body );
+				}
+			}
+
+			return crow::response( 204 );
+		});
 		CROW_WEBSOCKET_ROUTE(app, "/ws")
 		.onaccept([&]( const crow::request& req, void** userdata) {
 			{
@@ -505,6 +538,30 @@ public:
 		m_hThreadEvent.Set();
 	}
 
+	// The campaign document, published by the game and handed out by the HTTP
+	// thread. Both sides only ever touch the string under the lock, so the
+	// frame never waits on a page and a page never reads a half-written war.
+	void SetCampaignDocument( const std::string& strJSON )
+	{
+		AUTO_LOCK( m_CampaignMutex )
+		m_strCampaignJSON = strJSON;
+	}
+
+	std::string GetCampaignDocument()
+	{
+		AUTO_LOCK( m_CampaignMutex )
+		// An empty document is a page that has loaded before the game has
+		// anything to say, not an error: it draws its own "no campaign".
+		return m_strCampaignJSON.empty() ? std::string( "{}" ) : m_strCampaignJSON;
+	}
+
+	void TakeCampaignCommands( std::vector< std::string >& vecOut )
+	{
+		AUTO_LOCK( m_CampaignMutex )
+		vecOut.swap( m_CampaignCommands );
+		m_CampaignCommands.clear();
+	}
+
 	void RegisterMethod( std::string methodName, const std::function<std::pair<bool, std::string>( const std::string& params, int64_t iRpcId )>& method )
 	{
 		if (!ThreadInMainThread())
@@ -558,6 +615,10 @@ private:
 	CUtlPriorityQueue<CWebRpcEvent*> m_IncomingEvents;
 	CThreadMutex m_IncomingEventsMutex;
 
+	std::string m_strCampaignJSON;
+	std::vector<std::string> m_CampaignCommands;
+	CThreadMutex m_CampaignMutex;
+
 	std::unordered_set<std::string> m_UnprivilegedMethods;
 	std::unordered_set<std::string> m_UnprivilegedEvents;
 
@@ -598,9 +659,31 @@ bool CGameStateManager::Init()
 		std::string str;
 		if (g_pVGuiLocalize)
 		{
-			std::wstring text = g_pVGuiLocalize->Find(params.c_str());
-			std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
-			str = converter.to_bytes(text);
+			// Find returns NULL for a token nobody has a string for, and a
+			// std::wstring built from NULL is undefined -- which showed up at
+			// the far end as "Invalid UTF-8 in text frame" and closed the
+			// socket. An unknown token answers with itself, the way VGUI
+			// renders one.
+			const wchar_t *pwszFound = g_pVGuiLocalize->Find( params.c_str() );
+			if ( pwszFound )
+			{
+				try
+				{
+					std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+					str = converter.to_bytes( pwszFound );
+				}
+				catch ( ... )
+				{
+					// A string we cannot encode is not worth killing the
+					// connection over.
+					str = params;
+				}
+			}
+			else
+			{
+				str = params;
+			}
+
 			return std::make_pair( true, str );
 		}
 		return std::make_pair( true, str );
@@ -908,6 +991,28 @@ void CGameStateManager::QueueEvent(const std::string& strEvent, const std::strin
 	Assert(m_pServerThread);
 
 	m_pServerThread->QueueEvent(strEvent, strParams);
+}
+
+void CGameStateManager::SetCampaignJSON( const std::string &strJSON )
+{
+	if ( !m_bInit )
+		return;
+
+	Assert( m_pServerThread );
+
+	m_pServerThread->SetCampaignDocument( strJSON );
+}
+
+void CGameStateManager::TakeCampaignCommands( std::vector< std::string > &vecOut )
+{
+	vecOut.clear();
+
+	if ( !m_bInit )
+		return;
+
+	Assert( m_pServerThread );
+
+	m_pServerThread->TakeCampaignCommands( vecOut );
 }
 
 void CGameStateManager::InitSubscriptions()

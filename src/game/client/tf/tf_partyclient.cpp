@@ -1,6 +1,8 @@
 //========= Copyright Valve Corporation, All rights reserved. ============//
 
 #include "cbase.h"
+
+#include "frontress/tf_mm_backend.h"
 #include "tf_partyclient.h"
 #include "confirm_dialog.h"
 #include "tf_gc_shared.h"
@@ -844,8 +846,10 @@ void CTFPartyClient::RequestQueueForMatch( ETFMatchGroup eMatchGroup )
 
 	PartyMsg( "Requesting queue for %s\n", GetMatchGroupName( eMatchGroup ) );
 	PartyDbg( "Sending PartyQueueForMatch:\n%s", pReliable->Msg().Body().DebugString().c_str() );
-	GTFGCClientSystem()->ReliableMsgQueue().Enqueue( pReliable );
+	// Set before enqueuing: with no GC the message can be answered in-process,
+	// and the reply -- which clears this -- then lands inside Enqueue.
 	SetPendingQueueMsg( eMatchGroup, true );
+	GTFGCClientSystem()->ReliableMsgQueue().Enqueue( pReliable );
 	// See comment in UpdateActiveParty about when InQueue changes.
 	if ( !BInQueueForMatchGroup( eMatchGroup ) )
 	{
@@ -868,8 +872,8 @@ void CTFPartyClient::RequestQueueForStandby()
 
 	PartyMsg( "Requesting queue to join party's lobby\n" );
 	PartyDbg( "Sending PartyQueueForStandby:\n%s", pReliable->Msg().Body().DebugString().c_str() );
-	GTFGCClientSystem()->ReliableMsgQueue().Enqueue( pReliable );
 	m_bPendingStandbyQueueMsg = true;
+	GTFGCClientSystem()->ReliableMsgQueue().Enqueue( pReliable );
 	// See comment in UpdateActiveParty about when InQueue changes
 	if ( !BInStandbyQueue() )
 	{
@@ -1094,6 +1098,16 @@ bool CTFPartyClient::BInStandbyQueue() const
 //-----------------------------------------------------------------------------
 bool CTFPartyClient::BCanQueueForStandby() const
 {
+	// The local backend owns one matchmaking state at a time. Stock TF2 can
+	// queue standby while already in another live match, but our backend cannot
+	// represent both states safely, so do not advertise an action it will refuse.
+	if ( TFMMBackend()->BActive() )
+	{
+		const ETFMMState eState = TFMMBackend()->GetState();
+		if ( eState != k_eTFMMState_Idle && eState != k_eTFMMState_Searching )
+			return false;
+	}
+
 	// Don't need to check the party since standby queue is per-individual
 	if ( BCurrentMatchOrInviteDisallowsQueuing( /* bCheckParty */ false ) || BInStandbyQueue() || !BHaveActiveParty() )
 		{ return false; }
@@ -1195,9 +1209,9 @@ void CTFPartyClient::CheckSendUpdates()
 	PartyDbg( "Sending Party SetOptions:\n%s", pReliable->Msg().Body().DebugString().c_str() );
 	m_flLastCriteriaUpdate = Plat_FloatTime();
 	m_flPendingChangesTime = -1.f;
-	GTFGCClientSystem()->ReliableMsgQueue().Enqueue( pReliable );
 	m_bPendingReliableCriteriaMsg = true;
 	m_unPendingReliableCriteriaMsgParty = m_unActivePartyID;
+	GTFGCClientSystem()->ReliableMsgQueue().Enqueue( pReliable );
 }
 
 //-----------------------------------------------------------------------------
@@ -1456,6 +1470,11 @@ void CTFPartyClient::OnRemoveFromQueueReply( const CProtoBufMsg< CMsgPartyRemove
 	ETFMatchGroup eMatchGroup = msg.Body().match_group();
 	Assert( BHavePendingQueueCancelMsg( eMatchGroup ) );
 	SetPendingQueueCancelMsg( eMatchGroup, false );
+	// Same reason as OnQueueForMatchReply: in-queue state is predicted, so the
+	// reply is the point at which it has to be checked against reality. With a
+	// GC this was covered by the party object arriving right behind the reply;
+	// answered in-process it is not, and the queue would stay "on" in the UI.
+	UpdateActiveParty();
 }
 
 //-----------------------------------------------------------------------------
@@ -1727,6 +1746,18 @@ bool CTFPartyClient::UpdateActiveParty()
 		bool bWasQueued = BInQueueForMatchGroup( eMatchGroup );
 		bool bNowQueued = ( BHavePendingQueueMsg( eMatchGroup ) ||
 		                    ( pActiveParty && pActiveParty->BQueuedForMatchGroup( eMatchGroup ) ) );
+
+		// The backend is the thing actually standing in the coordinator's
+		// queue. It says so through the party object, and when publishing that
+		// object fails the UI would otherwise report idle while a search is
+		// running -- and refuse to cancel it, because it does not believe it
+		// started. Its own state is the truth.
+		if ( !bNowQueued && TFMMBackend()->BActive() &&
+		     TFMMBackend()->GetState() == k_eTFMMState_Searching &&
+		     TFMMBackend()->GetQueuedMatchGroup() == eMatchGroup )
+		{
+			bNowQueued = true;
+		}
 		if ( bWasQueued != bNowQueued )
 			{ mapChangedQueues.Insert( eMatchGroup, bNowQueued ); }
 	}

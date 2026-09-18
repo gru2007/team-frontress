@@ -36,7 +36,10 @@ function run_in_sniper() {
             INTERACTIVE_FLAGS=""
         fi
 
-        image="registry.gitlab.steamos.cloud/steamrt/sniper/sdk:latest"
+        # Pinnable. ccache hashes the compiler, so on ":latest" the day the
+        # SDK is rebuilt is a day every cached object in the tree is a miss.
+        # CI pins a dated tag; a local run without the variable tracks latest.
+        image="${SNIPER_SDK_IMAGE:-registry.gitlab.steamos.cloud/steamrt/sniper/sdk:latest}"
         echo "Running script inside $image"
         # you need a recent version of podman, tested on 5.6
         exec podman run \

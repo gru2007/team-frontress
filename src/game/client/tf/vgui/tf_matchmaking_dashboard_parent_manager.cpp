@@ -35,6 +35,8 @@ public:
 		SetBounds( 0, 0, g_pClientMode->GetViewport()->GetWide(), g_pClientMode->GetViewport()->GetTall() );
 		MakePopup();
 		SetMouseInputEnabled( true );
+		// Only dashboard children may consume input, not the fullscreen backdrop.
+		DisableMouseInputForThisPanel( true );
 		SetKeyBoardInputEnabled( false ); // This can never be true
 		SetVisible( false );
 		ivgui()->AddTickSignal( GetVPanel(), 100 );
@@ -42,18 +44,13 @@ public:
 
 	virtual void OnTick()
 	{
-		BaseClass::OnThink();
+		BaseClass::OnTick();
 
-		SetVisible( GetMMDashboard()->BIsExpanded() );
-	/*	bool bChildrenVisible = false;
-		int nCount = GetChildCount();
-		for( int i=0; i < nCount && !bChildrenVisible; ++i )
-		{
-			CExpandablePanel* pChild = assert_cast< CExpandablePanel* >( GetChild( i ) );
-			bChildrenVisible = bChildrenVisible || pChild->BIsExpanded() || ( !pChild->BIsExpanded() && pChild->GetPercentAnimated() != 1.f );
-		}
-
-		SetVisible( bChildrenVisible );*/
+		// The dashboard stays expanded at the main menu, but is reparented out
+		// of this HUD container. Never resurrect an empty fullscreen input popup.
+		const bool bActive = GetMMDashboard()->GetParent() == this && GetMMDashboard()->BIsExpanded();
+		SetMouseInputEnabled( bActive );
+		SetVisible( bActive );
 	}
 };
 

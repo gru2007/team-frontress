@@ -965,6 +965,11 @@ $Project "Server (TF)"
 
 			$Folder	"Matchmaking"
 			{
+				// Team Frontress: the game server's half of matchmaking with
+				// no Valve game coordinator.
+				$File	"$SRCDIR\game\server\tf\frontress\tf_mm_server.h"
+				$File	"$SRCDIR\game\server\tf\frontress\tf_mm_server.cpp"
+
 				$File	"$SRCDIR\game\server\tf\tf_gc_server.cpp"
 				$File	"$SRCDIR\game\server\tf\tf_gc_server.h"
 				$File	"$SRCDIR\game\shared\lobby.cpp"
@@ -979,6 +984,8 @@ $Project "Server (TF)"
 				$File	"$SRCDIR\game\shared\tf\tf_matchmaking_shared.cpp"
 				$File	"$SRCDIR\game\shared\tf\tf_gc_shared.h"
 				$File	"$SRCDIR\game\shared\tf\tf_gc_shared.cpp"
+				$File	"$SRCDIR\game\shared\greyline\greyline_uniform.cpp"
+				$File	"$SRCDIR\game\shared\greyline\greyline_uniform.h"
 				$File	"$SRCDIR\game\shared\tf\tf_match_description.cpp"
 				$File	"$SRCDIR\game\shared\tf\tf_match_description.h"
 				$File	"$SRCDIR\game\shared\tf\tf_match_description_shared.cpp"

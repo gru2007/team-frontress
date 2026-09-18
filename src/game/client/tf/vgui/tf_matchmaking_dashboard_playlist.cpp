@@ -20,11 +20,45 @@
 #include "tf_partyclient.h"
 #include "util_misc.h"
 #include "tf_matchmaking_dashboard_explanations.h"
+#include "frontress/tf_mm_backend.h"
 
 using namespace vgui;
 using namespace GCSDK;
 
 ConVar tf_special_event_hide( "tf_special_event_hide", "0", FCVAR_ARCHIVE | FCVAR_HIDDEN );
+
+extern const char *s_pszMatchGroups[];
+
+//-----------------------------------------------------------------------------
+// Purpose: Read a "matchgroup" field out of a .res.
+//
+//			The files write the symbolic name -- "MatchGroup_Casual_12v12" --
+//			the same as every other panel that takes one. Reading it with
+//			GetInt() instead silently returned 0 for all of them, so every row
+//			in the play list claimed to be MvM Practice: the reason each mode
+//			reported itself unavailable while the console queue command for the
+//			same mode worked.
+//-----------------------------------------------------------------------------
+static ETFMatchGroup ReadMatchGroupField( KeyValues *inResourceData )
+{
+	const char *pszGroup = inResourceData->GetString( "matchgroup", NULL );
+	if ( !pszGroup || !pszGroup[0] )
+		return k_eTFMatchGroup_Invalid;
+
+	const int nNamed = StringFieldToInt( pszGroup, s_pszMatchGroups, (int)ETFMatchGroup_ARRAYSIZE,
+	                                     /* bDontAssert */ true );
+	if ( nNamed >= 0 )
+		return (ETFMatchGroup)nNamed;
+
+	// A file that writes the number instead still means the number. Anything
+	// else is a typo, and a typo must not read as a real match group: "0" is
+	// MvM Practice, and silently becoming it is exactly what went wrong here.
+	if ( pszGroup[0] == '-' || ( pszGroup[0] >= '0' && pszGroup[0] <= '9' ) )
+		return (ETFMatchGroup)inResourceData->GetInt( "matchgroup", k_eTFMatchGroup_Invalid );
+
+	Warning( "playlist entry has matchgroup \"%s\", which is not a match group\n", pszGroup );
+	return k_eTFMatchGroup_Invalid;
+}
 
 Panel* GetPlayListPanel()
 {
@@ -70,7 +104,7 @@ void CPlayListEntry::ApplySettings( KeyValues *inResourceData )
 {
 	BaseClass::ApplySettings( inResourceData );
 
-	m_eMatchGroup = (ETFMatchGroup)inResourceData->GetInt( "matchgroup", k_eTFMatchGroup_Invalid );
+	m_eMatchGroup = ReadMatchGroupField( inResourceData );
 	m_strImageName = inResourceData->GetString( "image_name" );
 	m_strButtonCommand = inResourceData->GetString( "button_command" );
 	m_strButtonToken = inResourceData->GetString( "button_token" );
@@ -214,6 +248,26 @@ void CPlayListEntry::UpdateBannedState()
 	}
 }
 
+bool CPlayListEntry::BGroupHosted() const
+{
+	if ( m_eMatchGroup == k_eTFMatchGroup_Invalid )
+		return true;
+
+	// Only the service that would actually take the queue gets to answer, and
+	// only once it has: before the first status reply every mode is assumed
+	// to exist, because hiding one on a guess is worse than a slow reveal.
+	if ( !TFMMBackend()->BActive() || !TFMMBackend()->BGroupsKnown() )
+		return true;
+
+	// Never empty the list. If the coordinator offered nothing at all, showing
+	// the modes with their reasons on them is recoverable and a blank panel is
+	// not: the player cannot tell it apart from a menu that failed to load.
+	if ( !TFMMBackend()->BAnyGroupOffered() )
+		return true;
+
+	return TFMMBackend()->BGroupOffered( m_eMatchGroup );
+}
+
 void CPlayListEntry::UpdateDisabledState()
 {
 	auto *pMatchDesc = GetMatchGroupDescription( m_eMatchGroup );
@@ -222,6 +276,35 @@ void CPlayListEntry::UpdateDisabledState()
 		// Community Browser, Tutorials, etc don't have match groups
 		SetEnabled();
 		return;
+	}
+
+	// A mode nobody here runs is not "temporarily disabled while we work on
+	// it": there is no work, and no date it comes back. It should not hold a
+	// row and a tooltip explaining a rework that is not happening -- take it
+	// off the list and let the rows below close the gap.
+	if ( !BGroupHosted() )
+	{
+		// Reloading the scheme puts every entry back where the file put it and
+		// visible again, so intent and state are checked separately: otherwise
+		// a reload leaves the row on screen while the flag still says it is
+		// gone, and the rows below shift over the top of it.
+		if ( !m_bHiddenAsUnhosted || IsVisible() )
+		{
+			m_bHiddenAsUnhosted = true;
+			SetVisible( false );
+			if ( GetParent() )
+				GetParent()->InvalidateLayout();
+		}
+		vgui::ivgui()->RemoveTickSignal( GetVPanel() );
+		return;
+	}
+
+	if ( m_bHiddenAsUnhosted )
+	{
+		m_bHiddenAsUnhosted = false;
+		SetVisible( true );
+		if ( GetParent() )
+			GetParent()->InvalidateLayout();
 	}
 
 	CUtlVector< CTFPartyClient::QueueEligibilityData_t > vecReasons;
@@ -579,7 +662,44 @@ void CTFPlaylistPanel::ApplySchemeSettings( vgui::IScheme *pScheme )
 	m_pMvM = FindControl< CPlayListEntry >( "MvMEntry" );
 	m_pEvent = FindControl< CEventPlayListEntry >( "EventEntry" );
 
+	// Straight after LoadControlSettings, while every entry is still where the
+	// file put it. Once one is hidden and the rest move up, the original
+	// spacing is not recoverable from the panels themselves.
+	CaptureEntrySlots();
+
 	SetMouseInputEnabled( true );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Record the rows the .res laid out, top to bottom.
+//-----------------------------------------------------------------------------
+void CTFPlaylistPanel::CaptureEntrySlots()
+{
+	m_vecEntrySlots.RemoveAll();
+
+	// Every entry, not just the four named ones: the file decides how many
+	// rows there are, and an entry this code has never heard of still has to
+	// take part in closing gaps.
+	for ( int i = 0; i < GetChildCount(); i++ )
+	{
+		CPlayListEntry *pEntry = dynamic_cast< CPlayListEntry * >( GetChild( i ) );
+		if ( !pEntry )
+			continue;
+
+		EntrySlot_t slot;
+		slot.hEntry = pEntry;
+		pEntry->GetPos( slot.nX, slot.nY );
+		slot.nTall = pEntry->GetTall();
+		m_vecEntrySlots.AddToTail( slot );
+	}
+
+	m_vecEntrySlots.Sort( &CTFPlaylistPanel::CompareEntrySlots );
+}
+
+//-----------------------------------------------------------------------------
+int CTFPlaylistPanel::CompareEntrySlots( const EntrySlot_t *pA, const EntrySlot_t *pB )
+{
+	return pA->nY - pB->nY;
 }
 
 void CTFPlaylistPanel::OnCommand( const char *command )
@@ -626,6 +746,57 @@ void CTFPlaylistPanel::OnThink()
 	{
 		// While we have an event active, keep checking if it's there so we can clean up when it's gone.
 		UpdateEventStatus();
+	}
+
+	// Which modes exist at all is the coordinator's answer, and it arrives
+	// well after this panel was built. Nothing else fires when it changes, and
+	// an entry that hid itself stopped ticking, so the panel watches for it.
+	const uint32 nGeneration = TFMMBackend()->GetMapPoolGeneration();
+	if ( nGeneration != m_nLastPoolGeneration )
+	{
+		m_nLastPoolGeneration = nGeneration;
+		UpdatePlaylistEntries();
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Close the gap a mode nobody hosts leaves behind.
+//-----------------------------------------------------------------------------
+void CTFPlaylistPanel::PerformLayout()
+{
+	BaseClass::PerformLayout();
+
+	if ( m_vecEntrySlots.Count() == 0 )
+		return;
+
+	// Only rows this code took away are closed up. An entry that is invisible
+	// for its own reasons -- the event row with no event on -- is left exactly
+	// where the file put it, because the file already laid the list out around
+	// it and second-guessing that is how the rows end up overlapping.
+	int nShift = 0;
+	FOR_EACH_VEC( m_vecEntrySlots, i )
+	{
+		CPlayListEntry *pEntry = m_vecEntrySlots[i].hEntry.Get();
+		if ( !pEntry )
+			continue;
+
+		if ( pEntry->BHiddenAsUnhosted() )
+		{
+			// The row and the space under it, measured to where the next row
+			// starts, so what follows lands exactly where this one began.
+			int nRow = m_vecEntrySlots[i].nTall;
+			if ( i + 1 < m_vecEntrySlots.Count() )
+			{
+				nRow = m_vecEntrySlots[i + 1].nY - m_vecEntrySlots[i].nY;
+			}
+			if ( nRow > 0 )
+			{
+				nShift += nRow;
+			}
+			continue;
+		}
+
+		pEntry->SetPos( m_vecEntrySlots[i].nX, m_vecEntrySlots[i].nY - nShift );
 	}
 }
 
