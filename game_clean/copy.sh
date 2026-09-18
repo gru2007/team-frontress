@@ -153,6 +153,10 @@ done
 # pak1.vpk
 cp -rf ${DEV_DIR}/tc2/pak1*.vpk  ${CLEAN_DIR}/tc2
 
+# Upstream contains binary assets not checked into this repository. Our
+# tracked resources are rebuilt on EVERY package and mounted ahead of it.
+python3 ./frontress_content.py build "${CLEAN_DIR}/tc2"
+
 for F in "${FILES[@]}"; do
   ORIG=$(basename ${F})
   cp -f ${F} ${CLEAN_DIR}/${ORIG}
