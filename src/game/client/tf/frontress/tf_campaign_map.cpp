@@ -810,7 +810,7 @@ void CTFCampaignFeed::Update( float frametime )
 		                          m_DemoState.nPendingPlayerTarget : DemoPlayerTargetForStage( m_DemoState.nStage );
 		// The cfg starts with quota 0. Put the human on the authored side first,
 		// then let fill mode balance quota-managed bots around that player.
-		CFmtStr strSetup( "exec frontress_demo.cfg\njointeam %s\ntf_bot_quota %d\n", pszTeam, nPlayerTarget );
+		CFmtStr256 strSetup( "exec frontress_demo.cfg\njointeam %s\ntf_bot_quota %d\n", pszTeam, nPlayerTarget );
 		engine->ClientCmd_Unrestricted( strSetup.Get() );
 	}
 
@@ -1089,7 +1089,7 @@ void CTFCampaignFeed::LaunchPendingDemoBattle()
 		return;
 
 	const int nPlayerTarget = clamp( m_DemoState.nPendingPlayerTarget, 2, 18 );
-	CFmtStr strLaunch( "disconnect\nwait\nwait\nmaxplayers %d\nmap %s\n", nPlayerTarget + 1, pszMap );
+	CFmtStr256 strLaunch( "disconnect\nwait\nwait\nmaxplayers %d\nmap %s\n", nPlayerTarget + 1, pszMap );
 	engine->ClientCmd_Unrestricted( strLaunch.Get() );
 }
 
@@ -1150,8 +1150,8 @@ void CTFCampaignFeed::ResolveDemoBattle( int nWinningTeam )
 	const CUtlString strNode = m_DemoState.strPendingNode;
 	const char *pszWinningSide = nWinningTeam == TF_TEAM_RED ? "RED" :
 	                             ( nWinningTeam == TF_TEAM_BLUE ? "BLU" : "STALEMATE" );
-	CFmtStrN<128> strBattleTitle( bStalemate ? "STALEMATE" : "%s VICTORY", pszWinningSide );
-	CFmtStr strBattleBody( bStalemate ?
+	CFmtStr128 strBattleTitle( bStalemate ? "STALEMATE" : "%s VICTORY", pszWinningSide );
+	CFmtStr256 strBattleBody( bStalemate ?
 	                         "The offensive ran out of time; defenders held BattleTicket %s." :
 	                         "Full-round result recorded for BattleTicket %s.", m_DemoState.strPendingBattleID.Get() );
 	AppendDemoEvent( bStalemate ? "BATTLE_RESULT_STALEMATE" :
