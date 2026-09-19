@@ -84,6 +84,9 @@ static const char* GetWebBaseUrl()
 static CTFGCClientSystem s_TFGCClientSystem;
 CTFGCClientSystem *GTFGCClientSystem() { return &s_TFGCClientSystem; }
 
+// Inventory readiness is separate from locally emulated GC connectivity.
+bool BTFWebapiInventoryReady() { return GTFGCClientSystem()->BValveInventoryReady(); }
+
 static CTFPartyClient s_TFPartyClient;
 CTFPartyClient *g_pTFPartyClient = nullptr;
 CTFPartyClient* GTFPartyClient() { return g_pTFPartyClient; }
@@ -447,9 +450,10 @@ void CTFGCClientSystem::WebapiInventoryThink()
 			SteamHTTP()->SetHTTPRequestGetOrPostParameter( state.m_hInventoryRequest, "game_appid", "810" );
 		}
 
-		// If we already have an so cache for this user, include its version so we don't send the whole cache if it's unchanged
+		// A locally bootstrapped MM cache is NOT a Valve inventory. Only
+		// send conditional versions after accepting a real WebAPI payload.
 		CGCClientSharedObjectCache* pExistingSOCache = GetSOCache( SteamUser()->GetSteamID() );
-		if( pExistingSOCache && pExistingSOCache->BIsSubscribed() )
+		if ( state.m_bValveInventoryReady && pExistingSOCache && pExistingSOCache->BIsSubscribed() )
 		{
 			SteamHTTP()->SetHTTPRequestGetOrPostParameter( state.m_hInventoryRequest, "version", CNumStr( pExistingSOCache->GetVersion() ) );
 		}
@@ -463,7 +467,9 @@ void CTFGCClientSystem::WebapiInventoryThink()
 		SteamAPICall_t callResult;
 		if ( !SteamHTTP()->SendHTTPRequest( state.m_hInventoryRequest, &callResult ) )
 		{
-			DevWarning("Steam inventory request failed.\n");
+			DevWarning("[inventory] SendHTTPRequest failed; retrying.\n");
+			SteamHTTP()->ReleaseHTTPRequest( state.m_hInventoryRequest );
+			state.m_hInventoryRequest = INVALID_HTTPREQUEST_HANDLE;
 			state.Backoff();
 			return;
 		}
@@ -774,7 +780,9 @@ void CTFGCClientSystem::OnWebapiInventoryReceived( HTTPRequestCompleted_t* pInfo
 	WebapiInventoryState_t& state = m_WebapiInventory;
 	if ( bIOFailure || !pInfo )
 	{
-		Assert( false );
+		Warning( "[inventory] WebAPI transport failure; retrying.\n" );
+		state.Backoff();
+		state.m_eState = kWebapiInventoryState_RequestInventory;
 
 		// Failed to communicate with steam
 		// Free our http request (Can we be sure this is the right one?)
@@ -804,7 +812,8 @@ void CTFGCClientSystem::OnWebapiInventoryReceived( HTTPRequestCompleted_t* pInfo
 
 	if ( !pInfo->m_bRequestSuccessful || pInfo->m_eStatusCode != k_EHTTPStatusCode200OK )
 	{
-		DevWarning("Steam inventory request failed.\n");
+		Warning( "[inventory] WebAPI HTTP %d (request successful=%d); retrying.\n",
+		         (int)pInfo->m_eStatusCode, (int)pInfo->m_bRequestSuccessful );
 		SteamHTTP()->ReleaseHTTPRequest( pInfo->m_hRequest );
 		return;
 	}
@@ -859,7 +868,8 @@ void CTFGCClientSystem::OnWebapiInventoryReceived( HTTPRequestCompleted_t* pInfo
 
 	// Parse the inventory message
 	CSteamID userSteamID( pValues->GetChildUInt64Value( "steamID" ) );
-	if ( !userSteamID.IsValid() || userSteamID.GetEAccountType() != k_EAccountTypeIndividual || userSteamID.GetEUniverse() != GetUniverse() )
+	if ( !SteamUser() || !userSteamID.IsValid() || userSteamID != SteamUser()->GetSteamID() ||
+	     userSteamID.GetEAccountType() != k_EAccountTypeIndividual || userSteamID.GetEUniverse() != GetUniverse() )
 	{
 		Warning( "Inventory response has bad owner steam id (%s)\n", userSteamID.Render() );
 		return;
@@ -874,24 +884,33 @@ void CTFGCClientSystem::OnWebapiInventoryReceived( HTTPRequestCompleted_t* pInfo
 			return;
 		}
 
+		// AddLocalSOCache notifies listeners synchronously: mark the source
+		// before the callback so CPlayerInventory can distinguish this
+		// subscription from a synthetic matchmaking-only one.
+		const bool bWasReady = state.m_bValveInventoryReady;
+		state.m_bValveInventoryReady = true;
 		CGCClientSharedObjectCache *pSOCache = GetGCClient()->AddLocalSOCache( userSteamID, bufMsgSubscription.Base(), bufMsgSubscription.TellPut() );
-		if ( !pSOCache )
+		if ( !pSOCache || !pSOCache->BIsSubscribed() ||
+		     pSOCache->GetVersion() != pValues->GetChildUInt64Value( "version" ) )
 		{
-			Warning( "Inventory response failed to create SO cache (probably protobuf didn't parse)\n" );
+			state.m_bValveInventoryReady = bWasReady;
+			Warning( "[inventory] Valve SO cache failed to load or version mismatched; retrying.\n" );
 			return;
 		}
-
-		// Version should match the one they said we have
-		Assert( pSOCache->GetVersion() == pValues->GetChildUInt64Value( "version" ) );
+		Msg( "[inventory] Valve SO cache loaded, version %llu.\n",
+		     (unsigned long long)pSOCache->GetVersion() );
 	}
 	else
 	{
-		// Cache up to date.  Validate version matches
+		// A version-only response is meaningful only for a *previously*
+		// authenticated inventory; never accept an MM bootstrap cache.
 		CGCClientSharedObjectCache* pSOCache = GetGCClient()->FindSOCache( userSteamID, false );
-		Assert( pSOCache );
-		if( pSOCache )
+		if ( !state.m_bValveInventoryReady || !pSOCache || !pSOCache->BIsSubscribed() ||
+		     pSOCache->GetVersion() != pValues->GetChildUInt64Value( "version" ) )
 		{
-			Assert( pSOCache->GetVersion() == pValues->GetChildUInt64Value( "version" ) );
+			Warning( "[inventory] Version-only reply without matching Valve inventory; retrying full fetch.\n" );
+			state.m_bValveInventoryReady = false;
+			return;
 		}
 	}
 
