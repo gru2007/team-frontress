@@ -40,6 +40,13 @@ ConVar tf_mm_debug( "tf_mm_debug", "0", FCVAR_NONE,
 ConVar tf_mm_party_autocreate( "tf_mm_party_autocreate", "1", FCVAR_ARCHIVE,
                                "Host a matchmaking party lobby as soon as matchmaking comes up, so friends can "
                                "invite you and join you from Steam without you doing anything first." );
+// Survives a client crash so a player can re-enter an existing friends' party
+// rather than create a different Steam lobby and lose its published match.
+ConVar tf_mm_last_party_lobby( "tf_mm_last_party_lobby", "", FCVAR_ARCHIVE,
+                               "Last Steam party lobby to restore after an unexpected restart." );
+static bool s_bRestoreAttempted = false;
+static bool s_bRestoringParty = false;
+static bool s_bRestoreFallbackPending = false;
 
 // Lobby data keys. These are a protocol between our own clients, so treat them
 // as one: adding a key is free, changing what a key means is not.
@@ -90,7 +97,7 @@ void CTFMMParty::Create()
 		Warning( "You are already in a matchmaking party.\n" );
 		return;
 	}
-	if ( m_callLobbyCreated.IsActive() )
+	if ( m_callLobbyCreated.IsActive() || m_callLobbyJoined.IsActive() )
 		return;
 
 	ISteamMatchmaking *pMM = MM();
@@ -98,6 +105,23 @@ void CTFMMParty::Create()
 	{
 		Warning( "Steam matchmaking is not available; cannot create a party.\n" );
 		return;
+	}
+
+	// Only attempt restoration once per client launch. A valid saved lobby
+	// contains the team's published match_id/connect keys; joining it invokes
+	// OnPartyLobbyEntered, which restores the match UI and optional autojoin.
+	// A lobby that Steam deleted while the last player was offline is not
+	// recoverable; the failed callback falls back to creating a fresh party.
+	if ( !s_bRestoreAttempted )
+	{
+		s_bRestoreAttempted = true;
+		const CSteamID previous( Q_atoui64( tf_mm_last_party_lobby.GetString() ) );
+		if ( previous.IsLobby() && BTryJoin( previous ) )
+		{
+			s_bRestoringParty = true;
+			return;
+		}
+		tf_mm_last_party_lobby.SetValue( "" );
 	}
 
 	SteamAPICall_t call = pMM->CreateLobby( WantedLobbyType(), k_nTFMMMaxPartyMembers );
@@ -125,6 +149,10 @@ void CTFMMParty::OnCreated( LobbyCreated_t *pCreated, bool bIOFailure )
 	// Steam's lobby owner and our idea of the party leader must agree, and the
 	// UI reads the leader from the party object, not from Steam. Publish it.
 	SetLobbyData( TFMM_LOBBY_DATA_LEADER, CFmtStr( "%llu", LocalSteamID().ConvertToUint64() ) );
+	// ARCHIVE alone is only guaranteed on a clean exit; write the new ID now
+	// so killing the process does not lose the sole pointer to our party.
+	tf_mm_last_party_lobby.SetValue( CFmtStr( "%llu", m_lobbyID.ConvertToUint64() ) );
+	engine->ClientCmd_Unrestricted( "host_writeconfig" );
 	UpdateRichPresence();
 
 	if ( tf_mm_debug.GetBool() )
@@ -197,6 +225,10 @@ void CTFMMParty::Leave()
 	if ( tf_mm_debug.GetBool() )
 		Msg( "[mm] left party lobby %llu\n", m_lobbyID.ConvertToUint64() );
 
+	// Explicit Leave (including switching to another party) must not cause
+	// an unwanted resurrection of this party on the next game launch.
+	tf_mm_last_party_lobby.SetValue( "" );
+	engine->ClientCmd_Unrestricted( "host_writeconfig" );
 	m_lobbyID = k_steamIDNil;
 	m_bHosting = false;
 	UpdateRichPresence();
@@ -252,6 +284,17 @@ void CTFMMParty::OnJoined( LobbyEnter_t *pEntered, bool bIOFailure )
 	// result is not silent.
 	if ( bIOFailure || !pEntered )
 		Warning( "Could not join that party: Steam did not answer.\n" );
+
+	// If OnLobbyEnter reported a stale lobby while JoinLobby's async result
+	// was still pending, create the replacement only after this call returns.
+	// On pure I/O failure no LobbyEnter callback is guaranteed at all.
+	if ( s_bRestoreFallbackPending || ( s_bRestoringParty && ( bIOFailure || !pEntered ) ) )
+	{
+		s_bRestoringParty = false;
+		s_bRestoreFallbackPending = false;
+		tf_mm_last_party_lobby.SetValue( "" );
+		Create();
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -260,11 +303,24 @@ void CTFMMParty::OnLobbyEnter( LobbyEnter_t *pEnter )
 	if ( pEnter->m_EChatRoomEnterResponse != k_EChatRoomEnterResponseSuccess )
 	{
 		Warning( "Could not join that party (response %d).\n", pEnter->m_EChatRoomEnterResponse );
+		if ( s_bRestoringParty )
+		{
+			s_bRestoringParty = false;
+			tf_mm_last_party_lobby.SetValue( "" );
+			if ( m_callLobbyJoined.IsActive() )
+				s_bRestoreFallbackPending = true;
+			else
+				Create();
+		}
 		return;
 	}
 
 	m_lobbyID = CSteamID( pEnter->m_ulSteamIDLobby );
 	m_bHosting = ( GetLeader() == LocalSteamID() );
+	s_bRestoringParty = false;
+	s_bRestoreFallbackPending = false;
+	tf_mm_last_party_lobby.SetValue( CFmtStr( "%llu", m_lobbyID.ConvertToUint64() ) );
+	engine->ClientCmd_Unrestricted( "host_writeconfig" );
 	UpdateRichPresence();
 
 	// Joining somebody mid-queue or mid-match: whatever they have published is
