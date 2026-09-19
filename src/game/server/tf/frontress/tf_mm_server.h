@@ -96,6 +96,10 @@ public:
 
 private:
 	bool BPublishLobby();
+	// Apply the acknowledgement heartbeat the stock game server sends to its
+	// GC. This is the step that turns an offered seat into one the strict
+	// connection gate will actually admit.
+	bool BApplyMatchmakingStatus( const CMsgGameServerMatchmakingStatus &msgStatus );
 	// The map change the lobby would have done, when there is no lobby. The
 	// coordinator does not do it itself, so somebody has to.
 	void FallBackToPlainMatch( const char *pszMap );

@@ -581,6 +581,111 @@ static const T *ProtoAs( const ::google::protobuf::Message &msg )
 }
 
 //-----------------------------------------------------------------------------
+// Purpose: Act on the game server's acknowledgement of lobby reservations.
+//
+//			The stock flow has two distinct halves. The GC offers a player by
+//			putting them in RESERVATION_PENDING, then the game server allocates a
+//			CMatchInfo slot and answers with RESERVED. Only after the GC writes
+//			that acknowledgement back to the lobby may the player connect.
+//
+//			Simply swallowing this heartbeat leaves every member pending forever.
+//			SteamIDAllowedToConnect deliberately rejects pending members, which
+//			makes a coordinator-issued `connect ... matchmaking` look like an
+//			ad-hoc join to the player. Mirror the missing GC transition here.
+//-----------------------------------------------------------------------------
+bool CTFMMServer::BApplyMatchmakingStatus( const CMsgGameServerMatchmakingStatus &msgStatus )
+{
+	// During the first BPublishLobby, SOCreated sends the acknowledgement
+	// synchronously from inside AddLocalSOCache. m_bPublished is not latched
+	// until that call returns, but m_msgLobby is already the live match.
+	if ( !m_msgLobby.has_match_id() || m_msgLobby.match_id() == 0 )
+		return true;
+
+	CSOTFGameServerLobby msgBefore;
+	msgBefore.CopyFrom( m_msgLobby );
+
+	int nReserved = 0;
+	int nConnected = 0;
+	int nDisconnected = 0;
+	bool bChanged = false;
+
+	for ( int i = 0; i < msgStatus.players_size(); i++ )
+	{
+		const CMsgGameServerMatchmakingStatus_Player &statusPlayer = msgStatus.players( i );
+		if ( statusPlayer.steam_id() == 0 )
+			continue;
+
+		for ( int j = 0; j < m_msgLobby.members_size(); j++ )
+		{
+			CTFLobbyPlayerProto *pMember = m_msgLobby.mutable_members( j );
+			if ( pMember->id() != statusPlayer.steam_id() ||
+			     pMember->type() != CTFLobbyPlayerProto_Type_MATCH_PLAYER )
+			{
+				continue;
+			}
+
+			CTFLobbyPlayerProto_ConnectState eNewState;
+			switch ( statusPlayer.connect_state() )
+			{
+				case CMsgGameServerMatchmakingStatus_PlayerConnectState_RESERVED:
+					// RESERVED acknowledges a pending first connection. If this
+					// player was already connected, the same status means the
+					// server still holds their reconnect reservation after they
+					// left; preserve that distinction in the lobby.
+					eNewState =
+						( pMember->connect_state() == CTFLobbyPlayerProto_ConnectState_CONNECTED ||
+						  pMember->connect_state() == CTFLobbyPlayerProto_ConnectState_DISCONNECTED )
+						? CTFLobbyPlayerProto_ConnectState_DISCONNECTED
+						: CTFLobbyPlayerProto_ConnectState_RESERVED;
+					break;
+				case CMsgGameServerMatchmakingStatus_PlayerConnectState_CONNECTED:
+					eNewState = CTFLobbyPlayerProto_ConnectState_CONNECTED;
+					break;
+				default:
+					continue;
+			}
+
+			if ( pMember->connect_state() != eNewState )
+			{
+				pMember->set_connect_state( eNewState );
+				bChanged = true;
+				if ( eNewState == CTFLobbyPlayerProto_ConnectState_RESERVED )
+					nReserved++;
+				else if ( eNewState == CTFLobbyPlayerProto_ConnectState_CONNECTED )
+					nConnected++;
+				else
+					nDisconnected++;
+			}
+			break;
+		}
+	}
+
+	if ( !bChanged )
+		return true;
+
+	// A state transition is a new lobby version just like a late-join roster
+	// change. The next heartbeat then confirms it has observed this version.
+	m_msgLobby.set_lobby_mm_version( m_msgLobby.lobby_mm_version() + 1 );
+	if ( BPublishLobby() )
+	{
+		MMSrvDbg( "match %016llx acknowledged %d reservation(s), %d connection(s), %d disconnection(s)\n",
+		          (unsigned long long)m_msgLobby.match_id(), nReserved, nConnected, nDisconnected );
+		return true;
+	}
+
+	// Keep our private copy and the shared-object cache on the same truth. A
+	// later heartbeat will retry the transition; until then the strict gate
+	// remains safely closed rather than admitting a seat the lobby did not see.
+	Warning( "[mmsrv] could not publish %d reservation, %d connection and %d disconnection "
+	         "acknowledgement(s); players may need to retry joining\n",
+	         nReserved, nConnected, nDisconnected );
+	m_msgLobby.CopyFrom( msgBefore );
+	if ( !BPublishLobby() )
+		Warning( "[mmsrv] could not restore the lobby after a failed acknowledgement update\n" );
+	return true;
+}
+
+//-----------------------------------------------------------------------------
 bool CTFMMServer::BHandleServerMsg( uint32 unMsgType, const ::google::protobuf::Message &msgRequest,
                                     ::google::protobuf::Message *pMsgReply )
 {
@@ -752,9 +857,17 @@ bool CTFMMServer::BHandleServerMsg( uint32 unMsgType, const ::google::protobuf::
 			return true;
 
 		case k_EMsgGCGameServerMatchmakingStatus:
+		{
+			const CMsgGameServerMatchmakingStatus *pMsg =
+				ProtoAs< CMsgGameServerMatchmakingStatus >( msgRequest );
+			return pMsg ? BApplyMatchmakingStatus( *pMsg ) : false;
+		}
+
 		case k_EMsgGC_GameServer_UpdateData:
-			// Heartbeats towards a GC that is not listening. The coordinator
-			// learns the same things over RCON and from the log agent.
+			// General server-data heartbeat towards a GC that is not listening.
+			// The coordinator learns the same things over RCON and from the log
+			// agent. Matchmaking status is handled separately above because its
+			// player acknowledgements mutate the lobby.
 			return true;
 
 		default:
