@@ -30,6 +30,27 @@ func NewRCONSetup(hostname string) *RCONSetup {
 	return &RCONSetup{Timeout: 15 * time.Second, Hostname: hostname}
 }
 
+// classifyMatchBeginReply accepts only the explicit acknowledgement for the
+// match we just requested. A recognized command that reports FAILED (or no
+// acknowledgement at all) must not be mistaken for a configured match. Only
+// an unmodified server that does not know the command may use the plain-server
+// fallback path.
+func classifyMatchBeginReply(out, matchID string) (supported, accepted bool) {
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.Contains(strings.ToLower(line), "unknown command") &&
+			strings.Contains(line, "tf_mm_match_begin") {
+			return false, false
+		}
+		fields := strings.Fields(line)
+		if len(fields) == 2 && fields[0] == "TFMM_MATCH_BEGIN_OK" &&
+			strings.EqualFold(fields[1], matchID) {
+			return true, true
+		}
+	}
+	return true, false
+}
+
 // Setup prepares the server and changes the map.
 func (r *RCONSetup) Setup(ctx context.Context, s *pool.Server, spec Spec) error {
 	c, err := r.dial(ctx, s)
@@ -111,7 +132,12 @@ func (r *RCONSetup) Setup(ctx context.Context, s *pool.Server, spec Spec) error 
 		if err != nil {
 			return fmt.Errorf("rcon %q: %w", "tf_mm_match_begin", err)
 		}
-		if !strings.Contains(strings.ToLower(out), "unknown command") {
+		supported, accepted := classifyMatchBeginReply(out, spec.MatchID)
+		if supported {
+			if !accepted {
+				return fmt.Errorf("rcon %q was not acknowledged for match %s: %s",
+					"tf_mm_match_begin", spec.MatchID, strings.TrimSpace(out))
+			}
 			return nil
 		}
 	}
