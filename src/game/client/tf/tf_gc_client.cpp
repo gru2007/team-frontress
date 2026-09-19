@@ -868,7 +868,7 @@ void CTFGCClientSystem::OnWebapiInventoryReceived( HTTPRequestCompleted_t* pInfo
 
 	// Parse the inventory message
 	CSteamID userSteamID( pValues->GetChildUInt64Value( "steamID" ) );
-	if ( !userSteamID.IsValid() || userSteamID != SteamUser()->GetSteamID() ||
+	if ( !SteamUser() || !userSteamID.IsValid() || userSteamID != SteamUser()->GetSteamID() ||
 	     userSteamID.GetEAccountType() != k_EAccountTypeIndividual || userSteamID.GetEUniverse() != GetUniverse() )
 	{
 		Warning( "Inventory response has bad owner steam id (%s)\n", userSteamID.Render() );
