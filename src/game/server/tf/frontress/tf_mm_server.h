@@ -84,6 +84,9 @@ public:
 
 	bool BHaveMatch() const { return m_bPublished; }
 	uint64 GetMatchID() const { return m_msgLobby.match_id(); }
+	// Recreate a SERVERSETUP lobby if it was published before the stock server
+	// registered its SO-cache listener and therefore never built CMatchInfo.
+	bool RetryMatchSetup();
 
 	// Answer a message the server would have sent to the GC. Same contract as
 	// the client's BHandleClientMsg: false means "not ours", and the caller
@@ -96,9 +99,9 @@ public:
 
 private:
 	bool BPublishLobby();
+	bool BPublishLobbyNow();
 	// Apply the acknowledgement heartbeat the stock game server sends to its
-	// GC. This is the step that turns an offered seat into one the strict
-	// connection gate will actually admit.
+	// GC, keeping the published lobby in sync with CMatchInfo.
 	bool BApplyMatchmakingStatus( const CMsgGameServerMatchmakingStatus &msgStatus );
 	// The map change the lobby would have done, when there is no lobby. The
 	// coordinator does not do it itself, so somebody has to.
@@ -114,6 +117,11 @@ private:
 
 	CSOTFGameServerLobby m_msgLobby;
 	bool        m_bPublished;
+	// Shared-object callbacks are synchronous. A lobby update can make the
+	// stock server send a status heartbeat from inside BPublishLobby; defer the
+	// resulting GC-side mutation until that publish has unwound.
+	bool        m_bPublishingLobby;
+	bool        m_bLobbyDirty;
 	bool        m_bWarnedPublishFailed;
 	// Non-zero while this match intentionally runs as a plain/password
 	// fallback. There is no roster gate to update in that mode.

@@ -164,6 +164,8 @@ bool CTFGCClientSystem::Init()
 	ListenForGameEvent( "client_disconnect" );
 	ListenForGameEvent( "client_beginconnect" );
 	ListenForGameEvent( "server_spawn" );
+	ListenForGameEvent( "teamplay_game_over" );
+	ListenForGameEvent( "tf_game_over" );
 
 	// Let SDR know that we will likely want access to the relay network, so we're more
 	// likely to have initial ping data to the clusters ready by the time we ask for it
@@ -260,11 +262,19 @@ void CTFGCClientSystem::Shutdown()
 void CTFGCClientSystem::FireGameEvent( IGameEvent *event )
 {
 	const char *pEventName = event->GetName();
+	if ( !Q_stricmp( pEventName, "teamplay_game_over" ) ||
+	     !Q_stricmp( pEventName, "tf_game_over" ) )
+	{
+		TFMMBackend()->OnMatchEnded();
+		return;
+	}
+
 	// Disconnected from gameserver
 	if ( !Q_stricmp( pEventName, "client_disconnect" ) )
 	{
 		m_steamIDCurrentServer.Clear();
 		m_eConnectState = eConnectState_Disconnected;
+		TFMMBackend()->OnClientDisconnected();
 
 		// We treat the gameserver as authoritative when we are connected to it -- disconnecting from it may change what
 		// we believe about still having a live match. (e.g. if we have no pLobby anymore, but were loading into a live
@@ -1728,5 +1738,3 @@ bool CTFGCClientSystem::BHasCompetitiveAccess( void )
 	// to sell entry to our own ladder, so everybody has access.
 	return true;
 }
-
-

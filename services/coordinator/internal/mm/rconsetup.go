@@ -112,6 +112,12 @@ func (r *RCONSetup) Setup(ctx context.Context, s *pool.Server, spec Spec) error 
 			return fmt.Errorf("rcon %q: %w", "tf_mm_match_begin", err)
 		}
 		if !strings.Contains(strings.ToLower(out), "unknown command") {
+			if !hasExactReply(out, "TFMM_MATCH_BEGIN_OK "+spec.MatchID) {
+				return fmt.Errorf("rcon %q was not acknowledged: %s", "tf_mm_match_begin", replyOrEmpty(out))
+			}
+			if err := waitForMatchAdmission(ctx, c, spec.MatchID, spec.Map, roster); err != nil {
+				return err
+			}
 			return nil
 		}
 	}
@@ -120,6 +126,72 @@ func (r *RCONSetup) Setup(ctx context.Context, s *pool.Server, spec Spec) error 
 		return fmt.Errorf("rcon %q: %w", "changelevel", err)
 	}
 	return nil
+}
+
+const (
+	matchReadyPoll    = 250 * time.Millisecond
+	matchReadyTimeout = 45 * time.Second
+)
+
+// waitForMatchAdmission keeps the assignment private until the dedicated
+// server's own SteamIDAllowedToConnect gate accepts the complete roster.
+// BEGIN_OK only says the lobby was published; CMatchInfo and the map are still
+// allowed to be in flight at that point.
+func waitForMatchAdmission(ctx context.Context, c *rcon.Conn, matchID, mapName, roster string) error {
+	probe := fmt.Sprintf("tf_mm_match_ready %s %s %s", quote(matchID), quote(mapName), quote(roster))
+	deadline := time.Now().Add(matchReadyTimeout)
+	lastReply := "<no response>"
+
+	for time.Now().Before(deadline) {
+		out, err := c.Exec(probe)
+		if err != nil {
+			return fmt.Errorf("rcon %q: %w", "tf_mm_match_ready", err)
+		}
+		lastReply = replyOrEmpty(out)
+		if hasExactReply(out, "TFMM_MATCH_READY_OK "+matchID) {
+			return nil
+		}
+		if hasReplyPrefix(out, "TFMM_MATCH_READY_FAILED") ||
+			strings.Contains(strings.ToLower(out), "unknown command") {
+			return fmt.Errorf("rcon %q rejected match %s: %s", "tf_mm_match_ready", matchID, lastReply)
+		}
+
+		timer := time.NewTimer(matchReadyPoll)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+
+	return fmt.Errorf("rcon %q timed out for match %s: %s", "tf_mm_match_ready", matchID, lastReply)
+}
+
+func hasExactReply(out, want string) bool {
+	for _, line := range strings.Split(out, "\n") {
+		if strings.TrimSpace(line) == want {
+			return true
+		}
+	}
+	return false
+}
+
+func hasReplyPrefix(out, prefix string) bool {
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func replyOrEmpty(out string) string {
+	reply := strings.TrimSpace(out)
+	if reply == "" {
+		return "<empty response>"
+	}
+	return reply
 }
 
 const matchAddOKPrefix = "TFMM_MATCH_ADD_OK"
@@ -162,13 +234,17 @@ func (r *RCONSetup) AddPlayers(ctx context.Context, s *pool.Server, matchID stri
 		return nil
 	}
 	if accepted {
+		// PLAIN is the deliberate password fallback and has no roster gate to
+		// wait for. A real lobby update is not complete until CMatchInfo admits
+		// each newly added SteamID.
+		if strings.Contains(out, matchAddOKPrefix) {
+			if err := waitForMatchAdmission(ctx, c, matchID, "*", seats); err != nil {
+				return err
+			}
+		}
 		return nil
 	}
-	reply := strings.TrimSpace(out)
-	if reply == "" {
-		reply = "<empty response>"
-	}
-	return fmt.Errorf("rcon %q was not acknowledged: %s", "tf_mm_match_add", reply)
+	return fmt.Errorf("rcon %q was not acknowledged: %s", "tf_mm_match_add", replyOrEmpty(out))
 }
 
 // PlayerCount asks the server how many humans are on it.

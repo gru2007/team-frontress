@@ -88,6 +88,8 @@ static void PBWriteBytes( CUtlBuffer &buf, int nField, const void *pData, int nB
 CTFMMServer::CTFMMServer()
 	: CAutoGameSystemPerFrame( "CTFMMServer" )
 	, m_bPublished( false )
+	, m_bPublishingLobby( false )
+	, m_bLobbyDirty( false )
 	, m_bWarnedPublishFailed( false )
 	, m_ulPlainMatchID( 0 )
 	, m_bAwaitingMap( false )
@@ -126,6 +128,16 @@ bool CTFMMServer::BActive() const
 //-----------------------------------------------------------------------------
 void CTFMMServer::FrameUpdatePreEntityThink()
 {
+	// A status heartbeat is emitted synchronously while shared-object listeners
+	// process our publish. Publishing its acknowledgement recursively corrupts
+	// m_strLastPublished (the outer call records the older bytes last). Flush
+	// those mutations here, after the listener stack has unwound.
+	if ( m_bLobbyDirty )
+	{
+		if ( !BPublishLobby() || m_bLobbyDirty )
+			return;
+	}
+
 	if ( !m_bPublished || !m_bAwaitingMap )
 		return;
 
@@ -135,6 +147,9 @@ void CTFMMServer::FrameUpdatePreEntityThink()
 	// and the clients reading their own copy -- expects during play.
 	if ( !TFGameRules() || m_strMap.IsEmpty() )
 		return;
+	const CMatchInfo *pMatch = GTFGCClientSystem() ? GTFGCClientSystem()->GetMatch() : NULL;
+	if ( !pMatch || pMatch->m_nMatchID != m_msgLobby.match_id() )
+		return;
 
 	// STRING() answers "" for an unset map name, which never matches ours.
 	const char *pszMap = STRING( gpGlobals->mapname );
@@ -142,6 +157,7 @@ void CTFMMServer::FrameUpdatePreEntityThink()
 		return;
 
 	m_msgLobby.set_state( CSOTFGameServerLobby_State_RUN );
+	m_bLobbyDirty = true;
 	if ( !BPublishLobby() )
 	{
 		Warning( "[mmsrv] could not publish the RUN lobby state; will retry\n" );
@@ -151,6 +167,36 @@ void CTFMMServer::FrameUpdatePreEntityThink()
 
 	MMSrvDbg( "match %016llx is live on %s\n",
 	          (unsigned long long)m_msgLobby.match_id(), m_strMap.Get() );
+}
+
+//-----------------------------------------------------------------------------
+bool CTFMMServer::RetryMatchSetup()
+{
+	if ( !m_bPublished || m_bPublishingLobby )
+		return false;
+
+	GCSDK::CGCClientSharedObjectCache *pCache =
+		GCClientSystem() ? GCClientSystem()->GetSOCache( OurSteamID() ) : NULL;
+	if ( !pCache || m_strLastPublished.IsEmpty() )
+		return false;
+
+	// SOCreated, not SOUpdated, is the stock code path that constructs a fresh
+	// CMatchInfo. This recovery is only requested while no CMatchInfo exists,
+	// so replacing the object cannot discard a live match.
+	if ( !pCache->BDestroyFromMsg( CTFGSLobby::k_nTypeID,
+	                              m_strLastPublished.Get(), (uint32)m_strLastPublished.Length() ) )
+	{
+		return false;
+	}
+
+	m_msgLobby.set_state( CSOTFGameServerLobby_State_SERVERSETUP );
+	m_bPublished = false;
+	m_bAwaitingMap = true;
+	m_bLobbyDirty = true;
+	m_strLastPublished.Clear();
+	MMSrvDbg( "recreating match %016llx lobby to recover a missed SOCreated callback\n",
+	          (unsigned long long)m_msgLobby.match_id() );
+	return BPublishLobby();
 }
 
 //-----------------------------------------------------------------------------
@@ -196,6 +242,9 @@ bool CTFMMServer::BeginMatch( uint64 ulMatchID, int nMatchGroup, const char *psz
 	m_msgLobby.set_map_name( pszMap ? pszMap : "" );
 	m_msgLobby.set_server_id( OurSteamID().ConvertToUint64() );
 	m_msgLobby.set_formed_time( CRTime::RTime32TimeCur() );
+	// The server echoes this value in its acknowledgement heartbeat. Roster
+	// changes bump it; connection-state acknowledgements do not.
+	m_msgLobby.set_lobby_mm_version( 1 );
 	// CMatchInfo snapshots this value when the lobby is created. It is
 	// the capacity of the match, not merely the initial roster size.
 	m_msgLobby.set_fixed_match_size( MAX( nMaxPlayers, vecSeats.Count() ) );
@@ -274,6 +323,11 @@ bool CTFMMServer::BeginMatch( uint64 ulMatchID, int nMatchGroup, const char *psz
 	{
 		m_ulPlainMatchID = ulMatchID;
 		m_bAwaitingMap = false;
+		m_bLobbyDirty = false;
+		if ( m_bPublished )
+			DestroyLobby();
+		else
+			m_msgLobby.Clear();
 		tf_mm_servermode.SetValue( 0 );
 		tf_mm_strict.SetValue( 0 );
 		tf_mm_trusted.SetValue( 0 );
@@ -422,6 +476,7 @@ void CTFMMServer::EndMatch( const char *pszWhy )
 		DestroyLobby();
 	m_ulPlainMatchID = 0;
 	m_bAwaitingMap = false;
+	m_bLobbyDirty = false;
 	m_strMap.Clear();
 
 	// Put the server back the way we found it. A server handed back to the
@@ -479,6 +534,38 @@ bool CTFMMServer::BEnsureCacheSubscribed()
 
 //-----------------------------------------------------------------------------
 bool CTFMMServer::BPublishLobby()
+{
+	if ( m_bPublishingLobby )
+	{
+		m_bLobbyDirty = true;
+		return true;
+	}
+
+	m_bPublishingLobby = true;
+	m_bLobbyDirty = false;
+	const bool bOK = BPublishLobbyNow();
+	m_bPublishingLobby = false;
+
+	if ( !bOK )
+	{
+		m_bLobbyDirty = true;
+		return false;
+	}
+
+	// BPublishLobbyNow may have synchronously caused BApplyMatchmakingStatus to
+	// mutate m_msgLobby. Compare the current object with what actually made it
+	// into the cache and schedule one non-recursive follow-up if they differ.
+	std::string strCurrent;
+	if ( !m_msgLobby.SerializeToString( &strCurrent ) ||
+	     strCurrent != m_strLastPublished.Get() )
+	{
+		m_bLobbyDirty = true;
+	}
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+bool CTFMMServer::BPublishLobbyNow()
 {
 	if ( !BEnsureCacheSubscribed() )
 		return false;
@@ -548,6 +635,7 @@ void CTFMMServer::DestroyLobby()
 	}
 
 	m_bPublished = false;
+	m_bLobbyDirty = false;
 	m_strLastPublished.Clear();
 	m_msgLobby.Clear();
 }
@@ -583,15 +671,10 @@ static const T *ProtoAs( const ::google::protobuf::Message &msg )
 //-----------------------------------------------------------------------------
 // Purpose: Act on the game server's acknowledgement of lobby reservations.
 //
-//			The stock flow has two distinct halves. The GC offers a player by
-//			putting them in RESERVATION_PENDING, then the game server allocates a
-//			CMatchInfo slot and answers with RESERVED. Only after the GC writes
-//			that acknowledgement back to the lobby may the player connect.
-//
-//			Simply swallowing this heartbeat leaves every member pending forever.
-//			SteamIDAllowedToConnect deliberately rejects pending members, which
-//			makes a coordinator-issued `connect ... matchmaking` look like an
-//			ad-hoc join to the player. Mirror the missing GC transition here.
+//			The stock flow has two distinct halves. The GC offers a player in
+//			RESERVATION_PENDING, then the game server allocates a CMatchInfo slot
+//			and answers with RESERVED. Mirror that missing GC transition here so
+//			the lobby and the server's reservation table stay in sync.
 //-----------------------------------------------------------------------------
 bool CTFMMServer::BApplyMatchmakingStatus( const CMsgGameServerMatchmakingStatus &msgStatus )
 {
@@ -601,8 +684,15 @@ bool CTFMMServer::BApplyMatchmakingStatus( const CMsgGameServerMatchmakingStatus
 	if ( !m_msgLobby.has_match_id() || m_msgLobby.match_id() == 0 )
 		return true;
 
-	CSOTFGameServerLobby msgBefore;
-	msgBefore.CopyFrom( m_msgLobby );
+	// A heartbeat for the previous roster must not acknowledge (or regress)
+	// the current one. The stock server echoes the exact lobby version it saw.
+	if ( msgStatus.has_lobby_mm_version() &&
+	     msgStatus.lobby_mm_version() != m_msgLobby.lobby_mm_version() )
+	{
+		MMSrvDbg( "ignoring status for lobby version %u; current version is %u\n",
+		          msgStatus.lobby_mm_version(), m_msgLobby.lobby_mm_version() );
+		return true;
+	}
 
 	int nReserved = 0;
 	int nConnected = 0;
@@ -663,25 +753,12 @@ bool CTFMMServer::BApplyMatchmakingStatus( const CMsgGameServerMatchmakingStatus
 	if ( !bChanged )
 		return true;
 
-	// A state transition is a new lobby version just like a late-join roster
-	// change. The next heartbeat then confirms it has observed this version.
-	m_msgLobby.set_lobby_mm_version( m_msgLobby.lobby_mm_version() + 1 );
-	if ( BPublishLobby() )
-	{
-		MMSrvDbg( "match %016llx acknowledged %d reservation(s), %d connection(s), %d disconnection(s)\n",
-		          (unsigned long long)m_msgLobby.match_id(), nReserved, nConnected, nDisconnected );
-		return true;
-	}
-
-	// Keep our private copy and the shared-object cache on the same truth. A
-	// later heartbeat will retry the transition; until then the strict gate
-	// remains safely closed rather than admitting a seat the lobby did not see.
-	Warning( "[mmsrv] could not publish %d reservation, %d connection and %d disconnection "
-	         "acknowledgement(s); players may need to retry joining\n",
-	         nReserved, nConnected, nDisconnected );
-	m_msgLobby.CopyFrom( msgBefore );
-	if ( !BPublishLobby() )
-		Warning( "[mmsrv] could not restore the lobby after a failed acknowledgement update\n" );
+	// Never publish from inside the shared-object listener that generated this
+	// heartbeat. FrameUpdatePreEntityThink flushes it once the outer publish has
+	// completed, preserving an exact m_strLastPublished snapshot.
+	m_bLobbyDirty = true;
+	MMSrvDbg( "match %016llx acknowledged %d reservation(s), %d connection(s), %d disconnection(s)\n",
+	          (unsigned long long)m_msgLobby.match_id(), nReserved, nConnected, nDisconnected );
 	return true;
 }
 
@@ -964,6 +1041,93 @@ static void ParseSeats( const char *pszRoster, CUtlVector< TFMMSeat_t > &vecOut 
 
 		vecOut.AddToTail( seat );
 	}
+}
+
+//-----------------------------------------------------------------------------
+// tf_mm_match_ready <match_id hex> <map> <steamid:team,...>
+//
+// BEGIN_OK only means the lobby object was accepted for publication. The map
+// may still be loading and CTFGCServerSystem may still be turning the offered
+// seats into CMatchInfo reservations. The coordinator must not expose the
+// connection string until the exact engine admission gate accepts every
+// assigned SteamID.
+//-----------------------------------------------------------------------------
+CON_COMMAND( tf_mm_match_ready, "Check that every assigned player may join this matchmaking match." )
+{
+	if ( args.ArgC() != 4 )
+	{
+		Msg( "TFMM_MATCH_READY_FAILED invalid_arguments\n" );
+		return;
+	}
+
+	const uint64 ulMatchID = ParseHex64( args[1] );
+	if ( ulMatchID == 0 )
+	{
+		Msg( "TFMM_MATCH_READY_FAILED %s invalid_match_id\n", args[1] );
+		return;
+	}
+
+	CTFMMServer *pBackend = TFMMServer();
+	if ( !pBackend->BHaveMatch() )
+	{
+		Msg( "TFMM_MATCH_READY_PENDING %s lobby_not_published\n", args[1] );
+		return;
+	}
+	if ( pBackend->GetMatchID() != ulMatchID )
+	{
+		Msg( "TFMM_MATCH_READY_FAILED %s wrong_lobby\n", args[1] );
+		return;
+	}
+
+	CTFGCServerSystem *pGC = GTFGCClientSystem();
+	const CMatchInfo *pMatch = pGC ? pGC->GetMatch() : NULL;
+	if ( !pGC || !pGC->IsMMServerModeActive() || !pMatch )
+	{
+		if ( pGC && pGC->IsMMServerModeActive() && !pMatch )
+			pBackend->RetryMatchSetup();
+		Msg( "TFMM_MATCH_READY_PENDING %s match_not_built\n", args[1] );
+		return;
+	}
+	if ( pMatch->m_nMatchID != ulMatchID )
+	{
+		Msg( "TFMM_MATCH_READY_FAILED %s wrong_match_info\n", args[1] );
+		return;
+	}
+
+	static ConVarRef tf_mm_strict( "tf_mm_strict" );
+	if ( tf_mm_strict.GetInt() != 1 )
+	{
+		Msg( "TFMM_MATCH_READY_FAILED %s roster_gate_disabled\n", args[1] );
+		return;
+	}
+
+	const char *pszCurrentMap = TFGameRules() ? STRING( gpGlobals->mapname ) : "";
+	if ( !pszCurrentMap || ( V_stricmp( args[2], "*" ) != 0 && V_stricmp( pszCurrentMap, args[2] ) != 0 ) )
+	{
+		Msg( "TFMM_MATCH_READY_PENDING %s loading_map\n", args[1] );
+		return;
+	}
+
+	CUtlVector< TFMMSeat_t > vecSeats;
+	ParseSeats( args[3], vecSeats );
+	if ( vecSeats.Count() == 0 )
+	{
+		Msg( "TFMM_MATCH_READY_FAILED %s empty_roster\n", args[1] );
+		return;
+	}
+
+	FOR_EACH_VEC( vecSeats, i )
+	{
+		const CSteamID steamID( vecSeats[i].ulSteamID );
+		if ( !steamID.IsValid() || !pGC->SteamIDAllowedToConnect( steamID ) )
+		{
+			Msg( "TFMM_MATCH_READY_PENDING %s waiting_for_%llu\n", args[1],
+			     (unsigned long long)vecSeats[i].ulSteamID );
+			return;
+		}
+	}
+
+	Msg( "TFMM_MATCH_READY_OK %s\n", args[1] );
 }
 
 //-----------------------------------------------------------------------------

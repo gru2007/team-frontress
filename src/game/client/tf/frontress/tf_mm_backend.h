@@ -321,6 +321,10 @@ public:
 	void QueueForStandby();
 	void CancelQueue();
 	void JoinAssignedMatch();
+	// Engine notification used to distinguish a rejected connection from a
+	// successful match that can still be rejoined.
+	void OnClientDisconnected();
+	void OnMatchEnded();
 	void Spew() const;
 
 private:
@@ -400,6 +404,9 @@ private:
 	// Whether the server we were on when the connect started has been left
 	// yet. Until it has, being in a level says nothing about having arrived.
 	bool          m_bConnectLeftOldServer;
+	// Set by the final game-over event before client_disconnect. A normal match
+	// end clears the assignment; a transport disconnect keeps it for rejoin.
+	bool          m_bMatchEnded;
 
 	// Armed by entering a party lobby, spent on the first server the leader
 	// turns out to be on. One-shot on purpose: a party member should not be

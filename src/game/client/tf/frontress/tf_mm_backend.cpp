@@ -82,6 +82,7 @@ CTFMMBackend::CTFMMBackend()
 	, m_flQueueStartTime( 0.f )
 	, m_flConnectStartTime( 0.f )
 	, m_bConnectLeftOldServer( false )
+	, m_bMatchEnded( false )
 	, m_bFollowLeaderServer( false )
 	, m_nPollIntervalMS( 2000 )
 	, m_nInQueue( 0 )
@@ -293,22 +294,28 @@ void CTFMMBackend::Update( float frametime )
 		if ( m_eState == k_eTFMMState_Connecting &&
 		     Plat_FloatTime() - m_flConnectStartTime > k_flConnectGiveUpSecs )
 		{
-			// A connect that never lands -- a full server, a password the
-			// server no longer has, a machine that went away between the
-			// assignment and us. Waiting forever leaves the player with a
-			// match they cannot join and a queue they cannot restart.
-			Fail( "could not connect to the match server" );
+			// Preserve the assignment so the stock rejoin action can retry it.
+			// MatchReady also makes the dashboard cancel button functional.
+			Warning( "Could not connect to the match server; the assignment remains available to retry.\n" );
+			EnterState( k_eTFMMState_MatchReady );
 		}
 	}
 	else if ( m_eState == k_eTFMMState_InMatch && !bReallyInGame )
 	{
-		// The match is over for us the moment we are off its server, however
-		// we left it.
-		MMDbg( "left the match server\n" );
-		EnterState( k_eTFMMState_Idle );
-		// A finished match is the only thing that moves the record, so this is
-		// the one moment worth asking about it out of turn.
-		m_flNextProgressPoll = 0.f;
+		if ( m_bMatchEnded )
+		{
+			MMDbg( "left a completed match\n" );
+			EnterState( k_eTFMMState_Idle );
+			m_flNextProgressPoll = 0.f;
+		}
+		else
+		{
+			// A disconnect does not mean the match ended. The game server keeps a
+			// reservation for this SteamID, so retain the assignment and expose the
+			// stock rejoin path. The player can explicitly cancel it from MatchReady.
+			MMDbg( "left the match server\n" );
+			EnterState( k_eTFMMState_MatchReady );
+		}
 	}
 
 	// Tell the party where we are, so a member who joins can follow us in.
@@ -1955,6 +1962,46 @@ void CTFMMBackend::JoinAssignedMatch()
 }
 
 //-----------------------------------------------------------------------------
+void CTFMMBackend::OnClientDisconnected()
+{
+	if ( m_eState == k_eTFMMState_Connecting )
+	{
+		// Connecting from another server produces one disconnect for the old
+		// server before the target attempt begins. Only a later disconnect is a
+		// failed target connection.
+		if ( !m_bConnectLeftOldServer )
+		{
+			m_bConnectLeftOldServer = true;
+			return;
+		}
+
+		MMDbg( "match connection was rejected; keeping assignment for retry\n" );
+		EnterState( k_eTFMMState_MatchReady );
+	}
+	else if ( m_eState == k_eTFMMState_InMatch )
+	{
+		if ( m_bMatchEnded )
+		{
+			MMDbg( "completed match disconnected\n" );
+			EnterState( k_eTFMMState_Idle );
+		}
+		else
+		{
+			MMDbg( "disconnected from match; keeping assignment for rejoin\n" );
+			EnterState( k_eTFMMState_MatchReady );
+		}
+		m_flNextProgressPoll = 0.f;
+	}
+}
+
+//-----------------------------------------------------------------------------
+void CTFMMBackend::OnMatchEnded()
+{
+	if ( m_eState == k_eTFMMState_InMatch || m_eState == k_eTFMMState_Connecting )
+		m_bMatchEnded = true;
+}
+
+//-----------------------------------------------------------------------------
 void CTFMMBackend::EnterState( ETFMMState eState )
 {
 	if ( m_eState == eState )
@@ -1970,6 +2017,7 @@ void CTFMMBackend::EnterState( ETFMMState eState )
 
 	if ( eState == k_eTFMMState_Idle )
 	{
+		m_bMatchEnded = false;
 		m_eQueuedMatchGroup = k_eTFMatchGroup_Invalid;
 		m_strStandbyMatchID.Clear();
 		DestroyLobbySO();
