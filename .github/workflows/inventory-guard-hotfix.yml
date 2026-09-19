@@ -1,0 +1,38 @@
+name: One-shot inventory callback guard
+on:
+  push:
+    branches:
+      - fix/valve-inventory-socache
+    paths:
+      - .github/workflows/inventory-guard-hotfix.yml
+permissions:
+  contents: write
+jobs:
+  amend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Guard logout race and commit source change
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/game/client/tf/tf_gc_client.cpp')
+          s = p.read_text()
+          old = 'if ( !userSteamID.IsValid() || userSteamID != SteamUser()->GetSteamID() ||'
+          new = 'if ( !SteamUser() || !userSteamID.IsValid() || userSteamID != SteamUser()->GetSteamID() ||'
+          assert s.count(old) == 1, 'Unexpected callback source revision'
+          p.write_text(s.replace(old, new))
+          assert new in p.read_text()
+          print('PASS: inventory response checks SteamUser before dereference')
+          PY
+          git diff --check
+          rm .github/workflows/inventory-guard-hotfix.yml
+          git add -A
+          git diff --cached --check
+          git config user.name "Team Frontress inventory fix"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Guard Steam logout during inventory WebAPI response"
+          git push origin HEAD:refs/heads/fix/valve-inventory-socache
