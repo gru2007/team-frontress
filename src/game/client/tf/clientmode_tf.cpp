@@ -14,6 +14,7 @@
 #include "frontress/tf_mm_backend.h"
 #include "hud.h"
 #include "clientmode_tf.h"
+#include "frontress_sm3_compat.h"
 #include "cdll_client_int.h"
 #include "iinput.h"
 #include "iviewrender.h"
@@ -429,16 +430,8 @@ void ClientModeTFNormal::Init()
 {
 	if ( !g_pMaterialSystemHardwareConfig->SupportsShaderModel_3_0() )
 	{
-		Error(
-			"Your graphics card falls below our official minimum specs.\n\n"
-			"In previous versions, this spec was recommended for minor graphical\n"
-			"improvements using these hardware capabilities. However,\n"
-			"Team Fortress 2 now relies heavily on graphics features such as \n"
-			"Shader Model 3.0 and so adherence to the prior recommended spec\n"
-			"is now the minimum requirement.\n\n"
-			"Unfortunately this means that Team Fortress 2 will not be able to\n"
-			"run on some graphics cards from 2006 or before.\n"
-		);
+		// SM3 is required by the world and model shaders; show GPU diagnostics and exit.
+		Frontress_HandleMissingShaderModel3( materials, g_pMaterialSystemHardwareConfig );
 	}
 
 	bool bMultiPlayer = false;
