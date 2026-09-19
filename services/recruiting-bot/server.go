@@ -193,6 +193,32 @@ func (a *app) routes() http.Handler {
 		}
 		respond(w, map[string]int64{"imported": n})
 	}))
+	m.HandleFunc("POST /api/admin/rotate-keys", a.require(true, func(w http.ResponseWriter, r *http.Request, _ int64) {
+		var body struct {
+			Keys string `json:"keys"`
+		}
+		if !decode(w, r, &body) {
+			return
+		}
+		rotated, available, err := a.db.rotateKeys(r.Context(), body.Keys)
+		if errors.Is(err, errNotEnoughReplacementKeys) {
+			fail(w, 409, "Новых уникальных ключей меньше, чем уже выданных. Замена не выполнена.")
+			return
+		}
+		if err != nil {
+			if errors.Is(err, errKeyTooLong) {
+				fail(w, 400, "Ключ слишком длинный.")
+				return
+			}
+			internal(w)
+			return
+		}
+		notified, failed := a.notifyRotatedKeys(r.Context(), rotated)
+		respond(w, map[string]int{
+			"reissued": len(rotated), "available": available,
+			"notified": notified, "notification_failed": failed,
+		})
+	}))
 	m.HandleFunc("POST /api/admin/revoke-key", a.require(true, func(w http.ResponseWriter, r *http.Request, _ int64) {
 		var body struct {
 			TelegramID int64 `json:"telegram_id"`

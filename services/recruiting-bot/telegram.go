@@ -71,6 +71,29 @@ func (a *app) telegram(ctx context.Context, method string, body any, result any)
 	return nil
 }
 
+func (a *app) notifyRotatedKeys(ctx context.Context, keys []rotatedKey) (notified, failed int) {
+	for _, key := range keys {
+		// A rotation must not silently restore access that an administrator revoked.
+		if key.Revoked {
+			continue
+		}
+		err := a.telegram(ctx, "sendMessage", map[string]any{
+			"chat_id": key.TelegramID,
+			"text":    "Приложение Team Frontress обновилось. Ваш прежний ключ заменён. Новый ключ:\n" + key.Value + "\n\nНе передавайте ключ другим.",
+		}, nil)
+		if err == nil {
+			notified++
+			continue
+		}
+		failed++
+		var te *telegramError
+		if errors.As(err, &te) && te.Code == 403 {
+			_, _ = a.db.ExecContext(ctx, `UPDATE users SET blocked=1 WHERE telegram_id=?`, key.TelegramID)
+		}
+	}
+	return notified, failed
+}
+
 func sleep(ctx context.Context, d time.Duration) bool {
 	t := time.NewTimer(d)
 	defer t.Stop()
