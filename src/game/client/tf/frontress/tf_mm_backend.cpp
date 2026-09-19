@@ -73,6 +73,7 @@ CTFMMBackend::CTFMMBackend()
 	: CAutoGameSystemPerFrame( "CTFMMBackend" )
 	, m_eState( k_eTFMMState_Idle )
 	, m_bSubscribedToCache( false )
+	, m_flInventoryBootstrapStart( -1.0f )
 	, m_bWarnedPublishFailed( false )
 	, m_bPartyPublished( false )
 	, m_bLobbyPublished( false )
@@ -115,6 +116,7 @@ bool CTFMMBackend::Init()
 void CTFMMBackend::Shutdown()
 {
 	m_coordinator.Cancel();
+	m_flInventoryBootstrapStart = -1.0f;
 
 	if ( m_bSubscribedToCache )
 	{
@@ -148,18 +150,12 @@ void CTFMMBackend::SOCacheSubscribed( const CSteamID &steamIDOwner, GCSDK::ESOCa
 	if ( steamIDOwner != LocalSteamID() )
 		return;
 
-	// Something else -- the web-API inventory fetch, most likely -- just
-	// replaced the contents of our cache. Anything we had published is gone,
-	// so publish it again rather than leaving the UI looking at nothing.
-	MMDbg( "local SO cache (re)subscribed, republishing party and lobby\n" );
+	// AddLocalSOCache can call listeners while replacing the entire cache.
+	// Defer writes until Update() to avoid mutating it during that callback.
+	MMDbg( "local SO cache (re)subscribed; republishing MM objects next frame\n" );
 	m_bPartyPublished = false;
 	m_bLobbyPublished = false;
-	PublishParty();
-	if ( m_eState == k_eTFMMState_MatchReady || m_eState == k_eTFMMState_Connecting ||
-	     m_eState == k_eTFMMState_InMatch )
-	{
-		PublishLobby();
-	}
+	m_vecPublishedRatingTypes.RemoveAll();
 }
 
 //-----------------------------------------------------------------------------
@@ -187,9 +183,8 @@ void CTFMMBackend::Update( float frametime )
 		pCache->AddListener( this );
 		m_bSubscribedToCache = true;
 
-		// Everything downstream reads the party object, so it has to exist
-		// before the first frame of UI does.
-		PublishParty();
+		// The Valve inventory normally subscribes the cache. Publication
+		// is retried below; after a grace period MM may bootstrap locally.
 
 		// A player with no lobby cannot be joined or invited, because there is
 		// nothing for Steam to point a friend at. Retail hides this by having
@@ -204,6 +199,17 @@ void CTFMMBackend::Update( float frametime )
 	}
 
 	// The party object tracks the Steam lobby, which changes underneath us.
+	// Retry initial publication even for solo parties, and restore MM objects
+	// after Valve replaces our optional fallback cache.
+	if ( !m_bPartyPublished )
+		PublishParty();
+	if ( !m_bLobbyPublished &&
+	     ( m_eState == k_eTFMMState_MatchReady || m_eState == k_eTFMMState_Connecting ||
+	       m_eState == k_eTFMMState_InMatch ) )
+		PublishLobby();
+	if ( m_progress.bValid && m_vecPublishedRatingTypes.Count() == 0 )
+		PublishRatings();
+
 	// Republishing is cheap and idempotent; only do it while a lobby exists.
 	if ( m_party.BValid() )
 	{
@@ -753,6 +759,18 @@ bool CTFMMBackend::BEnsureCacheSubscribed()
 	if ( pCache && pCache->BIsSubscribed() )
 		return true;
 
+	// Once a genuine Valve inventory was loaded, never synthesize a new
+	// subscription for it after a temporary cache unsubscribe.
+	if ( GTFGCClientSystem()->BValveInventoryReady() )
+		return false;
+
+	// Never pre-empt a normal Valve inventory response. If the WebAPI is
+	// unavailable, bootstrap MM independently after a short grace period.
+	if ( m_flInventoryBootstrapStart < 0.0f )
+		m_flInventoryBootstrapStart = Plat_FloatTime();
+	if ( Plat_FloatTime() - m_flInventoryBootstrapStart < 10.0f )
+		return false;
+
 	const CSteamID steamID = LocalSteamID();
 	if ( !steamID.IsValid() || !GCClientSystem() || !GCClientSystem()->GetGCClient() )
 		return false;
@@ -782,7 +800,7 @@ bool CTFMMBackend::BEnsureCacheSubscribed()
 	m_strLastPublishedParty = strParty;
 	m_bLobbyPublished = false;
 
-	MMDbg( "subscribed the local SO cache ourselves\n" );
+	MMDbg( "Valve inventory not available after grace period; bootstrapped MM-only SO cache\n" );
 	return true;
 }
 

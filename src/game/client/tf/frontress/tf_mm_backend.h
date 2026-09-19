@@ -379,6 +379,7 @@ private:
 
 	ETFMMState m_eState;
 	bool       m_bSubscribedToCache;
+	float      m_flInventoryBootstrapStart; // monotonic time, -1 until first attempt
 	// Publishing is retried every frame, so the complaint has to be rationed
 	// or it buries everything else in the console.
 	bool       m_bWarnedPublishFailed;
