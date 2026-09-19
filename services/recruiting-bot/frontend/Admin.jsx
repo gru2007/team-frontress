@@ -12,6 +12,7 @@ export default function Admin({ api, confirm, onSelfChange, userID }) {
   const lock = useRef(false);
   const request = useRef(0);
   const keysForm = useRef(null);
+  const rotationForm = useRef(null);
   const announcementForm = useRef(null);
 
   async function loadAdmin() {
@@ -118,6 +119,37 @@ export default function Admin({ api, confirm, onSelfChange, userID }) {
     }
   }
 
+  async function rotateKeys(event) {
+    event.preventDefault();
+    if (lock.current) return;
+    const value = keys.trim();
+    if (!value) {
+      setFeedback((previous) => ({ ...previous, rotation: { error: true, text: "Добавьте новые ключи." } }));
+      return;
+    }
+    const issued = (data?.stats?.issued_keys ?? 0) + (data?.stats?.revoked_keys ?? 0);
+    if (!await confirm(
+      `Заменить весь запас ключей и перевыдать ключи ${issued} участникам? Старые свободные ключи будут удалены. Доступ к Telegram-группе сохранится.`,
+    )) return;
+    lock.current = true;
+    setBusy("rotation");
+    setFeedback((previous) => ({ ...previous, rotation: null }));
+    try {
+      const result = await api("/api/admin/rotate-keys", { keys: value });
+      setKeys("");
+      setFeedback((previous) => ({
+        ...previous,
+        rotation: { text: `Перевыдано: ${result.reissued}. Свободных новых: ${result.available}. Уведомлено: ${result.notified}. Ошибок уведомления: ${result.notification_failed}.` },
+      }));
+      await loadAdmin();
+    } catch (error) {
+      setFeedback((previous) => ({ ...previous, rotation: { error: true, text: error.message } }));
+    } finally {
+      lock.current = false;
+      setBusy("");
+    }
+  }
+
   function notice(kind) {
     const message = feedback[kind];
     return message ? (
@@ -161,6 +193,17 @@ export default function Admin({ api, confirm, onSelfChange, userID }) {
           {busy === "keys" ? "Импортируем…" : "Импортировать ключи"}
         </Button>
         {notice("keys")}
+      </form>
+
+      <form className="form-panel danger-panel" ref={rotationForm} onSubmit={rotateKeys} aria-busy={busy === "rotation"}>
+        <div>
+          <strong>Смена приложения: перевыдать все ключи</strong>
+          <p className="muted">Вставьте полный новый набор выше. Выданные ключи будут заменены, старый свободный запас очищен, а участники получат новые ключи в боте. Доступ к Telegram-группе не отзывается.</p>
+        </div>
+        <Button type="secondary" disabled={Boolean(busy) || !keys.trim()} onClick={() => rotationForm.current.requestSubmit()}>
+          {busy === "rotation" ? "Перевыдаём…" : "Очистить запас и перевыдать…"}
+        </Button>
+        {notice("rotation")}
       </form>
 
       <form className="form-panel" ref={announcementForm} onSubmit={(event) => submit(event, "publish")} aria-busy={busy === "publish"}>

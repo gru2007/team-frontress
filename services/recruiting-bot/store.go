@@ -27,6 +27,12 @@ type announcement struct {
 	CreatedAt string `json:"created_at"`
 }
 
+type rotatedKey struct {
+	TelegramID int64
+	Value      string
+	Revoked    bool
+}
+
 func openStore(path string) (*store, error) {
 	// SQLite inherits this mode for WAL files; keys and sessions are private data.
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0600)
@@ -230,6 +236,105 @@ func (s *store) importKeys(ctx context.Context, text string) (int64, error) {
 		total += n
 	}
 	return total, tx.Commit()
+}
+
+var errNotEnoughReplacementKeys = errors.New("not enough replacement keys")
+var errKeyTooLong = errors.New("key too long")
+
+// rotateKeys atomically replaces the complete key inventory while retaining the
+// owner (and revocation state) of every issued key. Unissued old keys are not
+// carried over, so only the submitted inventory can be issued after the change.
+func (s *store) rotateKeys(ctx context.Context, text string) ([]rotatedKey, int, error) {
+	values := make([]string, 0)
+	seen := make(map[string]struct{})
+	for _, line := range strings.Split(text, "\n") {
+		key := strings.TrimSpace(line)
+		if key == "" {
+			continue
+		}
+		if len(key) > 512 {
+			return nil, 0, errKeyTooLong
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		values = append(values, key)
+	}
+
+	if err := s.ensureAccessSchema(ctx); err != nil {
+		return nil, 0, err
+	}
+	tx, err := s.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer tx.Rollback()
+
+	rows, err := tx.QueryContext(ctx, `SELECT k.telegram_id,kr.key_id IS NOT NULL,
+ COALESCE(kr.revoked_at,0),COALESCE(kr.removed_at,0),kr.removed_at IS NOT NULL
+FROM keys k LEFT JOIN key_revocations kr ON kr.key_id=k.id
+WHERE k.telegram_id IS NOT NULL ORDER BY k.id`)
+	if err != nil {
+		return nil, 0, err
+	}
+	type owner struct {
+		id                   int64
+		revoked, removalDone bool
+		revokedAt, removedAt int64
+	}
+	owners := make([]owner, 0)
+	for rows.Next() {
+		var o owner
+		if err := rows.Scan(&o.id, &o.revoked, &o.revokedAt, &o.removedAt, &o.removalDone); err != nil {
+			rows.Close()
+			return nil, 0, err
+		}
+		owners = append(owners, o)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, 0, err
+	}
+	if len(values) < len(owners) {
+		return nil, len(owners), errNotEnoughReplacementKeys
+	}
+	if _, err = tx.ExecContext(ctx, `DELETE FROM key_revocations; DELETE FROM keys`); err != nil {
+		return nil, 0, err
+	}
+
+	rotated := make([]rotatedKey, 0, len(owners))
+	now := time.Now().Unix()
+	for i, value := range values {
+		var ownerID any
+		var issuedAt any
+		if i < len(owners) {
+			ownerID = owners[i].id
+			issuedAt = now
+		}
+		result, insertErr := tx.ExecContext(ctx, `INSERT INTO keys(value,telegram_id,issued_at) VALUES(?,?,?)`, value, ownerID, issuedAt)
+		if insertErr != nil {
+			return nil, 0, insertErr
+		}
+		if i >= len(owners) {
+			continue
+		}
+		keyID, insertErr := result.LastInsertId()
+		if insertErr != nil {
+			return nil, 0, insertErr
+		}
+		o := owners[i]
+		if o.revoked {
+			var removedAt any
+			if o.removalDone {
+				removedAt = o.removedAt
+			}
+			if _, insertErr = tx.ExecContext(ctx, `INSERT INTO key_revocations(key_id,telegram_id,revoked_at,removed_at) VALUES(?,?,?,?)`, keyID, o.id, o.revokedAt, removedAt); insertErr != nil {
+				return nil, 0, insertErr
+			}
+		}
+		rotated = append(rotated, rotatedKey{TelegramID: o.id, Value: value, Revoked: o.revoked})
+	}
+	return rotated, len(values) - len(owners), tx.Commit()
 }
 
 func (s *store) announcements(ctx context.Context) ([]announcement, error) {

@@ -94,7 +94,7 @@ func TestAPIAuthorizationAndCSRF(t *testing.T) {
 	if w := request(a, "GET", "/api/admin", "", "", member); w.Code != 403 {
 		t.Fatal("non-admin read allowed")
 	}
-	for _, path := range []string{"/api/admin/keys", "/api/admin/announcements"} {
+	for _, path := range []string{"/api/admin/keys", "/api/admin/rotate-keys", "/api/admin/announcements"} {
 		if w := request(a, "POST", path, `{}`, a.cfg.PublicURL, member); w.Code != 403 {
 			t.Fatal("non-admin mutation allowed")
 		}
