@@ -174,6 +174,8 @@ bool CTFMMServer::RetryMatchSetup()
 {
 	if ( !m_bPublished || m_bPublishingLobby )
 		return false;
+	if ( !GTFGCClientSystem() || !GTFGCClientSystem()->EnsureSOCacheListener() )
+		return false;
 
 	GCSDK::CGCClientSharedObjectCache *pCache =
 		GCClientSystem() ? GCClientSystem()->GetSOCache( OurSteamID() ) : NULL;
@@ -219,6 +221,32 @@ bool CTFMMServer::BeginMatch( uint64 ulMatchID, int nMatchGroup, const char *psz
 		return false;
 	}
 
+	static ConVarRef sv_password( "sv_password" );
+	static ConVarRef tf_mm_servermode( "tf_mm_servermode" );
+	static ConVarRef tf_mm_strict( "tf_mm_strict" );
+	static ConVarRef tf_mm_trusted( "tf_mm_trusted" );
+
+	m_strFallbackPassword = pszFallbackPassword ? pszFallbackPassword : "";
+	m_strServerConfig = pszServerConfig ? pszServerConfig : "";
+	m_ulPlainMatchID = 0;
+
+	// Configuration is retried as a whole when readiness times out. Replacing a
+	// live lobby with the same match ID destroys its SO while CTFGCServerSystem
+	// deliberately retains CMatchInfo; the next SOCreated then sees two matches
+	// and aborts the server. Treat the same assignment as idempotent instead.
+	if ( m_bPublished && m_msgLobby.match_id() == ulMatchID )
+	{
+		sv_password.SetValue( "" );
+		tf_mm_servermode.SetValue( 1 );
+		tf_mm_strict.SetValue( 1 );
+		tf_mm_trusted.SetValue( 1 );
+		if ( GTFGCClientSystem() && !GTFGCClientSystem()->GetMatch() )
+			RetryMatchSetup();
+		MMSrvDbg( "match %016llx assignment repeated; keeping the existing lobby\n",
+		          (unsigned long long)ulMatchID );
+		return true;
+	}
+
 	if ( m_bPublished )
 	{
 		// The coordinator does not reuse a server without taking it back
@@ -228,10 +256,6 @@ bool CTFMMServer::BeginMatch( uint64 ulMatchID, int nMatchGroup, const char *psz
 		         (unsigned long long)m_msgLobby.match_id(), (unsigned long long)ulMatchID );
 		EndMatch( "replaced" );
 	}
-
-	m_strFallbackPassword = pszFallbackPassword ? pszFallbackPassword : "";
-	m_strServerConfig = pszServerConfig ? pszServerConfig : "";
-	m_ulPlainMatchID = 0;
 
 	m_msgLobby.Clear();
 	// The lobby id has to be non-zero and stable; the match id is the only
@@ -289,11 +313,6 @@ bool CTFMMServer::BeginMatch( uint64 ulMatchID, int nMatchGroup, const char *psz
 	// If the publish then fails, the fallback password goes straight back on,
 	// because an unlocked server with no gate is the one outcome worse than a
 	// match that never starts.
-	static ConVarRef sv_password( "sv_password" );
-	static ConVarRef tf_mm_servermode( "tf_mm_servermode" );
-	static ConVarRef tf_mm_strict( "tf_mm_strict" );
-	static ConVarRef tf_mm_trusted( "tf_mm_trusted" );
-
 	sv_password.SetValue( "" );
 	tf_mm_servermode.SetValue( 1 );
 	tf_mm_strict.SetValue( 1 );
@@ -496,6 +515,13 @@ bool CTFMMServer::BEnsureCacheSubscribed()
 {
 	const CSteamID steamID = OurSteamID();
 	if ( !steamID.IsValid() || !GCClientSystem() || !GCClientSystem()->GetGCClient() )
+		return false;
+
+	// Do not rely on PreClientUpdate for this. Empty dedicated servers enter
+	// hibernation before Steam login completes, then receive the assignment over
+	// RCON without another frame reaching the listener-registration code. The
+	// listener must exist before BCreateFromMsg/AddLocalSOCache emits SOCreated.
+	if ( !GTFGCClientSystem() || !GTFGCClientSystem()->EnsureSOCacheListener() )
 		return false;
 
 	GCSDK::CGCClientSharedObjectCache *pCache = GCClientSystem()->GetSOCache( steamID );
