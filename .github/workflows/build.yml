@@ -30,6 +30,48 @@ env:
   SNIPER_SDK_IMAGE: registry.gitlab.steamos.cloud/steamrt/sniper/sdk:3.0.20260805.254768
 
 jobs:
+  vpk:
+    name: Game content / VPK
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VPKEDIT_VERSION: v5.0.0.4
+      VPKEDIT_SHA256: 66fdc296d637afb771723134a35e8bf532eebd98fb7479dc33b37701b165b981
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install pinned VPKEdit CLI
+        run: |
+          set -euo pipefail
+          url="https://github.com/craftablescience/VPKEdit/releases/download/${VPKEDIT_VERSION}/VPKEdit-Linux-Standalone-gcc-Release.zip"
+          mkdir -p .ci-tools/vpkedit
+          curl -fsSL --retry 3 "${url}" -o .ci-tools/vpkedit.zip
+          echo "${VPKEDIT_SHA256}  .ci-tools/vpkedit.zip" | sha256sum -c -
+          unzip -q .ci-tools/vpkedit.zip -d .ci-tools/vpkedit
+          cli="$(find .ci-tools/vpkedit -type f -name vpkeditcli -print -quit)"
+          test -n "${cli}"
+          chmod +x "${cli}"
+          echo "VPKEDITCLI=${GITHUB_WORKSPACE}/${cli}" >> "${GITHUB_ENV}"
+
+      - name: Build Team Frontress VPK
+        run: |
+          set -euo pipefail
+          ./game_clean/buildpak.sh
+          test -s game/tc2/pak1.vpk
+          echo "Built from game_src/tc2/pak1:"
+          du -h game/tc2/pak1.vpk
+
+      - name: Upload Team Frontress VPK
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontress-vpk
+          path: game/tc2/pak1.vpk
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error
   # The coordinator is Go and builds in seconds. It runs first and on its own:
   # a game build should not wait for it, and a broken coordinator should not
   # stop a game release.
@@ -97,6 +139,7 @@ jobs:
 
   build:
     name: ${{ matrix.name }}
+    needs: vpk
     strategy:
       fail-fast: false
       matrix:
@@ -207,11 +250,19 @@ jobs:
           CONF
           ./src/buildallprojects
 
+      - name: Download VPK payload
+        if: matrix.target == 'linux'
+        uses: actions/download-artifact@v7
+        with:
+          name: frontress-vpk
+          path: game/tc2
+
       - name: Package the Linux client
         if: matrix.target == 'linux'
         run: |
           set -euo pipefail
-          ./game_clean/copy.sh
+          USE_PREBUILT_VPK=1 ./game_clean/copy.sh
+          test -s game_dist/tc2/pak1.vpk
           test -f game_dist/tc2/bin/linux64/client.so
           test -f game_dist/tc2/bin/linux64/server.so
           touch game_dist/STEAM_READY
@@ -228,6 +279,7 @@ jobs:
           # build is for.
           test "$(tr -d '\r\n ' < game_server_dist/steam_appid.txt)" \
              = "$(sed -n 's/^appID=//p' game_server_dist/tc2/steam.inf | tr -d '\r')"
+          test -s game_server_dist/tc2/pak1.vpk
           test -f game_server_dist/tc2/bin/linux64/server.so
           test ! -f game_server_dist/tc2/bin/linux64/client.so
           test -s game_server_dist/VERSION
@@ -350,13 +402,20 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
+      - name: Download VPK payload
+        if: matrix.target == 'windows'
+        uses: actions/download-artifact@v7
+        with:
+          name: frontress-vpk
+          path: game/tc2
+
       - name: Package the Windows client
         if: matrix.target == 'windows'
         shell: bash
         run: |
           set -euo pipefail
-          rm -f ./game/tc2/pak1*.vpk
-          ./game_clean/copy.sh
+          USE_PREBUILT_VPK=1 ./game_clean/copy.sh
+          test -s game_dist/tc2/pak1.vpk
           test -f game_dist/tc2/bin/x64/client.dll
           test -f game_dist/tc2/bin/x64/server.dll
           touch game_dist/STEAM_READY
