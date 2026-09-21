@@ -30,6 +30,55 @@ env:
   SNIPER_SDK_IMAGE: registry.gitlab.steamos.cloud/steamrt/sniper/sdk:3.0.20260805.254768
 
 jobs:
+  vpk:
+    name: Game content / VPK
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install VPK prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends 7zip
+
+      - name: Prepare VPK payload
+        run: |
+          set -euo pipefail
+          ./game_clean/dlpak.sh
+
+          test -s game/tc2/pak1_dir.vpk
+          test -s game/version.txt
+
+          expected="$(sed -n 's/^PAK_VERSION="\(.*\)"/\1/p' game_clean/shared.sh)"
+          actual="$(tr -d '\r\n ' < game/version.txt)"
+          test -n "$expected"
+          test "$actual" = "$expected"
+
+          shopt -s nullglob
+          vpks=(game/tc2/pak1*.vpk)
+          if (( ${#vpks[@]} == 0 )); then
+            echo "::error::dlpak.sh completed without producing pak1*.vpk"
+            exit 1
+          fi
+
+          echo "Prepared ${#vpks[@]} VPK files for tc2-pak ${actual}"
+          du -ch "${vpks[@]}" | tail -n 1
+
+      - name: Upload VPK payload
+        uses: actions/upload-artifact@v7
+        with:
+          name: tc2-pak
+          path: |
+            game/tc2/pak1*.vpk
+            game/version.txt
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error
+
   # The coordinator is Go and builds in seconds. It runs first and on its own:
   # a game build should not wait for it, and a broken coordinator should not
   # stop a game release.
@@ -98,6 +147,7 @@ jobs:
 
   build:
     name: ${{ matrix.name }}
+    needs: vpk
     strategy:
       fail-fast: false
       matrix:
@@ -207,6 +257,13 @@ jobs:
           compression_level = 1
           CONF
           ./src/buildallprojects
+
+      - name: Download VPK payload
+        if: matrix.target == 'linux'
+        uses: actions/download-artifact@v7
+        with:
+          name: tc2-pak
+          path: game
 
       - name: Package the Linux client
         if: matrix.target == 'linux'
@@ -351,12 +408,18 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
+      - name: Download VPK payload
+        if: matrix.target == 'windows'
+        uses: actions/download-artifact@v7
+        with:
+          name: tc2-pak
+          path: game
+
       - name: Package the Windows client
         if: matrix.target == 'windows'
         shell: bash
         run: |
           set -euo pipefail
-          rm -f ./game/tc2/pak1*.vpk
           ./game_clean/copy.sh
           test -f game_dist/tc2/bin/x64/client.dll
           test -f game_dist/tc2/bin/x64/server.dll
