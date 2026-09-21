@@ -15,7 +15,7 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-ConVar tf_gc_address( "tf_gc_address", "http://gc.team-frontress.org:27100", FCVAR_ARCHIVE | FCVAR_REPLICATED,
+ConVar tf_gc_address( "tf_gc_address", "https://gc.team-frontress.org", FCVAR_ARCHIVE,
 	"Base URL of the Frontress game coordinator." );
 #ifndef CLIENT_DLL
 ConVar tf_gc_server_token( "tf_gc_server_token", "", FCVAR_HIDDEN | FCVAR_PROTECTED,
@@ -29,6 +29,7 @@ static const uint32 k_unMaxGCPacket = 256 * 1024;
 static const uint32 k_unMaxGCQueuedBytes = 768 * 1024;
 static const int k_nMaxGCMessages = 256;
 static const char *k_pszGCIdentity = "frontress-coordinator";
+static const char *k_pszInventoryIdentity = "tf2sdk";
 
 static const char *GCAddress()
 {
@@ -62,6 +63,7 @@ CFrontressGameCoordinator::CFrontressGameCoordinator()
 	, m_bConnected( false )
 #ifdef CLIENT_DLL
 	, m_hAuthTicket( k_HAuthTicketInvalid )
+	, m_hInventoryTicket( k_HAuthTicketInvalid )
 #endif
 {
 	GenerateInstanceID();
@@ -141,7 +143,7 @@ bool CFrontressGameCoordinator::BCanExchange()
 #ifdef CLIENT_DLL
 	if ( !steamapicontext || !steamapicontext->SteamUser() || !steamapicontext->SteamUser()->BLoggedOn() )
 		return false;
-	if ( m_strTicket.IsEmpty() )
+	if ( m_strTicket.IsEmpty() || m_strInventoryTicket.IsEmpty() )
 	{
 		RequestAuthTicket();
 		return false;
@@ -158,15 +160,18 @@ void CFrontressGameCoordinator::RequestAuthTicket()
 {
 	if ( m_hAuthTicket == k_HAuthTicketInvalid && steamapicontext && steamapicontext->SteamUser() )
 		m_hAuthTicket = steamapicontext->SteamUser()->GetAuthTicketForWebApi( k_pszGCIdentity );
+	if ( m_hInventoryTicket == k_HAuthTicketInvalid && steamapicontext && steamapicontext->SteamUser() )
+		m_hInventoryTicket = steamapicontext->SteamUser()->GetAuthTicketForWebApi( k_pszInventoryIdentity );
 }
 
 void CFrontressGameCoordinator::OnWebApiTicket( GetTicketForWebApiResponse_t *pResponse )
 {
-	if ( !pResponse || pResponse->m_hAuthTicket != m_hAuthTicket )
+	if ( !pResponse || ( pResponse->m_hAuthTicket != m_hAuthTicket && pResponse->m_hAuthTicket != m_hInventoryTicket ) )
 		return;
 	if ( pResponse->m_eResult != k_EResultOK )
 	{
-		m_hAuthTicket = k_HAuthTicketInvalid;
+		if ( pResponse->m_hAuthTicket == m_hAuthTicket ) m_hAuthTicket = k_HAuthTicketInvalid;
+		if ( pResponse->m_hAuthTicket == m_hInventoryTicket ) m_hInventoryTicket = k_HAuthTicketInvalid;
 		m_flNextExchange = Plat_FloatTime() + 5.0;
 		return;
 	}
@@ -175,7 +180,10 @@ void CFrontressGameCoordinator::OnWebApiTicket( GetTicketForWebApiResponse_t *pR
 	for ( int i = 0; i < pResponse->m_cubTicket; ++i )
 		V_snprintf( &hex[i * 2], 3, "%02x", pResponse->m_rgubTicket[i] );
 	hex[pResponse->m_cubTicket * 2] = '\0';
-	m_strTicket = hex.Base();
+	if ( pResponse->m_hAuthTicket == m_hAuthTicket )
+		m_strTicket = hex.Base();
+	else
+		m_strInventoryTicket = hex.Base();
 }
 #endif
 
@@ -196,6 +204,9 @@ void CFrontressGameCoordinator::StartExchange()
 	root->SetChildStringValue( "role", "client" );
 	root->SetChildStringValue( "steam_id", CFmtStr( "%llu", steamapicontext->SteamUser()->GetSteamID().ConvertToUint64() ) );
 	root->SetChildStringValue( "ticket", m_strTicket.Get() );
+	root->SetChildStringValue( "inventory_ticket", m_strInventoryTicket.Get() );
+	if ( steamapicontext->SteamUtils() )
+		root->SetChildUInt32Value( "app_id", steamapicontext->SteamUtils()->GetAppID() );
 #else
 	root->SetChildStringValue( "role", "server" );
 	if ( steamgameserverapicontext && steamgameserverapicontext->SteamGameServer() )
@@ -368,7 +379,10 @@ void CFrontressGameCoordinator::Shutdown()
 #ifdef CLIENT_DLL
 	if ( m_hAuthTicket != k_HAuthTicketInvalid && steamapicontext && steamapicontext->SteamUser() )
 		steamapicontext->SteamUser()->CancelAuthTicket( m_hAuthTicket );
+	if ( m_hInventoryTicket != k_HAuthTicketInvalid && steamapicontext && steamapicontext->SteamUser() )
+		steamapicontext->SteamUser()->CancelAuthTicket( m_hInventoryTicket );
 	m_hAuthTicket = k_HAuthTicketInvalid; m_strTicket.Clear();
+	m_hInventoryTicket = k_HAuthTicketInvalid; m_strInventoryTicket.Clear();
 #endif
 	ResetSession( false );
 	m_Outbox.RemoveAll();

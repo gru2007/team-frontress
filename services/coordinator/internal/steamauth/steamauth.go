@@ -24,6 +24,11 @@ import (
 // ErrRejected is returned when Steam says the ticket is not good.
 var ErrRejected = errors.New("steam rejected the auth ticket")
 
+// WebAPIIdentity must match the string passed by the game to
+// ISteamUser::GetAuthTicketForWebApi. Steam binds that identity to the ticket
+// and AuthenticateUserTicket requires the verifier to send it back.
+const WebAPIIdentity = "frontress-coordinator"
+
 // Verifier checks tickets.
 type Verifier interface {
 	// Verify returns the SteamID the ticket actually belongs to. claimed is
@@ -49,6 +54,9 @@ func (DevVerifier) Verify(_ context.Context, claimed wire.SteamID, _ string) (wi
 // WebAPIVerifier calls ISteamUserAuth/AuthenticateUserTicket.
 type WebAPIVerifier struct {
 	APIKey string
+	// Identity is the service identity used when the game minted the ticket.
+	// Empty uses WebAPIIdentity.
+	Identity string
 	// AppIDs are the apps whose tickets are accepted. The same build ships
 	// under more than one AppID -- the playtest and the main app -- and a
 	// ticket is only good for the app its client is running as, so a ticket is
@@ -158,6 +166,11 @@ func (v *WebAPIVerifier) verifyWith(ctx context.Context, appID uint32, claimed w
 	q.Set("key", v.APIKey)
 	q.Set("appid", strconv.FormatUint(uint64(appID), 10))
 	q.Set("ticket", ticket)
+	identity := v.Identity
+	if identity == "" {
+		identity = WebAPIIdentity
+	}
+	q.Set("identity", identity)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		base+"/ISteamUserAuth/AuthenticateUserTicket/v1/?"+q.Encode(), nil)

@@ -250,7 +250,7 @@ public:
 	void ServerRequestEquipment();
 	void LocalInventoryChanged();
 
-	// True only after ISDK/GetInventory supplied a genuine inventory subscription.
+	// True only after Frontress GC (or the explicit legacy fallback) supplied a genuine inventory subscription.
 	// A matchmaking-only SO cache must never make the backpack appear ready.
 	bool BValveInventoryReady() const { return m_WebapiInventory.m_bValveInventoryReady; }
 

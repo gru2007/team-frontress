@@ -26,12 +26,25 @@ type Config struct {
 	Secret string `json:"secret"`
 
 	Auth        AuthConfig         `json:"auth"`
+	Inventory   InventoryConfig    `json:"inventory"`
 	Players     PlayersConfig      `json:"players"`
 	MatchGroups []MatchGroupConfig `json:"match_groups"`
 	Pool        PoolConfig         `json:"pool"`
 	Timing      TimingConfig       `json:"timing"`
 	War         WarConfig          `json:"war"`
 	TF2Pickup   TF2PickupConfig    `json:"tf2pickup"`
+}
+
+// InventoryConfig selects the first inventory source owned by Frontress GC.
+// TC2SDKURL is the existing Steam-backed bridge used by the fork.  PlaytestAppID
+// and SteamPublisherAPIKey reserve the configuration boundary for a second
+// Steam Inventory Service source; that source can be merged without another
+// client protocol change because clients already send their running AppID and
+// receive ordinary type-1 econ shared objects.
+type InventoryConfig struct {
+	TC2SDKURL            string `json:"tc2_sdk_url"`
+	PlaytestAppID        uint32 `json:"playtest_app_id,omitempty"`
+	SteamPublisherAPIKey string `json:"steam_publisher_api_key,omitempty"`
 }
 
 // TF2PickupConfig hands durable game and server lifecycle to tf2pickup-frontress.
@@ -362,6 +375,10 @@ func Defaults() Config {
 		Name:   "Team Frontress",
 		Listen: ":27100",
 		Auth:   AuthConfig{Mode: "dev", AppID: 5147520},
+		Inventory: InventoryConfig{
+			TC2SDKURL:     "https://www.teamfortress.com/webapi/ISDK/GetInventory/v0001",
+			PlaytestAppID: 5147520,
+		},
 		MatchGroups: []MatchGroupConfig{
 			{
 				MatchGroup:   wire.MatchGroupCasual12v12,

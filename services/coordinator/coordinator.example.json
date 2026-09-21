@@ -10,6 +10,12 @@
     "app_ids": [5147380]
   },
 
+  "inventory": {
+    "tc2_sdk_url": "https://www.teamfortress.com/webapi/ISDK/GetInventory/v0001",
+    "playtest_app_id": 5147520,
+    "steam_publisher_api_key": ""
+  },
+
   "players": {
     "file": "",
     "abandon_grace_secs": 300

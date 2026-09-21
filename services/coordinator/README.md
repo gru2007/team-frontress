@@ -12,12 +12,27 @@ The service owns:
 - party membership, invites, join requests, leadership and chat;
 - matchmaking queues and standby/backfill requests;
 - party and game-server lobby shared objects;
+- Steam-backed econ inventory shared objects;
 - reservation acknowledgement and match-result messages.
 
 `tf2pickup-frontress` is the only match/server lifecycle backend. It persists
 games, allocates serveme reservations, updates admission and reports terminal
 state. The removed JSON queue API, game-server callbacks, greyline agent and
 custom matchmaking RCON control plane are deliberately not supported.
+
+Inventory is coordinator-owned too. The client sends a separate Steam Web API
+ticket scoped to `tf2sdk`; the coordinator presents it to TC2's existing
+Steam-backed inventory bridge and publishes only type-1 econ objects into the
+normal Valve SO cache. Configure `inventory.tc2_sdk_url` or override it with
+`TC2_SDK_INVENTORY_URL`. Direct client fetching remains only as the disabled-by-
+default `tf_inventory_legacy_webapi_fallback` rollout switch.
+
+The inventory backend is a source interface rather than TC2-specific session
+logic. `inventory.playtest_app_id` and
+`inventory.steam_publisher_api_key` reserve configuration for a future Steam
+Inventory Service source for our playtest AppID. That source is not active yet:
+it still needs publisher Economy permission and an item-definition-to-TF-econ
+mapping. Adding it does not require another client transport change.
 
 ## Configuration
 
@@ -36,18 +51,26 @@ At minimum configure:
     "base_url": "http://tf2pickup:3000",
     "secret": "shared-tf2pickup-secret"
   },
-  "auth": {
-    "mode": "webapi",
-    "steam_api_key": "...",
-    "app_ids": [440]
-  }
+	"auth": {
+	  "mode": "webapi",
+	  "steam_api_key": "...",
+	  "app_id": 5147520,
+	  "app_ids": [5147380]
+	},
+	"inventory": {
+	  "tc2_sdk_url": "https://www.teamfortress.com/webapi/ISDK/GetInventory/v0001",
+	  "playtest_app_id": 5147520
+	}
 }
 ```
 
-`TF2PICKUP_URL` and `TF2PICKUP_SECRET` override the corresponding file values.
-Production clients authenticate with a Steam Web API ticket for the identity
-`frontress-coordinator`. Dedicated servers authenticate with `secret` and send
-their tf2pickup match ID.
+`TF2PICKUP_URL`, `TF2PICKUP_SECRET`, `FRONTRESS_COORDINATOR_SECRET` and
+`TC2_SDK_INVENTORY_URL` override
+the corresponding file values. When `STEAM_API_KEY` is present it also selects
+`auth.mode=webapi` and replaces `auth.steam_api_key`. Production clients
+authenticate with a Steam Web API ticket for the identity
+`frontress-coordinator`. Dedicated servers authenticate with the coordinator
+secret and send their tf2pickup match ID.
 
 ## HTTP surface
 

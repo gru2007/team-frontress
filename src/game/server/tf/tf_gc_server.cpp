@@ -1354,6 +1354,15 @@ void CTFGCServerSystem::PostInitGC()
 	BaseClass::PostInitGC();
 }
 
+//-----------------------------------------------------------------------------
+// The first ServerWelcome may carry a complete lobby cache. Register after the
+// base GC has been initialized, but before Pump/BMainLoop can deliver it.
+//-----------------------------------------------------------------------------
+void CTFGCServerSystem::PrePumpGC()
+{
+	EnsureSOCacheListener();
+}
+
 
 //-----------------------------------------------------------------------------
 void CTFGCServerSystem::LevelShutdownPostEntity()
@@ -1719,11 +1728,9 @@ void CTFGCServerSystem::PreClientUpdate( )
 //-----------------------------------------------------------------------------
 // Purpose: Listen to the shared-object cache belonging to this game server.
 //
-// Normally PreClientUpdate notices the Steam ID transition and calls this.
-// Empty dedicated servers hibernate immediately, however, and can receive a
-// match over RCON after Steam login without running another PreClientUpdate.
-// Publishing a lobby in that window succeeds but nobody receives SOCreated,
-// so CMatchInfo is never constructed and strict admission rejects everybody.
+// PrePumpGC calls this after GC initialization and before the first transport
+// response is delivered. PreClientUpdate also uses it if Steam reconnects with
+// a different game-server ID.
 //-----------------------------------------------------------------------------
 bool CTFGCServerSystem::EnsureSOCacheListener()
 {

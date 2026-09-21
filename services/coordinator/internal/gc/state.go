@@ -62,6 +62,21 @@ func subscribed(owner uint64, version uint64, typ int32, objects ...proto.Messag
 }
 
 func (s *Server) pushCacheLocked(sess *session) error {
+	// Inventory arrives first. Its upstream version may be much larger than
+	// our session-local counter, so advance the counter before publishing
+	// party/lobby objects into the same Valve SO cache.
+	if sess.inventory != nil {
+		cache := proto.Clone(sess.inventory).(*gcproto.CMsgSOCacheSubscribed)
+		if cache.GetVersion() > sess.version {
+			sess.version = cache.GetVersion()
+		} else {
+			sess.version++
+			cache.Version = proto.Uint64(sess.version)
+		}
+		if err := s.push(sess, msgCacheSubscribed, nil, cache); err != nil {
+			return err
+		}
+	}
 	p := s.parties[sess.steamID]
 	party, err := s.partyProto(p)
 	if err != nil {

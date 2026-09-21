@@ -375,10 +375,8 @@ public:
 	virtual void	SOCacheSubscribed( const CSteamID & steamIDOwner, GCSDK::ESOCacheEvent eEvent ) OVERRIDE { }
 	virtual void	SOCacheUnsubscribed( const CSteamID & steamIDOwner, GCSDK::ESOCacheEvent eEvent ) OVERRIDE { }
 
-	// PreClientUpdate normally installs this listener after Steam assigns the
-	// game-server ID. A hibernating empty server may receive an RCON match
-	// assignment without running that frame hook, so the local coordinator must
-	// be able to install it synchronously before publishing its lobby.
+	// Install the listener before the transport can deliver the first lobby.
+	// This remains public for diagnostics and for Steam-ID changes.
 	bool EnsureSOCacheListener();
 
 	void DumpLobby();
@@ -524,6 +522,7 @@ protected:
 	// CGCClientSystem
 	virtual void PreInitGC() OVERRIDE;
 	virtual void PostInitGC() OVERRIDE;
+	virtual void PrePumpGC() OVERRIDE;
 
 private:
 	void SendPlayerLeftMatch( CSteamID steamID, TFMatchLeaveReason eReason, bool bAbandoned );

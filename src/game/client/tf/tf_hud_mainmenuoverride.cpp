@@ -63,6 +63,7 @@
 #include "ienginevgui.h"
 
 #include "tf_playermodelpanel.h"
+#include "gamestate/gamestate.h"
 
 #include "c_tf_gamestats.h"
 
@@ -108,6 +109,8 @@ ConVar tf_training_has_prompted_for_loadout( "tf_training_has_prompted_for_loado
 ConVar cl_ask_bigpicture_controller_opt_out( "cl_ask_bigpicture_controller_opt_out", "0", FCVAR_ARCHIVE, "Whether the user has opted out of being prompted for controller support in Big Picture." );
 ConVar cl_mainmenu_operation_motd_start( "cl_mainmenu_operation_motd_start", "0", FCVAR_ARCHIVE | FCVAR_HIDDEN );
 ConVar cl_mainmenu_operation_motd_reset( "cl_mainmenu_operation_motd_reset", "0", FCVAR_ARCHIVE | FCVAR_HIDDEN );
+ConVar cl_mainmenu_webui( "cl_mainmenu_webui", "0", FCVAR_ARCHIVE,
+	"Use the optional Team Comtress 2 web main menu instead of Valve's VGUI menu. Requires a restart." );
 
 ConVar cl_mainmenu_safemode( "cl_mainmenu_safemode", "0", FCVAR_NONE, "Enable safe mode", cc_tf_safemode_toggle );
 ConVar cl_mainmenu_updateglow( "cl_mainmenu_updateglow", "1", FCVAR_ARCHIVE | FCVAR_HIDDEN );
@@ -261,9 +264,12 @@ CHudMainMenuOverride::CHudMainMenuOverride( IViewPort *pViewPort ) : BaseClass( 
 	//m_pWatchStreamsPanel = new CTFStreamListPanel( this, "StreamListPanel" );
 	m_pCharacterImagePanel = new ImagePanel( this, "TFCharacterImage" );
 
-	m_MainMenuWebUiZIndex = -102;
-
+	m_MainMenuWebUiZIndex = 100;
+	// Keep TC2's browser panel in the hierarchy so MainMenuOverride.res can
+	// size it. It neither starts Chromium nor covers Valve's VGUI unless the
+	// opt-in cvar was set before the menu is constructed.
 	m_pMainMenuWebUi = new CInteractiveWebPanel( this, "TFMainMenuWebUi", "ui/index.html", true, false );
+	m_pMainMenuWebUi->SetVisible( false );
 
 	vgui::ivgui()->AddTickSignal( GetVPanel(), 50 );
 }
@@ -376,13 +382,28 @@ void CHudMainMenuOverride::OnTick()
 
 	if ( bInGame || bInReplay || bIsConnected || bBackgroundLevel )
 	{
-		if ( m_pMainMenuWebUi )
+		if ( m_pMainMenuWebUi && cl_mainmenu_webui.GetBool() )
 		{
-			m_pMainMenuWebUi->LoadInteractivePanel();
+			if ( GetGameStateManager()->IsReady() )
+			{
+				m_pMainMenuWebUi->LoadInteractivePanel();
+			}
 
 			if ( m_pMainMenuWebUi->IsVisible() != bGameUIVisible )
 			{
-				m_pMainMenuWebUi->SetVisible( bGameUIVisible );
+				if ( GetGameStateManager()->IsReady() )
+				{
+					if ( !bGameUIVisible )
+					{
+						GetGameStateManager()->QueueEvent( "closedmenu", "" );
+					}
+					else
+					{
+						GetGameStateManager()->QueueEvent( "openedmenu", "" );
+						m_pMainMenuWebUi->ForceFullTextureUpload();
+					}
+					m_pMainMenuWebUi->SetVisible( bGameUIVisible );
+				}
 			}
 		}
 	}
@@ -1473,9 +1494,13 @@ void CHudMainMenuOverride::OnUpdateMenu( void )
 			// TODO(mcoms): main menu music not working
 			//PlayMainMenuMusic();
 		}
-		if ( m_pMainMenuWebUi )
+		if ( m_pMainMenuWebUi && cl_mainmenu_webui.GetBool() )
 		{
-			m_pMainMenuWebUi->LoadInteractivePanel();
+			if ( GetGameStateManager()->IsReady() )
+			{
+				GetGameStateManager()->MarkUIReady();
+				m_pMainMenuWebUi->LoadInteractivePanel();
+			}
 			if ( !m_pMainMenuWebUi->IsVisible() )
 			{
 				m_pMainMenuWebUi->SetVisible( true );

@@ -29,17 +29,22 @@ type Message struct {
 }
 
 type ExchangeRequest struct {
-	Protocol          int       `json:"protocol"`
-	SessionID         string    `json:"session_id,omitempty"`
-	InstanceID        string    `json:"instance_id,omitempty"`
-	ClientSequence    uint64    `json:"client_sequence,omitempty"`
-	AckServerSequence uint64    `json:"ack_server_sequence,omitempty"`
-	Role              string    `json:"role"`
-	SteamID           string    `json:"steam_id,omitempty"`
-	Ticket            string    `json:"ticket,omitempty"`
-	ServerToken       string    `json:"server_token,omitempty"`
-	MatchID           string    `json:"match_id,omitempty"`
-	Messages          []Message `json:"messages,omitempty"`
+	Protocol          int    `json:"protocol"`
+	SessionID         string `json:"session_id,omitempty"`
+	InstanceID        string `json:"instance_id,omitempty"`
+	ClientSequence    uint64 `json:"client_sequence,omitempty"`
+	AckServerSequence uint64 `json:"ack_server_sequence,omitempty"`
+	Role              string `json:"role"`
+	SteamID           string `json:"steam_id,omitempty"`
+	Ticket            string `json:"ticket,omitempty"`
+	// InventoryTicket is deliberately separate from Ticket.  Steam Web API
+	// tickets are scoped by identity: the coordinator authenticates with
+	// "frontress-coordinator", while TC2's inventory bridge expects "tf2sdk".
+	InventoryTicket string    `json:"inventory_ticket,omitempty"`
+	AppID           uint32    `json:"app_id,omitempty"`
+	ServerToken     string    `json:"server_token,omitempty"`
+	MatchID         string    `json:"match_id,omitempty"`
+	Messages        []Message `json:"messages,omitempty"`
 }
 
 type ExchangeResponse struct {

@@ -1683,10 +1683,15 @@ void CPlayerInventory::SOCacheSubscribed( const CSteamID & steamIDOwner, GCSDK::
 		return;
 
 #ifdef TF_CLIENT_DLL
-	// The MM backend may subscribe a party-only cache if Valve is down.
-	// Do not purge items or dispatch econ_inventory_connected for it.
-	if ( InventoryManager()->GetLocalInventory() == this && !BTFWebapiInventoryReady() )
-		return;
+	// The coordinator may subscribe party/lobby types independently. Only an
+	// actual type-1 cache is an inventory snapshot; checking the cache itself
+	// makes this independent of listener callback order.
+	if ( InventoryManager()->GetLocalInventory() == this )
+	{
+		CGCClientSharedObjectCache *pCache = GCClientSystem()->GetSOCache( m_OwnerID );
+		if ( !pCache || !pCache->FindTypeCache( CEconItem::k_nTypeID ) )
+			return;
+	}
 #endif
 
 	#ifdef _DEBUG
@@ -2417,5 +2422,4 @@ CON_COMMAND_F( item_generate_all_descriptions, "Generate full item descriptions 
 #endif // CLIENT_DLL
 
 #endif // STAGING_ONLY || _DEBUG
-
 

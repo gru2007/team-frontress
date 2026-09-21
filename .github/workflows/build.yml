@@ -72,10 +72,9 @@ jobs:
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME}-${GITHUB_SHA::8}"
-          # The agent ships with the coordinator: it is the half that runs next
-          # to a game server, and a coordinator release without one is a
-          # deployment where no match ever reports its result.
-          for cmd in coordinator greyline-agent; do
+          # The dedicated server now reports lifecycle and results through the
+          # Valve-compatible GC transport; there is no sidecar agent binary.
+          for cmd in coordinator; do
             for target in linux/amd64 linux/arm64 windows/amd64; do
               os="${target%%/*}"
               arch="${target##*/}"
@@ -581,10 +580,9 @@ jobs:
           fi
           cp "${TARBALL}" "${TARBALL}.sha256" release/
           # The coordinator lane can fail without stopping a game release, so
-          # its binaries are optional here rather than required.
-          cp artifacts/coordinator/coordinator-* release/ 2>/dev/null || true
-          cp artifacts/coordinator/greyline-agent-* release/ 2>/dev/null || true
-          cp artifacts/coordinator/coordinator.example.json release/ 2>/dev/null || true
+		  # its binaries are optional here rather than required.
+		  cp artifacts/coordinator/coordinator-* release/ 2>/dev/null || true
+		  cp artifacts/coordinator/coordinator.example.json release/ 2>/dev/null || true
           ls -la release
 
       - name: Publish the release

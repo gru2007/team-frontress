@@ -80,6 +80,7 @@
 #include "client_virtualreality.h"
 
 #include "econ_gcmessages.h"
+#include "gamestate/gamestate.h"
 
 #if defined( _X360 )
 #include "tf_clientscoreboard.h"
@@ -2326,6 +2327,10 @@ void ClientModeTFNormal::OnConnectStateChanged()
 			break;
 		}
 	}
+
+	// Keep the optional TC2 browser surface in sync even though the Valve VGUI
+	// menu is the default. External browser clients use the same event stream.
+	GetGameStateManager()->QueueEvent( "ingame", m_eConnectState == k_eConnectState_Connected ? "1" : "0" );
 
 }
 

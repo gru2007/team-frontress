@@ -70,6 +70,7 @@ private:
 	CUtlString m_strSessionID;
 	CUtlString m_strInstanceID;
 	CUtlString m_strTicket;
+	CUtlString m_strInventoryTicket;
 	CUtlVector< Message_t > m_Outbox;
 	CUtlVector< Message_t > m_InFlight;
 	CUtlVector< Message_t > m_Inbox;
@@ -82,6 +83,7 @@ private:
 	bool m_bConnected;
 #ifdef CLIENT_DLL
 	HAuthTicket m_hAuthTicket;
+	HAuthTicket m_hInventoryTicket;
 #endif
 };
 

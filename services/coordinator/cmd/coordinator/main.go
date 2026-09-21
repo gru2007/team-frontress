@@ -73,6 +73,21 @@ func run() error {
 	if value := os.Getenv("TF2PICKUP_SECRET"); value != "" {
 		cfg.TF2Pickup.Secret = value
 	}
+	if value := os.Getenv("FRONTRESS_COORDINATOR_SECRET"); value != "" {
+		cfg.Secret = value
+	}
+	if value := os.Getenv("STEAM_API_KEY"); value != "" {
+		cfg.Auth.Mode = "webapi"
+		cfg.Auth.SteamAPIKey = value
+	}
+	if value, ok := os.LookupEnv("TC2_SDK_INVENTORY_URL"); ok {
+		cfg.Inventory.TC2SDKURL = value
+	}
+	if value := os.Getenv("STEAM_INVENTORY_PUBLISHER_KEY"); value != "" {
+		// Reserved for the playtest-AppID Steam Inventory Service source. It is
+		// intentionally not the ordinary STEAM_API_KEY used for ticket auth.
+		cfg.Inventory.SteamPublisherAPIKey = value
+	}
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("%s: %w", *configPath, err)
 	}

@@ -17,6 +17,7 @@ import (
 
 	"github.com/gru2007/team-frontress/services/coordinator/internal/gcproto"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/gcwire"
+	"github.com/gru2007/team-frontress/services/coordinator/internal/inventory"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/maps"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/mm"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/steamauth"
@@ -97,10 +98,11 @@ type activeGameRecoverer interface {
 }
 
 type Server struct {
-	secret   string
-	mm       Matchmaker
-	verifier steamauth.Verifier
-	log      *slog.Logger
+	secret    string
+	mm        Matchmaker
+	verifier  steamauth.Verifier
+	log       *slog.Logger
+	inventory inventory.Source
 
 	mu        sync.Mutex
 	sessions  map[string]*session
@@ -131,6 +133,7 @@ type session struct {
 	assignmentHash string
 	standbyTicket  string
 	standbyGroup   wire.MatchGroup
+	inventory      *gcproto.CMsgSOCacheSubscribed
 }
 
 type party struct {
@@ -153,13 +156,17 @@ type partyInvite struct {
 	typ     gcproto.CSOTFPartyInvite_Type
 }
 
-func New(secret string, m Matchmaker, verifier steamauth.Verifier, log *slog.Logger) *Server {
+func New(secret string, m Matchmaker, verifier steamauth.Verifier, log *slog.Logger, inventories ...inventory.Source) *Server {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Server{secret: secret, mm: m, verifier: verifier, log: log,
+	s := &Server{secret: secret, mm: m, verifier: verifier, log: log,
 		sessions: map[string]*session{}, instances: map[string]string{}, parties: map[wire.SteamID]*party{}, ready: map[string]bool{},
 		invites: map[wire.SteamID]map[uint64]*partyInvite{}}
+	if len(inventories) != 0 {
+		s.inventory = inventories[0]
+	}
+	return s
 }
 
 func (s *Server) Exchange(ctx context.Context, req gcwire.ExchangeRequest) (gcwire.ExchangeResponse, error) {
@@ -299,6 +306,14 @@ func (s *Server) authenticateSession(ctx context.Context, req gcwire.ExchangeReq
 			return nil, fmt.Errorf("%w: Steam ticket rejected: %v", ErrUnauthorized, err)
 		}
 		sess.steamID = id
+		if s.inventory != nil && req.InventoryTicket != "" {
+			cache, loadErr := s.inventory.Load(ctx, inventory.Request{SteamID: id, AppID: req.AppID, Ticket: req.InventoryTicket})
+			if loadErr != nil {
+				s.log.Warn("inventory snapshot unavailable", "steam_id", id, "app_id", req.AppID, "err", loadErr)
+			} else {
+				sess.inventory = cache
+			}
+		}
 	} else {
 		if subtle.ConstantTimeCompare([]byte(req.ServerToken), []byte(s.secret)) != 1 {
 			return nil, fmt.Errorf("%w: server token rejected", ErrUnauthorized)

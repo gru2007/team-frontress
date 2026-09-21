@@ -61,6 +61,8 @@ ConVar tf_mm_debug_level( "tf_mm_debug_level", "4" );
 
 
 static ConVar mod_inventory_request_timeout( "mod_inventory_request_timeout", "300", FCVAR_NONE, "Seconds to wait for TF inventory before assuming failure" );
+static ConVar tf_inventory_legacy_webapi_fallback( "tf_inventory_legacy_webapi_fallback", "0", FCVAR_ARCHIVE,
+	"Let the client fetch TC2 inventory directly instead of waiting for Frontress GC." );
 
 
 using namespace GCSDK;
@@ -379,6 +381,11 @@ bool CTFGCClientSystem::WebapiInventoryState_t::IsBackingOff()
 void CTFGCClientSystem::WebapiInventoryThink()
 {
 	WebapiInventoryState_t &state = m_WebapiInventory;
+
+	// Frontress GC owns the inventory snapshot. The old TC2 client request is
+	// retained as an explicit rollout/emergency fallback, not a second writer.
+	if ( !state.m_bValveInventoryReady && !tf_inventory_legacy_webapi_fallback.GetBool() )
+		return;
 
 	// Early out if we are waiting backoff timer
 	if ( state.IsBackingOff() )
@@ -1028,6 +1035,28 @@ void CTFGCClientSystem::SOCacheSubscribed( const CSteamID & steamIDOwner, GCSDK:
 		// Assert( m_pSOCache == NULL ); // we *can* get two SOCacheSubscribed calls in a row.
 		m_pSOCache = GCClientSystem()->GetSOCache( steamIDOwner );
 		Assert( m_pSOCache != NULL );
+
+		// A type-1 subscription is the coordinator's positive inventory signal.
+		// Party-only subscriptions deliberately leave readiness false.
+		if ( m_pSOCache && m_pSOCache->FindTypeCache( CEconItem::k_nTypeID ) )
+		{
+			WebapiInventoryState_t &state = m_WebapiInventory;
+			state.m_bValveInventoryReady = true;
+			if ( state.m_eState <= kWebapiInventoryState_InventoryReceived )
+				state.m_eState = kWebapiInventoryState_InventoryReceived;
+			if ( state.m_hInventoryRequest != INVALID_HTTPREQUEST_HANDLE && SteamHTTP() )
+			{
+				state.m_InventoryRequestCompleted.Cancel();
+				SteamHTTP()->ReleaseHTTPRequest( state.m_hInventoryRequest );
+				state.m_hInventoryRequest = INVALID_HTTPREQUEST_HANDLE;
+			}
+			if ( state.m_hSteamAuthTicket != k_HAuthTicketInvalid && SteamUser() )
+			{
+				SteamUser()->CancelAuthTicket( state.m_hSteamAuthTicket );
+				state.m_hSteamAuthTicket = k_HAuthTicketInvalid;
+			}
+			state.m_bufAuthToken.Purge();
+		}
 
 		if ( gameeventmanager )
 		{

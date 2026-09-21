@@ -13,6 +13,7 @@ import (
 	"github.com/gru2007/team-frontress/services/coordinator/internal/config"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/gc"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/gcwire"
+	"github.com/gru2007/team-frontress/services/coordinator/internal/inventory"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/players"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/steamauth"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/war"
@@ -50,7 +51,11 @@ func New(cfg config.Config, m Matchmaker, v steamauth.Verifier, w *war.Engine, r
 		log = slog.Default()
 	}
 	s := &Server{cfg: cfg, mm: m, war: w, players: rec, log: log}
-	s.gc = gc.New(cfg.Secret, m, v, log)
+	if cfg.Inventory.TC2SDKURL != "" {
+		s.gc = gc.New(cfg.Secret, m, v, log, &inventory.TC2SDK{Endpoint: cfg.Inventory.TC2SDKURL})
+	} else {
+		s.gc = gc.New(cfg.Secret, m, v, log)
+	}
 	return s
 }
 

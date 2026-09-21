@@ -7,6 +7,7 @@ import (
 
 	"github.com/gru2007/team-frontress/services/coordinator/internal/gcproto"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/gcwire"
+	"github.com/gru2007/team-frontress/services/coordinator/internal/inventory"
 	gamemaps "github.com/gru2007/team-frontress/services/coordinator/internal/maps"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/mm"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/steamauth"
@@ -20,6 +21,55 @@ type fakeMM struct {
 	enqueueErr   error
 	status       wire.QueueStatus
 	match        *wire.Assignment
+	reported     *wire.MatchResult
+	reportCalls  int
+}
+
+type fakeInventory struct {
+	request inventory.Request
+}
+
+func (f *fakeInventory) Load(_ context.Context, request inventory.Request) (*gcproto.CMsgSOCacheSubscribed, error) {
+	f.request = request
+	owner := uint64(76561198000000001)
+	return &gcproto.CMsgSOCacheSubscribed{
+		Owner: ownerPtr(owner), Version: ownerPtr(99),
+		Objects: []*gcproto.CMsgSOCacheSubscribed_SubscribedType{{TypeId: proto.Int32(1)}},
+	}, nil
+}
+
+func ownerPtr(value uint64) *uint64 { return &value }
+
+func TestClientHelloPublishesCoordinatorInventoryBeforeParty(t *testing.T) {
+	f := new(fakeMM)
+	inv := new(fakeInventory)
+	s := New("secret", f, steamauth.DevVerifier{}, nil, inv)
+	resp, err := s.Exchange(t.Context(), gcwire.ExchangeRequest{
+		Protocol: 1, Role: "client", SteamID: "76561198000000001",
+		InventoryTicket: "inventory-ticket", AppID: 5147520,
+		Messages: []gcwire.Message{packet(t, msgClientHello, &gcproto.CMsgClientHello{})},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inv.request.Ticket != "inventory-ticket" || inv.request.AppID != 5147520 {
+		t.Fatalf("inventory request = %+v", inv.request)
+	}
+	got := types(t, resp.Messages)
+	if len(got) != 3 || got[0] != msgClientWelcome || got[1] != msgCacheSubscribed || got[2] != msgCacheSubscribed {
+		t.Fatalf("hello replies = %v", got)
+	}
+	first, err := gcwire.Decode(resp.Messages[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cache gcproto.CMsgSOCacheSubscribed
+	if err := proto.Unmarshal(first.Body, &cache); err != nil {
+		t.Fatal(err)
+	}
+	if len(cache.Objects) != 1 || cache.Objects[0].GetTypeId() != 1 || cache.GetVersion() != 99 {
+		t.Fatalf("inventory cache = %+v", &cache)
+	}
 }
 
 func (f *fakeMM) Enqueue(ticket *mm.Ticket) (*mm.Ticket, error) {
@@ -121,10 +171,15 @@ func TestQueueRefusalCompletesReliableJobWithoutResettingGCSession(t *testing.T)
 		t.Fatalf("queue refusal replies = %v", got)
 	}
 }
-func (f *fakeMM) Cancel(string) error                                  { return nil }
-func (f *fakeMM) Status(string) (wire.QueueStatus, error)              { return f.status, nil }
-func (f *fakeMM) MatchAssignment(string) (*wire.Assignment, bool)      { return f.match, f.match != nil }
-func (f *fakeMM) ReportResult(context.Context, wire.MatchResult) error { return nil }
+func (f *fakeMM) Cancel(string) error                             { return nil }
+func (f *fakeMM) Status(string) (wire.QueueStatus, error)         { return f.status, nil }
+func (f *fakeMM) MatchAssignment(string) (*wire.Assignment, bool) { return f.match, f.match != nil }
+func (f *fakeMM) ReportResult(_ context.Context, result wire.MatchResult) error {
+	f.reportCalls++
+	f.reported = &result
+	f.match = nil
+	return nil
+}
 
 func packet(t *testing.T, typ uint32, body proto.Message) gcwire.Message {
 	t.Helper()
@@ -209,6 +264,63 @@ func TestServerMustAuthenticateAndGetsLobby(t *testing.T) {
 	got := types(t, resp.Messages)
 	if len(got) != 2 || got[0] != msgServerWelcome || got[1] != msgCacheSubscribed {
 		t.Fatalf("server hello replies = %v", got)
+	}
+}
+
+func TestDedicatedServerStatusAndResultStayOnValveGCFlow(t *testing.T) {
+	const (
+		matchID = "2a"
+		player  = "76561198000000001"
+	)
+	f := &fakeMM{match: &wire.Assignment{
+		MatchID: matchID, MatchGroup: wire.MatchGroupCasual12v12,
+		Map: "cp_process_final", Connect: "127.0.0.1:27015",
+		Roster: []wire.AssignedPlayer{{SteamID: player, Team: wire.TeamRed}},
+	}}
+	s := New("secret", f, steamauth.DevVerifier{}, nil)
+	resp, err := s.Exchange(t.Context(), gcwire.ExchangeRequest{
+		Protocol: 1, Role: "server", MatchID: matchID, ServerToken: "secret", SteamID: "90000000000000000",
+		Messages: []gcwire.Message{packet(t, msgServerHello, &gcproto.CMsgServerHello{})},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	steamID := uint64(76561198000000001)
+	connected := gcproto.CMsgGameServerMatchmakingStatus_CONNECTED
+	if _, err := s.Exchange(t.Context(), gcwire.ExchangeRequest{
+		Protocol: 1, SessionID: resp.SessionID, Role: "server", MatchID: matchID, ServerToken: "secret",
+		Messages: []gcwire.Message{packet(t, msgServerStatus, &gcproto.CMsgGameServerMatchmakingStatus{
+			Players: []*gcproto.CMsgGameServerMatchmakingStatus_Player{{SteamId: &steamID, ConnectState: &connected}},
+		})},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !s.ready[matchID] {
+		t.Fatal("server reservation acknowledgement did not make the match ready")
+	}
+
+	status := gcproto.CMsgGC_Match_Result_MATCH_SUCCEEDED
+	winner, redScore, blueScore, team := uint32(2), uint32(5), uint32(3), uint32(wire.TeamRed)
+	resp, err = s.Exchange(t.Context(), gcwire.ExchangeRequest{
+		Protocol: 1, SessionID: resp.SessionID, Role: "server", MatchID: matchID, ServerToken: "secret",
+		Messages: []gcwire.Message{packet(t, msgMatchResult, &gcproto.CMsgGC_Match_Result{
+			Status: &status, WinningTeam: &winner, RedScore: &redScore, BlueScore: &blueScore,
+			Players: []*gcproto.CMsgGC_Match_Result_Player{{SteamId: &steamID, Team: &team}},
+		})},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := types(t, resp.Messages); len(got) != 1 || got[0] != msgMatchResultReply {
+		t.Fatalf("match-result replies = %v", got)
+	}
+	if f.reportCalls != 1 || f.reported == nil || f.reported.MatchID != matchID ||
+		f.reported.Winner != wire.TeamRed || f.reported.RedScore != 5 || f.reported.BluScore != 3 || f.reported.Aborted {
+		t.Fatalf("reported result = %+v, calls = %d", f.reported, f.reportCalls)
+	}
+	if s.ready[matchID] {
+		t.Fatal("finished match remained ready for admissions")
 	}
 }
 

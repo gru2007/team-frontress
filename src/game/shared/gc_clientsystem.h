@@ -69,9 +69,10 @@ protected:
 	virtual void InitGC();
 	virtual void PreInitGC() {}
 	virtual void PostInitGC() {}
+	// Server subclasses use this point after BInit but before the transport can
+	// deliver the first SO cache. Clients normally have nothing to do here.
+	virtual void PrePumpGC() {}
 
-
-protected:
 	// Mirrors the state of the Valve-compatible Frontress GC transport. The
 	// stock matchmaking UI gates on this value.
 	void SetConnectedToGC( bool bConnected );

@@ -17,6 +17,9 @@ func fakeSteam(t *testing.T, body string) *WebAPIVerifier {
 	calls := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
+		if got := r.URL.Query().Get("identity"); got != WebAPIIdentity {
+			t.Errorf("identity = %q, want %q", got, WebAPIIdentity)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(body))
 	}))

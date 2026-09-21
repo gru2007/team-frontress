@@ -277,6 +277,7 @@ void CGCClientSystem::Update( float frametime )
 void CGCClientSystem::PreClientUpdate()	
 { 
 	ThinkConnection();
+	PrePumpGC();
 	m_FrontressGC.Pump();
 	if ( m_bInittedGC )
 	{

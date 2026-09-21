@@ -161,16 +161,18 @@
 		}
 	}
 
+	// TC2's browser menu remains available as an opt-in compatibility surface.
+	// C++ keeps this panel hidden unless cl_mainmenu_webui was enabled at start.
 	"TFMainMenuWebUi"
 	{
 		"ControlName"	"CInteractiveWebPanel"
 		"fieldName"		"TFMainMenuWebUi"
 		"xpos"			"0"
 		"ypos"			"0"
-		"zpos"			"-102"
+		"zpos"			"100"
 		"wide"			"f0"
 		"tall"			"f0"
-		"visible"		"1"
+		"visible"		"0"
 		"enabled"		"1"
 	}
 	
@@ -248,7 +250,7 @@
 		"zpos"			"1"
 		"wide"			"256"
 		"tall"			"64"
-		"visible"		"0"
+		"visible"		"1"
 		"enabled"		"1"
 		"image"			"../logo/new_tf2_logo"
 		"scaleImage"	"1"
@@ -261,7 +263,7 @@
 		"fieldName"		"TFCharacterImage"
 		"xpos"			"c-250"
 		"ypos"			"-80"
-		"zpos"			"-105"
+		"zpos"			"-99"
 		"wide"			"600"
 		"tall"			"600"
 		"visible"		"0"
@@ -275,7 +277,7 @@
 		"fieldName"		"TFCharacterModel"
 		"xpos"			"c-100"
 		"ypos"			"-80"
-		"zpos"			"-105"
+		"zpos"			"-99"
 		"wide"			"600"
 		"tall"			"600"
 		"autoResize"	"0"
@@ -1425,6 +1427,132 @@
 		"visible"		"0"
 	}
 
+	"FriendsContainer"
+	{
+		"ControlName"	"EditablePanel"
+		"fieldname"		"FriendsContainer"
+		"xpos"			"c-290"
+		"ypos"			"260"
+		"zpos"			"5"
+		"wide"			"260"
+		"tall"			"150"
+		"visible"		"1"
+
+		"border"		"MainMenuBGBorder"
+
+		"TitleLabel"
+		{
+			"ControlName"	"CExLabel"
+			"fieldName"		"TitleLabel"
+			"font"			"HudFontSmallBold"
+			"labelText"		"#TF_Competitive_Friends"
+			"textAlignment"	"west"
+			"xpos"			"12"
+			"ypos"			"0"
+			"wide"			"f0"
+			"tall"			"30"
+			"autoResize"	"0"
+			"pinCorner"		"0"
+			"visible"		"1"
+			"enabled"		"1"
+			"textinsetx"	"0"
+			"fgcolor_override"	"235 227 203 255"
+		}
+
+		"InnerShadow"
+		{
+			"ControlName"	"EditablePanel"
+			"fieldname"		"InnerShadow"
+			"xpos"			"cs-0.5"
+			"ypos"			"rs1-10"
+			"zpos"			"501"
+			"wide"			"f10"
+			"tall"			"110"
+			"visible"		"1"
+			"PaintBackgroundType"	"0"
+			"proportionaltoparent"	"1"
+			"mouseinputenabled"	"0"
+
+			"paintborder"	"1"
+			"border"		"InnerShadowBorder"
+		}
+
+		"SteamFriendsList"
+		{
+			"ControlName"	"CSteamFriendsListPanel"
+			"fieldname"		"SteamFriendsList"
+			"xpos"			"cs-0.5"
+			"ypos"			"rs1-10"
+			"zpos"			"500"
+			"wide"			"f10"
+			"tall"			"110"
+			"visible"		"1"
+			"proportionaltoparent"	"1"
+
+			"columns_count"	"2"
+			"inset_x"		"10"
+			"inset_y"		"5"
+			"row_gap"		"5"
+			"column_gap"	"10"
+			"restrict_width"	"0"
+
+			"friendpanel_kv"
+			{
+				"wide"		"110"
+				"tall"		"20"
+			}
+
+			"ScrollBar"
+			{
+				"ControlName"	"ScrollBar"
+				"FieldName"		"ScrollBar"
+				"xpos"			"rs1-1"
+				"ypos"			"0"
+				"tall"			"f0"
+				"wide"			"5" // This gets slammed from client schme.  GG.
+				"zpos"			"1000"
+				"nobuttons"		"1"
+				"proportionaltoparent"	"1"
+
+				"Slider"
+				{
+					"fgcolor_override"	"TanDark"
+				}
+
+				"UpButton"
+				{
+					"ControlName"	"Button"
+					"FieldName"		"UpButton"
+					"visible"		"0"
+				}
+
+				"DownButton"
+				{
+					"ControlName"	"Button"
+					"FieldName"		"DownButton"
+					"visible"		"0"
+				}
+			}
+		}
+
+		"BelowDarken"
+		{
+			"ControlName"	"EditablePanel"
+			"fieldname"		"BelowDarken"
+			"xpos"			"cs-0.5"
+			"ypos"			"rs1-10"
+			"zpos"			"499"
+			"wide"			"f10"
+			"tall"			"110"
+			"visible"		"1"
+			"PaintBackgroundType"	"0"
+			"proportionaltoparent"	"1"
+			"mouseinputenabled"	"0"
+
+			"bgcolor_override"	"0 0 0 100"
+		}
+	}
+
 	"EventPromo"
 	{
 		"ControlName"	"EditablePanel"
@@ -1891,7 +2019,7 @@
 		"fieldName"		"ShowPromoCodesButton"
 		"xpos"			"c30"
 		"ypos"			"385"
-		"zpos"			"0"
+		"zpos"			"5"
 		"wide"			"250"
 		"tall"			"26"
 		"autoResize"	"0"
@@ -2198,7 +2326,7 @@
 		"fieldName"		"BackgroundFooter"
 		"xpos"			"0"
 		"ypos"			"420"
-		"zpos"			"-104"
+		"zpos"			"-50"
 		"wide"			"f0"
 		"tall"			"60"
 		"visible"		"1"
@@ -2212,7 +2340,7 @@
 		"fieldName"		"FooterLine"
 		"xpos"			"0"
 		"ypos"			"420"
-		"zpos"			"-103"
+		"zpos"			"-5"
 		"wide"			"f0"
 		"tall"			"10"
 		"visible"		"1"
@@ -2227,11 +2355,11 @@
 		"fieldName"		"CharacterSetupButton"
 		"xpos"			"c-288"
 		"ypos"			"rs1-18"
-		"wide"			"120"
+		"wide"			"100"
 		"tall"			"26"
 		"autoResize"	"0"
 		"pinCorner"		"3"
-		"visible"		"0"
+		"visible"		"1"
 		"enabled"		"1"
 		"tabPosition"	"0"
 		"textinsetx"	"25"
@@ -2339,7 +2467,7 @@
 		"tall"			"25"
 		"autoResize"	"0"
 		"pinCorner"		"3"
-		"visible"		"0"
+		"visible"		"1"
 		"enabled"		"1"
 		"tabPosition"	"0"
 		//"labelText"		"#MMenu_Tooltip_Options"
@@ -2388,7 +2516,7 @@
 		"tall"			"25"
 		"autoResize"	"0"
 		"pinCorner"		"3"
-		"visible"		"0"
+		"visible"		"1"
 		"enabled"		"1"
 		"tabPosition"	"0"
 		//"labelText"		"#MMenu_Tooltip_Options"
@@ -2437,7 +2565,7 @@
 		"tall"			"25"
 		"autoResize"	"0"
 		"pinCorner"		"3"
-		"visible"		"0"
+		"visible"		"1"
 		"enabled"		"1"
 		"tabPosition"	"0"
 		//"labelText"		"#MMenu_AdvOptions"
