@@ -3,7 +3,7 @@
 	"MMDashboard"
 	{
 		"fieldName"				"MMDashboard"
-		"visible"				"1"
+		"visible"				"0"
 		"enabled"				"1"
 		"xpos"					"cs-0.5"
 		"ypos"					"-5"
@@ -26,7 +26,7 @@
 		"zpos"			"1"
 		"wide"			"f0"
 		"tall"			"35"
-		"visible"		"1"
+		"visible"		"0"
 		"proportionaltoparent"	"1"
 
 		"pinCorner"		"2"
@@ -794,10 +794,8 @@
 			"sound_depressed"	"UI/buttonclick.wav"
 			"sound_released"	"UI/buttonclickrelease.wav"
 
-			// Cool blue keeps this compact dashboard action visually separate
-			// from the large orange primary action in the main navigation.
-			"armedBgColor_override"		"70 138 205 255"
-			"defaultBgColor_override"	"47 96 146 235"
+			"armedBgColor_override"		"CreditsGreen"
+			"defaultBgColor_override"	"GreenSolid"
 
 			"defaultFgColor_override" "TanLight"
 			"armedFgColor_override" "TanLight"

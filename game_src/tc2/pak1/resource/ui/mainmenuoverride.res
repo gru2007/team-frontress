@@ -16,15 +16,15 @@
 		"update_url"	"https://store.steampowered.com/news/?filter=updates&appids=440"
 		"blog_url"		"https://www.teamfortress.com/"
 		
-		"button_x_offset"	"-290"
-		"button_y"			"166"
-		"button_y_delta"	"4"
+		"button_x_offset"	"-285"
+		"button_y"			"120"
+		"button_y_delta"	"5"
 		"button_kv"
 		{
 			"xpos"			"0"
 			"ypos"			"150"
-			"wide"			"260"
-			"tall"			"30"
+			"wide"			"250"
+			"tall"			"26"
 			"visible"		"1"
 
 			"SubButton"
@@ -33,14 +33,14 @@
 				"fieldName"		"SubButton"
 				"xpos"			"0"
 				"ypos"			"0"
-				"wide"			"260"
-				"tall"			"30"
+				"wide"			"250"
+				"tall"			"26"
 				"autoResize"	"0"
 				"pinCorner"		"3"
 				"visible"		"1"
 				"enabled"		"1"
 				"tabPosition"	"0"
-				"textinsetx"	"32"
+				"textinsetx"	"25"
 				"use_proportional_insets" "1"
 				"font"			"HudFontSmallBold"
 				"textAlignment"	"west"
@@ -52,13 +52,11 @@
 				
 				"border_default"	"MainMenuButtonDefault"
 				"border_armed"		"MainMenuButtonArmed"
-				"paintbackground"	"1"
+				"paintbackground"	"0"
 				
-				"defaultFgColor_override" "235 226 202 255"
-				"armedFgColor_override" "255 255 255 255"
-				"depressedFgColor_override" "235 226 202 255"
-				"defaultBgColor_override" "38 43 52 225"
-				"armedBgColor_override" "64 86 111 245"
+				"defaultFgColor_override" "46 43 42 255"
+				"armedFgColor_override" "235 226 202 255"
+				"depressedFgColor_override" "46 43 42 255"
 				
 				"image_drawcolor"	"117 107 94 255"
 				"image_armedcolor"	"235 226 202 255"
@@ -66,8 +64,8 @@
 				{
 					"ControlName"	"ImagePanel"
 					"fieldName"		"SubImage"
-					"xpos"			"9"
-					"ypos"			"8"
+					"xpos"			"6"
+					"ypos"			"6"
 					"zpos"			"1"
 					"wide"			"14"
 					"tall"			"14"
@@ -120,7 +118,7 @@
 				"zpos"			"9"
 			}
 		}
-	}
+	}	
 
 	"mouseoveritempanel"
 	{
@@ -163,6 +161,19 @@
 		}
 	}
 
+	"TFMainMenuWebUi"
+	{
+		"ControlName"	"CInteractiveWebPanel"
+		"fieldName"		"TFMainMenuWebUi"
+		"xpos"			"0"
+		"ypos"			"0"
+		"zpos"			"-102"
+		"wide"			"f0"
+		"tall"			"f0"
+		"visible"		"1"
+		"enabled"		"1"
+	}
+	
 	"Background"
 	{
 		"ControlName"	"ScalableImagePanel"
@@ -237,76 +248,12 @@
 		"zpos"			"1"
 		"wide"			"256"
 		"tall"			"64"
-		"visible"		"1"
+		"visible"		"0"
 		"enabled"		"1"
 		"image"			"../logo/new_tf2_logo"
 		"scaleImage"	"1"
 		"mouseinputenabled"	"0"
-	}
-
-	// A large primary action anchors the navigation like a modern hero menu,
-	// while keeping TF2's fonts, bevels and palette. LoadMenuEntries supplies
-	// the localised text and command from GameMenu.res.
-	"FindGameButton"
-	{
-		"ControlName"	"EditablePanel"
-		"fieldName"		"FindGameButton"
-		"xpos"			"c-290"
-		"ypos"			"108"
-		"zpos"			"6"
-		"wide"			"260"
-		"tall"			"44"
-		"visible"		"1"
-		"enabled"		"1"
-
-		"SubButton"
-		{
-			"ControlName"	"CExImageButton"
-			"fieldName"		"SubButton"
-			"xpos"			"0"
-			"ypos"			"0"
-			"wide"			"f0"
-			"tall"			"f0"
-			"visible"		"1"
-			"enabled"		"1"
-			"font"			"HudFontMediumBold"
-			"textAlignment"	"west"
-			"textinsetx"	"42"
-			"textinsety"	"1"
-			"use_proportional_insets" "1"
-			"dulltext"		"0"
-			"brighttext"	"0"
-			"default"		"1"
-			"roundedcorners" "2"
-			"paintbackground" "1"
-			"border_default"	"MainMenuButtonDefault"
-			"border_armed"	"MainMenuButtonArmed"
-			"defaultBgColor_override" "207 83 42 245"
-			"armedBgColor_override" "238 143 52 255"
-			"depressedBgColor_override" "159 57 35 255"
-			"defaultFgColor_override" "255 244 224 255"
-			"armedFgColor_override" "255 255 255 255"
-			"depressedFgColor_override" "255 244 224 255"
-			"image_drawcolor" "255 244 224 255"
-			"image_armedcolor" "255 255 255 255"
-			"sound_depressed" "UI/buttonclick.wav"
-			"sound_released" "UI/buttonclickrelease.wav"
-
-			"SubImage"
-			{
-				"ControlName"	"ImagePanel"
-				"fieldName"		"SubImage"
-				"xpos"			"12"
-				"ypos"			"12"
-				"zpos"			"1"
-				"wide"			"20"
-				"tall"			"20"
-				"visible"		"1"
-				"enabled"		"1"
-				"scaleImage"	"1"
-			}
-		}
-	}
+	}	
 	
 	"TFCharacterImage"
 	{
@@ -314,7 +261,7 @@
 		"fieldName"		"TFCharacterImage"
 		"xpos"			"c-250"
 		"ypos"			"-80"
-		"zpos"			"-99"
+		"zpos"			"-105"
 		"wide"			"600"
 		"tall"			"600"
 		"visible"		"0"
@@ -328,7 +275,7 @@
 		"fieldName"		"TFCharacterModel"
 		"xpos"			"c-100"
 		"ypos"			"-80"
-		"zpos"			"-99"
+		"zpos"			"-105"
 		"wide"			"600"
 		"tall"			"600"
 		"autoResize"	"0"
@@ -1478,132 +1425,6 @@
 		"visible"		"0"
 	}
 
-	"FriendsContainer"
-	{
-		"ControlName"	"EditablePanel"
-		"fieldname"		"FriendsContainer"
-		"xpos"			"c-290"
-		"ypos"			"274"
-		"zpos"			"5"
-		"wide"			"260"
-		"tall"			"138"
-		"visible"		"1"
-
-		"border"		"MainMenuBGBorder"
-
-		"TitleLabel"
-		{
-			"ControlName"	"CExLabel"
-			"fieldName"		"TitleLabel"
-			"font"			"HudFontSmallBold"
-			"labelText"		"#TF_Competitive_Friends"
-			"textAlignment"	"west"
-			"xpos"			"12"
-			"ypos"			"0"
-			"wide"			"f0"
-			"tall"			"30"
-			"autoResize"	"0"
-			"pinCorner"		"0"
-			"visible"		"1"
-			"enabled"		"1"
-			"textinsetx"	"0"
-			"fgcolor_override"	"235 227 203 255"
-		}
-
-		"InnerShadow"
-		{
-			"ControlName"	"EditablePanel"
-			"fieldname"		"InnerShadow"
-			"xpos"			"cs-0.5"
-			"ypos"			"rs1-10"
-			"zpos"			"501"
-			"wide"			"f10"
-			"tall"			"98"
-			"visible"		"1"	
-			"PaintBackgroundType"	"0"
-			"proportionaltoparent"	"1"
-			"mouseinputenabled"	"0"
-
-			"paintborder"	"1"
-			"border"		"InnerShadowBorder"
-		}
-
-		"SteamFriendsList"
-		{
-			"ControlName"	"CSteamFriendsListPanel"
-			"fieldname"		"SteamFriendsList"
-			"xpos"			"cs-0.5"
-			"ypos"			"rs1-10"
-			"zpos"			"500"
-			"wide"			"f10"
-			"tall"			"98"
-			"visible"		"1"
-			"proportionaltoparent"	"1"
-
-			"columns_count"	"2"
-			"inset_x"		"10"
-			"inset_y"		"5"
-			"row_gap"		"5"
-			"column_gap"	"10"
-			"restrict_width"	"0"
-
-			"friendpanel_kv"
-			{
-				"wide"		"110"
-				"tall"		"20"
-			}
-
-			"ScrollBar"
-			{
-				"ControlName"	"ScrollBar"
-				"FieldName"		"ScrollBar"
-				"xpos"			"rs1-1"
-				"ypos"			"0"
-				"tall"			"f0"
-				"wide"			"5" // This gets slammed from client schme.  GG.
-				"zpos"			"1000"
-				"nobuttons"		"1"
-				"proportionaltoparent"	"1"
-
-				"Slider"
-				{
-					"fgcolor_override"	"TanDark"
-				}
-		
-				"UpButton"
-				{
-					"ControlName"	"Button"
-					"FieldName"		"UpButton"
-					"visible"		"0"
-				}
-		
-				"DownButton"
-				{
-					"ControlName"	"Button"
-					"FieldName"		"DownButton"
-					"visible"		"0"
-				}
-			}
-		}
-
-		"BelowDarken"
-		{
-			"ControlName"	"EditablePanel"
-			"fieldname"		"BelowDarken"
-			"xpos"			"cs-0.5"
-			"ypos"			"rs1-10"
-			"zpos"			"499"
-			"wide"			"f10"
-			"tall"			"98"
-			"visible"		"1"	
-			"PaintBackgroundType"	"0"
-			"proportionaltoparent"	"1"
-			"mouseinputenabled"	"0"
-
-			"bgcolor_override"	"0 0 0 100"
-		}
-	}
-
 	"EventPromo"
 	{
 		"ControlName"	"EditablePanel"
@@ -2070,7 +1891,7 @@
 		"fieldName"		"ShowPromoCodesButton"
 		"xpos"			"c30"
 		"ypos"			"385"
-		"zpos"			"5"
+		"zpos"			"0"
 		"wide"			"250"
 		"tall"			"26"
 		"autoResize"	"0"
@@ -2377,7 +2198,7 @@
 		"fieldName"		"BackgroundFooter"
 		"xpos"			"0"
 		"ypos"			"420"
-		"zpos"			"-50"
+		"zpos"			"-104"
 		"wide"			"f0"
 		"tall"			"60"
 		"visible"		"1"
@@ -2391,7 +2212,7 @@
 		"fieldName"		"FooterLine"
 		"xpos"			"0"
 		"ypos"			"420"
-		"zpos"			"-5"
+		"zpos"			"-103"
 		"wide"			"f0"
 		"tall"			"10"
 		"visible"		"1"
@@ -2410,7 +2231,7 @@
 		"tall"			"26"
 		"autoResize"	"0"
 		"pinCorner"		"3"
-		"visible"		"1"
+		"visible"		"0"
 		"enabled"		"1"
 		"tabPosition"	"0"
 		"textinsetx"	"25"
@@ -2518,7 +2339,7 @@
 		"tall"			"25"
 		"autoResize"	"0"
 		"pinCorner"		"3"
-		"visible"		"1"
+		"visible"		"0"
 		"enabled"		"1"
 		"tabPosition"	"0"
 		//"labelText"		"#MMenu_Tooltip_Options"
@@ -2567,7 +2388,7 @@
 		"tall"			"25"
 		"autoResize"	"0"
 		"pinCorner"		"3"
-		"visible"		"1"
+		"visible"		"0"
 		"enabled"		"1"
 		"tabPosition"	"0"
 		//"labelText"		"#MMenu_Tooltip_Options"
@@ -2616,7 +2437,7 @@
 		"tall"			"25"
 		"autoResize"	"0"
 		"pinCorner"		"3"
-		"visible"		"1"
+		"visible"		"0"
 		"enabled"		"1"
 		"tabPosition"	"0"
 		//"labelText"		"#MMenu_AdvOptions"

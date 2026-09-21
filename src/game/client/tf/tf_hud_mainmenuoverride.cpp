@@ -261,6 +261,10 @@ CHudMainMenuOverride::CHudMainMenuOverride( IViewPort *pViewPort ) : BaseClass( 
 	//m_pWatchStreamsPanel = new CTFStreamListPanel( this, "StreamListPanel" );
 	m_pCharacterImagePanel = new ImagePanel( this, "TFCharacterImage" );
 
+	m_MainMenuWebUiZIndex = -102;
+
+	m_pMainMenuWebUi = new CInteractiveWebPanel( this, "TFMainMenuWebUi", "ui/index.html", true, false );
+
 	vgui::ivgui()->AddTickSignal( GetVPanel(), 50 );
 }
 
@@ -290,6 +294,10 @@ CHudMainMenuOverride::~CHudMainMenuOverride( void )
 
 	vgui::ivgui()->RemoveTickSignal( GetVPanel() );
 
+	if (m_pMainMenuWebUi)
+	{
+		m_pMainMenuWebUi->DeletePanel();
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -345,6 +353,11 @@ void CHudMainMenuOverride::OnTick()
 	bool bBackgroundLevel = engine->IsLevelMainMenuBackground();
 	bool bInGame = engine->IsInGame() && !bBackgroundLevel;
 	bool bIsConnected = engine->IsConnected() && !bBackgroundLevel;
+#if defined( REPLAY_ENABLED )
+	bool bInReplay = g_pEngineClientReplay->IsPlayingReplayDemo();
+#else
+	bool bInReplay = false;
+#endif
 
 	const bool bGameUIVisible = ( bInGame && !bBackgroundLevel ) ? enginevgui->IsGameUIVisible() : ( !bIsConnected || bBackgroundLevel );
 	if ( m_bGameUIVisible != bGameUIVisible )
@@ -358,6 +371,19 @@ void CHudMainMenuOverride::OnTick()
 		else
 		{
 			OnGameUIHidden();
+		}
+	}
+
+	if ( bInGame || bInReplay || bIsConnected || bBackgroundLevel )
+	{
+		if ( m_pMainMenuWebUi )
+		{
+			m_pMainMenuWebUi->LoadInteractivePanel();
+
+			if ( m_pMainMenuWebUi->IsVisible() != bGameUIVisible )
+			{
+				m_pMainMenuWebUi->SetVisible( bGameUIVisible );
+			}
 		}
 	}
 
@@ -1201,13 +1227,6 @@ void CHudMainMenuOverride::LoadMenuEntries( void )
 		}
 	}
 
-	if ( !bLoaded )
-	{
-		// Worth saying out loud: without this file the menu has no buttons of
-		// its own, and that has been mistaken for a broken menu before.
-		Warning( "Could not load Resource/GameMenu.res -- the main menu's button column will be empty.\n" );
-	}
-
 	for (KeyValues *dat = datafile->GetFirstSubKey(); dat != NULL; dat = dat->GetNextKey())
 	{
 		const char *label = dat->GetString("label", "<unknown>");
@@ -1231,10 +1250,8 @@ void CHudMainMenuOverride::LoadMenuEntries( void )
 		vgui::EditablePanel *pPanel = dynamic_cast<vgui::EditablePanel *>( FindChildByName( name, true ) );
 		if ( !pPanel )
 		{
-			// GameMenu.res is also allowed to define ordinary buttons which do
-			// not need a one-off panel in MainMenuOverride.res.  This is the
-			// stock fallback path and is what keeps the main menu useful when a
-			// resource pack only customises the important primary action.
+			Assert( false );	// We don't want to do this anymore.  We need an actual hierarchy so things can slide
+								// around when the play buttin is pressed and the play options expand
 			pPanel = new vgui::EditablePanel( this, name );
 		}
 		else
@@ -1283,8 +1300,6 @@ void CHudMainMenuOverride::LoadMenuEntries( void )
 
 		OnUpdateMenu();
 	}
-
-	DevMsg( "[mainmenu] %d entries from GameMenu.res\n", m_pMMButtonEntries.Count() );
 }
 
 //-----------------------------------------------------------------------------
@@ -1457,6 +1472,14 @@ void CHudMainMenuOverride::OnUpdateMenu( void )
 			m_iPlayMusicFrame = 0;
 			// TODO(mcoms): main menu music not working
 			//PlayMainMenuMusic();
+		}
+		if ( m_pMainMenuWebUi )
+		{
+			m_pMainMenuWebUi->LoadInteractivePanel();
+			if ( !m_pMainMenuWebUi->IsVisible() )
+			{
+				m_pMainMenuWebUi->SetVisible( true );
+			}
 		}
 	}
 
@@ -2526,12 +2549,20 @@ void CHudMainMenuOverride::OnCommand( const char *command )
 		}
 		return;
 	}
-	else if ( !V_stricmp( command, "mic_test" ) )
+	else if ( !V_stricmp( command, "open_interactive_window" ) )
 	{
-		IVoiceTweak_s* pVoiceTweak = engine->GetVoiceTweakAPI();
-		if (pVoiceTweak)
+		if ( m_pMainMenuWebUi )
 		{
-			// TODO(mcoms)
+			m_MainMenuWebUiZIndex = m_pMainMenuWebUi->GetZPos();
+			m_pMainMenuWebUi->SetZPos( 400 );
+		}
+		return;
+	}
+	else if ( !V_stricmp( command, "close_interactive_window" ) )
+	{
+		if ( m_pMainMenuWebUi )
+		{
+			m_pMainMenuWebUi->SetZPos( m_MainMenuWebUiZIndex );
 		}
 		return;
 	}
