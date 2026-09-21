@@ -639,9 +639,9 @@ jobs:
           fi
           cp "${TARBALL}" "${TARBALL}.sha256" release/
           # The coordinator lane can fail without stopping a game release, so
-          # its binaries are optional here rather than required.
-          cp artifacts/coordinator/coordinator-* release/ 2>/dev/null || true
-          cp artifacts/coordinator/coordinator.example.json release/ 2>/dev/null || true
+		  # its binaries are optional here rather than required.
+		  cp artifacts/coordinator/coordinator-* release/ 2>/dev/null || true
+		  cp artifacts/coordinator/coordinator.example.json release/ 2>/dev/null || true
           ls -la release
 
       - name: Publish the release
