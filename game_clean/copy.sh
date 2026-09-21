@@ -13,11 +13,7 @@ rm -rf ${CLEAN_DEBUG_DIR}
 mkdir -p ${CLEAN_DIR}/{bin/$PLAT_DIR,tc2/bin/$PLAT_DIR,tc2/cfg,tc2/custom,tc2/resource}
 mkdir -p ${CLEAN_DEBUG_DIR}/{bin/$PLAT_DIR,tc2/bin/$PLAT_DIR}
 
-if [ "${USE_PREBUILT_VPK:-0}" = "1" ]; then
-  test -s "${DEV_DIR}/tc2/pak1.vpk"
-else
-  ./buildpak.sh
-fi
+./dlpak.sh
 
 declare -a DLLS=(
   tc2/bin/$PLAT_DIR/{client,server,game_shader_generic_std}
