@@ -674,7 +674,7 @@ bool CMissionPopulator::UpdateMissionDestroySentries( void )
 		if ( pWave )
 		{
 			pWave->IncrementSentryBustersSpawned();
-			
+
 			if ( TFGameRules() )
 			{
 				if ( pWave->NumSentryBustersSpawned() > 1 )
@@ -1816,7 +1816,7 @@ bool CWave::Parse( KeyValues *data )
 				// this is a total of all enemies we have to fight that are NOT support enemies
 				m_iEnemyCount += wavePopulator->m_totalCount;
 			}
-			
+
 			m_totalCurrency += wavePopulator->m_totalCurrency;
 
 			wavePopulator->SetParent( this );

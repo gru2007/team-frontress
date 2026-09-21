@@ -73,6 +73,8 @@ $Project
 
 			$File	"$SRCDIR\game\shared\gc_clientsystem.h"
 			$File	"$SRCDIR\game\shared\gc_clientsystem.cpp"
+			$File	"$SRCDIR\game\shared\frontress_gc_transport.h"
+			$File	"$SRCDIR\game\shared\frontress_gc_transport.cpp"
 			$File	"$SRCDIR\game\shared\gc_replicated_convars.cpp"
 
 			$File	"$SRCDIR\game\shared\econ\localization_provider.cpp"

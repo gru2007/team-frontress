@@ -126,6 +126,7 @@ public:
 			// continuously attempt to send the message to the GC
 
 			double flTimeStart = Plat_FloatTime();
+
 			if ( GCClientSystem()->BConnectedtoGC() )
 			{
 				BYldSendMessageAndGetReply_t result = BYldSendMessageAndGetReplyEx( m_msg,

@@ -5,9 +5,9 @@
 //=============================================================================
 #include "cbase.h"
 #include "vgui_controls/Controls.h"
-#include "fmtstr.h"
 #include "igameevents.h"
 #include "gc_clientsystem.h"
+#include "base_gcmessages.pb.h"
 #include "econ_item_system.h"
 #include "econ_item_inventory.h"
 #include "quest_objective_manager.h"
@@ -20,11 +20,6 @@
 #else
 #include "steam/steam_api.h"
 #include "enginecallback.h"
-#endif
-#include "gcsdk/webapi_response.h"
-
-#ifdef TF_CLIENT_DLL
-#include "secure_command_line.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -105,17 +100,6 @@ GCSDK::CGCClient *CGCClientSystem::GetGCClient()
 }
 
 
-ISteamHTTP* CGCClientSystem::GetSteamHTTP() const
-{
-#ifdef GAME_DLL
-	if ( engine->IsDedicatedServer() )
-	{
-		return SteamGameServerHTTP();
-	}
-#endif
-	return SteamHTTP();
-}
-
 //-----------------------------------------------------------------------------
 // Purpose:
 //-----------------------------------------------------------------------------
@@ -141,187 +125,6 @@ bool CGCClientSystem::BSendMessage( const GCSDK::CProtoBufMsgBase& msg )
 { 
 	return m_GCClient.BSendMessage( msg );
 }
-
-#ifdef GAME_DLL
-ConVar sv_private_token( "sv_private_token", "", FCVAR_HIDDEN | FCVAR_PROTECTED | FCVAR_SERVER_CANNOT_QUERY );
-#endif
-
-//-----------------------------------------------------------------------------
-// Purpose: Helper class to handle Comtress message responses with callbacks
-//-----------------------------------------------------------------------------
-class CComtressRequest
-{
-public:
-	CComtressRequest( CGCClientSystem *pSystem, HTTPRequestHandle hRequest, CGCClientSystem::ComtressCallback_t callback )
-	{
-		m_pSystem = pSystem;
-		m_hRequest = hRequest;
-		m_Callback = callback;
-	}
-
-	void OnComtressMsgResponseReceived( HTTPRequestCompleted_t *pInfo, bool bIOFailure )
-	{
-		if ( !pInfo )
-		{
-			DevWarning( "Comtress msg failed.\n" );
-			m_pSystem->GetSteamHTTP()->ReleaseHTTPRequest( m_hRequest );
-			Cleanup();
-			return;
-		}
-
-		if ( !pInfo->m_bRequestSuccessful || pInfo->m_eStatusCode != k_EHTTPStatusCode200OK )
-		{
-			DevWarning( "Comtress msg failed. %d\n", pInfo->m_eStatusCode );
-		}
-
-		// Extract the result
-		uint32 unBytes;
-		if ( m_pSystem->GetSteamHTTP()->GetHTTPResponseBodySize( pInfo->m_hRequest, &unBytes ) )
-		{
-			CUtlBuffer bufResponse( 0, 0, CUtlBuffer::TEXT_BUFFER );
-			bufResponse.EnsureCapacity( unBytes + 1 );
-			if ( m_pSystem->GetSteamHTTP()->GetHTTPResponseBodyData( pInfo->m_hRequest, ( uint8* )bufResponse.Base(), unBytes ) )
-			{
-				bufResponse.SeekPut( CUtlBuffer::SEEK_HEAD, unBytes );
-				( ( char* )bufResponse.Base() )[unBytes] = '\0';
-
-				// Parse it to json and extract the data
-				GCSDK::CWebAPIValues* pValues = GCSDK::CWebAPIValues::ParseJSON( bufResponse );
-
-				if ( m_Callback )
-				{
-					m_Callback( pValues );
-				}
-
-				if ( pValues )
-				{
-					delete pValues;
-				}
-			}
-		}
-
-		m_pSystem->GetSteamHTTP()->ReleaseHTTPRequest( pInfo->m_hRequest );
-		Cleanup();
-	}
-
-	HTTPRequestHandle m_hRequest;
-	CCallResult< CComtressRequest, HTTPRequestCompleted_t > m_CallbackCompleted;
-
-private:
-	void Cleanup()
-	{
-		m_pSystem->RemoveComtressRequest( this );
-		delete this;
-	}
-
-	CGCClientSystem *m_pSystem;
-	CGCClientSystem::ComtressCallback_t m_Callback;
-};
-
-//-----------------------------------------------------------------------------
-// Purpose:
-//-----------------------------------------------------------------------------
-bool CGCClientSystem::BSendMessageComtress( const GCSDK::CProtoBufMsgBase& msg, ComtressCallback_t callback )
-{
-	if ( !GetSteamHTTP() )
-		return false;
-
-	HTTPRequestHandle hRequest = GetSteamHTTP()->CreateHTTPRequest( k_EHTTPMethodPOST, "https://api.teamcomtress.com/webapi/ISDK/SendMessage/v1" );
-	if ( hRequest == INVALID_HTTPREQUEST_HANDLE )
-	{
-		return false;
-	}
-
-	GCSDK::CWebAPIResponse jsonReq;
-	jsonReq.Clear();
-	jsonReq.SetStatusCode( k_EHTTPStatusCode200OK );
-	GCSDK::CWebAPIValues* pRoot = jsonReq.CreateRootValue( "body" );
-	jsonReq.SetJSONAnonymousRootNode( true );
-
-#ifdef CLIENT_DLL
-	if ( steamapicontext && steamapicontext->SteamUser() && steamapicontext->SteamUser()->BLoggedOn() )
-	{
-		uint8 ticket[1024];
-		uint32 ticketLen = 0;
-		if ( steamapicontext->SteamUser()->GetAuthSessionTicket( ticket, sizeof(ticket), &ticketLen, nullptr ) )
-		{
-			char hexTicket[2049];
-			Q_memset( hexTicket, 0, sizeof(hexTicket) );
-			for ( uint32 i = 0; i < ticketLen; i++ )
-			{
-				V_snprintf( &hexTicket[i*2], 3, "%02x", ticket[i] );
-			}
-			GetSteamHTTP()->SetHTTPRequestHeaderValue( hRequest, "Authorization", (CUtlString( "Steam " ) + hexTicket).Get() );
-			pRoot->SetChildStringValue( "ticket", hexTicket );
-		}
-	}
-#else
-	if ( !engine->IsDedicatedServer() )
-	{
-		if ( steamapicontext && steamapicontext->SteamUser() && steamapicontext->SteamUser()->BLoggedOn() )
-		{
-			uint8 ticket[1024];
-			uint32 ticketLen = 0;
-			if ( steamapicontext->SteamUser()->GetAuthSessionTicket( ticket, sizeof(ticket), &ticketLen, nullptr ) )
-			{
-				char hexTicket[2049];
-				Q_memset( hexTicket, 0, sizeof(hexTicket) );
-				for ( uint32 i = 0; i < ticketLen; i++ )
-				{
-					V_snprintf( &hexTicket[i*2], 3, "%02x", ticket[i] );
-				}
-				GetSteamHTTP()->SetHTTPRequestHeaderValue( hRequest, "Authorization", (CUtlString( "Steam " ) + hexTicket).Get() );
-				pRoot->SetChildStringValue( "ticket", hexTicket );
-			}
-		}
-	}
-	else
-	{
-		const char* szToken = sv_private_token.GetString();
-		if ( szToken && szToken[0] != '\0' )
-		{
-			GetSteamHTTP()->SetHTTPRequestHeaderValue( hRequest, "Authorization", (CUtlString( "Token " ) + szToken).Get() );
-			pRoot->SetChildStringValue( "token", szToken );
-		}
-	}
-#endif
-
-	pRoot->SetChildUInt32Value( "msg", msg.GetEMsg() );
-
-	auto        msgBody = msg.GetGenericBody();
-	int              nByteSize = msgBody->ByteSize();
-	CUtlBuffer       bufBinaryMsg;
-	CUtlMemory<char> bufBase64Msg;
-	bufBinaryMsg.EnsureCapacity( nByteSize );
-	bufBinaryMsg.SeekPut( CUtlBuffer::SEEK_HEAD, nByteSize );
-	if ( !msgBody->SerializeToArray( bufBinaryMsg.Base(), nByteSize ) )
-	{
-		jsonReq.Clear();
-		return false;
-	}
-	Base64EncodeIntoUTLMemory( ( const uint8* )bufBinaryMsg.Base(), nByteSize, bufBase64Msg );
-
-	pRoot->SetChildStringValue( "data", bufBase64Msg.Base() );
-
-	CUtlBuffer bufBody;
-	jsonReq.BEmitFormattedOutput( GCSDK::k_EWebAPIOutputFormat_JSON, bufBody, 0 );
-	 
-	GetSteamHTTP()->SetHTTPRequestRawPostBody( hRequest, "application/json", ( uint8* )bufBody.Base(), bufBody.TellMaxPut() );
-
-	SteamAPICall_t callResult;
-	if ( !GetSteamHTTP()->SendHTTPRequest( hRequest, &callResult ) )
-	{
-		jsonReq.Clear();
-		return false;
-	}
-
-	CComtressRequest *pRequest = new CComtressRequest( this, hRequest, callback );
-	m_vecComtressRequests.AddToTail( pRequest );
-	pRequest->m_CallbackCompleted.Set( callResult, pRequest, &CComtressRequest::OnComtressMsgResponseReceived );
-
-	return true;
-}
-
 
 //-----------------------------------------------------------------------------
 // Purpose:
@@ -410,6 +213,7 @@ void CGCClientSystem::LevelShutdownPostEntity()
 //-----------------------------------------------------------------------------
 void CGCClientSystem::Shutdown()
 {
+	m_FrontressGC.Shutdown();
 	// Shutdown the GC.
 	m_GCClient.Uninit();
 
@@ -417,7 +221,6 @@ void CGCClientSystem::Shutdown()
 	m_bInittedGC = false;
 	m_bConnectedToGC = false;
 
-	m_vecComtressRequests.PurgeAndDeleteElements();
 }
 
 
@@ -453,7 +256,7 @@ void CGCClientSystem::InitGC()
 	if ( m_bInittedGC )
 		return;
 
-	m_GCClient.BInit( nullptr );
+	m_GCClient.BInit( &m_FrontressGC );
 	m_bInittedGC = true;
 }
 
@@ -463,19 +266,23 @@ void CGCClientSystem::InitGC()
 void CGCClientSystem::Update( float frametime )
 {
 	ThinkConnection();
+	m_FrontressGC.Pump();
 	if ( m_bInittedGC )
 	{
 		m_GCClient.BMainLoop( k_nThousand, (uint64)( frametime * 1000000.0f ) );
 	}
+	if ( m_bConnectedToGC != m_FrontressGC.BConnected() ) SetConnectedToGC( m_FrontressGC.BConnected() );
 }
 #else
 void CGCClientSystem::PreClientUpdate()	
 { 
 	ThinkConnection();
+	m_FrontressGC.Pump();
 	if ( m_bInittedGC )
 	{
 		m_GCClient.BMainLoop( k_nThousand, ( uint64 )( gpGlobals->frametime * 1000000.0f ) ); 	
 	}
+	if ( m_bConnectedToGC != m_FrontressGC.BConnected() ) SetConnectedToGC( m_FrontressGC.BConnected() );
 }
 #endif
 
@@ -502,6 +309,22 @@ void CGCClientSystem::ThinkConnection()
 			SetupGC();
 		}
 
+		// Steam normally establishes a GC session out-of-band. Our transport
+		// has no such signal, so perform the standard Valve hello handshake here
+		// and retry it until the remote coordinator answers.
+		if ( m_bInittedGC && !m_FrontressGC.BConnected() &&
+		     Plat_FloatTime() - m_timeLastSendHello >= k_flClientHelloRetry )
+		{
+#ifdef CLIENT_DLL
+			GCSDK::CProtoBufMsg< CMsgClientHello > msgHello( 4006 );
+#else
+			GCSDK::CProtoBufMsg< CMsgServerHello > msgHello( 4007 );
+#endif
+			msgHello.Body().set_version( 1 );
+			m_GCClient.BSendMessage( msgHello );
+			m_timeLastSendHello = Plat_FloatTime();
+		}
+
 
 	}
 	else
@@ -516,7 +339,11 @@ void CGCClientSystem::ThinkConnection()
 
 void CGCClientSystem::SetConnectedToGC( bool bConnected )
 {
+	if ( m_bConnectedToGC == bConnected )
+		return;
 	m_bConnectedToGC = bConnected;
+	if ( !bConnected )
+		m_timeLastSendHello = -999.9;
 	/// XXX(JohnS): If we want server-side gc state events this is the place to add them. Consider if they should be
 	///             networked.
 #ifdef CLIENT_DLL
@@ -527,11 +354,5 @@ void CGCClientSystem::SetConnectedToGC( bool bConnected )
 	}
 #endif
 }
-
-void CGCClientSystem::RemoveComtressRequest( CComtressRequest *pRequest )
-{
-	m_vecComtressRequests.FindAndRemove( pRequest );
-}
-
 
 //-----------------------------------------------------------------------------

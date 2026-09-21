@@ -12,12 +12,7 @@
 #ifdef CLIENT_DLL
 	#include "clientsteamcontext.h"
 #endif
-#include "tier1/utldelegate.h"
-
-namespace GCSDK
-{
-	class CWebAPIValues;
-}
+#include "frontress_gc_transport.h"
 
 //=============================================================================
 //
@@ -50,15 +45,10 @@ public:
 	// Connection status
 	bool BConnectedtoGC() const { return m_bConnectedToGC; }
 
-	ISteamHTTP* GetSteamHTTP() const;
-
-	typedef CUtlDelegate< void ( GCSDK::CWebAPIValues * ) > ComtressCallback_t;
-
 	// GC Messages
 	bool BSendMessage( uint32 unMsgType, const uint8 *pubData, uint32 cubData );
 	bool BSendMessage( const GCSDK::CGCMsgBase& msg );
 	bool BSendMessage( const GCSDK::CProtoBufMsgBase& msg );
-	bool BSendMessageComtress( const GCSDK::CProtoBufMsgBase& msg, ComtressCallback_t callback = ComtressCallback_t() );
 
 	// GC SOCache
 	GCSDK::CGCClientSharedObjectCache *GetSOCache( const CSteamID &steamID );
@@ -71,10 +61,6 @@ public:
 	#ifndef CLIENT_DLL
 		void GameServerActivate();
 #endif
-	
-	
-	// CCallResult<CGCClientSystem, HTTPRequestCompleted_t> m_RequestCompleted; // Deprecated
-
 	char const * GetTxnCountryCode() const { return m_sTxnCountryCode.Get(); }
 
 protected:
@@ -85,8 +71,12 @@ protected:
 	virtual void PostInitGC() {}
 
 
-private:
+protected:
+	// Mirrors the state of the Valve-compatible Frontress GC transport. The
+	// stock matchmaking UI gates on this value.
 	void SetConnectedToGC( bool bConnected );
+
+private:
 
 	#ifdef CLIENT_DLL
 		void SteamLoggedOnCallback( const SteamLoggedOnChange_t &loggedOnState );
@@ -98,14 +88,11 @@ private:
 	bool m_bConnectedToGC;
 	bool m_bLoggedOn;
 	GCSDK::CGCClient m_GCClient;
+	CFrontressGameCoordinator m_FrontressGC;
 	double m_timeLastSendHello;
 	CUtlString m_sTxnCountryCode;
 
 	void ThinkConnection();
-
-	friend class CComtressRequest;
-	void RemoveComtressRequest( class CComtressRequest *pRequest );
-	CUtlVector< class CComtressRequest * > m_vecComtressRequests;
 
 	friend class CGCClientSystemJob;
 };
@@ -115,4 +102,3 @@ void SetGCClientSystem( CGCClientSystem* pGCClientSystem );
 CGCClientSystem *GCClientSystem();
 
 #endif // GC_CLIENTSYSTEM_H
-

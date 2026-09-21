@@ -250,6 +250,10 @@ public:
 	void ServerRequestEquipment();
 	void LocalInventoryChanged();
 
+	// True only after ISDK/GetInventory supplied a genuine inventory subscription.
+	// A matchmaking-only SO cache must never make the backpack appear ready.
+	bool BValveInventoryReady() const { return m_WebapiInventory.m_bValveInventoryReady; }
+
 	void AcknowledgeInventoryReceive();
 
 protected:
@@ -345,6 +349,7 @@ private:
 
 		// Inventory request
 		HTTPRequestHandle m_hInventoryRequest = INVALID_HTTPREQUEST_HANDLE;
+		bool m_bValveInventoryReady = false; // not equivalent to BIsSubscribed()
 		CCallResult<CTFGCClientSystem, HTTPRequestCompleted_t> m_InventoryRequestCompleted;
 
 		// Server inventory -- they get a subset of our items that we allow
@@ -413,6 +418,10 @@ private:
 
 	// Reliable messages in flight to accept matches, to prevent UI confusion
 	PlayerGroupID_t m_nAcceptingMatchLobbyID = 0;
+
+	// The lobby we were assigned to last time we looked, so UpdateAssignedLobby
+	// can report a change rather than just a current value.
+	PlayerGroupID_t m_nAssignedLobbyID = 0;
 
 
 	// If we were given a chat suspension for the assigned match.

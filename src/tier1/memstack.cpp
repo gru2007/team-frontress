@@ -40,7 +40,7 @@ CMemoryStack::CMemoryStack()
  	m_commitSize( 0 ),
 	m_minCommit( 0 ),
 #endif
- 	m_maxSize( 0 ),
+	m_maxSize( 0 ),
 	m_alignment( 16 )
 {
 }

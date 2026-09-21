@@ -1,0 +1,65 @@
+include:
+  - path: ../../../serveme-frontress/docker-compose.yml
+
+services:
+  tf2pickup-mongo:
+    image: mongo:8
+    restart: unless-stopped
+    volumes:
+      - tf2pickup_mongo:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [serveme]
+
+  tf2pickup:
+    build:
+      context: ../../../tf2pickup-frontress
+    image: tf2pickup-frontress:local
+    restart: unless-stopped
+    depends_on:
+      tf2pickup-mongo:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      WEBSITE_URL: "${TF2PICKUP_WEBSITE_URL:-http://localhost:3001}"
+      WEBSITE_NAME: "${TF2PICKUP_WEBSITE_NAME:-Team Frontress}"
+      MONGODB_URI: mongodb://tf2pickup-mongo:27017/tf2pickup
+      STEAM_API_KEY: "${STEAM_API_KEY:?set STEAM_API_KEY}"
+      KEY_STORE_PASSPHRASE: "${TF2PICKUP_KEY_STORE_PASSPHRASE:?set TF2PICKUP_KEY_STORE_PASSPHRASE}"
+      GAME_SERVER_SECRET: "${TF2PICKUP_GAME_SERVER_SECRET:?set TF2PICKUP_GAME_SERVER_SECRET}"
+      FRONTRESS_GATEWAY_SECRET: "${FRONTRESS_GATEWAY_SECRET:?set FRONTRESS_GATEWAY_SECRET}"
+      FRONTRESS_IDLE_END_SECONDS: "${FRONTRESS_IDLE_END_SECONDS:-300}"
+      FRONTRESS_MAX_MATCH_SECONDS: "${FRONTRESS_MAX_MATCH_SECONDS:-10800}"
+      LOG_RELAY_ADDRESS: "${TF2PICKUP_LOG_ADDRESS:?set the address game-server containers can reach}"
+      LOG_RELAY_PORT: "${TF2PICKUP_LOG_PORT:-9871}"
+      SERVEME_TF_API_ENDPOINT: "${SERVEME_PUBLIC_HOST:?set the serveme hostname without a scheme}"
+      SERVEME_TF_API_KEY: "${SERVEME_TF_API_KEY:-}"
+      SERVEME_TF_SERVER_BOOT_TIMEOUT_SECONDS: "${SERVEME_TF_SERVER_BOOT_TIMEOUT_SECONDS:-180}"
+      TELEMETRY_DISABLED: "${TF2PICKUP_TELEMETRY_DISABLED:-true}"
+    ports:
+      - "${TF2PICKUP_BIND:-127.0.0.1}:${TF2PICKUP_HTTP_PORT:-3001}:3000"
+      - "${TF2PICKUP_LOG_PORT:-9871}:${TF2PICKUP_LOG_PORT:-9871}/udp"
+    networks: [serveme]
+
+  frontress-gateway:
+    build:
+      context: ../../services/coordinator
+    image: frontress-gateway:local
+    restart: unless-stopped
+    depends_on:
+      tf2pickup:
+        condition: service_healthy
+    environment:
+      TF2PICKUP_URL: http://tf2pickup:3000
+      TF2PICKUP_SECRET: "${FRONTRESS_GATEWAY_SECRET:?set FRONTRESS_GATEWAY_SECRET}"
+    ports:
+      - "${FRONTRESS_GATEWAY_BIND:-127.0.0.1}:${FRONTRESS_GATEWAY_PORT:-27100}:27100"
+    networks: [serveme]
+
+volumes:
+  tf2pickup_mongo:

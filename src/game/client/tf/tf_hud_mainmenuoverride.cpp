@@ -63,7 +63,6 @@
 #include "ienginevgui.h"
 
 #include "tf_playermodelpanel.h"
-#include "gamestate/gamestate.h"
 
 #include "c_tf_gamestats.h"
 
@@ -109,6 +108,7 @@ ConVar tf_training_has_prompted_for_loadout( "tf_training_has_prompted_for_loado
 ConVar cl_ask_bigpicture_controller_opt_out( "cl_ask_bigpicture_controller_opt_out", "0", FCVAR_ARCHIVE, "Whether the user has opted out of being prompted for controller support in Big Picture." );
 ConVar cl_mainmenu_operation_motd_start( "cl_mainmenu_operation_motd_start", "0", FCVAR_ARCHIVE | FCVAR_HIDDEN );
 ConVar cl_mainmenu_operation_motd_reset( "cl_mainmenu_operation_motd_reset", "0", FCVAR_ARCHIVE | FCVAR_HIDDEN );
+
 ConVar cl_mainmenu_safemode( "cl_mainmenu_safemode", "0", FCVAR_NONE, "Enable safe mode", cc_tf_safemode_toggle );
 ConVar cl_mainmenu_updateglow( "cl_mainmenu_updateglow", "1", FCVAR_ARCHIVE | FCVAR_HIDDEN );
 ConVar tf_mainmenu_match_panel_type( "tf_mainmenu_match_panel_type", "7", FCVAR_ARCHIVE | FCVAR_HIDDEN, "The match group data to show on the main menu", cc_tf_mainmenu_match_panel_type );
@@ -261,10 +261,6 @@ CHudMainMenuOverride::CHudMainMenuOverride( IViewPort *pViewPort ) : BaseClass( 
 	//m_pWatchStreamsPanel = new CTFStreamListPanel( this, "StreamListPanel" );
 	m_pCharacterImagePanel = new ImagePanel( this, "TFCharacterImage" );
 
-	m_MainMenuWebUiZIndex = -102;
-
-	m_pMainMenuWebUi = new CInteractiveWebPanel( this, "TFMainMenuWebUi", "ui/index.html", true, false );
-
 	vgui::ivgui()->AddTickSignal( GetVPanel(), 50 );
 }
 
@@ -294,14 +290,25 @@ CHudMainMenuOverride::~CHudMainMenuOverride( void )
 
 	vgui::ivgui()->RemoveTickSignal( GetVPanel() );
 
-	if (m_pMainMenuWebUi)
-	{
-		m_pMainMenuWebUi->DeletePanel();
-	}
 }
 
 //-----------------------------------------------------------------------------
 // Purpose: Override painting traversal to suppress main menu painting if we're not ready to show yet
+//-----------------------------------------------------------------------------
+// Team Fortress' own server browser, which is GameUI's and has nothing to do
+// with either menu. Reachable as `gamemenucommand openserverbrowser` too; this
+// exists because that is not a name anybody guesses.
+//-----------------------------------------------------------------------------
+CON_COMMAND( openserverbrowser, "Open the server browser." )
+{
+	engine->ClientCmd_Unrestricted( "gamemenucommand openserverbrowser" );
+}
+
+CON_COMMAND( opencreateserverdialog, "Open the create-a-server dialog." )
+{
+	engine->ClientCmd_Unrestricted( "gamemenucommand OpenCreateMultiplayerGameDialog" );
+}
+
 //-----------------------------------------------------------------------------
 void CHudMainMenuOverride::PaintTraverse( bool Repaint, bool allowForce )
 {
@@ -338,11 +345,6 @@ void CHudMainMenuOverride::OnTick()
 	bool bBackgroundLevel = engine->IsLevelMainMenuBackground();
 	bool bInGame = engine->IsInGame() && !bBackgroundLevel;
 	bool bIsConnected = engine->IsConnected() && !bBackgroundLevel;
-#if defined( REPLAY_ENABLED )
-	bool bInReplay = g_pEngineClientReplay->IsPlayingReplayDemo();
-#else
-	bool bInReplay = false;
-#endif
 
 	const bool bGameUIVisible = ( bInGame && !bBackgroundLevel ) ? enginevgui->IsGameUIVisible() : ( !bIsConnected || bBackgroundLevel );
 	if ( m_bGameUIVisible != bGameUIVisible )
@@ -356,34 +358,6 @@ void CHudMainMenuOverride::OnTick()
 		else
 		{
 			OnGameUIHidden();
-		}
-	}
-
-	if ( bInGame || bInReplay || bIsConnected || bBackgroundLevel )
-	{
-		if ( m_pMainMenuWebUi )
-		{
-			if ( GetGameStateManager()->IsReady() )
-			{
-				m_pMainMenuWebUi->LoadInteractivePanel();
-			}
-
-			if ( m_pMainMenuWebUi->IsVisible() != bGameUIVisible )
-			{
-				if ( GetGameStateManager()->IsReady() )
-				{
-					if ( !bGameUIVisible )
-					{
-						GetGameStateManager()->QueueEvent( "closedmenu", "" );
-					}
-					else
-					{
-						GetGameStateManager()->QueueEvent( "openedmenu", "" );
-						m_pMainMenuWebUi->ForceFullTextureUpload();
-					}
-					m_pMainMenuWebUi->SetVisible( bGameUIVisible );
-				}
-			}
 		}
 	}
 
@@ -1227,6 +1201,13 @@ void CHudMainMenuOverride::LoadMenuEntries( void )
 		}
 	}
 
+	if ( !bLoaded )
+	{
+		// Worth saying out loud: without this file the menu has no buttons of
+		// its own, and that has been mistaken for a broken menu before.
+		Warning( "Could not load Resource/GameMenu.res -- the main menu's button column will be empty.\n" );
+	}
+
 	for (KeyValues *dat = datafile->GetFirstSubKey(); dat != NULL; dat = dat->GetNextKey())
 	{
 		const char *label = dat->GetString("label", "<unknown>");
@@ -1250,8 +1231,10 @@ void CHudMainMenuOverride::LoadMenuEntries( void )
 		vgui::EditablePanel *pPanel = dynamic_cast<vgui::EditablePanel *>( FindChildByName( name, true ) );
 		if ( !pPanel )
 		{
-			Assert( false );	// We don't want to do this anymore.  We need an actual hierarchy so things can slide
-								// around when the play buttin is pressed and the play options expand
+			// GameMenu.res is also allowed to define ordinary buttons which do
+			// not need a one-off panel in MainMenuOverride.res.  This is the
+			// stock fallback path and is what keeps the main menu useful when a
+			// resource pack only customises the important primary action.
 			pPanel = new vgui::EditablePanel( this, name );
 		}
 		else
@@ -1300,6 +1283,8 @@ void CHudMainMenuOverride::LoadMenuEntries( void )
 
 		OnUpdateMenu();
 	}
+
+	DevMsg( "[mainmenu] %d entries from GameMenu.res\n", m_pMMButtonEntries.Count() );
 }
 
 //-----------------------------------------------------------------------------
@@ -1473,21 +1458,8 @@ void CHudMainMenuOverride::OnUpdateMenu( void )
 			// TODO(mcoms): main menu music not working
 			//PlayMainMenuMusic();
 		}
-		if ( m_pMainMenuWebUi )
-		{
-			if ( GetGameStateManager()->IsReady() )
-			{
-				GetGameStateManager()->MarkUIReady();
-				m_pMainMenuWebUi->LoadInteractivePanel();
-			}
-			if ( !m_pMainMenuWebUi->IsVisible() )
-			{
-				m_pMainMenuWebUi->SetVisible( true );
-			}
-		}
 	}
 
-	// Position the entries
 	FOR_EACH_VEC( m_pMMButtonEntries, i )
 	{
 		bool shouldBeVisible = true;
@@ -2554,29 +2526,24 @@ void CHudMainMenuOverride::OnCommand( const char *command )
 		}
 		return;
 	}
-	else if ( !V_stricmp( command, "open_interactive_window" ) )
-	{
-		if ( m_pMainMenuWebUi )
-		{
-			m_MainMenuWebUiZIndex = m_pMainMenuWebUi->GetZPos();
-			m_pMainMenuWebUi->SetZPos( 400 );
-		}
-		return;
-	}
-	else if ( !V_stricmp( command, "close_interactive_window" ) )
-	{
-		if ( m_pMainMenuWebUi )
-		{
-			m_pMainMenuWebUi->SetZPos( m_MainMenuWebUiZIndex );
-		}
-		return;
-	}
 	else if ( !V_stricmp( command, "mic_test" ) )
 	{
 		IVoiceTweak_s* pVoiceTweak = engine->GetVoiceTweakAPI();
 		if (pVoiceTweak)
 		{
 			// TODO(mcoms)
+		}
+		return;
+	}
+	else if ( !V_stricmp( command, "find_game" ) )
+	{
+		// Matchmaking belongs to the dashboard, which is the thing that knows
+		// whether to open the playlist or fall back to quickplay. The menu
+		// entry just rings its bell.
+		CTFMatchmakingDashboard *pDashboard = GetMMDashboard();
+		if ( pDashboard )
+		{
+			pDashboard->OnCommand( "find_game" );
 		}
 		return;
 	}

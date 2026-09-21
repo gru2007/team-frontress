@@ -797,7 +797,7 @@ CTFReviveDialog::CTFReviveDialog( const char *pTitle, const char *pText, const c
 	m_pTargetHealth = new CTFSpectatorGUIHealth( this, "SpectatorGUIHealth" );
 	m_pTargetHealth->SetAllowAnimations( false );
 	m_pTargetHealth->HideHealthBonusImage();
-	
+
 	vgui::ivgui()->AddTickSignal( GetVPanel(), 50 );
 }
 
@@ -824,7 +824,7 @@ void CTFReviveDialog::OnTick()
 
 	if (!m_pTargetHealth)
 		return;
-	
+
 	float flHealth = m_hEntity->GetHealth();
 	if ( flHealth != m_flPrevHealth )
 	{

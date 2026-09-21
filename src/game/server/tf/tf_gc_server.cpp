@@ -56,7 +56,7 @@ static const char* GetWebBaseUrl()
 		return "https://beta.teamfortress.com/";
 	case k_EUniversePublic:
 	default:
-		return "https://api.teamcomtress.com/";
+		return "https://www.teamfortress.com/";
 	}
 }
 
@@ -1549,22 +1549,7 @@ void CTFGCServerSystem::PreClientUpdate( )
 	CSteamID const *pSteamID = engine->GetGameServerSteamID();
 	if ( pSteamID && m_ourSteamID != *pSteamID )
 	{
-		Assert( pSteamID->BGameServerAccount() );
-
-		// If we were previously listening to somebody else, stop listening.  This
-		// means we were connected, then reconnected and got a different Steam ID,
-		// and is weird, but possible
-		if ( m_ourSteamID.IsValid() )
-		{
-			MMLog( "CTFGCServerSystem - removing listener to old Steam ID %s\n", m_ourSteamID.Render() );
-			GCClientSystem()->GetGCClient()->RemoveSOCacheListener( m_ourSteamID, this );
-		}
-
-		// Remember our new Steam ID
-		m_ourSteamID = *pSteamID;
-
-		// And start listening
-		GCClientSystem()->GetGCClient()->AddSOCacheListener( m_ourSteamID, this );
+		EnsureSOCacheListener();
 	}
 
 	MatchPlayerAbandonThink();
@@ -1729,6 +1714,42 @@ void CTFGCServerSystem::PreClientUpdate( )
 //		MMLog( "Setting 'sv_region 255 ' due to tf_mm_servermode\n" );
 //		sv_region.SetValue( 255 );
 //	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Listen to the shared-object cache belonging to this game server.
+//
+// Normally PreClientUpdate notices the Steam ID transition and calls this.
+// Empty dedicated servers hibernate immediately, however, and can receive a
+// match over RCON after Steam login without running another PreClientUpdate.
+// Publishing a lobby in that window succeeds but nobody receives SOCreated,
+// so CMatchInfo is never constructed and strict admission rejects everybody.
+//-----------------------------------------------------------------------------
+bool CTFGCServerSystem::EnsureSOCacheListener()
+{
+	if ( !engine || !GCClientSystem() || !GCClientSystem()->GetGCClient() )
+		return false;
+
+	const CSteamID *pSteamID = engine->GetGameServerSteamID();
+	if ( !pSteamID || !pSteamID->IsValid() )
+		return false;
+
+	Assert( pSteamID->BGameServerAccount() );
+	const bool bSteamIDChanged = ( m_ourSteamID != *pSteamID );
+
+	if ( m_ourSteamID.IsValid() && m_ourSteamID != *pSteamID )
+	{
+		MMLog( "CTFGCServerSystem - removing listener to old Steam ID %s\n", m_ourSteamID.Render() );
+		GCClientSystem()->GetGCClient()->RemoveSOCacheListener( m_ourSteamID, this );
+	}
+
+	m_ourSteamID = *pSteamID;
+	// Re-adding an existing listener is explicitly harmless. Doing it here is
+	// important if a local cache was recreated while the server was hibernating.
+	GCClientSystem()->GetGCClient()->AddSOCacheListener( m_ourSteamID, this );
+	if ( bSteamIDChanged )
+		MMLog( "CTFGCServerSystem - listening to game server Steam ID %s\n", m_ourSteamID.Render() );
+	return true;
 }
 
 void CTFGCServerSystem::MatchPlayerAbandonThink()
@@ -2943,28 +2964,7 @@ void CTFGCServerSystem::UpdateServerData( bool bShutdown )
 	msg.Body().set_max_players( iMaxPlayers );
 	msg.Body().set_bot_count( TheNextBots().GetNextBotCount() );
 
-	BSendMessageComtress( msg, UtlMakeDelegate( this, &CTFGCServerSystem::OnServerDataUpdated ) );
-}
-
-void CTFGCServerSystem::OnServerDataUpdated( GCSDK::CWebAPIValues* pResponse )
-{
-	static ConVarRef sv_private_token( "sv_private_token" );
-	if ( sv_private_token.GetString() && sv_private_token.GetString()[0] != '\0' && engine->IsDedicatedServer() )
-	{
-		return;
-	}
-	if ( GCSDK::CWebAPIValues* pData = pResponse->FindChild( "data" ) )
-	{
-		if ( pData->FindChild( "token" ) )
-		{
-			CUtlString sValue;
-			pData->GetChildStringValue( sValue, "token", "" );
-			if ( !sValue.IsEmpty() )
-			{
-				sv_private_token.SetValue( sValue.String() );
-			}
-		}
-	}
+	BSendMessage( msg );
 }
 
 bool CTFGCServerSystem::SteamIDAllowedToConnect(const CSteamID &steamID) const
@@ -4076,8 +4076,6 @@ void CTFGCServerSystem::SendCompetitiveMatchResult( GCSDK::CProtoBufMsg< CMsgGC_
 		Assert( false );
 	}
 
-	// TODO(mcoms)
-#if 0
 	ReliableMsgMatchResult *pReliable = new ReliableMsgMatchResult;
 	auto &msg = pReliable->Msg().Body();
 	/// XXX(JohnS): With refactor this is now kinda silly. Callers should really just be giving us a CMsgGC_Match_Result
@@ -4086,9 +4084,6 @@ void CTFGCServerSystem::SendCompetitiveMatchResult( GCSDK::CProtoBufMsg< CMsgGC_
 	ReliableMsgQueue().Enqueue( pReliable );
 
 	m_pMatchInfo->m_bSentResult = true;
-#else
-	BSendMessageComtress( *pMatchResultMsg );
-#endif
 }
 
 // **************************************************************************************************

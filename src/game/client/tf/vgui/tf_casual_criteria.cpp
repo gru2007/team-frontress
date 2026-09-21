@@ -87,6 +87,7 @@ public:
 			// Sort the maps alphabetically
 			CUtlVector< const MapDef_t* > vecSortedMaps;
 			vecSortedMaps.AddVectorToTail( pCategory->m_vecEnabledMaps );
+
 			vecSortedMaps.SortPredicate( []( const MapDef_t* pLeft, const MapDef_t* pRight ) -> bool
 			{
 				// Localized map name first
@@ -263,7 +264,6 @@ CCasualCriteriaPanel::~CCasualCriteriaPanel()
 void CCasualCriteriaPanel::OnThink()
 {
 	BaseClass::OnThink();
-
 
 	if ( m_bCriteriaDirty )
 	{
@@ -476,6 +476,7 @@ void CCasualCriteriaPanel::WriteCategories( void )
 		{
 			pGroupPanel = (EditablePanel*)m_mapGroupPanels[ idx ];
 			pTitleLabel = pGroupPanel->FindControl< CExCheckButton >( "Checkbutton" );
+
 		}
 
 		// Category items.

@@ -21,6 +21,8 @@
 #endif
 
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <array>
 #include <string>
 #include <vector>
@@ -87,8 +89,13 @@ static void *Launcher_GetProcAddress( void *pHandle, const char *pszName )
 #endif
 
 static const AppId_t k_unTF2AppId = 440;
-static const AppId_t k_unSDK2013MPAppId = 243750;
-static const AppId_t k_unSDK2013DSAppId = 244310;
+// The client is published under two apps -- the playtest and the main app --
+// out of one build. Which one a copy is running as comes from Steam at launch,
+// not from here: these are only for asking Steam where an app is installed.
+static const AppId_t k_unSDK2013MPAppId = 5147520;
+static const AppId_t k_unMainAppId = 5147380;
+// The dedicated server ships as a Steam Tool of its own.
+static const AppId_t k_unSDK2013DSAppId = 5150320;
 
 #ifdef MOD_LAUNCHER
 static const AppId_t k_unMyModAppid = MOD_APPID;
@@ -163,12 +170,16 @@ static bool LoadSteam( const char *pRootDir )
 		return false;
 	}
 
-	// Make a steam_appid.txt now, of just eg. Source SDK 2013 MP for this.
-	FILE *pFile = fopen( "steam_appid.txt", "w" );
-	if ( pFile )
+	// Steam sets the app id in the environment for depot launches. Avoid
+	// modifying a signed macOS app bundle when the Wine host already supplied it.
+	if ( !getenv( "SteamAppId" ) )
 	{
-		fprintf( pFile, "%u\n", k_unMyModAppid );
-		fclose( pFile );
+		FILE *pFile = fopen( "steam_appid.txt", "w" );
+		if ( pFile )
+		{
+			fprintf( pFile, "%u\n", k_unMyModAppid );
+			fclose( pFile );
+		}
 	}
 
 	decltype(SteamAPI_Init) *pfnSAPIInit = (decltype( SteamAPI_Init ) *) GetProcAddress( s_SteamModule, "SteamAPI_Init" );
@@ -192,6 +203,43 @@ static bool LoadSteam( const char *pRootDir )
 
 static bool GetGameInstallDir( const char *pRootDir, char *pszBuf, int nBufSize, bool bDedicated )
 {
+#if defined( _WIN32 )
+	// On the macOS port the host resolves Team Fortress 2's Windows engine depot
+	// out of the native Steam library and translates it to a Windows path.
+	// Windows-only: the Wine build of the client is the only consumer.
+	// This is checked before Steam is touched at all: native Steamworks points
+	// app 440 at the content install, which deliberately has no Windows engine.
+	const char *pszHostTF2Dir = getenv( "TC2_TF2_DIR" );
+	if ( !bDedicated && pszHostTF2Dir && pszHostTF2Dir[0] )
+	{
+		if ( strlen( pszHostTF2Dir ) >= static_cast<size_t>( nBufSize ) )
+		{
+			MessageBox( 0, "TC2_TF2_DIR is too long.", "Launcher Error", MB_OK );
+			return false;
+		}
+
+		strcpy( pszBuf, pszHostTF2Dir );
+
+		// A path that does not hold the engine depot would otherwise
+		// surface much later as a failure to load launcher.dll.
+		char szLauncher[MAX_PATH];
+		_snprintf( szLauncher, sizeof( szLauncher ), "%s\\" PLATFORM_BIN_DIR "\\launcher.dll", pszBuf );
+		szLauncher[sizeof( szLauncher ) - 1] = '\0';
+
+		if ( GetFileAttributesA( szLauncher ) == INVALID_FILE_ATTRIBUTES )
+		{
+			char szError[1024];
+			_snprintf( szError, sizeof( szError ),
+				"TC2_TF2_DIR does not point at the Team Fortress 2 engine depot:\n\n%s", pszBuf );
+			szError[sizeof( szError ) - 1] = '\0';
+			MessageBox( 0, szError, "Launcher Error", MB_OK );
+			return false;
+		}
+
+		return true;
+	}
+#endif // _WIN32
+
 	if ( !LoadSteam( pRootDir ) )
 	{
 		return false;
@@ -227,10 +275,15 @@ static bool GetGameInstallDir( const char *pRootDir, char *pszBuf, int nBufSize,
 			unLength = pSteamApps->GetAppInstallDir( k_unSDK2013DSAppId, pszBuf, nBufSize );
 		}
 #ifdef _WIN32
-		// on Windows, also allow MP to be used for dedicated
+		// on Windows, also allow either of the client apps to be used for dedicated
 		if ( unLength == 0 && pSteamApps->BIsAppInstalled( k_unSDK2013MPAppId ) )
 		{
 			unLength = pSteamApps->GetAppInstallDir( k_unSDK2013MPAppId, pszBuf, nBufSize );
+		}
+
+		if ( unLength == 0 && pSteamApps->BIsAppInstalled( k_unMainAppId ) )
+		{
+			unLength = pSteamApps->GetAppInstallDir( k_unMainAppId, pszBuf, nBufSize );
 		}
 #endif
 	}
@@ -265,10 +318,10 @@ static bool GetGameInstallDir( const char *pRootDir, char *pszBuf, int nBufSize,
 		{
 #ifdef _WIN32
 			// On Windows, we prompt for Multiplayer since we can use it and less chance for duplication for a user that may want it in the future (since they don't already have it).
-			MessageBox( 0, "Team Fortress 2 (440) and Source SDK 2013 Multiplayer (243750) must be installed to launch this mod.", "Launcher Error", MB_OK );
+			MessageBox( 0, "Team Fortress 2 (440) and Team Frontress (5147380 or 5147520) must be installed to launch this mod.", "Launcher Error", MB_OK );
 #else
 			// On Posix, there's no choice but the dedicated server app.
-			MessageBox( 0, "Team Fortress 2 (440) and Source SDK 2013 Dedicated Server (244310) must be installed to launch this mod.", "Launcher Error", MB_OK );
+			MessageBox( 0, "Team Fortress 2 (440) and Team Frontress Dedicated Server (5150320) must be installed to launch this mod.", "Launcher Error", MB_OK );
 #endif
 		}
 		else

@@ -6,6 +6,7 @@
 
 
 #include "cbase.h"
+
 #include "tf_shareddefs.h"
 #include "tf_matchmaking_dashboard.h"
 #include "tf_gamerules.h"
@@ -316,6 +317,11 @@ void CTFMatchmakingDashboard::ApplySchemeSettings( vgui::IScheme *pScheme )
 	}
 
 	UpdateDisconnectAndResume();
+	// The queue event can arrive before this panel has loaded its controls.
+	// Seed both live status cards from the party client so reopening the menu
+	// during an active search never shows stale or missing search state.
+	UpdateQueuePanel();
+	UpdateJoinPartyLobbyPanel();
 }
 
 const Color& CTFMatchmakingDashboard::GetPartyMemberColor( int nSlot ) const
@@ -384,17 +390,18 @@ void CTFMatchmakingDashboard::OnCommand( const char *command )
 	}
 	else if ( FStrEq( command, "find_game" ) )
 	{
-#ifdef SOURCESDK
-		OnQuickplay();
-#else
-		PopStack( 100, k_eSideRight ); // All y'all
-		PushSlidePanel( GetDashboardPanel().GetTypedPanel< CMatchMakingDashboardSidePanel >( k_ePlayList ) );
-		CHudMainMenuOverride *pMMOverride = (CHudMainMenuOverride*)( gViewPortInterface->FindPanelByName( PANEL_MAINMENUOVERRIDE ) );
-		pMMOverride->CheckTrainingStatus();
-
-#endif
+		if ( GTFGCClientSystem()->BConnectedtoGC() )
+		{
+			PopStack( 100, k_eSideRight ); // All y'all
+			PushSlidePanel( GetDashboardPanel().GetTypedPanel< CMatchMakingDashboardSidePanel >( k_ePlayList ) );
+			CHudMainMenuOverride *pMMOverride = (CHudMainMenuOverride*)( gViewPortInterface->FindPanelByName( PANEL_MAINMENUOVERRIDE ) );
+			pMMOverride->CheckTrainingStatus();
+		}
+		else
+		{
+			OnQuickplay();
+		}
 	}
-#ifdef SOURCESDK
 	else if ( FStrEq( command, "play_community" ) )
 	{
 		OnPlayCommunity();
@@ -403,7 +410,6 @@ void CTFMatchmakingDashboard::OnCommand( const char *command )
 	{
 		OnPlayTraining();
 	}
-#endif
 	else if ( FStrEq( command, "quit" ) )
 	{
 		if ( engine->IsInGame() && !engine->IsLevelMainMenuBackground() )
@@ -640,6 +646,8 @@ void CTFMatchmakingDashboard::OnTick()
 
 	SetKeyBoardInputEnabled( false );
 	SetMouseInputEnabled( BIsExpanded() );
+
+	UpdateFindAGameAvailability();
 }
 
 void CTFMatchmakingDashboard::FireGameEvent( IGameEvent *event )
@@ -1301,6 +1309,21 @@ void CTFMatchmakingDashboard::UpdateFindAGameButton()
 	g_pClientMode->GetViewportAnimationController()->RunAnimationCommand( m_pPlayButton, "ypos", nPlayButtonYPos, 0.0f, 0.4f, vgui::AnimationController::INTERPOLATOR_SIMPLESPLINE, 0.8f, true, false );
 }
 
+//-----------------------------------------------------------------------------
+// Purpose: The stock FIND GAME button used to be gated by Valve GC
+//          connectivity.  Frontress owns matchmaking now, so its public
+//          status response is the authority instead.  Waiting for a successful
+//          response, and disabling again after a failed poll, prevents the
+//          player from opening a queue UI that cannot submit its request.
+//-----------------------------------------------------------------------------
+void CTFMatchmakingDashboard::UpdateFindAGameAvailability()
+{
+	const bool bEnabled = GTFGCClientSystem()->BConnectedtoGC();
+
+	if ( m_pPlayButton->IsEnabled() != bEnabled )
+		m_pPlayButton->SetEnabled( bEnabled );
+}
+
 void CTFMatchmakingDashboard::UpdateDisconnectAndResume()
 {
 	bool bInGame = engine->IsInGame();
@@ -1359,6 +1382,12 @@ void CTFMatchmakingDashboard::UpdateDimmer()
 
 void GetQueuedString( wchar_t* pwszBuff, int nSize )
 {
+	// Every caller reads this back, and the queue-state event fires on the
+	// edge where the queue *ends* -- at which point neither branch below
+	// writes anything and the caller used to put an uninitialised buffer on
+	// the screen.
+	pwszBuff[0] = L'\0';
+
 	if ( GTFPartyClient()->BInStandbyQueue() )
 	{
 		g_pVGuiLocalize->ConstructString( pwszBuff, 

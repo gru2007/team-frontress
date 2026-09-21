@@ -3145,7 +3145,7 @@ void CTFPlayer::PrecacheMvM()
 	PrecacheModel( "models/items/currencypack_large.mdl" );
 
 	PrecacheModel( "models/bots/tw2/boss_bot/twcarrier_addon.mdl" );
-    
+
 	PrecacheModel( "models/player/gibs/gibs_bolt.mdl" );
 
 	PrecacheParticleSystem( "bot_impact_light" );

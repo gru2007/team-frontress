@@ -10,6 +10,7 @@
 //
 //=============================================================================
 #include "cbase.h"
+
 #include "hud.h"
 #include "clientmode_tf.h"
 #include "cdll_client_int.h"
@@ -79,7 +80,6 @@
 #include "client_virtualreality.h"
 
 #include "econ_gcmessages.h"
-#include "gamestate/gamestate.h"
 
 #if defined( _X360 )
 #include "tf_clientscoreboard.h"
@@ -566,6 +566,15 @@ void ClientModeTFNormal::Init()
 	ListenForGameEvent( "client_beginconnect" );
 	ListenForGameEvent( "client_disconnect" );
 
+	// Rich presence describes the party and the queue as much as the server, so
+	// it has to be refreshed when those change and not only when we connect
+	// somewhere.
+	ListenForGameEvent( "party_updated" );
+	ListenForGameEvent( "party_queue_state_changed" );
+	ListenForGameEvent( "party_member_join" );
+	ListenForGameEvent( "party_member_leave" );
+	ListenForGameEvent( "lobby_updated" );
+
 	ListenForGameEvent( "player_teleported" );
 	ListenForGameEvent( "scorestats_accumulated_reset" );
 	ListenForGameEvent( "scorestats_accumulated_update" );
@@ -862,6 +871,15 @@ void ClientModeTFNormal::FireGameEvent( IGameEvent *event )
 		// ignore these
 		if ( TFGameRules() && TFGameRules()->IsPVEModeActive() && event->GetInt( "bot" ) != 0 )
 			return;
+	}
+	else if ( FStrEq( "party_updated", eventname ) ||
+	          FStrEq( "party_queue_state_changed", eventname ) ||
+	          FStrEq( "party_member_join", eventname ) ||
+	          FStrEq( "party_member_leave", eventname ) ||
+	          FStrEq( "lobby_updated", eventname ) )
+	{
+		m_bPendingRichPresenceUpdate = true;
+		return;
 	}
 	else if ( FStrEq( "client_disconnect", eventname ) )
 	{
@@ -2309,7 +2327,6 @@ void ClientModeTFNormal::OnConnectStateChanged()
 		}
 	}
 
-	GetGameStateManager()->QueueEvent( "ingame", m_eConnectState == k_eConnectState_Connected ? "1" : "0" );
 }
 
 //----------------------------------------------------------------------------
@@ -2353,6 +2370,7 @@ void ClientModeTFNormal::UpdateSteamRichPresence() const
 	{
 		// If they have an MM match, or if they're just on the menus, direct joiners to join their party, they cannot
 		// join the server directly.
+
 		CFmtStr strConnect( "+tf_party_request_join_user %llu",
 		                    steamapicontext->SteamUser()->GetSteamID().ConvertToUint64() );
 
@@ -2462,7 +2480,7 @@ void ClientModeTFNormal::UpdateSteamRichPresence() const
 	//
 	// 'steam_display' embeds our state and matchgrouploc set above.
 	//
-	pSteamFriends->SetRichPresence( "steam_display", "#TF_RichPresence_Display" );
+	pSteamFriends->SetRichPresence( "steam_display", "#Frontress_RichPresence_Display" );
 
 	//
 	// 'status' field -- used by legacy steam client only right now

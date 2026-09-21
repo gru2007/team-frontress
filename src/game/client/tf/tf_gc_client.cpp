@@ -1,5 +1,6 @@
 //========= Copyright Valve Corporation, All rights reserved. ============//
 #include "cbase.h"
+
 #include "tf_gc_client.h"
 #include "gcsdk/gcsdk_auto.h"
 #include "tf_gcmessages.h"
@@ -74,13 +75,16 @@ static const char* GetWebBaseUrl()
 		return "https://beta.teamfortress.com/";
 	case k_EUniversePublic:
 	default:
-		return "https://api.teamcomtress.com/";
+		return "https://www.teamfortress.com/";
 	}
 }
 
 
 static CTFGCClientSystem s_TFGCClientSystem;
 CTFGCClientSystem *GTFGCClientSystem() { return &s_TFGCClientSystem; }
+
+// Inventory readiness is separate from locally emulated GC connectivity.
+bool BTFWebapiInventoryReady() { return GTFGCClientSystem()->BValveInventoryReady(); }
 
 static CTFPartyClient s_TFPartyClient;
 CTFPartyClient *g_pTFPartyClient = nullptr;
@@ -159,6 +163,8 @@ bool CTFGCClientSystem::Init()
 	ListenForGameEvent( "client_disconnect" );
 	ListenForGameEvent( "client_beginconnect" );
 	ListenForGameEvent( "server_spawn" );
+	ListenForGameEvent( "teamplay_game_over" );
+	ListenForGameEvent( "tf_game_over" );
 
 	// Let SDR know that we will likely want access to the relay network, so we're more
 	// likely to have initial ping data to the clusters ready by the time we ask for it
@@ -275,9 +281,16 @@ void CTFGCClientSystem::FireGameEvent( IGameEvent *event )
 	// Started attempting connection to gameserver
 	if ( !Q_stricmp( pEventName, "client_beginconnect" ) )
 	{
-		Assert( IsConnectStateDisconnected() );
-
-		// TODO does the retry command set this source? It should go through ::ConnectToServer
+		// ConnectToServer() marks coordinator-driven connects as matchmade before
+		// handing the command to the engine. Preserve that state when the engine
+		// emits client_beginconnect. The source tag also covers stock retry paths.
+		const char *pszSource = event->GetString( "source", "" );
+		if ( m_eConnectState == eConnectState_ConnectingToMatchmade ||
+		     FStrEq( pszSource, "matchmaking" ) )
+		{
+			m_eConnectState = eConnectState_ConnectingToMatchmade;
+		}
+		else
 		{
 			m_eConnectState = eConnectState_NonmatchmadeServer;
 		}
@@ -438,9 +451,10 @@ void CTFGCClientSystem::WebapiInventoryThink()
 			SteamHTTP()->SetHTTPRequestGetOrPostParameter( state.m_hInventoryRequest, "game_appid", "810" );
 		}
 
-		// If we already have an so cache for this user, include its version so we don't send the whole cache if it's unchanged
+		// A locally bootstrapped MM cache is NOT a Valve inventory. Only
+		// send conditional versions after accepting a real WebAPI payload.
 		CGCClientSharedObjectCache* pExistingSOCache = GetSOCache( SteamUser()->GetSteamID() );
-		if( pExistingSOCache && pExistingSOCache->BIsSubscribed() )
+		if ( state.m_bValveInventoryReady && pExistingSOCache && pExistingSOCache->BIsSubscribed() )
 		{
 			SteamHTTP()->SetHTTPRequestGetOrPostParameter( state.m_hInventoryRequest, "version", CNumStr( pExistingSOCache->GetVersion() ) );
 		}
@@ -454,7 +468,9 @@ void CTFGCClientSystem::WebapiInventoryThink()
 		SteamAPICall_t callResult;
 		if ( !SteamHTTP()->SendHTTPRequest( state.m_hInventoryRequest, &callResult ) )
 		{
-			DevWarning("Steam inventory request failed.\n");
+			DevWarning("[inventory] SendHTTPRequest failed; retrying.\n");
+			SteamHTTP()->ReleaseHTTPRequest( state.m_hInventoryRequest );
+			state.m_hInventoryRequest = INVALID_HTTPREQUEST_HANDLE;
 			state.Backoff();
 			return;
 		}
@@ -765,7 +781,9 @@ void CTFGCClientSystem::OnWebapiInventoryReceived( HTTPRequestCompleted_t* pInfo
 	WebapiInventoryState_t& state = m_WebapiInventory;
 	if ( bIOFailure || !pInfo )
 	{
-		Assert( false );
+		Warning( "[inventory] WebAPI transport failure; retrying.\n" );
+		state.Backoff();
+		state.m_eState = kWebapiInventoryState_RequestInventory;
 
 		// Failed to communicate with steam
 		// Free our http request (Can we be sure this is the right one?)
@@ -795,7 +813,8 @@ void CTFGCClientSystem::OnWebapiInventoryReceived( HTTPRequestCompleted_t* pInfo
 
 	if ( !pInfo->m_bRequestSuccessful || pInfo->m_eStatusCode != k_EHTTPStatusCode200OK )
 	{
-		DevWarning("Steam inventory request failed.\n");
+		Warning( "[inventory] WebAPI HTTP %d (request successful=%d); retrying.\n",
+		         (int)pInfo->m_eStatusCode, (int)pInfo->m_bRequestSuccessful );
 		SteamHTTP()->ReleaseHTTPRequest( pInfo->m_hRequest );
 		return;
 	}
@@ -850,7 +869,8 @@ void CTFGCClientSystem::OnWebapiInventoryReceived( HTTPRequestCompleted_t* pInfo
 
 	// Parse the inventory message
 	CSteamID userSteamID( pValues->GetChildUInt64Value( "steamID" ) );
-	if ( !userSteamID.IsValid() || userSteamID.GetEAccountType() != k_EAccountTypeIndividual || userSteamID.GetEUniverse() != GetUniverse() )
+	if ( !SteamUser() || !userSteamID.IsValid() || userSteamID != SteamUser()->GetSteamID() ||
+	     userSteamID.GetEAccountType() != k_EAccountTypeIndividual || userSteamID.GetEUniverse() != GetUniverse() )
 	{
 		Warning( "Inventory response has bad owner steam id (%s)\n", userSteamID.Render() );
 		return;
@@ -865,24 +885,44 @@ void CTFGCClientSystem::OnWebapiInventoryReceived( HTTPRequestCompleted_t* pInfo
 			return;
 		}
 
+		// The inventory endpoint returns a complete cache containing only econ
+		// objects. Preserve coordinator-owned matchmaking objects across that
+		// local cache replacement; from here on both sources feed one Valve SO
+		// cache and all UI code remains stock.
+		std::string strParty;
+		std::string strLobby;
+		if ( CTFParty *pParty = GetParty() ) pParty->Obj().SerializeToString( &strParty );
+		if ( CTFGSLobby *pLobby = GetLobby() ) pLobby->Obj().SerializeToString( &strLobby );
+
+		// AddLocalSOCache notifies listeners synchronously: mark the source
+		// before the callback so CPlayerInventory can distinguish this
+		// subscription from a synthetic matchmaking-only one.
+		const bool bWasReady = state.m_bValveInventoryReady;
+		state.m_bValveInventoryReady = true;
 		CGCClientSharedObjectCache *pSOCache = GetGCClient()->AddLocalSOCache( userSteamID, bufMsgSubscription.Base(), bufMsgSubscription.TellPut() );
-		if ( !pSOCache )
+		if ( !pSOCache || !pSOCache->BIsSubscribed() ||
+		     pSOCache->GetVersion() != pValues->GetChildUInt64Value( "version" ) )
 		{
-			Warning( "Inventory response failed to create SO cache (probably protobuf didn't parse)\n" );
+			state.m_bValveInventoryReady = bWasReady;
+			Warning( "[inventory] Valve SO cache failed to load or version mismatched; retrying.\n" );
 			return;
 		}
-
-		// Version should match the one they said we have
-		Assert( pSOCache->GetVersion() == pValues->GetChildUInt64Value( "version" ) );
+		Msg( "[inventory] Valve SO cache loaded, version %llu.\n",
+		     (unsigned long long)pSOCache->GetVersion() );
+		if ( !strParty.empty() ) pSOCache->BCreateFromMsg( CTFParty::k_nTypeID, strParty.data(), strParty.size() );
+		if ( !strLobby.empty() ) pSOCache->BCreateFromMsg( CTFGSLobby::k_nTypeID, strLobby.data(), strLobby.size() );
 	}
 	else
 	{
-		// Cache up to date.  Validate version matches
+		// A version-only response is meaningful only for a *previously*
+		// authenticated inventory; never accept an MM bootstrap cache.
 		CGCClientSharedObjectCache* pSOCache = GetGCClient()->FindSOCache( userSteamID, false );
-		Assert( pSOCache );
-		if( pSOCache )
+		if ( !state.m_bValveInventoryReady || !pSOCache || !pSOCache->BIsSubscribed() ||
+		     pSOCache->GetVersion() != pValues->GetChildUInt64Value( "version" ) )
 		{
-			Assert( pSOCache->GetVersion() == pValues->GetChildUInt64Value( "version" ) );
+			Warning( "[inventory] Version-only reply without matching Valve inventory; retrying full fetch.\n" );
+			state.m_bValveInventoryReady = false;
+			return;
 		}
 	}
 
@@ -969,7 +1009,6 @@ void CTFGCClientSystem::SDK_AddServerInventoryInfo( KeyValues* pKV, CGCClientSha
 void CTFGCClientSystem::Update( float frametime )
 {
 	BaseClass::Update( frametime );
-
 
 	WebapiInventoryThink();
 
@@ -1081,17 +1120,53 @@ void CTFGCClientSystem::SOChanged( const GCSDK::CSharedObject *pObject, SOChange
 
 bool CTFGCClientSystem::UpdateAssignedLobby()
 {
-	return false;
+	// Our assigned lobby is whatever lobby object is in our SO cache. The
+	// caller wants to know whether that changed, because "which match am I in"
+	// changing is what drives the match-found and match-over flows.
+	CTFGSLobby *pLobby = GetLobby();
+	PlayerGroupID_t nLobbyID = pLobby ? pLobby->GetGroupID() : 0u;
+
+	bool bChanged = ( nLobbyID != m_nAssignedLobbyID );
+	m_nAssignedLobbyID = nLobbyID;
+
+	if ( bChanged && nLobbyID != 0u && pLobby )
+	{
+		// Remember the address so the server browser can tell a matchmade
+		// server apart from one the player found themselves.
+		netadr_t adr;
+		if ( adr.SetFromString( pLobby->GetConnect(), false ) &&
+		     m_vecMatchServerHistory.Find( adr ) == m_vecMatchServerHistory.InvalidIndex() )
+		{
+			m_vecMatchServerHistory.AddToTail( adr );
+		}
+	}
+
+	return bChanged;
+}
+
+// Find the single object of a type in our own SO cache, or NULL.
+template < typename T >
+static T *FindLocalSharedObject( GCSDK::CGCClientSharedObjectCache *pSOCache )
+{
+	if ( !pSOCache )
+		return NULL;
+
+	GCSDK::CSharedObjectTypeCache *pTypeCache = pSOCache->FindBaseTypeCache( T::k_nTypeID );
+	if ( !pTypeCache || pTypeCache->GetCount() == 0 )
+		return NULL;
+
+	// If there is somehow more than one, the newest is the live one.
+	return static_cast< T * >( pTypeCache->GetObject( pTypeCache->GetCount() - 1 ) );
 }
 
 CTFParty* CTFGCClientSystem::GetParty()
 {
-	return NULL;
+	return FindLocalSharedObject< CTFParty >( m_pSOCache );
 }
 
 CTFGSLobby* CTFGCClientSystem::GetLobby() const
 {
-	return NULL;
+	return FindLocalSharedObject< CTFGSLobby >( m_pSOCache );
 }
 
 
@@ -1113,6 +1188,11 @@ void CTFGCClientSystem::ConnectToServer( const char *connect )
 			// ForceCompetitiveConvars() shouldn't fail
 			Assert( 0 );
 		}
+
+		// Everything downstream -- the abandon prompt, the match HUD, the
+		// server browser -- keys off knowing this connect came from
+		// matchmaking rather than from the browser.
+		m_eConnectState = eConnectState_ConnectingToMatchmade;
 
 		engine->ClientCmd_Unrestricted( connectCmd.String() );
 		//vgui::surface()->PlaySound( "ui/ui_findmatch_join_01.wav" );
@@ -1485,32 +1565,50 @@ void CTFGCClientSystem::RemoveLocalPlayerSOListener( ISharedObjectListener* pLis
 
 bool CTFGCClientSystem::BConnectedToMatchServer( bool bLiveMatch )
 {
-	return false;
+	if ( m_eConnectState != eConnectState_ConnectedToMatchmade )
+		return false;
+
+	// "Connected to a match server" and "connected to the server running the
+	// match I am currently in" are different questions -- after a match ends
+	// the player is still on the server, on the summary screen.
+	return bLiveMatch ? BHaveLiveMatch() : true;
 }
 
 bool CTFGCClientSystem::BHaveRunningMatch() const
 {
-	return false;
+	return GetLobby() != NULL;
 }
 
 bool CTFGCClientSystem::BHaveLiveMatch() const
 {
-	return false;
+	const CTFGSLobby *pLobby = GetLobby();
+	return pLobby && pLobby->GetState() == CSOTFGameServerLobby_State_RUN;
 }
 
 EAbandonGameStatus CTFGCClientSystem::GetAssignedMatchAbandonStatus()
 {
-	return k_EAbandonGameStatus_Safe;
+	// No penalties yet: the coordinator does not track abandons, and inventing
+	// a penalty the backend cannot actually apply would only mislead players.
+	return BHaveLiveMatch() ? k_EAbandonGameStatus_AbandonWithoutPenalty
+	                        : k_EAbandonGameStatus_Safe;
 }
 
 ETFMatchGroup CTFGCClientSystem::GetLiveMatchGroup() const
 {
-
-	return k_eTFMatchGroup_Invalid;
+	const CTFGSLobby *pLobby = GetLobby();
+	return pLobby ? pLobby->GetMatchGroup() : k_eTFMatchGroup_Invalid;
 }
 
 void CTFGCClientSystem::JoinMMMatch()
 {
+	CTFGSLobby *pLobby = GetLobby();
+	if ( !pLobby || pLobby->GetState() != CSOTFGameServerLobby_State_RUN )
+	{
+		Warning( "There is no match to join.\n" );
+		return;
+	}
+
+	ConnectToServer( pLobby->GetConnect() );
 }
 
 //-----------------------------------------------------------------------------
@@ -1617,7 +1715,8 @@ bool CTFGCClientSystem::BIsPhoneIdentifying( void )
 
 bool CTFGCClientSystem::BHasCompetitiveAccess( void )
 {
-	return false;
+	// Retail gates ranked play behind owning the Competitive Matchmaking Pass
+	// and a phone-linked premium account. We have no item server and no reason
+	// to sell entry to our own ladder, so everybody has access.
+	return true;
 }
-
-

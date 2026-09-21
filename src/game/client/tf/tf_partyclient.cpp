@@ -1,6 +1,7 @@
 //========= Copyright Valve Corporation, All rights reserved. ============//
 
 #include "cbase.h"
+
 #include "tf_partyclient.h"
 #include "confirm_dialog.h"
 #include "tf_gc_shared.h"
@@ -844,8 +845,10 @@ void CTFPartyClient::RequestQueueForMatch( ETFMatchGroup eMatchGroup )
 
 	PartyMsg( "Requesting queue for %s\n", GetMatchGroupName( eMatchGroup ) );
 	PartyDbg( "Sending PartyQueueForMatch:\n%s", pReliable->Msg().Body().DebugString().c_str() );
-	GTFGCClientSystem()->ReliableMsgQueue().Enqueue( pReliable );
+	// Set before enqueuing: with no GC the message can be answered in-process,
+	// and the reply -- which clears this -- then lands inside Enqueue.
 	SetPendingQueueMsg( eMatchGroup, true );
+	GTFGCClientSystem()->ReliableMsgQueue().Enqueue( pReliable );
 	// See comment in UpdateActiveParty about when InQueue changes.
 	if ( !BInQueueForMatchGroup( eMatchGroup ) )
 	{
@@ -868,8 +871,8 @@ void CTFPartyClient::RequestQueueForStandby()
 
 	PartyMsg( "Requesting queue to join party's lobby\n" );
 	PartyDbg( "Sending PartyQueueForStandby:\n%s", pReliable->Msg().Body().DebugString().c_str() );
-	GTFGCClientSystem()->ReliableMsgQueue().Enqueue( pReliable );
 	m_bPendingStandbyQueueMsg = true;
+	GTFGCClientSystem()->ReliableMsgQueue().Enqueue( pReliable );
 	// See comment in UpdateActiveParty about when InQueue changes
 	if ( !BInStandbyQueue() )
 	{
@@ -1195,9 +1198,9 @@ void CTFPartyClient::CheckSendUpdates()
 	PartyDbg( "Sending Party SetOptions:\n%s", pReliable->Msg().Body().DebugString().c_str() );
 	m_flLastCriteriaUpdate = Plat_FloatTime();
 	m_flPendingChangesTime = -1.f;
-	GTFGCClientSystem()->ReliableMsgQueue().Enqueue( pReliable );
 	m_bPendingReliableCriteriaMsg = true;
 	m_unPendingReliableCriteriaMsgParty = m_unActivePartyID;
+	GTFGCClientSystem()->ReliableMsgQueue().Enqueue( pReliable );
 }
 
 //-----------------------------------------------------------------------------
@@ -1456,6 +1459,11 @@ void CTFPartyClient::OnRemoveFromQueueReply( const CProtoBufMsg< CMsgPartyRemove
 	ETFMatchGroup eMatchGroup = msg.Body().match_group();
 	Assert( BHavePendingQueueCancelMsg( eMatchGroup ) );
 	SetPendingQueueCancelMsg( eMatchGroup, false );
+	// Same reason as OnQueueForMatchReply: in-queue state is predicted, so the
+	// reply is the point at which it has to be checked against reality. With a
+	// GC this was covered by the party object arriving right behind the reply;
+	// answered in-process it is not, and the queue would stay "on" in the UI.
+	UpdateActiveParty();
 }
 
 //-----------------------------------------------------------------------------
@@ -1727,6 +1735,7 @@ bool CTFPartyClient::UpdateActiveParty()
 		bool bWasQueued = BInQueueForMatchGroup( eMatchGroup );
 		bool bNowQueued = ( BHavePendingQueueMsg( eMatchGroup ) ||
 		                    ( pActiveParty && pActiveParty->BQueuedForMatchGroup( eMatchGroup ) ) );
+
 		if ( bWasQueued != bNowQueued )
 			{ mapChangedQueues.Insert( eMatchGroup, bNowQueued ); }
 	}

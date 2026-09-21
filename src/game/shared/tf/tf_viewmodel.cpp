@@ -4,6 +4,8 @@
 //
 //===========================================================================//
 #include "cbase.h"
+// GREYLINE FRONTRESS: team colours a battle may have swapped.
+#include "greyline/greyline_uniform.h"
 #include "tf_viewmodel.h"
 #include "tf_shareddefs.h"
 #include "tf_weapon_minigun.h"
@@ -402,7 +404,9 @@ int CTFViewModel::GetSkin()
 		if ( pItem->IsValid() )
 		{
 			CEconItemViewDataCacher dataCacher(pItem);
-			iItemSkin = pItem->GetSkin( pPlayer->GetTeamNumber(), true );
+			// GREYLINE FRONTRESS: your own hands should agree with the rest
+			// of you. See greyline_uniform.h.
+			iItemSkin = pItem->GetSkin( greyline::DisplayTeam( pPlayer->GetTeamNumber() ), true );
 		}
 
 		if ( iItemSkin != -1 )
