@@ -134,6 +134,12 @@ func (m *Matchmaker) publishBackendGame(mt *Match, game BackendGame) {
 		}
 	}
 	m.mu.Unlock()
+	// tf2pickup owns this server end to end -- config, RCON, its own
+	// admission -- so the coordinator's only remaining duty toward it is the
+	// same native GC roster push a directly-pooled server gets. It only
+	// lands if game.Connect is present in GCConfig.ServerIdentities; tf2pickup
+	// itself is unmodified and out of scope for this coordinator.
+	m.pushServerRoster(game.Connect, mt)
 	m.log.Info("match handed to tf2pickup", "match", mt.ID, "server", game.Connect)
 }
 

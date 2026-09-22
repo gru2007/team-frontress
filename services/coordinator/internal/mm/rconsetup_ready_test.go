@@ -1,26 +1,11 @@
+// This file intentionally left as an empty stub.
+//
+// It used to test the fake-RCON match-admission classifier
+// (classifyMatchAddReply/hasExactReply/etc.), which was removed when
+// server roster delivery moved to the native GC protocol -- see
+// internal/mm/gcpusher.go and internal/gcparty's PushMatchRoster.
+//
+// The file is kept in place (rather than deleted) because the sandbox
+// used to push it here from the coordinator sandbox cannot delete Mac
+// files, only write them.
 package mm
-
-import "testing"
-
-func TestMatchAdmissionReplyParsing(t *testing.T) {
-	t.Run("exact begin acknowledgement", func(t *testing.T) {
-		if !hasExactReply("console noise\nTFMM_MATCH_BEGIN_OK c86aa62fd05a3521\n", "TFMM_MATCH_BEGIN_OK c86aa62fd05a3521") {
-			t.Fatal("expected exact acknowledgement")
-		}
-		if hasExactReply("TFMM_MATCH_BEGIN_OK wrong", "TFMM_MATCH_BEGIN_OK c86aa62fd05a3521") {
-			t.Fatal("accepted acknowledgement for another match")
-		}
-	})
-
-	t.Run("readiness status", func(t *testing.T) {
-		if !hasExactReply("TFMM_MATCH_READY_OK c86aa62fd05a3521\n", "TFMM_MATCH_READY_OK c86aa62fd05a3521") {
-			t.Fatal("expected readiness acknowledgement")
-		}
-		if !hasReplyPrefix("TFMM_MATCH_READY_FAILED c86aa62fd05a3521 wrong_lobby\n", "TFMM_MATCH_READY_FAILED") {
-			t.Fatal("expected permanent failure")
-		}
-		if hasReplyPrefix("TFMM_MATCH_READY_PENDING c86aa62fd05a3521 loading_map\n", "TFMM_MATCH_READY_FAILED") {
-			t.Fatal("treated pending readiness as permanent failure")
-		}
-	})
-}

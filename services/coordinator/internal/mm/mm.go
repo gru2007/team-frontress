@@ -160,6 +160,12 @@ type Matchmaker struct {
 	log     *slog.Logger
 	now     func() time.Time
 	newID   func() string
+	// gcPusher delivers match rosters to dedicated servers over the native
+	// GC transport (see gcpusher.go). Nil when the coordinator runs without
+	// GC, or before main wires it in with SetGCPusher; every use goes
+	// through pushServerRoster/clearServerRoster, which treat nil as
+	// "no native push available" rather than panicking.
+	gcPusher GCServerPusher
 
 	mu      sync.Mutex
 	players PlayerStore

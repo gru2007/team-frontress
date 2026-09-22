@@ -73,7 +73,7 @@ func newTestAPI(t *testing.T) (*fakeMM, http.Handler) {
 	if err != nil {
 		t.Fatalf("players: %v", err)
 	}
-	s := New(cfg, m, steamauth.DevVerifier{}, pool.NewRegistry(0), nil, rec,
+	s := New(cfg, m, steamauth.DevVerifier{}, pool.NewRegistry(0), nil, rec, nil,
 		slog.New(slog.NewTextHandler(io.Discard, nil)))
 	return m, s.Handler()
 }

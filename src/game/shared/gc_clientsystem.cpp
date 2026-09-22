@@ -8,6 +8,7 @@
 #include "fmtstr.h"
 #include "igameevents.h"
 #include "gc_clientsystem.h"
+#include "frontress/frontress_gc.h"
 #include "econ_item_system.h"
 #include "econ_item_inventory.h"
 #include "quest_objective_manager.h"
@@ -119,27 +120,38 @@ ISteamHTTP* CGCClientSystem::GetSteamHTTP() const
 //-----------------------------------------------------------------------------
 // Purpose:
 //-----------------------------------------------------------------------------
+// Was: return m_GCClient.BSendMessage( unMsgType, pubData, cubData ); -- but
+// CGCClient::BSendMessage is stubbed out in this gcsdk_sdk build (see
+// frontress_gc.h). Route through the replacement transport instead; this is
+// the raw form frontress_gc.h documents as the struct-message path.
 bool CGCClientSystem::BSendMessage( uint32 unMsgType, const uint8 *pubData, uint32 cubData )
 {
-	return m_GCClient.BSendMessage( unMsgType, pubData, cubData );
+	return FrontressGC().BSendRawMessage( unMsgType, pubData, cubData );
 }
 
 
 //-----------------------------------------------------------------------------
 // Purpose:
 //-----------------------------------------------------------------------------
+// Was: return m_GCClient.BSendMessage( msg ); -- stubbed out, see above.
+// CGCMsgBase already owns a serialized buffer (PubData/CubData); hand it to
+// the transport exactly as CGCClient::BSendMessage would have sent it.
 bool CGCClientSystem::BSendMessage( const GCSDK::CGCMsgBase& msg )									
 { 
-	return m_GCClient.BSendMessage( msg ); 
+	return FrontressGC().BSendRawMessage( msg.GetEMsg(), msg.PubData(), msg.CubData() );
 }
 
 
 //-----------------------------------------------------------------------------
 // Purpose:
 //-----------------------------------------------------------------------------
+// Was: return m_GCClient.BSendMessage( msg ); -- stubbed out, see above.
+// CProtoBufMsgBase::BAsyncSend( IProtoBufSendHandler& ) is the real GCSDK
+// hook for this: it serializes msg and calls the handler's BAsyncSend with
+// the wire bytes. CFrontressGCConnection already implements that interface.
 bool CGCClientSystem::BSendMessage( const GCSDK::CProtoBufMsgBase& msg )									
 { 
-	return m_GCClient.BSendMessage( msg );
+	return msg.BAsyncSend( FrontressGC() );
 }
 
 #ifdef GAME_DLL
@@ -463,6 +475,10 @@ void CGCClientSystem::InitGC()
 void CGCClientSystem::Update( float frametime )
 {
 	ThinkConnection();
+	// m_GCClient.BMainLoop() is a no-op in this gcsdk_sdk build; pump the
+	// replacement transport so it flushes queued sends and polls for inbound
+	// GC messages every frame.
+	FrontressGC().Update();
 	if ( m_bInittedGC )
 	{
 		m_GCClient.BMainLoop( k_nThousand, (uint64)( frametime * 1000000.0f ) );
@@ -472,6 +488,9 @@ void CGCClientSystem::Update( float frametime )
 void CGCClientSystem::PreClientUpdate()	
 { 
 	ThinkConnection();
+	// See the CLIENT_DLL branch above: this is the dedicated-server equivalent
+	// per-frame pump point.
+	FrontressGC().Update();
 	if ( m_bInittedGC )
 	{
 		m_GCClient.BMainLoop( k_nThousand, ( uint64 )( gpGlobals->frametime * 1000000.0f ) ); 	

@@ -22,6 +22,7 @@ import (
 
 	"github.com/gru2007/team-frontress/services/coordinator/internal/api"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/config"
+	"github.com/gru2007/team-frontress/services/coordinator/internal/gcparty"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/mm"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/players"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/pool"
@@ -145,7 +146,24 @@ func run() error {
 	if err := matchmaker.Hydrate(ctx); err != nil {
 		return err
 	}
-	handler := api.New(cfg, matchmaker, verifier, registry, warEngine, records, log).Handler()
+
+	// The custom GC transport replaces Valve's GC end to end -- party,
+	// invites, lobby and matchmaking -- on top of the same matchmaker
+	// everything else uses. gcparty.Manager only needs Enqueue/Cancel/Status,
+	// which *mm.Matchmaker already satisfies.
+	var gcMgr *gcparty.Manager
+	if cfg.GC.Enabled {
+		gcMgr = gcparty.New(matchmaker, log)
+		go gcMgr.Run(ctx)
+		// The same manager that pushes lobby updates to client parties also
+		// pushes match rosters to dedicated servers over their own GC
+		// sessions -- this is what replaced the fake tf_mm_match_begin/
+		// tf_mm_match_add RCON commands.
+		matchmaker.SetGCPusher(gcMgr)
+		log.Info("gc transport enabled", "path", "/gc/v1/session")
+	}
+
+	handler := api.New(cfg, matchmaker, verifier, registry, warEngine, records, gcMgr, log).Handler()
 
 	go matchmaker.Run(ctx)
 	if registry != nil {

@@ -135,6 +135,13 @@ func (m *Matchmaker) boot(ctx context.Context, mt *Match) {
 		m.failMatch(mt, fmt.Errorf("server %s did not come up: %w", srv.Connect, err), true)
 		return
 	}
+	// The server is up and pointed at the right map; give its own GC session
+	// the match roster the same way a client party gets one, so its
+	// CTFGCServerSystem can build a real CMatchInfo and gate on it. RCONSetup
+	// no longer sends anything roster-shaped -- this is now the only
+	// mechanism, and a server missing from GCConfig.ServerIdentities simply
+	// does not get it, matches falling back to the password alone.
+	m.pushServerRoster(srv.Connect, mt)
 
 	now := m.now()
 	m.mu.Lock()
@@ -373,6 +380,7 @@ func (m *Matchmaker) endMatch(ctx context.Context, mt *Match, res *wire.MatchRes
 
 	if srv != nil && m.backend == nil {
 		releaseCtx := context.WithoutCancel(ctx)
+		m.clearServerRoster(srv.Connect)
 		if err := m.setup.Teardown(releaseCtx, srv); err != nil {
 			m.log.Debug("teardown failed", "server", srv.Connect, "err", err)
 		}

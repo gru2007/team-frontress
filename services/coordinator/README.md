@@ -25,7 +25,7 @@ go run ./cmd/coordinator -config coordinator.json
 
 `go run ./cmd/coordinator -print-config` writes an annotated default to stdout.
 
-Point the game at it with `tf_mm_coordinator "http://host:27100"`.
+Point the game at it with `tf_gc_address "http://host:27100"` (the client cvar is `tf_gc_address`, set in `frontress_gc.cpp`; `tf_mm_coordinator` was the old working name and is not what the code checks).
 
 ### Requirements
 

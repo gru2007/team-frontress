@@ -140,18 +140,3 @@ func TestMapOutsideTheGroupsListIsIgnored(t *testing.T) {
 	}
 }
 
-func TestRosterArgIsTheServerHandoffFormat(t *testing.T) {
-	got := rosterArg([]wire.AssignedPlayer{
-		{SteamID: "76561198000000001", Team: wire.TeamRed},
-		{SteamID: "", Team: wire.TeamBlu}, // a seat with no id is skipped, not sent blank
-		{SteamID: "76561198000000002", Team: wire.TeamBlu},
-	})
-	want := "76561198000000001:2,76561198000000002:3"
-	if got != want {
-		t.Fatalf("roster = %q, want %q", got, want)
-	}
-
-	if rosterArg(nil) != "" {
-		t.Fatal("an empty roster produced an argument; the handoff must be skipped entirely")
-	}
-}

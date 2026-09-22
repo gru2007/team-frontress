@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/gru2007/team-frontress/services/coordinator/internal/config"
+	"github.com/gru2007/team-frontress/services/coordinator/internal/gcparty"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/mm"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/players"
 	"github.com/gru2007/team-frontress/services/coordinator/internal/pool"
@@ -36,6 +37,12 @@ type Server struct {
 	war      *war.Engine
 	players  *players.Store
 	log      *slog.Logger
+
+	// gcParty, when set, backs the custom GC transport (POST /gc/v1/session)
+	// that replaces Valve's GC end to end: party, invites, lobby and
+	// matchmaking all flow through it instead of Steam. Nil means the
+	// coordinator runs queue-only (no GC-protocol client attached).
+	gcParty *gcparty.Manager
 }
 
 // Matchmaker is the part of mm.Matchmaker the API uses. Narrowing it keeps the
@@ -61,12 +68,13 @@ type activeGameRecoverer interface {
 	RecoverActive(context.Context, wire.MatchGroup, wire.SteamID, []wire.AssignedPlayer) (*mm.Ticket, bool, error)
 }
 
-// New builds the API server.
-func New(cfg config.Config, m Matchmaker, v steamauth.Verifier, reg *pool.Registry, w *war.Engine, rec *players.Store, log *slog.Logger) *Server {
+// New builds the API server. gc may be nil to run without the custom GC
+// transport (queue-only deployments, or while it is being rolled out).
+func New(cfg config.Config, m Matchmaker, v steamauth.Verifier, reg *pool.Registry, w *war.Engine, rec *players.Store, gc *gcparty.Manager, log *slog.Logger) *Server {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Server{cfg: cfg, mm: m, verifier: v, registry: reg, war: w, players: rec, log: log}
+	return &Server{cfg: cfg, mm: m, verifier: v, registry: reg, war: w, players: rec, gcParty: gc, log: log}
 }
 
 // Handler returns the routed HTTP handler.
@@ -77,6 +85,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/queue/{id}", s.handleQueueStatus)
 	mux.HandleFunc("DELETE /v1/queue/{id}", s.handleQueueCancel)
 	mux.HandleFunc("GET /v1/player/{id}", s.handlePlayer)
+	if s.gcParty != nil {
+		mux.HandleFunc("POST /gc/v1/session", s.handleGCSession)
+	}
 	if !s.cfg.TF2Pickup.Enabled() {
 		mux.HandleFunc("POST /v1/gs/register", s.handleServerRegister)
 		mux.HandleFunc("POST /v1/gs/heartbeat", s.handleServerHeartbeat)

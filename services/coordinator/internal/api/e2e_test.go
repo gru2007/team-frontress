@@ -61,7 +61,7 @@ func TestTwoSoloPlayersGetAMatch(t *testing.T) {
 	}
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	matchmaker := mm.New(cfg, srvPool, &fakeSetup{players: 2}, nil, log)
-	h := api.New(cfg, matchmaker, steamauth.DevVerifier{}, nil, nil, nil, log).Handler()
+	h := api.New(cfg, matchmaker, steamauth.DevVerifier{}, nil, nil, nil, nil, log).Handler()
 
 	queue := func(id string) string {
 		t.Helper()

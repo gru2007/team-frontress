@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/gru2007/team-frontress/services/coordinator/internal/maps"
@@ -32,6 +33,53 @@ type Config struct {
 	Timing      TimingConfig       `json:"timing"`
 	War         WarConfig          `json:"war"`
 	TF2Pickup   TF2PickupConfig    `json:"tf2pickup"`
+	GC          GCConfig           `json:"gc"`
+}
+
+// GCConfig toggles the custom GC-protocol transport (POST /gc/v1/session)
+// that replaces Valve's GC end to end -- party, invites, lobby and
+// matchmaking. When disabled the coordinator still serves plain /v1/queue
+// for clients that talk to it directly instead of through the game's GC
+// client code.
+type GCConfig struct {
+	Enabled bool `json:"enabled"`
+	// ServerIdentities maps a dedicated server's Connect address ("ip:port",
+	// the same string used as pool.Server.Connect / tf2pickup's game.Connect)
+	// to the SteamID64 that server's own GC session authenticates as.
+	//
+	// The coordinator delivers a match roster to a server the same way it
+	// delivers one to a client party: a CSOTFGameServerLobby pushed over that
+	// server's own long-poll GC session (internal/gcparty). That push has to
+	// be addressed to a SteamID, and neither pool.Server nor tf2pickup's
+	// BackendGame carries one -- a server's Connect address is the only
+	// identifier both providers give the coordinator, so this map is what
+	// resolves one into the other. It covers every provider uniformly
+	// (static, self-registered, Serveme, tf2pickup) without needing a
+	// SteamID field threaded through each of their separate types.
+	//
+	// A server missing from this map still gets a match (password-gated,
+	// same as an unmodified dedicated server) -- it just never receives the
+	// native roster push, so tf_mm_strict's gate has nothing to open against
+	// and the password stays the only door.
+	ServerIdentities map[string]string `json:"server_identities,omitempty"`
+}
+
+// ServerSteamID resolves connect ("ip:port") to the SteamID64 that server's
+// GC session is expected to authenticate as, per ServerIdentities. ok is
+// false when the server is not configured for native GC roster delivery.
+func (c GCConfig) ServerSteamID(connect string) (id uint64, ok bool) {
+	if connect == "" {
+		return 0, false
+	}
+	raw, present := c.ServerIdentities[connect]
+	if !present || raw == "" {
+		return 0, false
+	}
+	parsed, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	return parsed, true
 }
 
 // TF2PickupConfig hands durable game and server lifecycle to tf2pickup-frontress.

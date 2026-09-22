@@ -81,170 +81,22 @@ func (r *RCONSetup) Setup(ctx context.Context, s *pool.Server, spec Spec) error 
 		}
 	}
 
-	// Hand the match itself over, if the server is one of ours.
-	//
-	// tf_mm_match_begin builds a real lobby object in the server's own shared
-	// object cache, which is what makes CTFGCServerSystem create a CMatchInfo
-	// -- and a CMatchInfo is what the whole server-side half of matchmaking
-	// hangs off: the roster gate, team assignment, abandon tracking, the match
-	// HUD, the match summary and the result the game itself reports. It also
-	// changes the map, from the lobby, which is why nothing does it afterwards.
-	//
-	// It goes last because it takes the password off: the roster is the door
-	// from that point on, and the password is only a fallback for a server
-	// that could not raise the gate. See CTFMMServer::BeginMatch.
-	//
-	// A server that does not have the command answers "Unknown command", and
-	// then we change the map ourselves -- so an unmodified dedicated server
-	// still runs matches, just as a passworded community server with none of
-	// the above.
-	if roster := rosterArg(spec.Roster); roster != "" {
-		begin := fmt.Sprintf("tf_mm_match_begin %s %d %s %s %s %s %d",
-			quote(spec.MatchID),
-			int(spec.MatchGroup),
-			quote(spec.Map),
-			quote(spec.ServerConfig),
-			quote(spec.Password),
-			quote(roster),
-			spec.MaxPlayers)
-		out, err := c.Exec(begin)
-		if err != nil {
-			return fmt.Errorf("rcon %q: %w", "tf_mm_match_begin", err)
-		}
-		if !strings.Contains(strings.ToLower(out), "unknown command") {
-			if !hasExactReply(out, "TFMM_MATCH_BEGIN_OK "+spec.MatchID) {
-				return fmt.Errorf("rcon %q was not acknowledged: %s", "tf_mm_match_begin", replyOrEmpty(out))
-			}
-			if err := waitForMatchAdmission(ctx, c, spec.MatchID, spec.Map, roster); err != nil {
-				return err
-			}
-			return nil
-		}
-	}
-
 	if _, err := c.Exec(fmt.Sprintf("changelevel %s", spec.Map)); err != nil {
 		return fmt.Errorf("rcon %q: %w", "changelevel", err)
 	}
 	return nil
 }
 
-const (
-	matchReadyPoll    = 250 * time.Millisecond
-	matchReadyTimeout = 45 * time.Second
-)
-
-// waitForMatchAdmission keeps the assignment private until the dedicated
-// server's own SteamIDAllowedToConnect gate accepts the complete roster.
-// BEGIN_OK only says the lobby was published; CMatchInfo and the map are still
-// allowed to be in flight at that point.
-func waitForMatchAdmission(ctx context.Context, c *rcon.Conn, matchID, mapName, roster string) error {
-	probe := fmt.Sprintf("tf_mm_match_ready %s %s %s", quote(matchID), quote(mapName), quote(roster))
-	deadline := time.Now().Add(matchReadyTimeout)
-	lastReply := "<no response>"
-
-	for time.Now().Before(deadline) {
-		out, err := c.Exec(probe)
-		if err != nil {
-			return fmt.Errorf("rcon %q: %w", "tf_mm_match_ready", err)
-		}
-		lastReply = replyOrEmpty(out)
-		if hasExactReply(out, "TFMM_MATCH_READY_OK "+matchID) {
-			return nil
-		}
-		if hasReplyPrefix(out, "TFMM_MATCH_READY_FAILED") ||
-			strings.Contains(strings.ToLower(out), "unknown command") {
-			return fmt.Errorf("rcon %q rejected match %s: %s", "tf_mm_match_ready", matchID, lastReply)
-		}
-
-		timer := time.NewTimer(matchReadyPoll)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return ctx.Err()
-		case <-timer.C:
-		}
-	}
-
-	return fmt.Errorf("rcon %q timed out for match %s: %s", "tf_mm_match_ready", matchID, lastReply)
-}
-
-func hasExactReply(out, want string) bool {
-	for _, line := range strings.Split(out, "\n") {
-		if strings.TrimSpace(line) == want {
-			return true
-		}
-	}
-	return false
-}
-
-func hasReplyPrefix(out, prefix string) bool {
-	for _, line := range strings.Split(out, "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), prefix) {
-			return true
-		}
-	}
-	return false
-}
-
-func replyOrEmpty(out string) string {
-	reply := strings.TrimSpace(out)
-	if reply == "" {
-		return "<empty response>"
-	}
-	return reply
-}
-
-const matchAddOKPrefix = "TFMM_MATCH_ADD_OK"
-
-// classifyMatchAddReply distinguishes an old unmodified server (which has no
-// roster gate and therefore needs no admission command) from one of our servers
-// that understood the command but failed to update its lobby.
-func classifyMatchAddReply(out string) (supported, accepted bool) {
-	if strings.Contains(strings.ToLower(out), "unknown command") {
-		return false, false
-	}
-	return true, strings.Contains(out, matchAddOKPrefix) || strings.Contains(out, "TFMM_MATCH_ADD_PLAIN")
-}
-
-// AddPlayers announces new seats in a running match.
-//
-// A server that does not know the command says so, and that is not an error: it
-// has no roster gate either, so the players it was never told about will get in
-// on the password like they always did.
+// AddPlayers is now a deliberate no-op. Seating a backfilled or standby
+// player into a running match happens over the native GC transport (see
+// Matchmaker.pushServerRoster in gcpusher.go), which pushes the match's full,
+// current CSOTFGameServerLobby -- the same shared object CTFGCServerSystem
+// already builds CMatchInfo's roster gate from. There is deliberately no
+// bespoke RCON command here for a plugin (or a plugin-shaped stand-in) to
+// answer: an unmodified dedicated server never saw one, and this coordinator
+// does not add one either.
 func (r *RCONSetup) AddPlayers(ctx context.Context, s *pool.Server, matchID string, roster []wire.AssignedPlayer) error {
-	seats := rosterArg(roster)
-	if seats == "" {
-		return nil
-	}
-
-	c, err := r.dial(ctx, s)
-	if err != nil {
-		return err
-	}
-	defer c.Close()
-
-	cmd := fmt.Sprintf("tf_mm_match_add %s %s", quote(matchID), quote(seats))
-	out, err := c.Exec(cmd)
-	if err != nil {
-		return fmt.Errorf("rcon %q: %w", "tf_mm_match_add", err)
-	}
-
-	supported, accepted := classifyMatchAddReply(out)
-	if !supported {
-		return nil
-	}
-	if accepted {
-		// PLAIN is the deliberate password fallback and has no roster gate to
-		// wait for. A real lobby update is not complete until CMatchInfo admits
-		// each newly added SteamID.
-		if strings.Contains(out, matchAddOKPrefix) {
-			if err := waitForMatchAdmission(ctx, c, matchID, "*", seats); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	return fmt.Errorf("rcon %q was not acknowledged: %s", "tf_mm_match_add", replyOrEmpty(out))
+	return nil
 }
 
 // PlayerCount asks the server how many humans are on it.
@@ -274,18 +126,12 @@ func (r *RCONSetup) Teardown(ctx context.Context, s *pool.Server) error {
 	}
 	defer c.Close()
 
-	// The match goes back before anything else: tf_mm_match_end takes down the
-	// lobby, the roster gate and the official flag together, and a server
-	// handed back still gating on a roster nobody holds is a server the next
-	// match cannot use. An unmodified server does not have the command and
-	// says so, which is not an error here.
-	if _, err := c.Exec("tf_mm_match_end returned"); err != nil {
-		return fmt.Errorf("rcon %q: %w", "tf_mm_match_end", err)
-	}
-
-	// tf_match_emulation goes off with the match. A returned server that still
-	// thinks it is running an official match shows the match HUD to whoever
-	// lands on it next.
+	// There is no RCON match-end command to send here: the lobby object a
+	// server holds is torn down over GC instead (Matchmaker.clearServerRoster,
+	// called by the mm layer around this Teardown, not by RCONSetup itself --
+	// RCONSetup only ever sends stock convars). tf_match_emulation still goes
+	// off here: a returned server that thinks it is running an official match
+	// shows the match HUD to whoever lands on it next.
 	for _, cmd := range []string{"sv_password \"\"", "sv_tags \"\"", "tf_match_emulation 0", "tf_mm_trusted 0", "kickall"} {
 		if _, err := c.Exec(cmd); err != nil {
 			return fmt.Errorf("rcon %q: %w", firstWord(cmd), err)
@@ -312,24 +158,6 @@ func (r *RCONSetup) dial(ctx context.Context, s *pool.Server) (*rcon.Conn, error
 
 func quote(s string) string {
 	return `"` + strings.NewReplacer(`"`, "", "\n", "", ";", "").Replace(s) + `"`
-}
-
-// rosterArg packs the roster into the one argument tf_mm_match_begin takes:
-// "steamid:team,steamid:team". Names are left out on purpose -- they are
-// player-controlled text going into a console command, and the server does not
-// need them for anything the gate does.
-func rosterArg(roster []wire.AssignedPlayer) string {
-	var b strings.Builder
-	for _, p := range roster {
-		if p.SteamID == "" {
-			continue
-		}
-		if b.Len() > 0 {
-			b.WriteByte(',')
-		}
-		fmt.Fprintf(&b, "%s:%d", p.SteamID, int(p.Team))
-	}
-	return b.String()
 }
 
 func boolInt(b bool) int {

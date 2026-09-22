@@ -84,6 +84,24 @@
     "providers": []
   },
 
+  "gc": {
+    "enabled": true,
+
+    "//server_identities": [
+      "Every server that should get its match roster over the native GC",
+      "protocol (CSOTFGameServerLobby, not a fake RCON command) needs an",
+      "entry here: its Connect address ('ip:port', same string as a pool",
+      "server's connect or tf2pickup's game.connect) mapped to the SteamID64",
+      "its own GC session authenticates as. A server left out still gets a",
+      "match -- password-gated only, same as an unmodified dedicated server",
+      "-- it just never receives the roster push."
+    ],
+    "server_identities": {
+      "203.0.113.10:27015": "90071992547409921",
+      "203.0.113.11:27015": "90071992547409922"
+    }
+  },
+
   "timing": {
     "tick_ms": 1000,
     "ticket_ttl_secs": 45,

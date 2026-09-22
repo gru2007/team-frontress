@@ -116,6 +116,9 @@ func (m *Matchmaker) admit(ctx context.Context, mt *Match, tickets []*Ticket, wh
 			case <-time.After(2 * time.Second):
 			}
 		}
+		if srv != nil {
+			m.pushServerRoster(srv.Connect, mt)
+		}
 		m.publishAdmission(mt, tickets, matchID, roster, why)
 		return
 	}
@@ -131,6 +134,11 @@ func (m *Matchmaker) admit(ctx context.Context, mt *Match, tickets []*Ticket, wh
 		m.releaseSeats(mt, tickets, "the server would not take them")
 		return
 	}
+	// mt.Players already carries the backfilled seats by this point (that is
+	// what nowIn below counts); push the server's own GC session the whole,
+	// updated roster -- CSOTFGameServerLobby is a snapshot object, so this is
+	// a full replace, not an addition.
+	m.pushServerRoster(srv.Connect, mt)
 
 	m.publishAdmission(mt, tickets, matchID, roster, why)
 }
