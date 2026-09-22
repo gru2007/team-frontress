@@ -284,46 +284,63 @@ HUD to whoever lands on it next.
 
 ### Handing the match to the server
 
-If the server runs our game DLL it gets the match itself, not just a map change:
+`tf_mm_match_begin`/`tf_mm_match_add` RCON commands were an earlier design and
+were never wired up as real RCON traffic (see the comments in
+[`cmd/coordinator/main.go`](cmd/coordinator/main.go) and
+[`internal/gcparty/serverpush_test.go`](internal/gcparty/serverpush_test.go)).
+What actually hands a match to the server has two parts that run separately,
+one over RCON and one over the coordinator's own GC session:
 
-```
-tf_mm_match_begin <match_id> <group> <map> <server_cfg> <fallback_password> <steamid:team,...>
-```
+1. **RCON, stock convars only** ([`internal/mm/rconsetup.go`](internal/mm/rconsetup.go)).
+   `ServerSetup.Setup` sends `sv_password`, `sv_tags`, `maxplayers`,
+   `tf_match_emulation` (+ its `restartmatch`/`randommap` companions),
+   `tf_mm_trusted`, `tf_mm_servermode` and `tf_mm_strict` — every one of them a
+   convar an unmodified dedicated server already understands. Nothing custom
+   is ever sent over RCON.
+2. **GC, the real roster** ([`internal/mm/gcpusher.go`](internal/mm/gcpusher.go),
+   [`internal/gcparty/manager.go`](internal/gcparty/manager.go)). Right after
+   `Setup` returns, the coordinator pushes the match's actual roster to the
+   server's own GC session as a `CSOTFGameServerLobby`/`CMatchInfo`-shaped
+   shared object, the same way Valve's GC hands a lobby to a server. That
+   object is what `CTFGCServerSystem` builds its `CMatchInfo` from — the
+   roster gate, team assignment, abandon tracking, the match HUD, the match
+   summary and the result the game reports all hang off it.
 
-That builds a real lobby object in the server's own shared object cache, which
-is what makes `CTFGCServerSystem` create a `CMatchInfo` — the roster gate, team
-assignment, abandon tracking, the match HUD, the match summary and the result
-the game reports all hang off it. It changes the map from the lobby, which is
-why nothing sends `changelevel` afterwards, and it takes `sv_password` off,
-because from that point the roster is the door. See
-[`MATCHMAKING.md`](../../docs/MATCHMAKING.md#the-other-half-the-game-server).
+Whether a server gets that GC push depends on whether it has a GC identity
+configured in `gc.server_identities` (`config.GCConfig.ServerIdentities`,
+resolved by `ServerSteamID`). This is `Spec.RosterViaGC`, and it decides the
+RCON side of the setup, too:
 
-A server without the command answers "Unknown command" and the coordinator
-changes the map itself, so an unmodified dedicated server still runs matches —
-as a passworded community server with none of the above.
+- **`RosterViaGC = true`** — this server's GC session is about to get the real
+  roster, so that roster gate is the door. `sv_password` is sent **empty**,
+  and `tf_mm_servermode`/`tf_mm_strict` are turned **on**, exactly like an
+  official Valve matchmaking server, which never carries a password either.
+- **`RosterViaGC = false`** — no GC identity means no roster will ever reach
+  this server, so `tf_mm_servermode`/`tf_mm_strict` stay **off** (turning them
+  on with no roster to check would make `SteamIDAllowedToConnect` refuse
+  everyone) and `sv_password` carries the real value — the same behavior an
+  unmodified dedicated server would have.
 
-Getting into a match that is already running goes the same way:
+Getting into a match that is already running goes over the same GC channel:
+backfill and standby both call `pushServerRoster` again with the updated
+roster, and both wait for it — a ticket seated in a running match stays
+`searching` from the client's point of view until the server's GC session has
+the new roster. If the server has no GC identity, the seat still goes through,
+since that server only ever ran on the password anyway.
 
-```
-tf_mm_match_add <match_id> <steamid:team,...>
-```
-
-Backfill and standby both use it, and both wait for it: a ticket seated in a
-running match stays `searching` from the client's point of view until the server
-has been told to expect them. If it cannot be told, the seat is given back and
-the party returns to the queue rather than being sent at a door that will not
-open.
-
-`tf_mm_trusted` goes with it. That is the game's own official-server flag —
-on Valve's build their backend checks it, and there is no backend here, so it
-is ours to grant. It is `FCVAR_NOTIFY`, so it reaches clients, and
+`tf_mm_trusted` is the game's own official-server flag — on Valve's build
+their backend checks it, and there is no backend here, so it is ours to grant.
+It is `FCVAR_NOTIFY`, so it reaches clients, and
 `CServerGameDLL::GetServerBrowserGameData` publishes it as server browser game
 data. Server-side it makes a returning player go back to the team they left
 (`CTFPlayer::ShouldForceAutoTeam`) and stops a spectator slot being used to
-unbalance the sides.
+unbalance the sides. It is granted on every match regardless of `RosterViaGC`,
+since it does not depend on a roster existing to check against.
 
-Both are granted per match on purpose: nothing about a server is permanently
-"official", and a server that leaves the pool stops being one.
+All of `tf_match_emulation`, `tf_mm_trusted`, `tf_mm_servermode` and
+`tf_mm_strict` are granted per match on purpose and reset to `0` in
+`Teardown`: nothing about a server is permanently "official", and a server
+that leaves the pool stops being one.
 
 ### Map pools
 

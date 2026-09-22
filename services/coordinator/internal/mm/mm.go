@@ -127,6 +127,16 @@ type Spec struct {
 	// The server uses it to build a real match object, which is what makes
 	// tf_mm_strict's roster gate -- rather than the password -- the door.
 	Roster []wire.AssignedPlayer
+	// RosterViaGC is true when this server has a configured GC identity
+	// (config.GCConfig.ServerIdentities), so Matchmaker.pushServerRoster will
+	// hand its own GC session the real CSOTFGameServerLobby right after Setup
+	// returns. ServerSetup uses this to grant tf_mm_servermode/tf_mm_strict
+	// and drop sv_password entirely -- exactly like an official Valve MM
+	// server, which never carries one -- because the native roster gate is
+	// the door instead. False means no roster will ever reach this server
+	// over GC, so ServerSetup falls back to the password as the only door,
+	// same as an unmodified dedicated server.
+	RosterViaGC bool
 }
 
 // ServerSetup prepares a server for a match and watches it afterwards. The

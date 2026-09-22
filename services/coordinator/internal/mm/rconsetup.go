@@ -38,8 +38,21 @@ func (r *RCONSetup) Setup(ctx context.Context, s *pool.Server, spec Spec) error 
 	}
 	defer c.Close()
 
+	// Real Valve matchmaking servers never carry sv_password -- the GC hands
+	// players a direct lobby join instead, and the roster the GC gave the
+	// server is the only door. spec.RosterViaGC means this server's own GC
+	// session is about to receive that same roster object (see
+	// Matchmaker.pushServerRoster / gcpusher.go), so we grant it the same
+	// deal: no password, native roster gate only. A server with no GC
+	// identity configured never gets that push, so it keeps the password as
+	// its only door, same as an unmodified dedicated server would.
+	pw := spec.Password
+	if spec.RosterViaGC {
+		pw = ""
+	}
+
 	cmds := []string{
-		fmt.Sprintf("sv_password %s", quote(spec.Password)),
+		fmt.Sprintf("sv_password %s", quote(pw)),
 		fmt.Sprintf("sv_tags %s", quote("tfmm:"+spec.MatchID)),
 		fmt.Sprintf("maxplayers %d", spec.MaxPlayers),
 		// Official-match status, granted per match rather than baked into the
@@ -65,6 +78,16 @@ func (r *RCONSetup) Setup(ctx context.Context, s *pool.Server, spec Spec) error 
 		// go back to the team they left and stops a spectator slot being used
 		// to unbalance the sides.
 		fmt.Sprintf("tf_mm_trusted %d", boolInt(spec.MatchEmulation != 0)),
+		// tf_mm_servermode/tf_mm_strict are the other half of "official
+		// server": they are what make CTFGCServerSystem set m_bMMServerMode
+		// and turn SteamIDAllowedToConnect from "anybody may join" into
+		// "only the roster this server's GC session was given may join" (see
+		// tf_gc_server.cpp). Granting them without RosterViaGC would lock the
+		// server, since SteamIDAllowedToConnect returns false with no
+		// CMatchInfo to check against -- so this only ever turns on together
+		// with dropping the password above, never on its own.
+		fmt.Sprintf("tf_mm_servermode %d", boolInt(spec.RosterViaGC)),
+		fmt.Sprintf("tf_mm_strict %d", boolInt(spec.RosterViaGC)),
 	}
 	if r.Hostname != "" {
 		cmds = append(cmds, fmt.Sprintf("hostname %s", quote(fmt.Sprintf(r.Hostname, spec.MatchID))))
@@ -131,8 +154,14 @@ func (r *RCONSetup) Teardown(ctx context.Context, s *pool.Server) error {
 	// called by the mm layer around this Teardown, not by RCONSetup itself --
 	// RCONSetup only ever sends stock convars). tf_match_emulation still goes
 	// off here: a returned server that thinks it is running an official match
-	// shows the match HUD to whoever lands on it next.
-	for _, cmd := range []string{"sv_password \"\"", "sv_tags \"\"", "tf_match_emulation 0", "tf_mm_trusted 0", "kickall"} {
+	// shows the match HUD to whoever lands on it next. tf_mm_servermode and
+	// tf_mm_strict go off with it -- a server sitting in the pool with no
+	// match roster must not keep SteamIDAllowedToConnect's gate up, or
+	// nobody, matched or not, could ever connect to it again. sv_password
+	// clears unconditionally even though a GC-identified server ran without
+	// one, so a returned server is never left locked behind a password
+	// nobody has.
+	for _, cmd := range []string{"sv_password \"\"", "sv_tags \"\"", "tf_match_emulation 0", "tf_mm_trusted 0", "tf_mm_servermode 0", "tf_mm_strict 0", "kickall"} {
 		if _, err := c.Exec(cmd); err != nil {
 			return fmt.Errorf("rcon %q: %w", firstWord(cmd), err)
 		}

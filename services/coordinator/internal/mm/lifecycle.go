@@ -117,6 +117,10 @@ func (m *Matchmaker) boot(ctx context.Context, mt *Match) {
 		maxPlayers = len(mt.Players)
 	}
 
+	// Known here, before Setup, so RCONSetup can decide whether the roster
+	// gate or the password is this match's door -- see Spec.RosterViaGC.
+	_, rosterViaGC := m.cfg.GC.ServerSteamID(srv.Connect)
+
 	spec := Spec{
 		MatchID:        mt.ID,
 		Map:            mt.Map,
@@ -127,6 +131,7 @@ func (m *Matchmaker) boot(ctx context.Context, mt *Match) {
 		MatchEmulation: group.EffectiveMatchEmulation(),
 		MatchGroup:     mt.MatchGroup,
 		Roster:         append([]wire.AssignedPlayer(nil), mt.Players...),
+		RosterViaGC:    rosterViaGC,
 	}
 	if err := m.setup.Setup(bootCtx, srv, spec); err != nil {
 		if relErr := m.pool.Release(context.WithoutCancel(ctx), srv); relErr != nil {
