@@ -21,6 +21,7 @@ CInteractiveWebPanel::CInteractiveWebPanel( vgui::Panel *pParent, const char *pN
     m_szPath = path;
     m_bInited = false;
 	m_bLoadOnStart = bLoadOnStart;
+	m_bViewportScaling = false;
 
 	m_pHTML = new HTML( this, "InteractiveWebHTML", bDynamic, false );
 }
@@ -82,9 +83,10 @@ void CInteractiveWebPanel::PerformLayout()
 	BaseClass::PerformLayout();
 
 	m_pHTML->SetSize(GetWide(), GetTall());
-	// reverse the proportional scale
-	int zoomLevel = vgui::scheme()->GetProportionalNormalizedValue( 100 );
-	m_pHTML->SetZoomLevel((float)zoomLevel);
+	// Steam HTML expects a multiplier. Keep legacy panel scaling unchanged;
+	// responsive campaign pages use the actual viewport at 1:1.
+	float flZoom = m_bViewportScaling ? 1.0f : (float)vgui::scheme()->GetProportionalNormalizedValue( 100 );
+	m_pHTML->SetZoomLevel( flZoom );
 }
 
 void CInteractiveWebPanel::SetVisible(bool state)

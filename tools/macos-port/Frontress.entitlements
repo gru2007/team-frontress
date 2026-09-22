@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Wine writes and then executes the pages it translates PE code into, and
+	     D9MT does the same for shaders. Under the hardened runtime that is
+	     refused unless the app asks for it. -->
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+	<true/>
+	<key>com.apple.security.cs.disable-executable-page-protection</key>
+	<true/>
+	<!-- The Wine loader maps PE images the linker never saw, so library
+	     validation would reject them. -->
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+	<!-- The bridge dlopens Valve's libsteam_api.dylib from Resources, and the
+	     game reads Team Fortress 2 out of the user's Steam library. -->
+	<key>com.apple.security.cs.allow-dyld-environment-variables</key>
+	<true/>
+</dict>
+</plist>

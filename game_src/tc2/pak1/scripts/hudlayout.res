@@ -1522,6 +1522,21 @@
 		"tall"					"f0"
 	}
 
+	// The radial voice menu positions itself from its own
+	// resource/ui/HudMenuVoiceSelection.res, but a HUD element with no entry
+	// here is complained about on every start.
+	"HudMenuVoiceSelection"
+	{
+		"fieldName"				"HudMenuVoiceSelection"
+		"visible"				"0"
+		"enabled"				"1"
+		"xpos"					"c-200"
+		"ypos"					"c-200"
+		"zpos"					"8"
+		"wide"					"400"
+		"tall"					"400"
+	}
+
 	"QueueHUDStatus"
 	{
 		"fieldName"				"QueueHUDStatus"

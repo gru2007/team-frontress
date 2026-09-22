@@ -1,0 +1,30 @@
+DepotDownloader notice
+======================
+
+Team Frontress does not distribute DepotDownloader. On first use, the open
+source tf2-content-helper downloads the official, unmodified macOS x64 archive
+for DepotDownloader 3.4.0 directly from the SteamRE GitHub release into the
+user's Team Frontress Application Support directory. It verifies the archive
+and executable against SHA-256 values pinned in tf2-content-helper.swift before
+executing it. Team Frontress does not link against DepotDownloader.
+
+Pinned SHA-256 values:
+
+DepotDownloader-macos-x64.zip
+3214b689564d73e9342a8a4aef693de6ad3d293801b0f300a4466f60ec75befb
+
+DepotDownloader executable from that archive
+8433ea659f93fffb3c0da3400c2fd71393238db35d7780cf5a449fe8b8b10dba
+
+DepotDownloader is Copyright (C) the SteamRE Team and is licensed under GNU
+GPL version 2. The downloaded official archive contains its license. Source and
+license terms are available from the same upstream project:
+
+https://github.com/SteamRE/DepotDownloader/tree/DepotDownloader_3.4.0
+https://github.com/SteamRE/DepotDownloader/blob/DepotDownloader_3.4.0/LICENSE
+
+The Team Frontress wrapper source and all download URLs and hashes are public
+in this repository under tools/macos-port/. DepotDownloader and SteamKit are
+independent community projects and are not affiliated with or endorsed by
+Valve Corporation. Team Fortress, Steam, and Valve are trademarks or
+registered trademarks of Valve Corporation.

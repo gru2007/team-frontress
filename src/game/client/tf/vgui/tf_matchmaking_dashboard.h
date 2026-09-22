@@ -166,6 +166,7 @@ private:
 	void UpdateFindAGameButton();
 	void UpdateDisconnectAndResume();
 	void UpdateDimmer();
+	void UpdateTopBarVisibility();
 
 	// Party invites
 	void UpdatePartyInvites();

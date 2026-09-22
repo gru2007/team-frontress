@@ -205,6 +205,17 @@ private:
 	int32					m_iPlayMusicFrame;
 
 	CInteractiveWebPanel* m_pMainMenuWebUi;
+	class CTFMainMenuInfoPanel* m_pInfoPanel;
+	class CTFMenuFriendsPanel*  m_pFriendsPanel;
+
+public:
+	// Called when tf_main_menu_html changes. Public because the convar's
+	// change callback is a free function.
+	void UpdateMainMenuWebUiVisibility();
+	void UpdateMainMenuChrome();
+	void ReloadMainMenuInfo();
+
+private:
 
 	int						m_MainMenuWebUiZIndex;
 

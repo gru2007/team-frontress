@@ -1,0 +1,6 @@
+.env
+*.db*
+data
+recruiting-bot
+node_modules
+web
