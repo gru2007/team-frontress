@@ -134,11 +134,14 @@ bool CGCClientSystem::BSendMessage( uint32 unMsgType, const uint8 *pubData, uint
 // Purpose:
 //-----------------------------------------------------------------------------
 // Was: return m_GCClient.BSendMessage( msg ); -- stubbed out, see above.
-// CGCMsgBase already owns a serialized buffer (PubData/CubData); hand it to
-// the transport exactly as CGCClient::BSendMessage would have sent it.
+// CGCMsgBase already owns the serialized packet; hand it to the transport
+// exactly as CGCClient::BSendMessage would have sent it. The accessors are
+// PubPkt()/CubPkt() (header + body, which is what the wire format and the
+// inbound DispatchMessage path both expect) and the EMsg lives in the header
+// -- CMsgBase_t has no GetEMsg()/PubData()/CubData() of its own.
 bool CGCClientSystem::BSendMessage( const GCSDK::CGCMsgBase& msg )									
 { 
-	return FrontressGC().BSendRawMessage( msg.GetEMsg(), msg.PubData(), msg.CubData() );
+	return FrontressGC().BSendRawMessage( msg.Hdr().m_eMsg, msg.PubPkt(), msg.CubPkt() );
 }
 
 
