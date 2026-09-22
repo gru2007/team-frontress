@@ -48,7 +48,7 @@ if [ -n "${GITHUB_ACTIONS+x}" ]; then
 fi
 
 if [[ ! -e "$solution_out.ninja" ]]; then
-    devtools/bin/vpc /tf /linux64 /ninja /define:SOURCESDK ${VPC_EXTRA_ARGS} +everything /mksln "$solution_out"
+    devtools/bin/vpc /tf /linux64 /ninja ${VPC_EXTRA_ARGS} +everything /mksln "$solution_out"
 
     # Generate compile commands.
     ninja -f "$solution_out.ninja" -t compdb > compile_commands.json
