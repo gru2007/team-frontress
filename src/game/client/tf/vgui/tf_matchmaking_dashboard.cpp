@@ -388,7 +388,7 @@ void CTFMatchmakingDashboard::OnCommand( const char *command )
 	}
 	else if ( FStrEq( command, "find_game" ) )
 	{
-#ifdef SOURCESDK
+#ifndef SOURCESDK
 		OnQuickplay();
 #else
 		PopStack( 100, k_eSideRight ); // All y'all
@@ -398,7 +398,7 @@ void CTFMatchmakingDashboard::OnCommand( const char *command )
 
 #endif
 	}
-#ifdef SOURCESDK
+#ifndef SOURCESDK
 	else if ( FStrEq( command, "play_community" ) )
 	{
 		OnPlayCommunity();
