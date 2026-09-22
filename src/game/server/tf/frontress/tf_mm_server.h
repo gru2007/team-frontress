@@ -25,7 +25,12 @@
 //     reliable message queue never wedges waiting for a reply that is not
 //     coming. Anything it answers that carries information out -- the match
 //     result, a player leaving -- it prints in a form the log agent next to
-//     the server can read and forward.
+//     the server can read and forward;
+//   * and then keeps checking that the roster is still a way in. Publishing
+//     the lobby once is not enough: a map load can exec a password back on
+//     (which makes the stock code turn matchmaking mode off and takes the
+//     gate down with it), and the reservation pass that turns a seat into an
+//     admitted SteamID can decline and never be retried.
 //
 //=============================================================================//
 
@@ -96,6 +101,14 @@ public:
 
 private:
 	bool BPublishLobby();
+	// Hold the door open. The roster only works as a gate for as long as the
+	// server is still in matchmaking mode with no password -- and a map load
+	// can quietly take both of those away. See the definition.
+	void EnforceRosterGate();
+	// The roster lives in one shared object. Make sure it is still in the
+	// cache, and that the stock gate really does admit everybody sitting in
+	// it -- asking the same function the engine asks on every connection.
+	void VerifyAdmissions();
 	// Apply the acknowledgement heartbeat the stock game server sends to its
 	// GC. This is the step that turns an offered seat into one the strict
 	// connection gate will actually admit.
@@ -115,6 +128,16 @@ private:
 	CSOTFGameServerLobby m_msgLobby;
 	bool        m_bPublished;
 	bool        m_bWarnedPublishFailed;
+	// The gate complaints are per-match and once each: they fire from a
+	// per-frame check, so anything unrationed buries the console.
+	bool        m_bWarnedPasswordReturned;
+	bool        m_bWarnedGateDropped;
+	bool        m_bWarnedAdmissionsStuck;
+	// Latched once every seat has been admitted, so the good news is said
+	// once rather than every couple of seconds.
+	bool        m_bAdmissionsReported;
+	float       m_flNextAdmissionCheck;
+	int         m_nAdmissionNudges;
 	// Non-zero while this match intentionally runs as a plain/password
 	// fallback. There is no roster gate to update in that mode.
 	uint64      m_ulPlainMatchID;

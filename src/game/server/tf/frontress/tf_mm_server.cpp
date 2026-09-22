@@ -15,6 +15,7 @@
 #include "tf_gamerules.h"
 #include "tf_gc_server.h"
 #include "tf_lobby_server.h"
+#include "tf_match_description.h"
 #include "tf_matchmaking_shared.h"
 #include "tf_shareddefs.h"
 
@@ -89,6 +90,12 @@ CTFMMServer::CTFMMServer()
 	: CAutoGameSystemPerFrame( "CTFMMServer" )
 	, m_bPublished( false )
 	, m_bWarnedPublishFailed( false )
+	, m_bWarnedPasswordReturned( false )
+	, m_bWarnedGateDropped( false )
+	, m_bWarnedAdmissionsStuck( false )
+	, m_bAdmissionsReported( false )
+	, m_flNextAdmissionCheck( 0.0f )
+	, m_nAdmissionNudges( 0 )
 	, m_ulPlainMatchID( 0 )
 	, m_bAwaitingMap( false )
 {
@@ -126,8 +133,19 @@ bool CTFMMServer::BActive() const
 //-----------------------------------------------------------------------------
 void CTFMMServer::FrameUpdatePreEntityThink()
 {
-	if ( !m_bPublished || !m_bAwaitingMap )
+	// A match that deliberately runs as a plain passworded server has no gate
+	// to hold up and no roster to check -- and clearing its password here
+	// would be the one thing keeping strangers out.
+	if ( !m_bPublished || m_ulPlainMatchID != 0 )
 		return;
+
+	EnforceRosterGate();
+
+	if ( !m_bAwaitingMap )
+	{
+		VerifyAdmissions();
+		return;
+	}
 
 	// The lobby went in as SERVERSETUP, which is what makes CTFGCServerSystem
 	// treat it as a new match and change the map for us. Once we are on that
@@ -149,8 +167,182 @@ void CTFMMServer::FrameUpdatePreEntityThink()
 	}
 	m_bAwaitingMap = false;
 
+	// The map load is exactly where the gate is most likely to have been
+	// undone -- and where the roster has to be checked for real, because the
+	// reservation pass that admits it may have been refused before the new
+	// map's slot count existed. Check on the next frame rather than in 2s.
+	m_flNextAdmissionCheck = 0.0f;
+
 	MMSrvDbg( "match %016llx is live on %s\n",
 	          (unsigned long long)m_msgLobby.match_id(), m_strMap.Get() );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Keep the door we replaced the password with from falling off quietly.
+//
+//			Two pieces of stock behaviour conspire. The map change the lobby
+//			asks for execs whatever servercfgfile points at, and on a rented
+//			server that file is the host's, not ours -- serveme's
+//			reservation.cfg writes sv_password into it, and so does the stock
+//			server.cfg. And CTFGCServerSystem::PreClientUpdate turns
+//			tf_mm_servermode off the very next frame after it sees a password,
+//			because a matchmaking server is not allowed to hold one.
+//
+//			Put together: the map finishes loading, a password comes back,
+//			server mode goes off, and the roster gate is gone -- while the
+//			lobby object is still published and every log line still looks
+//			right. The players then arrive holding the password the
+//			coordinator gave them, which is not the one the server just
+//			exec'd, and not one of them gets in.
+//
+//			So both halves are re-asserted for as long as this match owns the
+//			server. The password has to be cleared first: setting server mode
+//			back while one is set only gets it turned off again next frame.
+//-----------------------------------------------------------------------------
+void CTFMMServer::EnforceRosterGate()
+{
+	static ConVarRef sv_password( "sv_password" );
+	static ConVarRef tf_mm_servermode( "tf_mm_servermode" );
+	static ConVarRef tf_mm_strict( "tf_mm_strict" );
+
+	const char *pszPassword = sv_password.GetString();
+	if ( pszPassword && pszPassword[0] )
+	{
+		if ( !m_bWarnedPasswordReturned )
+		{
+			m_bWarnedPasswordReturned = true;
+			Warning( "[mmsrv] sv_password was set during match %016llx -- clearing it. "
+			         "A matchmaking server cannot hold a password; the roster is the gate. "
+			         "Check what the map load exec'd.\n",
+			         (unsigned long long)m_msgLobby.match_id() );
+		}
+		sv_password.SetValue( "" );
+	}
+
+	if ( tf_mm_servermode.GetInt() != 1 || tf_mm_strict.GetInt() != 1 )
+	{
+		if ( !m_bWarnedGateDropped )
+		{
+			m_bWarnedGateDropped = true;
+			Warning( "[mmsrv] the roster gate was turned off under match %016llx "
+			         "(tf_mm_servermode %d, tf_mm_strict %d) -- putting it back\n",
+			         (unsigned long long)m_msgLobby.match_id(),
+			         tf_mm_servermode.GetInt(), tf_mm_strict.GetInt() );
+		}
+		// tf_mm_trusted is not part of the gate -- it is how the server
+		// advertises itself -- so whatever the coordinator asked for is left
+		// alone here.
+		tf_mm_servermode.SetValue( 1 );
+		tf_mm_strict.SetValue( 1 );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Check the two things that have to be true for a seat to be a way in,
+//			rather than assuming they still are because they once were.
+//
+//			The roster reaches the rest of the server as one shared object, and
+//			the list of SteamIDs allowed to connect is derived from it -- so if
+//			that object leaves the cache, every player is turned away while
+//			nothing in this class notices. The client half already learned that
+//			a cache can be replaced wholesale underneath the thing that
+//			published into it; there is no reason to find out the same way here.
+//
+//			And publishing the roster is not the same as the roster being
+//			admitted. CMatchInfo is filled by the stock reservation pass, which
+//			can decline -- most plausibly because it ran before the map change
+//			gave the server its real slot count. Nothing retries that on its
+//			own once the lobby has stopped changing, so ask the same function
+//			the engine asks on every connection, and if the answer is no, send
+//			the signal the GC would have: a new lobby version, which
+//			CTFGCServerSystem::SOUpdated answers with an acknowledgement pass.
+//-----------------------------------------------------------------------------
+void CTFMMServer::VerifyAdmissions()
+{
+	// Twice a second would be free; every couple of seconds is enough for
+	// something that only has to converge before players finish loading.
+	const float flNow = (float)Plat_FloatTime();
+	if ( flNow < m_flNextAdmissionCheck )
+		return;
+	m_flNextAdmissionCheck = flNow + 2.0f;
+
+	GCSDK::CGCClientSharedObjectCache *pCache =
+		GCClientSystem() ? GCClientSystem()->GetSOCache( OurSteamID() ) : NULL;
+	GCSDK::CSharedObjectTypeCache *pType =
+		pCache ? pCache->FindBaseTypeCache( CTFGSLobby::k_nTypeID ) : NULL;
+	if ( !pCache || !pCache->BIsSubscribed() || !pType || pType->GetCount() == 0 )
+	{
+		Warning( "[mmsrv] match %016llx is no longer in the game server's shared object "
+		         "cache -- republishing the roster\n",
+		         (unsigned long long)m_msgLobby.match_id() );
+		// Publishing skips an object it believes is already there and
+		// unchanged. Forget what we last wrote so the create path is taken.
+		m_strLastPublished.Clear();
+		if ( !BPublishLobby() )
+			return;
+	}
+
+	CTFGCServerSystem *pGC = GTFGCClientSystem();
+	if ( !pGC )
+		return;
+
+	int nAdmitted = 0;
+	int nRefused = 0;
+	for ( int i = 0; i < m_msgLobby.members_size(); i++ )
+	{
+		const CTFLobbyPlayerProto &member = m_msgLobby.members( i );
+		// Only seats that still have to walk in. Somebody the match dropped --
+		// an abandon, a vote kick -- is refused on purpose, and chasing that
+		// would mean nudging the lobby for the rest of the match.
+		if ( member.connect_state() != CTFLobbyPlayerProto_ConnectState_RESERVATION_PENDING &&
+		     member.connect_state() != CTFLobbyPlayerProto_ConnectState_RESERVED )
+		{
+			continue;
+		}
+
+		const CSteamID steamID( member.id() );
+		if ( steamID.IsValid() && pGC->SteamIDAllowedToConnect( steamID ) )
+			nAdmitted++;
+		else
+			nRefused++;
+	}
+
+	if ( nRefused == 0 )
+	{
+		if ( !m_bAdmissionsReported )
+		{
+			m_bAdmissionsReported = true;
+			m_nAdmissionNudges = 0;
+			m_bWarnedAdmissionsStuck = false;
+			Msg( "[mmsrv] match %016llx: the roster gate admits all %d waiting seat(s)\n",
+			     (unsigned long long)m_msgLobby.match_id(), nAdmitted );
+		}
+		return;
+	}
+
+	m_bAdmissionsReported = false;
+
+	// Bounded: a nudge that has not worked twenty times over is not going to,
+	// and an operator should be told rather than have it retried all match.
+	const int k_nMaxAdmissionNudges = 20;
+	if ( m_nAdmissionNudges >= k_nMaxAdmissionNudges )
+	{
+		if ( !m_bWarnedAdmissionsStuck )
+		{
+			m_bWarnedAdmissionsStuck = true;
+			Warning( "[mmsrv] !! match %016llx: %d seat(s) are still not admitted by the "
+			         "roster gate after %d attempts. Those players cannot connect. "
+			         "Check maxplayers against the match size and tf_mm_server_status.\n",
+			         (unsigned long long)m_msgLobby.match_id(), nRefused, k_nMaxAdmissionNudges );
+		}
+		return;
+	}
+
+	m_nAdmissionNudges++;
+	MMSrvDbg( "%d seat(s) not admitted yet; asking for an acknowledgement pass (%d)\n",
+	          nRefused, m_nAdmissionNudges );
+	m_msgLobby.set_lobby_mm_version( m_msgLobby.lobby_mm_version() + 1 );
+	BPublishLobby();
 }
 
 //-----------------------------------------------------------------------------
@@ -173,6 +365,30 @@ bool CTFMMServer::BeginMatch( uint64 ulMatchID, int nMatchGroup, const char *psz
 		return false;
 	}
 
+	// CTFGCServerSystem::SOCreated goes straight from the published lobby into
+	// GetMatchGroupDescription( group )->InitServerSettingsForMatch() with no
+	// null check, and only some groups have a description compiled in -- 9v9,
+	// 12v12 ladder and the smaller casual sizes do not. A group nothing
+	// registered would crash the server the moment the lobby went in, which is
+	// a much worse way to learn about a misconfigured coordinator than a match
+	// that refuses to start.
+	if ( !GetMatchGroupDescription( (ETFMatchGroup)nMatchGroup ) )
+	{
+		m_ulPlainMatchID = ulMatchID;
+		Warning( "[mmsrv] match group %d is not one this build knows how to run. "
+		         "Use a group with a match description (0 and 1 MvM, 2 ladder 6v6, "
+		         "7 casual 12v12) -- refusing match %016llx.\n",
+		         nMatchGroup, (unsigned long long)ulMatchID );
+		m_strFallbackPassword = pszFallbackPassword ? pszFallbackPassword : "";
+		if ( !m_strFallbackPassword.IsEmpty() )
+		{
+			static ConVarRef sv_password_refuse( "sv_password" );
+			sv_password_refuse.SetValue( m_strFallbackPassword.Get() );
+		}
+		FallBackToPlainMatch( pszMap );
+		return false;
+	}
+
 	if ( m_bPublished )
 	{
 		// The coordinator does not reuse a server without taking it back
@@ -186,6 +402,12 @@ bool CTFMMServer::BeginMatch( uint64 ulMatchID, int nMatchGroup, const char *psz
 	m_strFallbackPassword = pszFallbackPassword ? pszFallbackPassword : "";
 	m_strServerConfig = pszServerConfig ? pszServerConfig : "";
 	m_ulPlainMatchID = 0;
+	m_bWarnedPasswordReturned = false;
+	m_bWarnedGateDropped = false;
+	m_bWarnedAdmissionsStuck = false;
+	m_bAdmissionsReported = false;
+	m_flNextAdmissionCheck = 0.0f;
+	m_nAdmissionNudges = 0;
 
 	m_msgLobby.Clear();
 	// The lobby id has to be non-zero and stable; the match id is the only
@@ -403,6 +625,13 @@ int CTFMMServer::AddSeats( uint64 ulMatchID, const CUtlVector< TFMMSeat_t > &vec
 		return -1;
 	}
 
+	// The seats just sold have to be admitted too, and the same reservation
+	// pass can decline them -- a full server is the ordinary reason.
+	m_bAdmissionsReported = false;
+	m_bWarnedAdmissionsStuck = false;
+	m_nAdmissionNudges = 0;
+	m_flNextAdmissionCheck = 0.0f;
+
 	Msg( "[mmsrv] match %016llx: %d seat(s) added, %d in the match\n",
 	     (unsigned long long)ulMatchID, nAdded, m_msgLobby.members_size() );
 	return nAdded;
@@ -423,6 +652,11 @@ void CTFMMServer::EndMatch( const char *pszWhy )
 	m_ulPlainMatchID = 0;
 	m_bAwaitingMap = false;
 	m_strMap.Clear();
+	m_bWarnedPasswordReturned = false;
+	m_bWarnedGateDropped = false;
+	m_bWarnedAdmissionsStuck = false;
+	m_bAdmissionsReported = false;
+	m_nAdmissionNudges = 0;
 
 	// Put the server back the way we found it. A server handed back to the
 	// pool still advertising itself as an official match, still gating on a
@@ -893,8 +1127,32 @@ void CTFMMServer::Spew() const
 		Msg( "  seats:       %d\n", m_msgLobby.members_size() );
 	}
 
-	CMatchInfo *pMatch = GTFGCClientSystem() ? GTFGCClientSystem()->GetMatch() : NULL;
+	static ConVarRef sv_password( "sv_password" );
+	static ConVarRef tf_mm_servermode( "tf_mm_servermode" );
+	static ConVarRef tf_mm_strict( "tf_mm_strict" );
+	Msg( "  gate:        servermode %d, strict %d, password %s\n",
+	     tf_mm_servermode.GetInt(), tf_mm_strict.GetInt(),
+	     ( sv_password.GetString() && sv_password.GetString()[0] ) ? "SET (gate is down)" : "none" );
+
+	CTFGCServerSystem *pGC = GTFGCClientSystem();
+	CMatchInfo *pMatch = pGC ? pGC->GetMatch() : NULL;
 	Msg( "  match info:  %s\n", pMatch ? "built" : "none -- the server does not think it is in a match" );
+
+	// The whole point of the lobby is this answer, so print it per seat: it is
+	// the same call the engine makes when a player knocks on the door.
+	if ( m_bPublished && pGC )
+	{
+		for ( int i = 0; i < m_msgLobby.members_size(); i++ )
+		{
+			const CTFLobbyPlayerProto &member = m_msgLobby.members( i );
+			const CSteamID steamID( member.id() );
+			Msg( "    %s  team %d  %-20s  %s\n",
+			     steamID.Render(),
+			     (int)member.team(),
+			     CTFLobbyPlayerProto_ConnectState_Name( member.connect_state() ).c_str(),
+			     pGC->SteamIDAllowedToConnect( steamID ) ? "may connect" : "REFUSED" );
+		}
+	}
 }
 
 //
