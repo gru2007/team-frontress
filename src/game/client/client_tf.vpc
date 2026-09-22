@@ -926,6 +926,8 @@ $Project "Client (TF)"
 
 			$Folder	"Matchmaking"
 			{
+				$File	"$SRCDIR\game\client\tf\frontress\tf_mm_backend.h"
+				$File	"$SRCDIR\game\client\tf\frontress\tf_mm_backend.cpp"
 				$File	"$SRCDIR\game\client\tf\frontress\tf_mainmenu_info.h"
 				$File	"$SRCDIR\game\client\tf\frontress\tf_mainmenu_info.cpp"
 				$File	"$SRCDIR\game\client\tf\frontress\tf_campaign_map.h"
