@@ -1707,8 +1707,9 @@ void CTFGCServerSystem::PreClientUpdate( )
 	static ConVarRef sv_password( "sv_password" );
 	if ( tf_mm_servermode.GetInt() != 0 && *sv_password.GetString() != '\0' )
 	{
-		Warning( "Setting tf_mm_servermode=0 due to sv_password\n" );
-		tf_mm_servermode.SetValue( 0 );
+		Warning( "Setting sv_password as NULL due to servermode as MM \n" );
+		// tf_mm_servermode.SetValue( 0 );
+		sv_password.SetValue( "" );
 	}
 
 //	TFGameRules()->SetStableMode( IsStableMode() );
