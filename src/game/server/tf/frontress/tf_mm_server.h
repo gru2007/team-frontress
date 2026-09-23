@@ -101,6 +101,10 @@ public:
 
 private:
 	bool BPublishLobby();
+	// Destroy the lobby object and create it again. Only a create produces the
+	// SOCreated that builds CMatchInfo, so this is how a lobby that went in
+	// with nobody listening gets a match record after the fact.
+	bool BRepublishLobbyFromScratch();
 	// Hold the door open. The roster only works as a gate for as long as the
 	// server is still in matchmaking mode with no password -- and a map load
 	// can quietly take both of those away. See the definition.
@@ -127,6 +131,11 @@ private:
 
 	CSOTFGameServerLobby m_msgLobby;
 	bool        m_bPublished;
+	// Set while BCreateFromMsg/BUpdateFromMsg are dispatching to listeners.
+	// Publishing from inside that dispatch is what a second create -- read as
+	// a second match -- would come from, so it is deferred to the next frame.
+	bool        m_bPublishingLobby;
+	bool        m_bLobbyPublishPending;
 	bool        m_bWarnedPublishFailed;
 	// The gate complaints are per-match and once each: they fire from a
 	// per-frame check, so anything unrationed buries the console.
@@ -138,6 +147,9 @@ private:
 	bool        m_bAdmissionsReported;
 	float       m_flNextAdmissionCheck;
 	int         m_nAdmissionNudges;
+	// Separate budget from the seat nudges above: this one counts attempts to
+	// make the server build a CMatchInfo at all, which is a different failure.
+	int         m_nMatchRebuilds;
 	// Non-zero while this match intentionally runs as a plain/password
 	// fallback. There is no roster gate to update in that mode.
 	uint64      m_ulPlainMatchID;

@@ -45,13 +45,17 @@ CTFMMServer *TFMMServer() { return &s_TFMMServer; }
 // takes a serialized CMsgSOCacheSubscribed, whose generated header is inside
 // the prebuilt gcsdk library and not part of this build. Generating it here
 // would register a second copy of descriptors the library already owns and
-// abort at startup, so the four fields are written by hand instead.
+// abort at startup, so the message is written by hand instead.
 //
 //   message CMsgSOCacheSubscribed {
 //     message SubscribedType { optional int32 type_id = 1; repeated bytes object_data = 2; }
 //     optional fixed64 owner = 1;
 //     repeated SubscribedType objects = 2;
 //   }
+//
+// Only `owner` is ever written. The subscription is deliberately empty and the
+// lobby follows as an object create -- see BEnsureCacheSubscribed for why that
+// distinction decides whether anybody can connect.
 //-----------------------------------------------------------------------------
 static void PBWriteVarint( CUtlBuffer &buf, uint64 value )
 {
@@ -77,18 +81,12 @@ static void PBWriteFixed64( CUtlBuffer &buf, int nField, uint64 value )
 		buf.PutUnsignedChar( (uint8)( ( value >> ( i * 8 ) ) & 0xFF ) );
 }
 
-static void PBWriteBytes( CUtlBuffer &buf, int nField, const void *pData, int nBytes )
-{
-	PBWriteTag( buf, nField, 2 ); // 2 = length-delimited
-	PBWriteVarint( buf, (uint64)nBytes );
-	if ( nBytes > 0 )
-		buf.Put( pData, nBytes );
-}
-
 //-----------------------------------------------------------------------------
 CTFMMServer::CTFMMServer()
 	: CAutoGameSystemPerFrame( "CTFMMServer" )
 	, m_bPublished( false )
+	, m_bPublishingLobby( false )
+	, m_bLobbyPublishPending( false )
 	, m_bWarnedPublishFailed( false )
 	, m_bWarnedPasswordReturned( false )
 	, m_bWarnedGateDropped( false )
@@ -96,6 +94,7 @@ CTFMMServer::CTFMMServer()
 	, m_bAdmissionsReported( false )
 	, m_flNextAdmissionCheck( 0.0f )
 	, m_nAdmissionNudges( 0 )
+	, m_nMatchRebuilds( 0 )
 	, m_ulPlainMatchID( 0 )
 	, m_bAwaitingMap( false )
 {
@@ -138,6 +137,14 @@ void CTFMMServer::FrameUpdatePreEntityThink()
 	// would be the one thing keeping strangers out.
 	if ( !m_bPublished || m_ulPlainMatchID != 0 )
 		return;
+
+	// A publish that was asked for from inside a shared-object notification.
+	// It is safe now: nothing is dispatching. See BPublishLobby.
+	if ( m_bLobbyPublishPending )
+	{
+		m_bLobbyPublishPending = false;
+		BPublishLobby();
+	}
 
 	EnforceRosterGate();
 
@@ -286,6 +293,32 @@ void CTFMMServer::VerifyAdmissions()
 	if ( !pGC )
 		return;
 
+	// The object is in the cache but no match was built from it. That means
+	// SOCreated never ran for it -- the listener was missing, or the object
+	// arrived as part of a cache subscription rather than as a create -- and
+	// until a match record exists the strict gate refuses every single player,
+	// roster or no roster. Only a create fires SOCreated, so nudging the object
+	// with an update cannot fix this; it has to be put in again from scratch.
+	if ( !pGC->GetMatch() )
+	{
+		const int k_nMaxMatchRebuilds = 3;
+		if ( m_nMatchRebuilds >= k_nMaxMatchRebuilds )
+		{
+			if ( !m_bWarnedAdmissionsStuck )
+			{
+				m_bWarnedAdmissionsStuck = true;
+				Warning( "[mmsrv] !! match %016llx: the lobby is published but the server never "
+				         "built a match record for it, so nobody can connect. "
+				         "Check tf_mm_server_status and the game server's Steam login.\n",
+				         (unsigned long long)m_msgLobby.match_id() );
+			}
+			return;
+		}
+		m_nMatchRebuilds++;
+		BRepublishLobbyFromScratch();
+		return;
+	}
+
 	int nAdmitted = 0;
 	int nRefused = 0;
 	for ( int i = 0; i < m_msgLobby.members_size(); i++ )
@@ -313,6 +346,7 @@ void CTFMMServer::VerifyAdmissions()
 		{
 			m_bAdmissionsReported = true;
 			m_nAdmissionNudges = 0;
+			m_nMatchRebuilds = 0;
 			m_bWarnedAdmissionsStuck = false;
 			Msg( "[mmsrv] match %016llx: the roster gate admits all %d waiting seat(s)\n",
 			     (unsigned long long)m_msgLobby.match_id(), nAdmitted );
@@ -389,6 +423,45 @@ bool CTFMMServer::BeginMatch( uint64 ulMatchID, int nMatchGroup, const char *psz
 		return false;
 	}
 
+	// The coordinator retries the whole configuration pass when it does not
+	// like the outcome, so the *same* assignment can arrive twice. Tearing the
+	// lobby down and rebuilding it is the wrong answer to that: DestroyLobby
+	// takes the shared object away, but CTFGCServerSystem::SODestroyed
+	// deliberately keeps CMatchInfo for a match that has not ended, so the
+	// SOCreated that follows finds a match already running, asserts, and calls
+	// AbortInvalidMatchState -- which drops the server out of matchmaking with
+	// the gate still up. Treat a repeat of the same match as idempotent.
+	if ( m_bPublished && m_msgLobby.match_id() == ulMatchID )
+	{
+		static ConVarRef sv_password_repeat( "sv_password" );
+		static ConVarRef tf_mm_servermode_repeat( "tf_mm_servermode" );
+		static ConVarRef tf_mm_strict_repeat( "tf_mm_strict" );
+		static ConVarRef tf_mm_trusted_repeat( "tf_mm_trusted" );
+
+		m_strFallbackPassword = pszFallbackPassword ? pszFallbackPassword : "";
+		m_strServerConfig = pszServerConfig ? pszServerConfig : "";
+		m_ulPlainMatchID = 0;
+
+		// Whatever was exec'd between the two attempts may have put the
+		// password back or taken the gate down; this is the same re-assertion
+		// EnforceRosterGate does every frame.
+		sv_password_repeat.SetValue( "" );
+		tf_mm_servermode_repeat.SetValue( 1 );
+		tf_mm_strict_repeat.SetValue( 1 );
+		tf_mm_trusted_repeat.SetValue( 1 );
+
+		// The one case worth repairing here is a lobby that went in without
+		// anybody listening, which is what left CMatchInfo missing in the
+		// first place. The listener is installed by now, so a fresh create
+		// gets the SOCreated the first publish never produced.
+		if ( GTFGCClientSystem() && !GTFGCClientSystem()->GetMatch() )
+			BRepublishLobbyFromScratch();
+
+		MMSrvDbg( "match %016llx assignment repeated; keeping the existing lobby\n",
+		          (unsigned long long)ulMatchID );
+		return true;
+	}
+
 	if ( m_bPublished )
 	{
 		// The coordinator does not reuse a server without taking it back
@@ -408,6 +481,7 @@ bool CTFMMServer::BeginMatch( uint64 ulMatchID, int nMatchGroup, const char *psz
 	m_bAdmissionsReported = false;
 	m_flNextAdmissionCheck = 0.0f;
 	m_nAdmissionNudges = 0;
+	m_nMatchRebuilds = 0;
 
 	m_msgLobby.Clear();
 	// The lobby id has to be non-zero and stable; the match id is the only
@@ -630,6 +704,7 @@ int CTFMMServer::AddSeats( uint64 ulMatchID, const CUtlVector< TFMMSeat_t > &vec
 	m_bAdmissionsReported = false;
 	m_bWarnedAdmissionsStuck = false;
 	m_nAdmissionNudges = 0;
+	m_nMatchRebuilds = 0;
 	m_flNextAdmissionCheck = 0.0f;
 
 	Msg( "[mmsrv] match %016llx: %d seat(s) added, %d in the match\n",
@@ -657,6 +732,7 @@ void CTFMMServer::EndMatch( const char *pszWhy )
 	m_bWarnedAdmissionsStuck = false;
 	m_bAdmissionsReported = false;
 	m_nAdmissionNudges = 0;
+	m_nMatchRebuilds = 0;
 
 	// Put the server back the way we found it. A server handed back to the
 	// pool still advertising itself as an official match, still gating on a
@@ -677,22 +753,43 @@ bool CTFMMServer::BEnsureCacheSubscribed()
 	if ( !steamID.IsValid() || !GCClientSystem() || !GCClientSystem()->GetGCClient() )
 		return false;
 
+	// Do not rely on PreClientUpdate for this. An empty dedicated server enters
+	// hibernation before Steam login completes, then takes the assignment over
+	// RCON without another frame reaching the listener-registration code. The
+	// listener has to exist before BCreateFromMsg/AddLocalSOCache emits
+	// SOCreated: that call is what builds CMatchInfo, and without CMatchInfo
+	// SteamIDAllowedToConnect refuses everybody while strict mode is up. The
+	// symptom is a match that reports "roster gate up" and then turns every
+	// player away with "this server is matchmaking only".
+	if ( !GTFGCClientSystem() || !GTFGCClientSystem()->EnsureSOCacheListener() )
+		return false;
+
 	GCSDK::CGCClientSharedObjectCache *pCache = GCClientSystem()->GetSOCache( steamID );
 	if ( pCache && pCache->BIsSubscribed() )
 		return true;
 
-	std::string strLobby;
-	if ( !m_msgLobby.SerializeToString( &strLobby ) )
-		return false;
-
-	CUtlBuffer bufType( 0, 2048, 0 );
-	PBWriteTag( bufType, 1, 0 ); // type_id, varint
-	PBWriteVarint( bufType, (uint64)CTFGSLobby::k_nTypeID );
-	PBWriteBytes( bufType, 2, strLobby.data(), (int)strLobby.size() );
-
-	CUtlBuffer bufMsg( 0, 2176, 0 );
+	// Subscribe an *empty* cache. The lobby deliberately does not travel inside
+	// the subscription payload, and that is the whole difference between a
+	// match that works and one that turns everybody away.
+	//
+	// A cache subscription notifies listeners with SOCacheSubscribed: one bulk
+	// event saying "here is a whole cache". Per-object SOCreated is only
+	// dispatched for objects created *after* the subscription. And
+	// CTFGCServerSystem::SOCacheSubscribed is an empty override -- on retail
+	// the server subscribes its own empty cache at Steam login and the GC
+	// creates the lobby in it afterwards, so SOCreated is the only path that
+	// ever mattered there.
+	//
+	// SOCreated is also the only place that does `m_pMatchInfo = new CMatchInfo`.
+	// Shipping the lobby inside the subscription therefore produced a cache
+	// holding a perfectly good lobby, no match record, and a strict gate that
+	// answers false for every SteamID -- while BeginMatch still reported
+	// "roster gate up" and TFMM_MATCH_BEGIN_OK, because publishing really had
+	// succeeded.
+	//
+	// So: subscribe empty here, and let BPublishLobby create the object.
+	CUtlBuffer bufMsg( 0, 64, 0 );
 	PBWriteFixed64( bufMsg, 1, steamID.ConvertToUint64() );
-	PBWriteBytes( bufMsg, 2, bufType.Base(), bufType.TellPut() );
 
 	pCache = GCClientSystem()->GetGCClient()->AddLocalSOCache( steamID, bufMsg.Base(), (uint32)bufMsg.TellPut() );
 	if ( !pCache || !pCache->BIsSubscribed() )
@@ -702,18 +799,79 @@ bool CTFMMServer::BEnsureCacheSubscribed()
 		return false;
 	}
 
-	// The lobby went in with the subscription, and the listener CTFGCServerSystem
-	// registered on this cache has already been told about it.
-	m_bPublished = true;
-	m_strLastPublished = strLobby.c_str();
+	MMSrvDbg( "subscribed an empty game server SO cache; the lobby follows as a create\n" );
+	return true;
+}
 
-	MMSrvDbg( "subscribed the game server SO cache ourselves\n" );
+//-----------------------------------------------------------------------------
+// Purpose: Put the lobby in again as a *new* object rather than an update.
+//
+//			SOCreated is the only notification that builds a CMatchInfo, and it
+//			only fires on a create. So a lobby that is sitting in the cache with
+//			no match behind it cannot be repaired by publishing over it: the
+//			object has to go and come back.
+//-----------------------------------------------------------------------------
+bool CTFMMServer::BRepublishLobbyFromScratch()
+{
+	if ( !BEnsureCacheSubscribed() )
+		return false;
+
+	GCSDK::CGCClientSharedObjectCache *pCache = GCClientSystem()->GetSOCache( OurSteamID() );
+	if ( !pCache )
+		return false;
+
+	std::string strData;
+	if ( !m_msgLobby.SerializeToString( &strData ) )
+		return false;
+
+	GCSDK::CSharedObjectTypeCache *pType = pCache->FindBaseTypeCache( CTFGSLobby::k_nTypeID );
+	if ( pType && pType->GetCount() > 0 && !m_strLastPublished.IsEmpty() )
+	{
+		pCache->BDestroyFromMsg( CTFGSLobby::k_nTypeID,
+		                         m_strLastPublished.Get(), (uint32)m_strLastPublished.Length() );
+	}
+
+	// Same dispatch hazard as BPublishLobby: this create runs SOCreated, which
+	// comes back through BApplyMatchmakingStatus wanting to publish.
+	m_bPublishingLobby = true;
+	const bool bCreated = pCache->BCreateFromMsg( CTFGSLobby::k_nTypeID, strData.data(), (uint32)strData.size() );
+	m_bPublishingLobby = false;
+
+	if ( !bCreated )
+	{
+		Warning( "[mmsrv] could not re-publish the lobby for match %016llx\n",
+		         (unsigned long long)m_msgLobby.match_id() );
+		return false;
+	}
+
+	m_bPublished = true;
+	m_strLastPublished = strData.c_str();
+	Msg( "[mmsrv] match %016llx: lobby re-published to build the match record\n",
+	     (unsigned long long)m_msgLobby.match_id() );
 	return true;
 }
 
 //-----------------------------------------------------------------------------
 bool CTFMMServer::BPublishLobby()
 {
+	// Re-entry is normal here, not exceptional. BCreateFromMsg notifies
+	// listeners synchronously, and on this side a notification runs the whole
+	// match-setup path: SOCreated builds CMatchInfo, accepts the roster's
+	// reservations and sends the acknowledgement, which this class answers in
+	// BApplyMatchmakingStatus -- which changes the lobby and asks to publish
+	// it, from inside the create that is still running.
+	//
+	// Doing that would put a second create into a cache that is mid-dispatch,
+	// and SOCreated reads a second anticipated lobby as a second match: it
+	// asserts and calls AbortInvalidMatchState, which quits the server. So
+	// take the note. The change is already in m_msgLobby; the next frame
+	// writes it.
+	if ( m_bPublishingLobby )
+	{
+		m_bLobbyPublishPending = true;
+		return true;
+	}
+
 	if ( !BEnsureCacheSubscribed() )
 		return false;
 
@@ -735,6 +893,8 @@ bool CTFMMServer::BPublishLobby()
 	if ( m_bPublished && bExists && strData == m_strLastPublished.Get() )
 		return true;
 
+	m_bPublishingLobby = true;
+
 	bool bOK = bExists
 		? pCache->BUpdateFromMsg( CTFGSLobby::k_nTypeID, strData.data(), (uint32)strData.size() )
 		: pCache->BCreateFromMsg( CTFGSLobby::k_nTypeID, strData.data(), (uint32)strData.size() );
@@ -749,9 +909,17 @@ bool CTFMMServer::BPublishLobby()
 		bOK = pCache->BCreateFromMsg( CTFGSLobby::k_nTypeID, strData.data(), (uint32)strData.size() );
 	}
 
+	m_bPublishingLobby = false;
+
 	if ( bOK )
 	{
 		m_bPublished = true;
+		// strData is what the cache now holds, which is what DestroyLobby has
+		// to hand back to BDestroyFromMsg. If the dispatch above changed the
+		// lobby further -- SOCreated accepts the roster's reservations and
+		// comes back through BApplyMatchmakingStatus -- that landed in
+		// m_msgLobby and is carried by the deferred publish below, not by
+		// pretending we already wrote it.
 		m_strLastPublished = strData.c_str();
 		m_bWarnedPublishFailed = false;
 		return true;
@@ -782,6 +950,8 @@ void CTFMMServer::DestroyLobby()
 	}
 
 	m_bPublished = false;
+	m_bPublishingLobby = false;
+	m_bLobbyPublishPending = false;
 	m_strLastPublished.Clear();
 	m_msgLobby.Clear();
 }

@@ -1549,22 +1549,7 @@ void CTFGCServerSystem::PreClientUpdate( )
 	CSteamID const *pSteamID = engine->GetGameServerSteamID();
 	if ( pSteamID && m_ourSteamID != *pSteamID )
 	{
-		Assert( pSteamID->BGameServerAccount() );
-
-		// If we were previously listening to somebody else, stop listening.  This
-		// means we were connected, then reconnected and got a different Steam ID,
-		// and is weird, but possible
-		if ( m_ourSteamID.IsValid() )
-		{
-			MMLog( "CTFGCServerSystem - removing listener to old Steam ID %s\n", m_ourSteamID.Render() );
-			GCClientSystem()->GetGCClient()->RemoveSOCacheListener( m_ourSteamID, this );
-		}
-
-		// Remember our new Steam ID
-		m_ourSteamID = *pSteamID;
-
-		// And start listening
-		GCClientSystem()->GetGCClient()->AddSOCacheListener( m_ourSteamID, this );
+		EnsureSOCacheListener();
 	}
 
 	MatchPlayerAbandonThink();
@@ -1729,6 +1714,45 @@ void CTFGCServerSystem::PreClientUpdate( )
 //		MMLog( "Setting 'sv_region 255 ' due to tf_mm_servermode\n" );
 //		sv_region.SetValue( 255 );
 //	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Listen to the shared-object cache belonging to this game server.
+//
+// Normally PreClientUpdate notices the Steam ID transition and calls this.
+// Empty dedicated servers hibernate immediately, however, and can receive a
+// match over RCON after Steam login without running another PreClientUpdate.
+// Publishing a lobby in that window succeeds but nobody receives SOCreated,
+// so CMatchInfo is never constructed and strict admission rejects everybody.
+//-----------------------------------------------------------------------------
+bool CTFGCServerSystem::EnsureSOCacheListener()
+{
+	if ( !engine || !GCClientSystem() || !GCClientSystem()->GetGCClient() )
+		return false;
+
+	const CSteamID *pSteamID = engine->GetGameServerSteamID();
+	if ( !pSteamID || !pSteamID->IsValid() )
+		return false;
+
+	Assert( pSteamID->BGameServerAccount() );
+	const bool bSteamIDChanged = ( m_ourSteamID != *pSteamID );
+
+	// If we were previously listening to somebody else, stop listening.  This
+	// means we were connected, then reconnected and got a different Steam ID,
+	// and is weird, but possible
+	if ( m_ourSteamID.IsValid() && m_ourSteamID != *pSteamID )
+	{
+		MMLog( "CTFGCServerSystem - removing listener to old Steam ID %s\n", m_ourSteamID.Render() );
+		GCClientSystem()->GetGCClient()->RemoveSOCacheListener( m_ourSteamID, this );
+	}
+
+	m_ourSteamID = *pSteamID;
+	// Re-adding an existing listener is explicitly harmless. Doing it here is
+	// important if a local cache was recreated while the server was hibernating.
+	GCClientSystem()->GetGCClient()->AddSOCacheListener( m_ourSteamID, this );
+	if ( bSteamIDChanged )
+		MMLog( "CTFGCServerSystem - listening to game server Steam ID %s\n", m_ourSteamID.Render() );
+	return true;
 }
 
 void CTFGCServerSystem::MatchPlayerAbandonThink()
