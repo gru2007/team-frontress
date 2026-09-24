@@ -12,7 +12,8 @@ $Configuration
 		// the app it launched, so a copy from either the playtest or the main app
 		// initialises as the app it was started from. This is what a build run by
 		// hand, outside Steam, attaches to.
-		$PreprocessorDefinitions	"$BASE;MOD_APPID=5147380" // Team Frontress Playtest.
+		// The demo branch builds the Team Frontress Demo app.
+		$PreprocessorDefinitions	"$BASE;MOD_APPID=5260620" // Team Frontress Demo.
 	}
 }
 

@@ -55,6 +55,9 @@ enum mm_button_styles
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+// The HTML menu is up: tf_main_menu_html, or the Team Frontress demo page.
+bool TFMainMenuUsesHtml();
+
 class CHudMainMenuOverride : public vgui::EditablePanel, public IViewPortPanel, public CGameEventListener
 {
 	DECLARE_CLASS_SIMPLE( CHudMainMenuOverride, vgui::EditablePanel );

@@ -556,6 +556,9 @@ settings.scr
 user.scr
 *.ain
 autoexec.cfg
+# The demo's campaign, written by the game at runtime.
+frontress_demo_state.json
+frontress_demo_state.json.tmp
 GameState.txt
 stats.txt
 voice_ban.dt

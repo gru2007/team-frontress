@@ -44,6 +44,13 @@ public:
 	// its argument, e.g. "deploy works". Drained on the main thread.
 	void TakeCampaignCommands( std::vector< std::string > &vecOut );
 
+	// The Team Frontress demo (resource/html/frontress) owns its campaign; the
+	// page keeps it in cfg/frontress_demo_state.json through
+	// GET/PUT /v1/demo/state, which the HTTP thread serves on its own. What the
+	// game adds is the one thing the page cannot see: how the battle it asked
+	// for ended. That is published here and read from GET /v1/demo/battle.
+	void SetDemoBattleJSON( const std::string &strJSON );
+
 	bool IsReady() { return m_bReady; }
 	void MarkReady() { m_bReady = true; }
 	bool IsUIReady() { return m_bUIReady; }

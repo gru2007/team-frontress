@@ -58,6 +58,7 @@
 #include "tf_quest_map_utils.h"
 #include "tf_matchmaking_dashboard.h"
 #include "frontress/tf_mainmenu_info.h"
+#include "frontress/tf_frontress_demo.h"
 #include "tf_pvp_rank_panel.h"
 
 #include "econ_paintkit.h"
@@ -126,6 +127,13 @@ static void MainMenuHtmlChanged( IConVar *pVar, const char *pOldValue, float flO
 ConVar tf_main_menu_html( "tf_main_menu_html", "0", FCVAR_ARCHIVE,
                           "Use the HTML main menu. 0 uses Team Fortress' own VGUI main menu instead.",
                           true, 0, true, 1, MainMenuHtmlChanged );
+
+// The Team Frontress demo page is a web page too, and wears the HTML layout
+// whatever tf_main_menu_html says.
+bool TFMainMenuUsesHtml()
+{
+	return tf_main_menu_html.GetBool() || TFFrontressDemoMenu();
+}
 
 static void MainMenuHtmlChanged( IConVar *pVar, const char *pOldValue, float flOldValue )
 {
@@ -292,8 +300,8 @@ CHudMainMenuOverride::CHudMainMenuOverride( IViewPort *pViewPort ) : BaseClass( 
 	// Built either way so the convar can be flipped without restarting; when it
 	// is off the panel is simply never shown. ApplySchemeSettings picks the
 	// layout, this is just so it starts out hidden before the first one.
-	m_pMainMenuWebUi = new CInteractiveWebPanel( this, "TFMainMenuWebUi", "ui/index.html", true, false );
-	m_pMainMenuWebUi->SetVisible( tf_main_menu_html.GetBool() );
+	m_pMainMenuWebUi = new CInteractiveWebPanel( this, "TFMainMenuWebUi", TFFrontressMenuPage(), true, false );
+	m_pMainMenuWebUi->SetVisible( TFMainMenuUsesHtml() );
 
 	// The campaign / queue / news column. Built in code rather than in the .res
 	// because the .res lives in a pak we do not build; PerformLayout puts it
@@ -392,7 +400,7 @@ CON_COMMAND( tf_mainmenu_info_reload, "Re-read the main menu's campaign and news
 //-----------------------------------------------------------------------------
 void CHudMainMenuOverride::UpdateMainMenuChrome()
 {
-	const bool bHtmlMenu = tf_main_menu_html.GetBool();
+	const bool bHtmlMenu = TFMainMenuUsesHtml();
 
 	// Shown by the VGUI menu, hidden while the web page is up.
 	auto lambdaVGuiOnly = [ & ]( const char *pszName )
@@ -448,7 +456,7 @@ void CHudMainMenuOverride::UpdateMainMenuWebUiVisibility()
 	if ( !m_pMainMenuWebUi )
 		return;
 
-	if ( !tf_main_menu_html.GetBool() && m_pMainMenuWebUi->IsVisible() )
+	if ( !TFMainMenuUsesHtml() && m_pMainMenuWebUi->IsVisible() )
 	{
 		// Tell the page it is going away, the same way closing the menu
 		// does, so anything it has running stops.
@@ -523,7 +531,7 @@ void CHudMainMenuOverride::OnTick()
 
 	if ( bInGame || bInReplay || bIsConnected || bBackgroundLevel )
 	{
-		if ( m_pMainMenuWebUi && tf_main_menu_html.GetBool() )
+		if ( m_pMainMenuWebUi && TFMainMenuUsesHtml() )
 		{
 			if ( GetGameStateManager()->IsReady() )
 			{
@@ -783,7 +791,7 @@ void CHudMainMenuOverride::ApplySchemeSettings( IScheme *scheme )
 
 	// ...and which of the two menus we're wearing. Everything the web page
 	// draws itself is hidden by the if_htmlmenu blocks in the .res.
-	if ( tf_main_menu_html.GetBool() )
+	if ( TFMainMenuUsesHtml() )
 	{
 		AddSubKeyNamed( pConditions, "if_htmlmenu" );
 	}
@@ -933,7 +941,7 @@ void CHudMainMenuOverride::ApplySchemeSettings( IScheme *scheme )
 
 	PerformKeyRebindings();
 
-	if ( m_pMainMenuWebUi && !tf_main_menu_html.GetBool() )
+	if ( m_pMainMenuWebUi && !TFMainMenuUsesHtml() )
 	{
 		// The .res leaves it hidden, but don't rely on that to keep an already
 		// loaded page from painting over the VGUI menu.
@@ -1683,7 +1691,7 @@ void CHudMainMenuOverride::OnUpdateMenu( void )
 			// TODO(mcoms): main menu music not working
 			//PlayMainMenuMusic();
 		}
-		if ( m_pMainMenuWebUi && tf_main_menu_html.GetBool() )
+		if ( m_pMainMenuWebUi && TFMainMenuUsesHtml() )
 		{
 			if ( GetGameStateManager()->IsReady() )
 			{
@@ -1700,7 +1708,7 @@ void CHudMainMenuOverride::OnUpdateMenu( void )
 	// Position the entries. These come from GameMenu.res rather than from our
 	// own .res, so the if_htmlmenu blocks can't reach them -- keep them down by
 	// hand while the web page is drawing its own buttons.
-	const bool bHtmlMenu = tf_main_menu_html.GetBool();
+	const bool bHtmlMenu = TFMainMenuUsesHtml();
 
 	// The information column belongs to the VGUI menu, and only at the menu:
 	// in game this panel is the pause screen, which nobody wants news on.

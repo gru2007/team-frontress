@@ -94,6 +94,8 @@ static const AppId_t k_unTF2AppId = 440;
 // not from here: these are only for asking Steam where an app is installed.
 static const AppId_t k_unSDK2013MPAppId = 5147520;
 static const AppId_t k_unMainAppId = 5147380;
+// The Steam Next Fest demo, built from the demo branch and published on its own.
+static const AppId_t k_unDemoAppId = 5260620;
 // The dedicated server ships as a Steam Tool of its own.
 static const AppId_t k_unSDK2013DSAppId = 5150320;
 
@@ -284,6 +286,11 @@ static bool GetGameInstallDir( const char *pRootDir, char *pszBuf, int nBufSize,
 		if ( unLength == 0 && pSteamApps->BIsAppInstalled( k_unMainAppId ) )
 		{
 			unLength = pSteamApps->GetAppInstallDir( k_unMainAppId, pszBuf, nBufSize );
+		}
+
+		if ( unLength == 0 && pSteamApps->BIsAppInstalled( k_unDemoAppId ) )
+		{
+			unLength = pSteamApps->GetAppInstallDir( k_unDemoAppId, pszBuf, nBufSize );
 		}
 #endif
 	}

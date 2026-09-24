@@ -35,7 +35,7 @@ using namespace vgui;
 using namespace GCSDK;
 
 extern ConVar tf_mm_next_map_vote_time;
-extern ConVar tf_main_menu_html;
+bool TFMainMenuUsesHtml();
 ConVar tf_mm_dashboard_slide_panel_step( "tf_mm_dashboard_slide_panel_step", "20", FCVAR_ARCHIVE );
 ConVar tf_casual_welcome_hide( "tf_casual_welcome_hide", "0", FCVAR_ARCHIVE | FCVAR_HIDDEN );
 ConVar tf_comp_welcome_hide( "tf_comp_welcome_hide", "0", FCVAR_ARCHIVE | FCVAR_HIDDEN );
@@ -678,7 +678,7 @@ void CTFMatchmakingDashboard::UpdateTopBarVisibility()
 {
 	// In game this panel is the pause screen's top bar, which the web menu
 	// never replaces.
-	const bool bWebMenu = ( tf_main_menu_html.GetBool() && !engine->IsInGame() );
+	const bool bWebMenu = ( TFMainMenuUsesHtml() && !engine->IsInGame() );
 
 	// Only when it changes: this runs every tick, and telling a panel it is
 	// already visible still walks its children.

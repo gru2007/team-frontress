@@ -157,7 +157,8 @@ public:
 		"getmodes",
 		"getmode",
 		"playsound",
-		"getingame"
+		"getingame",
+		"getlanguage"
 	},
 	m_UnprivilegedEvents{
 		"ingame",
@@ -222,6 +223,41 @@ public:
 			}
 
 			return crow::response( 204 );
+		});
+		// The Team Frontress demo's campaign. The page owns it and the game
+		// only keeps it: one JSON document, written whole to a temporary file
+		// and swapped in, so a crash mid-write leaves the previous war rather
+		// than none. No file yet is an empty object, which the page reads as
+		// "new campaign".
+		m_strDemoStatePath = CFmtStr1024( "%s/cfg/frontress_demo_state.json", pGameDir ).Get();
+		CROW_ROUTE(app, "/v1/demo/state").methods( crow::HTTPMethod::Get, crow::HTTPMethod::Put )([&]( const crow::request &req )
+		{
+			if ( req.method == crow::HTTPMethod::Put )
+			{
+				if ( req.body.size() > 256 * 1024 )
+				{
+					return crow::response( 413 );
+				}
+				if ( req.body.empty() || req.body[0] != '{' || !crow::json::load( req.body ) )
+				{
+					return crow::response( 400 );
+				}
+				return crow::response( WriteDemoState( req.body ) ? 204 : 500 );
+			}
+
+			crow::response res( ReadDemoState() );
+			res.set_header( "Content-Type", "application/json" );
+			res.set_header( "Cache-Control", "no-store" );
+			return res;
+		});
+		// How the battle the demo last launched ended, once it has. Published
+		// by the game (see tf_frontress_demo.cpp).
+		CROW_ROUTE(app, "/v1/demo/battle")([&]
+		{
+			crow::response res( GetDemoBattleDocument() );
+			res.set_header( "Content-Type", "application/json" );
+			res.set_header( "Cache-Control", "no-store" );
+			return res;
 		});
 		CROW_WEBSOCKET_ROUTE(app, "/ws")
 		.onaccept([&]( const crow::request& req, void** userdata) {
@@ -562,6 +598,63 @@ public:
 		m_CampaignCommands.clear();
 	}
 
+	void SetDemoBattleDocument( const std::string& strJSON )
+	{
+		AUTO_LOCK( m_DemoMutex )
+		m_strDemoBattleJSON = strJSON;
+	}
+
+	std::string GetDemoBattleDocument()
+	{
+		AUTO_LOCK( m_DemoMutex )
+		return m_strDemoBattleJSON.empty() ? std::string( "{}" ) : m_strDemoBattleJSON;
+	}
+
+	std::string ReadDemoState()
+	{
+		AUTO_LOCK( m_DemoMutex )
+		std::string strOut;
+		FILE *fp = fopen( m_strDemoStatePath.c_str(), "rb" );
+		if ( fp )
+		{
+			char buf[ 4096 ];
+			size_t n;
+			while ( ( n = fread( buf, 1, sizeof( buf ), fp ) ) > 0 )
+			{
+				strOut.append( buf, n );
+			}
+			fclose( fp );
+		}
+		// A file that is not a JSON object is a broken save; the page starts
+		// over rather than failing to load the menu.
+		if ( strOut.empty() || strOut[0] != '{' )
+		{
+			return "{}";
+		}
+		return strOut;
+	}
+
+	bool WriteDemoState( const std::string& strJSON )
+	{
+		AUTO_LOCK( m_DemoMutex )
+		const std::string strTemp = m_strDemoStatePath + ".tmp";
+		FILE *fp = fopen( strTemp.c_str(), "wb" );
+		if ( !fp )
+		{
+			return false;
+		}
+		bool bOK = fwrite( strJSON.data(), 1, strJSON.size(), fp ) == strJSON.size();
+		bOK = ( fclose( fp ) == 0 ) && bOK;
+		if ( !bOK )
+		{
+			remove( strTemp.c_str() );
+			return false;
+		}
+		// rename() will not replace an existing file on Windows.
+		remove( m_strDemoStatePath.c_str() );
+		return rename( strTemp.c_str(), m_strDemoStatePath.c_str() ) == 0;
+	}
+
 	void RegisterMethod( std::string methodName, const std::function<std::pair<bool, std::string>( const std::string& params, int64_t iRpcId )>& method )
 	{
 		if (!ThreadInMainThread())
@@ -618,6 +711,10 @@ private:
 	std::string m_strCampaignJSON;
 	std::vector<std::string> m_CampaignCommands;
 	CThreadMutex m_CampaignMutex;
+
+	std::string m_strDemoStatePath;
+	std::string m_strDemoBattleJSON;
+	CThreadMutex m_DemoMutex;
 
 	std::unordered_set<std::string> m_UnprivilegedMethods;
 	std::unordered_set<std::string> m_UnprivilegedEvents;
@@ -786,6 +883,17 @@ bool CGameStateManager::Init()
 	{
 		vgui::surface()->PlaySound(params.c_str());
 		std::string str;
+		return std::make_pair( true, str );
+	}));
+
+	// The language the running game draws its own UI in -- Steam's choice for
+	// the app, or -language -- so a page can match it instead of guessing.
+	RegisterMethod( "getlanguage", std::function( []( const std::string& params, int64_t iRpcId )
+	{
+		char szLanguage[ 64 ];
+		szLanguage[ 0 ] = '\0';
+		engine->GetUILanguage( szLanguage, sizeof( szLanguage ) );
+		std::string str = szLanguage[ 0 ] ? szLanguage : "english";
 		return std::make_pair( true, str );
 	}));
 
@@ -1001,6 +1109,16 @@ void CGameStateManager::SetCampaignJSON( const std::string &strJSON )
 	Assert( m_pServerThread );
 
 	m_pServerThread->SetCampaignDocument( strJSON );
+}
+
+void CGameStateManager::SetDemoBattleJSON( const std::string &strJSON )
+{
+	if ( !m_bInit )
+		return;
+
+	Assert( m_pServerThread );
+
+	m_pServerThread->SetDemoBattleDocument( strJSON );
 }
 
 void CGameStateManager::TakeCampaignCommands( std::vector< std::string > &vecOut )

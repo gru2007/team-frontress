@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team Frontress</title>
+<!--
+  The Team Frontress demo: the page the game opens instead of its main menu.
+
+  Served by the game's own local server (http://127.0.0.1:58270/ui/frontress/)
+  and talks back to it through /ws and /v1/demo/*; see js/core/bridge.js.
+  Opened from disk or any other server it runs standalone, with the campaign
+  in localStorage and battles simulated -- which is how it is designed and
+  tested. No build step: edit and reload.
+
+  ?dev          developer tools in Settings
+  ?bridge=...   force 'browser' or 'game'
+  ?screen=war   skip the title screen
+-->
+<link rel="stylesheet" href="css/frontress.css">
+</head>
+<body data-faction="none">
+	<div id="app"></div>
+	<div id="overlay"></div>
+	<noscript>Team Frontress needs JavaScript.</noscript>
+	<script type="module" src="js/main.js"></script>
+</body>
+</html>

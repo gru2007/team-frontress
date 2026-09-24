@@ -935,6 +935,8 @@ $Project "Client (TF)"
 				$File	"$SRCDIR\game\client\tf\frontress\tf_mainmenu_info.cpp"
 				$File	"$SRCDIR\game\client\tf\frontress\tf_campaign_map.h"
 				$File	"$SRCDIR\game\client\tf\frontress\tf_campaign_map.cpp"
+				$File	"$SRCDIR\game\client\tf\frontress\tf_frontress_demo.h"
+				$File	"$SRCDIR\game\client\tf\frontress\tf_frontress_demo.cpp"
 
 				$File	"$SRCDIR\game\client\tf\tf_gc_client.cpp"
 				$File	"$SRCDIR\game\client\tf\tf_gc_client.h"
