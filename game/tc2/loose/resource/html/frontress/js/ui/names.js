@@ -29,6 +29,7 @@ export function logVars( s, entry ) {
 		v.target = sectorName( s, v.target );
 	}
 	if ( v.stage ) v.stage = stageName( v.stage );
+	if ( v.rank ) v.rank = t( `rank.${ v.rank }` );
 	if ( !v.faction ) v.faction = s.faction;
 	return v;
 }

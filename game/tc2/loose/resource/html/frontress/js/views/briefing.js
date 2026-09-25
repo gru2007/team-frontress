@@ -4,7 +4,7 @@
 
 import { h } from '../core/dom.js';
 import { t } from '../core/i18n.js';
-import { stageTrack, chevrons } from './parts.js';
+import { stageTrack, chevrons, conditionChip, medal } from './parts.js';
 
 // The coordinator's population table (README: "Designed for a small
 // population first").
@@ -73,6 +73,18 @@ export function renderBriefing( ctx ) {
 				slider,
 				h( 'div.front-pips', null, [ 0, 1, 2, 3 ].map( i => h( 'span', { class: `front-pip ${ i < sc.fronts ? 'on' : '' }` } ) ) ),
 				h( 'p', null, t( 'brief.scale.body' ) ),
+			),
+
+			h( 'section.card.brief-card', null,
+				h( 'h2', null, t( 'brief.cond.title' ) ),
+				h( 'div.cond-list', null, [ 'snipers', 'sentries', 'lowgrav' ].map( id => conditionChip( id ) ) ),
+				h( 'p', null, t( 'brief.cond.body' ) ),
+			),
+
+			h( 'section.card.brief-card', null,
+				h( 'h2', null, t( 'brief.you.title' ) ),
+				h( 'div.medal-row', null, [ 'mvp', 'slayer', 'lifeline' ].map( medal ) ),
+				h( 'p', null, t( 'brief.you.body' ) ),
 			),
 
 			h( 'section.card.brief-card.wide', null,

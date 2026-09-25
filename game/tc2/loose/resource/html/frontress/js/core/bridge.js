@@ -127,9 +127,20 @@ class GameBridge {
 
 	// The game team, not the war side: on a swapped-uniform battle a RED
 	// offensive plays BLU and the last argument tells the game to redraw it.
+	//
+	// Then the battle as planned (campaign.js planBattle): bots per side and
+	// their skill, enemies of a set class, and the conditions the game runs as
+	// cfg/frontress_mod_<id>.cfg. key=value, never ':' -- the console splits on it.
 	async deploy( p ) {
 		const team = p.team === 'RED' ? 'red' : 'blue';
-		await this.cmd( `frontress_demo_deploy ${ p.ticket } ${ p.map } ${ team } ${ p.players } ${ p.cls || 'any' } ${ p.swap ? 1 : 0 }` );
+		const opts = [];
+		if ( p.roster ) {
+			const r = p.roster;
+			opts.push( `allies=${ r.allies }`, `enemies=${ r.enemies }`, `askill=${ r.askill }`, `eskill=${ r.eskill }` );
+			for ( const [ cls, n ] of Object.entries( r.eclass || {} ) ) opts.push( `ec_${ cls }=${ n }` );
+		}
+		for ( const id of p.cfg || [] ) opts.push( `mod=${ id }` );
+		await this.cmd( [ 'frontress_demo_deploy', p.ticket, p.map, team, p.players, p.cls || 'any', p.swap ? 1 : 0, ...opts ].join( ' ' ) );
 		return true;
 	}
 
@@ -173,7 +184,7 @@ class BrowserBridge {
 	async deploy() { return true; }
 
 	// The page's stand-in for a round ending.
-	simulate( ticket, winner ) { this.result = { ticket, winner: winner || 'none' }; }
+	simulate( ticket, winner, stats = null ) { this.result = { ticket, winner: winner || 'none', stats }; }
 
 	clearBattle() { this.result = {}; }
 	resume() {}

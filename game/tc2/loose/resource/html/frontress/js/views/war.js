@@ -10,6 +10,7 @@ import { logo, emblem, stageTrack, momentum, chevrons } from './parts.js';
 import { renderDossier } from './dossier.js';
 import { renderJournal } from './journal.js';
 import { renderBriefing } from './briefing.js';
+import { supplyIcon } from './dossier.js';
 
 // The theater is expensive to build and holds hover state: keep it across
 // renders for as long as the war it shows has not changed.
@@ -69,9 +70,20 @@ function topbar( ctx ) {
 			),
 		),
 		h( 'div.day-chip', null, h( 'span', null, t( 'hud.day' ) ), h( 'strong', null, String( s.day ) ) ),
+		h( 'div.day-chip.supply-top', { title: t( 'hud.supplyHint' ) }, supplyIcon(), h( 'strong', null, String( s.supply ) ) ),
+		rankChip( s ),
 		h( 'div.faction-chip', null, emblem( s.faction ), h( 'span', null, s.faction ) ),
 		h( 'button.icon-btn', { onclick: () => act.overlay( 'settings' ), title: t( 'title.settings' ) }, gearIcon() ),
 	);
+}
+
+function rankChip( s ) {
+	const r = C.rankFor( s.xp );
+	return h( 'div.rank-chip', { title: r.next ? t( 'hud.xpToNext', { n: r.toNext, rank: t( `rank.${ r.next }` ) } ) : t( 'hud.maxRank' ) },
+		h( 'span.rank-stripes', { class: `r${ r.index }` }, Array.from( { length: Math.min( 3, r.index + 1 ) }, () => h( 'i' ) ) ),
+		h( 'span.rank-text', null,
+			h( 'strong', null, t( `rank.${ r.id }` ) ),
+			h( 'span.rank-bar', null, h( 'span', { style: { width: `${ Math.round( r.progress * 100 ) }%` } } ) ) ) );
 }
 
 function gearIcon() {
@@ -122,7 +134,15 @@ function sidebar( ctx ) {
 		h( 'button.link', { onclick: () => act.tab( 'journal' ) }, t( 'nav.journal' ) + ' →' ),
 	);
 
-	return h( 'aside.sidebar', null, opCard, stats, dispatches );
+	const threat = s.threat && !s.finished
+		? h( 'section.card.threat-card.hoverable', { onclick: () => act.select( s.threat.node ) },
+			h( 'div.card-kicker', null, t( 'threat.title' ) ),
+			h( 'p', null, t( s.threat.left <= 1 ? 'threat.bodyLast' : 'threat.body',
+				{ faction: C.enemyOf( s.faction ), target: sectorName( s, s.threat.node ), n: s.threat.left } ) ),
+			h( 'button.btn.btn-bad.btn-small', null, t( 'threat.defend' ) ) )
+		: null;
+
+	return h( 'aside.sidebar', null, threat, opCard, stats, dispatches );
 }
 
 const stat = ( label, value, cls = '' ) =>
@@ -156,6 +176,14 @@ function deployDock( ctx ) {
 	const r = C.recommend( s );
 	if ( !r ) {
 		return h( 'div.deploy-dock', null, h( 'button.btn-deploy', { disabled: true }, h( 'span.deploy-word', null, t( 'deploy.none' ) ) ) );
+	}
+
+	if ( r.kind === 'defense' ) {
+		const dz = C.defenseZoneFor( s, r.target, ctx.ui.zone[ `def:${ r.target }` ] || r.zone );
+		return h( 'div.deploy-dock', null,
+			h( 'button.btn-deploy.defend', { onclick: act.autoDeploy },
+				chevrons(), h( 'span.deploy-word', null, t( 'deploy.button' ) ) ),
+			h( 'div.deploy-sub.urgent', null, `${ t( 'coord.threat' ) }: ${ sectorName( s, r.target ) } · ${ modeName( dz.mode ) }` ) );
 	}
 
 	const zone = C.zoneFor( s, r.target, r.stage, ctx.ui.zone[ `${ r.target }:${ r.stage }` ] || r.zone );

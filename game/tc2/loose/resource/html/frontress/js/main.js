@@ -6,6 +6,7 @@ import { connectBridge } from './core/bridge.js';
 import { setLanguage, guessLanguage, t } from './core/i18n.js';
 import { mount } from './core/dom.js';
 import * as C from './game/campaign.js';
+import { setUpShot } from './dev/shots.js';
 
 import { renderTitle } from './views/title.js';
 import { renderFaction } from './views/faction.js';
@@ -45,6 +46,7 @@ class App {
 			tab: 'map',
 			selected: null,
 			zone: {},          // chosen landing zone per target, for this session
+			asset: null,       // the support asset picked for the next manual deploy
 			overlay: null,     // { type, ... }
 			inGame: false,
 			dev: params.has( 'dev' ),
@@ -55,9 +57,25 @@ class App {
 		if ( params.get( 'screen' ) )
 			this.ui.screen = params.get( 'screen' );
 
+
 		document.body.classList.add( `bridge-${ this.bridge.kind }` );
 		this.root = document.getElementById( 'app' );
 		this.layer = document.getElementById( 'overlay' );
+
+		// A store screenshot (js/dev/shots.js): a fixed state, nothing saved,
+		// nothing polled, no animation half-way through. Browser mode only.
+		const shot = this.bridge.kind === 'browser' && params.get( 'shot' ) ? setUpShot( params.get( 'shot' ), params.get( 'faction' ) ) : null;
+		if ( shot ) {
+			this.shot = true;
+			this.state = shot.state;
+			Object.assign( this.ui, { overlay: null }, shot.ui );
+			if ( params.get( 'lang' ) )
+				setLanguage( params.get( 'lang' ) );
+			document.documentElement.classList.add( 'shot' );
+			this.render();
+			document.documentElement.dataset.shotReady = '1';
+			return;
+		}
 
 		this.bridge.on( 'openedmenu', () => { this.checkBattle(); this.refreshInGame(); } );
 		this.bridge.on( 'closedmenu', () => this.refreshInGame() );
@@ -100,6 +118,8 @@ class App {
 	}
 
 	save( now = false ) {
+		if ( this.shot )
+			return Promise.resolve();
 		// `away` is a one-time bulletin, not part of the war.
 		const { away, ...persist } = this.state;
 		return this.bridge.saveState( persist, now );
@@ -133,7 +153,7 @@ class App {
 		const scroll = {};
 		document.querySelectorAll( '[data-scroll]' ).forEach( el => { scroll[ el.dataset.scroll ] = el.scrollTop; } );
 
-		this.animate( this.root, document.body.dataset.screen + ( this.ui.screen === 'war' ? this.ui.tab : '' ), 'screenKey' );
+		this.animate( this.root, document.body.dataset.screen + ( this.ui.screen === 'war' ? this.ui.tab + ( this.ui.selected || '' ) : '' ), 'screenKey' );
 		mount( this.root, screen );
 
 		const overlay = this.ui.overlay && !this.ui.inGame ? renderOverlay( ctx ) : null;
@@ -205,7 +225,7 @@ class App {
 					this.bridge.clearBattle();
 					this.setUI( { overlay: { type: 'error', message: t( 'coord.failed' ) + ` (${ doc.error }: ${ p.map })` } } );
 				} else if ( doc.winner ) {
-					await this.commit( C.resolveBattle( this.state, C.winnerSide( this.state, p, doc.winner ) ) );
+					await this.commit( C.resolveBattle( this.state, C.winnerSide( this.state, p, doc.winner ), { stats: doc.stats || null } ) );
 					this.bridge.clearBattle();
 					this.sound( this.state.debrief.outcome === 'win' ? 'win' : 'loss' );
 					this.setUI( { screen: 'war', tab: 'map', selected: null, overlay: { type: 'debrief' } } );
@@ -250,16 +270,24 @@ class App {
 			this.setUI( ui => ( { zone: { ...ui.zone, [ `${ target }:${ stage }` ]: zone } } ) );
 		},
 
+		pickAsset: asset => {
+			this.sound( 'click' );
+			this.setUI( ui => ( { asset: ui.asset === asset ? null : asset } ) );
+		},
+
 		pickClass: cls => {
 			this.sound( 'click' );
 			this.commit( C.produce( this.state, d => { d.prefs.cls = cls; } ) );
 		},
 
-		// DEPLOY with no choices made: the coordinator decides.
+		// DEPLOY with no choices made: the coordinator decides where, and
+		// spends no supply -- that is the player's call.
 		autoDeploy: () => {
 			const r = C.recommend( this.state );
-			if ( r )
-				this.actions.deploy( { ...r, zone: this.ui.zone[ `${ r.target }:${ r.stage }` ] || r.zone, cls: this.state.prefs.cls, auto: true } );
+			if ( !r )
+				return;
+			const key = r.kind === 'defense' ? `def:${ r.target }` : `${ r.target }:${ r.stage }`;
+			this.actions.deploy( { ...r, zone: this.ui.zone[ key ] || r.zone, cls: this.state.prefs.cls, auto: true } );
 		},
 
 		deploy: async plan => {
@@ -268,7 +296,7 @@ class App {
 			this.sound( 'deploy' );
 			const ticket = C.newTicket();
 			const next = C.startBattle( this.state, plan, ticket );
-			this.setUI( { selected: null, overlay: { type: 'deploy', plan: next.pending, auto: !!plan.auto, phase: 'routing' } } );
+			this.setUI( { selected: null, asset: null, overlay: { type: 'deploy', plan: next.pending, auto: !!plan.auto, phase: 'routing' } } );
 			await this.commit( next, { now: true } );
 
 			// Let the routing read before the loading screen takes over.
@@ -285,14 +313,18 @@ class App {
 			this.setUI( { overlay: null } );
 		},
 
-		simulate: async winnerSide => {
+		// Browser preview: what the game would report. The winner is a game
+		// team, which on a swapped-uniform battle is not the war side's colour,
+		// and the scoreboard line is that of a standout or an average player.
+		simulate: async ( winnerSide, standout = false ) => {
 			const p = this.state.pending;
 			if ( !p ) return;
-			// What the game would report: the game team that won, which on a
-			// swapped-uniform battle is not the war side's colour.
 			const allyTeam = p.team || this.state.faction;
 			const team = winnerSide === 'ally' ? allyTeam : winnerSide === 'enemy' ? C.enemyOf( allyTeam ) : null;
-			this.bridge.simulate( p.ticket, team === 'RED' ? 'red' : team === 'BLU' ? 'blue' : 'none' );
+			const stats = standout
+				? { score: 34, kills: 14, deaths: 3, damage: 4200, healing: 0, teamRank: 1 }
+				: { score: 12, kills: 5, deaths: 6, damage: 1500, healing: 0, teamRank: 3 };
+			this.bridge.simulate( p.ticket, team === 'RED' ? 'red' : team === 'BLU' ? 'blue' : 'none', stats );
 			await this.checkBattle();
 		},
 

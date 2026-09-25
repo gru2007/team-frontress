@@ -18,6 +18,7 @@
 #include "tier0/icommandline.h"
 #include "game/client/iviewport.h"
 #include "viewport_panel_names.h"
+#include "c_tf_playerresource.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -64,6 +65,32 @@ static const char *s_pszClasses[] =
 	"scout", "soldier", "pyro", "demoman", "heavyweapons", "engineer", "medic", "sniper", "spy",
 };
 
+// tf_bot_add's words for bot skill, indexed as the page sends them.
+static const char *s_pszSkills[] = { "easy", "normal", "hard", "expert" };
+
+static int ClassIndex( const char *psz )
+{
+	for ( int i = 0; i < ARRAYSIZE( s_pszClasses ); ++i )
+	{
+		if ( !V_stricmp( psz, s_pszClasses[ i ] ) )
+			return i;
+	}
+	return -1;
+}
+
+// Who fights, as the page planned it (campaign.js planBattle): bots on each
+// side, their skill, and enemies of a set class (a sniper nest, a sentry line).
+struct DemoRoster_t
+{
+	int nAllies;
+	int nEnemies;
+	int nAllySkill;
+	int nEnemySkill;
+	int nEnemyClass[ ARRAYSIZE( s_pszClasses ) ];
+};
+
+#define MAX_DEMO_MODS 4
+
 //=============================================================================
 // One battle at a time: the ticket the page issued, and what became of it.
 //=============================================================================
@@ -76,6 +103,7 @@ public:
 		m_bDecided = false;
 		m_nPlayers = 0;
 		m_bSwapUniforms = false;
+		ResetRoster();
 		m_flSetupAt = -1.f;
 		m_flSetupDeadline = -1.f;
 		m_flReturnAt = -1.f;
@@ -125,6 +153,9 @@ private:
 
 	void Publish( const char *pszWinner = NULL, const char *pszError = NULL );
 	void SetUp();
+	void ResetRoster();
+	bool ParseOption( const char *pszArg );
+	void AppendPlayerStats( CFmtStr1024 &doc ) const;
 
 	CUtlString m_strTicket;
 	CUtlString m_strMap;
@@ -132,6 +163,9 @@ private:
 	CUtlString m_strClass;		// a joinclass name, or empty to let the player pick
 	int        m_nPlayers;		// both teams, the player included
 	bool       m_bSwapUniforms;	// the page's side plays the other colour's team
+	DemoRoster_t m_Roster;
+	CUtlString m_strMods[ MAX_DEMO_MODS ];	// cfg/frontress_mod_<id>.cfg, run at setup
+	int        m_nMods;
 	bool       m_bActive;
 	bool       m_bDecided;
 	float      m_flSetupAt;
@@ -157,7 +191,10 @@ void CTFFrontressDemo::Publish( const char *pszWinner, const char *pszError )
 	CFmtStr1024 doc( "{\"ticket\":\"%s\",\"map\":\"%s\",\"team\":\"%s\",\"players\":%d,\"swap\":%s",
 	                 m_strTicket.Get(), m_strMap.Get(), m_strTeam.Get(), m_nPlayers, m_bSwapUniforms ? "true" : "false" );
 	if ( pszWinner )
+	{
 		doc.AppendFormat( ",\"winner\":\"%s\"", pszWinner );
+		AppendPlayerStats( doc );
+	}
 	if ( pszError )
 		doc.AppendFormat( ",\"error\":\"%s\"", pszError );
 	doc.Append( "}" );
@@ -170,7 +207,7 @@ void CTFFrontressDemo::Deploy( const CCommand &args )
 {
 	if ( args.ArgC() < 5 )
 	{
-		Msg( "Usage: frontress_demo_deploy <ticket> <map> <red|blue> <players> [class|any] [swap 0|1]\n" );
+		Msg( "Usage: frontress_demo_deploy <ticket> <map> <red|blue> <players> [class|any] [swap 0|1] [allies=N enemies=N askill=0-3 eskill=0-3 ec_<class>=N mod=<id> ...]\n" );
 		return;
 	}
 
@@ -203,6 +240,17 @@ void CTFFrontressDemo::Deploy( const CCommand &args )
 	}
 	m_nPlayers = nPlayers;
 	m_bSwapUniforms = bSwap;
+
+	// The roster defaults to even teams around the player, which is what an
+	// old page (no options) meant.
+	ResetRoster();
+	m_Roster.nAllies = nPlayers / 2 - 1;
+	m_Roster.nEnemies = nPlayers - nPlayers / 2;
+	for ( int i = 7; i < args.ArgC(); ++i )
+	{
+		if ( !ParseOption( args[ i ] ) )
+			Warning( "frontress_demo_deploy: ignoring '%s'\n", args[ i ] );
+	}
 	m_bActive = true;
 	m_bDecided = false;
 	m_flSetupAt = -1.f;
@@ -221,8 +269,9 @@ void CTFFrontressDemo::Deploy( const CCommand &args )
 
 	// A fresh listen server, sized for the battle. Bots come after the player
 	// has a team (see Update), so the quota starts at zero.
+	const int nSlots = clamp( 1 + m_Roster.nAllies + m_Roster.nEnemies + 1, 4, MAX_PLAYERS );
 	CFmtStr1024 launch( "disconnect\nwait\nsv_lan 1\ntf_bot_quota 0\nmaxplayers %d\nmap %s\n",
-	                    nPlayers + 1, pszMap );
+	                    nSlots, pszMap );
 	engine->ClientCmd_Unrestricted( launch.Get() );
 }
 
@@ -261,20 +310,47 @@ void CTFFrontressDemo::Decide( int nWinningTeam )
 //-----------------------------------------------------------------------------
 void CTFFrontressDemo::SetUp()
 {
-	// Human on the page's team first; Source's fill quota counts humans
-	// already on a team, so the quota then brings both teams to size.
+	// Reset, then this battle's conditions, then the human on the page's
+	// team, then the bots around them.
 	//
 	// greyline_uniform_swap is the war-colours switch from
 	// src/game/shared/greyline/greyline_uniform.h. On main the battle roster
 	// sets it; the demo has no roster, so the page says whether this battle
 	// has the player's side on the other colour's team (a RED offensive on a
 	// BLU-attacks map) and the host sets it here.
-	CFmtStr1024 setup( "exec frontress_demo.cfg\ngreyline_uniform_swap %d\njointeam %s\n",
-	                   m_bSwapUniforms ? 1 : 0, m_strTeam.Get() );
+	CFmtStr1024 setup( "exec frontress_demo.cfg\ngreyline_uniform_swap %d\n", m_bSwapUniforms ? 1 : 0 );
+
+	// The battle's conditions, each a cfg the designers can edit without a
+	// build; frontress_demo.cfg above undoes whatever the last battle's did.
+	for ( int i = 0; i < m_nMods; ++i )
+		setup.AppendFormat( "exec frontress_mod_%s.cfg\n", m_strMods[ i ].Get() );
+
+	setup.AppendFormat( "jointeam %s\n", m_strTeam.Get() );
 	if ( !m_strClass.IsEmpty() )
 		setup.AppendFormat( "joinclass %s\n", m_strClass.Get() );
-	setup.AppendFormat( "tf_bot_quota %d\n", m_nPlayers );
 	engine->ClientCmd_Unrestricted( setup.Get() );
+
+	// Bots by hand rather than by quota: fill mode can only make even teams of
+	// one skill, and a battle may want neither. noquota keeps the quota
+	// manager (at 0) from touching them.
+	const char *pszEnemy = !V_stricmp( m_strTeam.Get(), "red" ) ? "blue" : "red";
+	const char *pszEnemySkill = s_pszSkills[ m_Roster.nEnemySkill ];
+	int nEnemiesLeft = m_Roster.nEnemies;
+	CFmtStr1024 bots;
+	for ( int i = 0; i < ARRAYSIZE( s_pszClasses ) && nEnemiesLeft > 0; ++i )
+	{
+		const int n = MIN( m_Roster.nEnemyClass[ i ], nEnemiesLeft );
+		if ( n > 0 )
+		{
+			bots.AppendFormat( "tf_bot_add %d %s %s %s noquota\n", n, s_pszClasses[ i ], pszEnemy, pszEnemySkill );
+			nEnemiesLeft -= n;
+		}
+	}
+	if ( nEnemiesLeft > 0 )
+		bots.AppendFormat( "tf_bot_add %d %s %s noquota\n", nEnemiesLeft, pszEnemy, pszEnemySkill );
+	if ( m_Roster.nAllies > 0 )
+		bots.AppendFormat( "tf_bot_add %d %s %s noquota\n", m_Roster.nAllies, m_strTeam.Get(), s_pszSkills[ m_Roster.nAllySkill ] );
+	engine->ClientCmd_Unrestricted( bots.Get() );
 
 	// The server's welcome (MOTD) and the team menu would sit over a battle
 	// the page has already chosen for. The class menu stays when the page
@@ -289,6 +365,86 @@ void CTFFrontressDemo::SetUp()
 			gViewPortInterface->ShowPanel( PANEL_CLASS_BLUE, false );
 		}
 	}
+}
+
+//-----------------------------------------------------------------------------
+void CTFFrontressDemo::ResetRoster()
+{
+	V_memset( &m_Roster, 0, sizeof( m_Roster ) );
+	m_Roster.nAllySkill = 1;
+	m_Roster.nEnemySkill = 1;
+	m_nMods = 0;
+	for ( int i = 0; i < MAX_DEMO_MODS; ++i )
+		m_strMods[ i ].Clear();
+}
+
+//-----------------------------------------------------------------------------
+// One key=value from the deploy line. The console splits on ':' so nothing
+// here uses it. Everything is range-checked: these become tf_bot_add and exec
+// lines.
+//-----------------------------------------------------------------------------
+bool CTFFrontressDemo::ParseOption( const char *pszArg )
+{
+	const char *pszEq = V_strstr( pszArg, "=" );
+	if ( !pszEq || pszEq == pszArg )
+		return false;
+
+	char szKey[ 32 ];
+	V_strncpy( szKey, pszArg, MIN( (int)sizeof( szKey ), (int)( pszEq - pszArg ) + 1 ) );
+	const char *pszValue = pszEq + 1;
+	const int nValue = V_atoi( pszValue );
+
+	if ( !V_stricmp( szKey, "allies" ) )       { m_Roster.nAllies = clamp( nValue, 0, 11 ); return true; }
+	if ( !V_stricmp( szKey, "enemies" ) )      { m_Roster.nEnemies = clamp( nValue, 1, 12 ); return true; }
+	if ( !V_stricmp( szKey, "askill" ) )       { m_Roster.nAllySkill = clamp( nValue, 0, 3 ); return true; }
+	if ( !V_stricmp( szKey, "eskill" ) )       { m_Roster.nEnemySkill = clamp( nValue, 0, 3 ); return true; }
+
+	if ( !V_strnicmp( szKey, "ec_", 3 ) )
+	{
+		const int iClass = ClassIndex( szKey + 3 );
+		if ( iClass < 0 )
+			return false;
+		m_Roster.nEnemyClass[ iClass ] = clamp( nValue, 0, 12 );
+		return true;
+	}
+
+	if ( !V_stricmp( szKey, "mod" ) )
+	{
+		if ( m_nMods >= MAX_DEMO_MODS || !IsSafeToken( pszValue, 24 ) )
+			return false;
+		m_strMods[ m_nMods++ ] = pszValue;
+		return true;
+	}
+
+	return false;
+}
+
+//-----------------------------------------------------------------------------
+// The player's line of the scoreboard, for the page's medals and rank:
+// ,"stats":{"score":..,"kills":..,"deaths":..,"damage":..,"healing":..,"teamRank":..}
+// teamRank is 1 for the top score on the player's team.
+//-----------------------------------------------------------------------------
+void CTFFrontressDemo::AppendPlayerStats( CFmtStr1024 &doc ) const
+{
+	const int iLocal = GetLocalPlayerIndex();
+	if ( !g_TF_PR || iLocal <= 0 || !g_TF_PR->IsConnected( iLocal ) )
+		return;
+
+	const int iTeam = g_TF_PR->GetTeam( iLocal );
+	const int nScore = g_TF_PR->GetTotalScore( iLocal );
+	int nRank = 1;
+	for ( int i = 1; i <= MAX_PLAYERS; ++i )
+	{
+		if ( i != iLocal && g_TF_PR->IsConnected( i ) && g_TF_PR->GetTeam( i ) == iTeam &&
+		     g_TF_PR->GetTotalScore( i ) > nScore )
+		{
+			++nRank;
+		}
+	}
+
+	doc.AppendFormat( ",\"stats\":{\"score\":%d,\"kills\":%d,\"deaths\":%d,\"damage\":%d,\"healing\":%d,\"teamRank\":%d}",
+	                  nScore, g_TF_PR->GetPlayerScore( iLocal ), g_TF_PR->GetDeaths( iLocal ),
+	                  g_TF_PR->GetDamage( iLocal ), g_TF_PR->GetHealing( iLocal ), nRank );
 }
 
 //-----------------------------------------------------------------------------
@@ -345,6 +501,10 @@ void CTFFrontressDemo::Status()
 	Msg( "Battle %s: %s as %s%s, %d players, class %s, %s\n", m_strTicket.Get(), m_strMap.Get(), m_strTeam.Get(),
 	     m_bSwapUniforms ? " (uniforms swapped)" : "", m_nPlayers, m_strClass.IsEmpty() ? "any" : m_strClass.Get(),
 	     m_bDecided ? "decided" : "in progress" );
+	Msg( "  bots: %d allies (%s), %d enemies (%s)\n", m_Roster.nAllies, s_pszSkills[ m_Roster.nAllySkill ],
+	     m_Roster.nEnemies, s_pszSkills[ m_Roster.nEnemySkill ] );
+	for ( int i = 0; i < m_nMods; ++i )
+		Msg( "  condition: %s\n", m_strMods[ i ].Get() );
 }
 
 //=============================================================================

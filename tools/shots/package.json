@@ -1,0 +1,12 @@
+{
+  "name": "frontress-shots",
+  "private": true,
+  "type": "module",
+  "description": "Store screenshots for the Team Frontress demo: menu renders and in-game shot lists.",
+  "scripts": {
+    "ui": "node ui-shots.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.55.0"
+  }
+}

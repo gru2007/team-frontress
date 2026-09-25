@@ -2,7 +2,7 @@
 
 import { h, svg } from '../core/dom.js';
 import { t } from '../core/i18n.js';
-import { STAGES } from '../game/scenario.js';
+import { STAGES, MODIFIERS } from '../game/scenario.js';
 import { MAX_MOMENTUM } from '../game/campaign.js';
 import { modeIcon } from '../ui/glyphs.js';
 import { stageName } from '../ui/names.js';
@@ -64,4 +64,22 @@ export function stamp( text, cls = '' ) {
 
 export function closeButton( onclick ) {
 	return h( 'button.icon-btn.close-x', { onclick, 'aria-label': t( 'common.close' ) }, '×' );
+}
+
+// One battle condition. `detail` adds its description (dossier); without it
+// the chip is a compact label (coordinator, pause screen, debrief).
+export function conditionChip( id, { detail = false } = {} ) {
+	const tone = MODIFIERS[ id ]?.tone || 'odd';
+	return h( 'div', { class: `cond cond-${ tone } ${ detail ? 'cond-detail' : '' }`, title: t( `mod.${ id }.desc` ) },
+		h( 'span.cond-mark', null, tone === 'hard' ? '▲' : tone === 'good' ? '+' : '≈' ),
+		h( 'span.cond-text', null,
+			h( 'strong', null, t( `mod.${ id }` ) ),
+			detail ? h( 'span', null, t( `mod.${ id }.desc` ) ) : null ) );
+}
+
+// A medal: a ribbon with its name.
+export function medal( id ) {
+	return h( 'div', { class: `medal medal-${ id }`, title: t( `medal.${ id }.desc` ) },
+		h( 'span.medal-ribbon' ),
+		h( 'span.medal-name', null, t( `medal.${ id }` ) ) );
 }

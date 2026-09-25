@@ -18,7 +18,10 @@
 // the client produces, compressed.
 //
 // Control it while it runs:
-//   GET /mock/outcome?next=ally|enemy|none|leave   how the next battle ends
+//   GET /mock/outcome?next=ally|enemy|none|leave[&mvp=1]
+//                                                  how the next battle ends,
+//                                                  and whether the player tops
+//                                                  the scoreboard
 //   GET /mock/esc                                  open the pause menu in game
 //   GET /mock/log                                  every console line the page sent
 
@@ -39,7 +42,56 @@ const SAFE = /^[A-Za-z0-9_-]+$/;
 const CLASSES = [ 'scout', 'soldier', 'pyro', 'demoman', 'heavyweapons', 'engineer', 'medic', 'sniper', 'spy' ];
 const BOT_MAPS = new Set( fs.readFileSync( new URL( '../game/tc2/cfg/mapcycle_quickplay_bots.txt', import.meta.url ), 'utf8' ).split( /\s+/ ).filter( Boolean ) );
 
-const game = { inGame: false, battle: {}, uniformSwap: 0, next: 'ally', log: [], timers: [] };
+const game = { inGame: false, battle: {}, uniformSwap: 0, next: 'ally', mvp: false, log: [], timers: [] };
+const SKILLS = [ 'easy', 'normal', 'hard', 'expert' ];
+
+// The deploy line's key=value options, read the way tf_frontress_demo.cpp's
+// ParseOption reads them (same ranges, same refusals).
+function parseOptions( args, players ) {
+	const r = { allies: Math.floor( players / 2 ) - 1, enemies: players - Math.floor( players / 2 ), askill: 1, eskill: 1, eclass: {}, mods: [] };
+	for ( const a of args ) {
+		const m = a.match( /^([a-z_]+)=([A-Za-z0-9_-]+)$/ );
+		if ( !m ) { say( `deploy: ignoring '${ a }'` ); continue; }
+		const [ , k, v ] = m;
+		const n = parseInt( v, 10 ) || 0;
+		const clamp = ( lo, hi ) => Math.max( lo, Math.min( hi, n ) );
+		if ( k === 'allies' ) r.allies = clamp( 0, 11 );
+		else if ( k === 'enemies' ) r.enemies = clamp( 1, 12 );
+		else if ( k === 'askill' ) r.askill = clamp( 0, 3 );
+		else if ( k === 'eskill' ) r.eskill = clamp( 0, 3 );
+		else if ( k.startsWith( 'ec_' ) && CLASSES.includes( k.slice( 3 ) ) ) r.eclass[ k.slice( 3 ) ] = clamp( 0, 12 );
+		else if ( k === 'mod' && r.mods.length < 4 ) r.mods.push( v );
+		else say( `deploy: ignoring '${ a }'` );
+	}
+	return r;
+}
+
+// What tf_frontress_demo.cpp's SetUp would type into the console.
+function setupLines( team, joinclass, swap, r ) {
+	const enemy = team === 'red' ? 'blue' : 'red';
+	const lines = [ 'exec frontress_demo.cfg', `greyline_uniform_swap ${ swap ? 1 : 0 }` ];
+	for ( const m of r.mods ) {
+		const cfg = new URL( `../game/tc2/cfg/frontress_mod_${ m }.cfg`, import.meta.url );
+		lines.push( fs.existsSync( cfg ) ? `exec frontress_mod_${ m }.cfg` : `exec frontress_mod_${ m }.cfg  <-- MISSING FILE` );
+	}
+	lines.push( `jointeam ${ team }` );
+	if ( joinclass ) lines.push( `joinclass ${ joinclass }` );
+	let left = r.enemies;
+	for ( const [ cls, n ] of Object.entries( r.eclass ) ) {
+		const k = Math.min( n, left );
+		if ( k > 0 ) { lines.push( `tf_bot_add ${ k } ${ cls } ${ enemy } ${ SKILLS[ r.eskill ] } noquota` ); left -= k; }
+	}
+	if ( left > 0 ) lines.push( `tf_bot_add ${ left } ${ enemy } ${ SKILLS[ r.eskill ] } noquota` );
+	if ( r.allies > 0 ) lines.push( `tf_bot_add ${ r.allies } ${ team } ${ SKILLS[ r.askill ] } noquota` );
+	return lines;
+}
+
+// A plausible scoreboard line for the player.
+function playerStats( best ) {
+	return best
+		? { score: 34, kills: 14, deaths: 3, damage: 4200, healing: 0, teamRank: 1 }
+		: { score: 11, kills: 4, deaths: 7, damage: 1300, healing: 0, teamRank: 4 };
+}
 const clients = new Set();
 
 function say( line ) {
@@ -90,11 +142,14 @@ function deploy( args ) {
 		return say( `deploy: maps/${ map }.bsp is not installed` );
 	}
 
+	const roster = parseOptions( args.slice( 7 ), game.battle.players );
+	game.battle.roster = roster;
 	disconnect( 'new battle', true );
-	say( `loading ${ map }; setup: exec frontress_demo.cfg; greyline_uniform_swap ${ game.battle.swap ? 1 : 0 }; ` +
-		`jointeam ${ team }${ joinclass ? `; joinclass ${ joinclass }` : '' }; tf_bot_quota ${ game.battle.players }` );
+	say( `loading ${ map } (maxplayers ${ 2 + roster.allies + roster.enemies }); setup:` );
+	for ( const line of setupLines( team, joinclass, game.battle.swap, roster ) ) say( `    ${ line }` );
 
 	const outcome = game.next;
+	const best = game.mvp;
 	game.timers.push( setTimeout( () => {
 		game.inGame = true;
 		game.uniformSwap = game.battle.swap ? 1 : 0;
@@ -106,7 +161,8 @@ function deploy( args ) {
 		if ( outcome === 'leave' ) return disconnect( 'player left mid-battle' );
 		const enemy = team === 'red' ? 'blue' : 'red';
 		game.battle.winner = outcome === 'ally' ? team : outcome === 'enemy' ? enemy : 'none';
-		say( `full round won by ${ game.battle.winner }` );
+		game.battle.stats = playerStats( best );
+		say( `full round won by ${ game.battle.winner }; player: ${ JSON.stringify( game.battle.stats ) }` );
 		game.timers.push( setTimeout( () => disconnect( 'return to war map' ), RETURN_MS ) );
 	}, 800 + BATTLE_MS ) );
 }
@@ -213,13 +269,17 @@ const server = http.createServer( ( req, res ) => {
 		const text = fs.existsSync( STATE ) ? fs.readFileSync( STATE, 'utf8' ) : '';
 		return json( res, 200, text.startsWith( '{' ) ? text : '{}' );
 	}
-	if ( url.pathname === '/v1/demo/battle' )
-		return json( res, 200, game.battle.ticket ? JSON.stringify( game.battle ) : '{}' );
+	if ( url.pathname === '/v1/demo/battle' ) {
+		// The same fields the client publishes -- the roster is the mock's own.
+		const { roster, ...doc } = game.battle;
+		return json( res, 200, doc.ticket ? JSON.stringify( doc ) : '{}' );
+	}
 
 	if ( url.pathname === '/mock/outcome' ) {
 		game.next = url.searchParams.get( 'next' ) || 'ally';
-		say( `next battle ends: ${ game.next }` );
-		return json( res, 200, JSON.stringify( { next: game.next } ) );
+		game.mvp = url.searchParams.get( 'mvp' ) === '1';
+		say( `next battle ends: ${ game.next }${ game.mvp ? ', player best on the field' : '' }` );
+		return json( res, 200, JSON.stringify( { next: game.next, mvp: game.mvp } ) );
 	}
 	if ( url.pathname === '/mock/esc' ) {
 		if ( game.inGame ) emit( 'openedmenu' );

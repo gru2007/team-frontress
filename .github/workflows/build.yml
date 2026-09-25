@@ -69,7 +69,7 @@ jobs:
       - name: Page and game agree on the contract
         run: |
           set -euo pipefail
-          for name in frontress_demo_deploy frontress_demo_clear /v1/demo/state /v1/demo/battle getlanguage; do
+          for name in frontress_demo_deploy frontress_demo_clear /v1/demo/state /v1/demo/battle getlanguage allies eskill ec_ teamRank damage; do
             grep -rq -- "$name" game/tc2/loose/resource/html/frontress/js || { echo "::error::page does not use $name"; exit 1; }
             grep -rq -- "$name" src/game/client/tf/frontress/tf_frontress_demo.cpp src/game/shared/gamestate/gamestate.cpp \
               || { echo "::error::game does not provide $name"; exit 1; }

@@ -10,7 +10,7 @@
 
 import { svg } from '../core/dom.js';
 import { NODES, EDGES, THEATER, TERRAIN } from '../game/scenario.js';
-import { stagingFor, sectorStatus } from '../game/campaign.js';
+import { stagingFor, sectorStatus, neighbours } from '../game/campaign.js';
 import { sectorName } from './names.js';
 import { kindGlyph } from './glyphs.js';
 
@@ -41,7 +41,7 @@ const mirrorX = ( s, x ) => ( s.faction === 'BLU' ? THEATER.width - x : x );
 export const nodePos = ( s, n ) => [ mirrorX( s, n.x ), n.y ];
 
 export function theaterKey( s ) {
-	return JSON.stringify( [ s.faction, s.owners, s.op?.target, s.op?.stage, s.pressure, s.pending?.target ] );
+	return JSON.stringify( [ s.faction, s.owners, s.op?.target, s.op?.stage, s.pressure, s.pending?.target, s.threat ] );
 }
 
 //-----------------------------------------------------------------------------
@@ -116,11 +116,18 @@ export function buildTheater( s, { onSelect, onHover } ) {
 
 	// The operation's arrow: from where the column jumps off to the target.
 	const arrows = svg( 'g.arrows' );
-	const target = s.op?.target || s.pending?.target;
+	const target = s.op?.target || ( s.pending?.kind !== 'defense' ? s.pending?.target : null );
 	if ( target ) {
 		const from = stagingFor( s, target );
 		if ( from )
 			arrows.appendChild( attackArrow( pos[ from ], pos[ target ], s.op?.stage || 1 ) );
+	}
+	// A counter-attack comes the other way.
+	if ( s.threat ) {
+		const from = neighbours( s.threat.node ).filter( m => s.owners[ m ] === 'enemy' )
+			.sort( ( a, b ) => Math.abs( pos[ a ][ 1 ] - pos[ s.threat.node ][ 1 ] ) - Math.abs( pos[ b ][ 1 ] - pos[ s.threat.node ][ 1 ] ) )[ 0 ];
+		if ( from )
+			arrows.appendChild( attackArrow( pos[ from ], pos[ s.threat.node ], 1, 'enemy-attack' ) );
 	}
 
 	// Sector markers.
@@ -133,7 +140,7 @@ export function buildTheater( s, { onSelect, onHover } ) {
 			class: `marker ${ ownerOf( n.id ) } ${ status } kind-${ n.kind }`,
 			transform: `translate(${ x } ${ y })`, 'data-region': n.id,
 		},
-			status === 'target' || status === 'operation'
+			status === 'target' || status === 'operation' || status === 'threat'
 				? svg( 'circle.pulse', { r: 26 } ) : null,
 			svg( 'circle.ring', { r: n.kind === 'hq' ? 24 : 19 } ),
 			svg( 'g.glyph', { transform: `scale(${ n.kind === 'hq' ? 1.15 : 0.95 })` }, kindGlyph( n.kind ) ),
@@ -220,6 +227,8 @@ function defs() {
 			svg( 'rect', { width: 4, height: 10, class: 'hatch-stroke' } ) ),
 		svg( 'marker', { id: 'arrowhead', viewBox: '0 0 10 10', refX: 5, refY: 5, markerWidth: 3.2, markerHeight: 3.2, orient: 'auto-start-reverse' },
 			svg( 'path', { d: 'M0 0 L10 5 L0 10 z', class: 'arrowhead' } ) ),
+		svg( 'marker', { id: 'arrowhead-enemy', viewBox: '0 0 10 10', refX: 5, refY: 5, markerWidth: 3.2, markerHeight: 3.2, orient: 'auto-start-reverse' },
+			svg( 'path', { d: 'M0 0 L10 5 L0 10 z', class: 'arrowhead enemy' } ) ),
 	);
 }
 
@@ -234,16 +243,16 @@ function terrain( s ) {
 	);
 }
 
-function attackArrow( [ ax, ay ], [ bx, by ], stage ) {
+function attackArrow( [ ax, ay ], [ bx, by ], stage, extra = '' ) {
 	// Stop short of both markers, and bow the shaft so it reads as a movement.
 	const dx = bx - ax, dy = by - ay, len = Math.hypot( dx, dy );
 	const ux = dx / len, uy = dy / len;
 	const sx = ax + ux * 34, sy = ay + uy * 34, ex = bx - ux * 40, ey = by - uy * 40;
 	const mx = ( sx + ex ) / 2 - uy * 40, my = ( sy + ey ) / 2 + ux * 40;
 	const d = `M${ sx } ${ sy } Q${ mx } ${ my } ${ ex } ${ ey }`;
-	return svg( 'g', { class: `attack stage-${ stage }` },
+	return svg( 'g', { class: `attack stage-${ stage } ${ extra }` },
 		svg( 'path.attack-shadow', { d } ),
-		svg( 'path.attack-shaft', { d, 'marker-end': 'url(#arrowhead)' } ),
+		svg( 'path.attack-shaft', { d, 'marker-end': extra ? 'url(#arrowhead-enemy)' : 'url(#arrowhead)' } ),
 		svg( 'path.attack-flow', { d } ),
 	);
 }

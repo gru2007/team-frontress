@@ -3,15 +3,24 @@
 // through `produce`, which hands the recipe a deep copy, so a view can never
 // see a half-applied battle.
 //
-// The loop:  pick a sector -> start its operation -> deploy (ticket) ->
-//            the game reports a winner -> resolveBattle -> world tick -> debrief
+// The loop:  pick a sector -> plan the battle (conditions, supply) ->
+//            deploy (ticket) -> the game reports a winner and the player's
+//            scoreboard -> resolveBattle -> threats and world tick -> debrief
 
-import { NODES, EDGES, OPERATIONS, STAGES, WORLD_EVENTS, AWAY_MINUTES, DIRECTIONAL_MODES } from './scenario.js';
+import {
+	NODES, EDGES, OPERATIONS, STAGES, WORLD_EVENTS, AWAY_MINUTES, DIRECTIONAL_MODES,
+	THREAT_BATTLES, MODIFIERS, OPERATION_MODIFIERS, PRESSURE_MODIFIERS, DEFENSE_MODIFIERS,
+	SUPPLY_START, SUPPLY_WIN, SUPPLY_DEFENSE_WIN, ASSETS, SKILLS, BASE_SKILL,
+	MEDALS, MEDAL_XP, RANKS,
+} from './scenario.js';
 
-// 2: the shortened theater. Older saves start a new war.
-export const SCHEMA = 2;
+// 3: conditions, supply, counter-attacks and the player's record.
+// A v2 save (the war without them) is carried over with the new fields empty.
+export const SCHEMA = 3;
 export const MAX_MOMENTUM = 3;
 const MAX_LOG = 60;
+const MAX_BOTS = 22;              // maxplayers 24: the player plus a spare slot
+const DEFENSE_PLAYERS = 12;
 
 const NODE = Object.fromEntries( NODES.map( n => [ n.id, n ] ) );
 const NEIGHBOURS = {};
@@ -35,9 +44,13 @@ export function initialState() {
 		owners: Object.fromEntries( NODES.map( n => [ n.id, n.owner ] ) ),
 		pressure: {},
 		op: null,
+		threat: null,            // { node, left }: a counter-attack on an ally sector
 		pending: null,
 		debrief: null,
-		stats: { battles: 0, wins: 0, losses: 0, captured: 0, lost: 0 },
+		supply: SUPPLY_START,
+		xp: 0,
+		medals: {},
+		stats: { battles: 0, wins: 0, losses: 0, captured: 0, lost: 0, defended: 0 },
 		worldDone: [],
 		log: [],
 		finished: false,
@@ -50,13 +63,14 @@ export function initialState() {
 // from a newer or broken build is not worth a crash at the main menu.
 export function normalize( raw ) {
 	const base = initialState();
-	if ( !raw || typeof raw !== 'object' || raw.v !== SCHEMA )
+	if ( !raw || typeof raw !== 'object' || ( raw.v !== SCHEMA && raw.v !== 2 ) )
 		return base;
 
-	const s = { ...base, ...raw };
+	const s = { ...base, ...raw, v: SCHEMA };
 	s.owners = { ...base.owners, ...( raw.owners || {} ) };
 	s.stats = { ...base.stats, ...( raw.stats || {} ) };
 	s.prefs = { ...base.prefs, ...( raw.prefs || {} ) };
+	s.medals = { ...( raw.medals || {} ) };
 	s.pressure = { ...( raw.pressure || {} ) };
 	s.worldDone = Array.isArray( raw.worldDone ) ? raw.worldDone : [];
 	s.log = Array.isArray( raw.log ) ? raw.log.slice( -MAX_LOG ) : [];
@@ -64,6 +78,10 @@ export function normalize( raw ) {
 		s.faction = null;
 	if ( s.op && !NODE[ s.op.target ] )
 		s.op = null;
+	if ( s.threat && ( !NODE[ s.threat.node ] || s.owners[ s.threat.node ] !== 'ally' ) )
+		s.threat = null;
+	if ( !Number.isFinite( s.supply ) )
+		s.supply = SUPPLY_START;
 	return s;
 }
 
@@ -109,6 +127,7 @@ export function controlShare( s ) {
 
 // What kind of place a sector is, for the dossier.
 export function sectorStatus( s, id ) {
+	if ( s.threat?.node === id ) return 'threat';
 	if ( s.op?.target === id ) return 'operation';
 	if ( s.owners[ id ] === 'ally' ) {
 		return neighbours( id ).some( m => s.owners[ m ] === 'enemy' ) ? 'frontline' : 'secure';
@@ -136,6 +155,26 @@ export function zoneFor( s, target, stage, zoneId ) {
 	return { id: z.id, index: zones.indexOf( z ), map: z.map, mode: z.mode, team, swap: team !== faction };
 }
 
+export function zonesFor( s, target, stage ) {
+	return operationFor( target )[ stage - 1 ].map( z => zoneFor( s, target, stage, z.id ) );
+}
+
+// Holding an ally sector is fought on the maps an attack on it would use --
+// the Payload and Attack/Defend ones -- from the side that defends them, the
+// game's RED team. So it is BLU's turn to wear the other colours.
+export function defenseZones( s, id ) {
+	const ops = operationFor( id );
+	return [ ops[ 1 ][ 0 ], ops[ 2 ][ 0 ] ].map( ( z, i ) => {
+		const faction = s.faction || 'BLU';
+		return { id: z.id, index: i, map: z.map, mode: z.mode, team: 'RED', swap: faction !== 'RED' };
+	} );
+}
+
+export function defenseZoneFor( s, id, zoneId ) {
+	const zones = defenseZones( s, id );
+	return zones.find( z => z.id === zoneId ) || zones[ 0 ];
+}
+
 // The war side a game team's win belongs to, for the battle a ticket was for.
 // 'red' | 'blue' | 'none' -> 'RED' | 'BLU' | null.
 export function winnerSide( s, pending, gameWinner ) {
@@ -145,9 +184,71 @@ export function winnerSide( s, pending, gameWinner ) {
 	return team === ( pending.team || s.faction ) ? s.faction : enemyOf( s.faction );
 }
 
-export function zonesFor( s, target, stage ) {
-	return operationFor( target )[ stage - 1 ].map( z => zoneFor( s, target, stage, z.id ) );
+//-----------------------------------------------------------------------------
+// The battle itself: conditions, assets, who fights.
+//-----------------------------------------------------------------------------
+
+// The conditions a battle will be fought under, before any asset.
+export function modifiersFor( s, kind, target, stage ) {
+	const ids = kind === 'defense'
+		? [ ...DEFENSE_MODIFIERS ]
+		: [ ...( OPERATION_MODIFIERS[ NODE[ target ]?.op ] || OPERATION_MODIFIERS.industrial )[ stage - 1 ] ];
+	if ( kind !== 'defense' ) {
+		if ( ( s.pressure[ target ] || 0 ) > 0 ) ids.push( PRESSURE_MODIFIERS.enemy );
+		if ( ( s.pressure[ target ] || 0 ) < 0 ) ids.push( PRESSURE_MODIFIERS.ally );
+	}
+	return [ ...new Set( ids ) ].filter( id => MODIFIERS[ id ] );
 }
+
+export const canAfford = ( s, asset ) => !asset || ( ASSETS[ asset ] && s.supply >= ASSETS[ asset ].cost );
+
+// Everything the game needs to set the battle up, and everything the page
+// shows about it. Pure: the same plan always makes the same battle.
+export function planBattle( s, { kind = 'attack', target, stage, zone, asset = null } ) {
+	const defense = kind === 'defense';
+	stage = defense ? 2 : stage;
+	const z = defense ? defenseZoneFor( s, target, zone ) : zoneFor( s, target, stage, zone );
+	const players = defense ? DEFENSE_PLAYERS : stageInfo( stage ).players;
+
+	let mods = modifiersFor( s, kind, target, stage );
+	const a = asset && ASSETS[ asset ] ? ASSETS[ asset ] : null;
+	let cancelled = null;
+	if ( a?.cancels ) {
+		cancelled = mods.find( id => MODIFIERS[ id ].tone === a.cancels ) || null;
+		mods = mods.filter( id => id !== cancelled );
+	}
+
+	const half = players / 2;
+	const roster = { allies: half - 1, enemies: half, askill: BASE_SKILL, eskill: BASE_SKILL, eclass: {} };
+	const apply = r => {
+		if ( !r ) return;
+		roster.allies += r.allies || 0;
+		roster.enemies += r.enemies || 0;
+		roster.askill += r.askill || 0;
+		roster.eskill += r.eskill || 0;
+		if ( r.eclass ) roster.eclass[ r.eclass[ 0 ] ] = ( roster.eclass[ r.eclass[ 0 ] ] || 0 ) + r.eclass[ 1 ];
+	};
+	mods.forEach( id => apply( MODIFIERS[ id ].roster ) );
+	apply( a?.roster );
+
+	roster.askill = Math.max( 0, Math.min( SKILLS.length - 1, roster.askill ) );
+	roster.eskill = Math.max( 0, Math.min( SKILLS.length - 1, roster.eskill ) );
+	const forced = Object.values( roster.eclass ).reduce( ( n, c ) => n + c, 0 );
+	roster.enemies = Math.max( roster.enemies, forced );
+	// Never more bots than the server has slots for; the enemy gives way first.
+	const over = roster.allies + roster.enemies - MAX_BOTS;
+	if ( over > 0 ) roster.enemies -= over;
+
+	return {
+		kind, target, stage, zone: z, mods, cancelled, asset: a ? asset : null,
+		cost: a ? a.cost : 0, roster, players: 1 + roster.allies + roster.enemies,
+		reward: mods.reduce( ( n, id ) => n + ( MODIFIERS[ id ].reward || 0 ), 0 ) + ( a?.reward || 0 ),
+	};
+}
+
+//-----------------------------------------------------------------------------
+// The coordinator
+//-----------------------------------------------------------------------------
 
 // Hops from a sector to the enemy headquarters.
 function hopsToEnemyHQ( id ) {
@@ -162,19 +263,22 @@ function hopsToEnemyHQ( id ) {
 	return Infinity;
 }
 
-// What DEPLOY would do right now if the player does not choose. The current
-// operation always wins; otherwise the front that leads towards the enemy
-// headquarters, then the one the enemy holds weakest (allied squads have
-// softened it up), then the one nearest the middle of the map.
+// What DEPLOY would do right now if the player does not choose. A sector about
+// to fall comes first; then the current operation; otherwise the front that
+// leads towards the enemy headquarters, then the one the enemy holds weakest
+// (allied squads have softened it up), then the one nearest the middle.
 export function recommend( s ) {
 	if ( s.finished || !s.faction )
 		return null;
+
+	if ( s.threat && s.threat.left <= 1 )
+		return { kind: 'defense', target: s.threat.node, stage: 2, zone: defenseZones( s, s.threat.node )[ 0 ].id };
 
 	let target = s.op?.target;
 	if ( !target ) {
 		const targets = frontTargets( s );
 		if ( !targets.length )
-			return null;
+			return s.threat ? { kind: 'defense', target: s.threat.node, stage: 2, zone: defenseZones( s, s.threat.node )[ 0 ].id } : null;
 		targets.sort( ( a, b ) =>
 			( hopsToEnemyHQ( a ) - hopsToEnemyHQ( b ) ) ||
 			( ( s.pressure[ a ] || 0 ) - ( s.pressure[ b ] || 0 ) ) ||
@@ -184,8 +288,22 @@ export function recommend( s ) {
 
 	const stage = s.op?.target === target ? s.op.stage : 1;
 	const zone = zoneFor( s, target, stage, s.op?.target === target ? s.op.zone : null );
-	return { target, stage, zone: zone.id };
+	return { kind: 'attack', target, stage, zone: zone.id };
 }
+
+//-----------------------------------------------------------------------------
+// The player's record
+//-----------------------------------------------------------------------------
+export function rankFor( xp ) {
+	let i = 0;
+	while ( i + 1 < RANKS.length && xp >= RANKS[ i + 1 ].xp ) i++;
+	const next = RANKS[ i + 1 ] || null;
+	const from = RANKS[ i ].xp;
+	return { id: RANKS[ i ].id, index: i, next: next?.id || null,
+		progress: next ? ( xp - from ) / ( next.xp - from ) : 1, toNext: next ? next.xp - xp : 0 };
+}
+
+export const medalsFor = st => ( st ? MEDALS.filter( m => m.test( st ) ).map( m => m.id ) : [] );
 
 //-----------------------------------------------------------------------------
 // Changing the war
@@ -198,61 +316,102 @@ export function chooseFaction( s, faction ) {
 	} );
 }
 
-// A ticket for one battle. The game gets the map, side and size; the campaign
-// keeps the ticket until a result with the same id comes back.
-export function startBattle( s, { target, stage, zone, cls }, ticket ) {
+// A ticket for one battle. The game gets the map, sides, roster and
+// conditions; the campaign keeps the ticket until a result with the same id
+// comes back. The asset is paid for now and refunded if the battle never
+// happens.
+export function startBattle( s, plan, ticket ) {
 	return produce( s, d => {
-		if ( !d.op || d.op.target !== target ) {
-			if ( d.op )
-				log( d, 'log.opAbandoned', { target: d.op.target }, 'neutral', d.op.target );
-			d.op = { target, stage: 1, momentum: MAX_MOMENTUM, zone, startedDay: d.day };
-			log( d, 'log.opStarted', { target }, 'ally', target );
+		const kind = plan.kind === 'defense' ? 'defense' : 'attack';
+		const target = plan.target;
+		let stage = 2;
+
+		if ( kind === 'attack' ) {
+			if ( !d.op || d.op.target !== target ) {
+				if ( d.op )
+					log( d, 'log.opAbandoned', { target: d.op.target }, 'neutral', d.op.target );
+				d.op = { target, stage: 1, momentum: MAX_MOMENTUM, zone: plan.zone, startedDay: d.day };
+				log( d, 'log.opStarted', { target }, 'ally', target );
+			}
+			stage = d.op.stage;
+			d.op.zone = plan.zone;
 		}
-		stage = d.op.stage;
-		d.op.zone = zone;
-		const z = zoneFor( d, target, stage, zone );
-		const info = stageInfo( stage );
+
+		const asset = canAfford( d, plan.asset ) ? plan.asset || null : null;
+		const b = planBattle( d, { kind, target, stage, zone: plan.zone, asset } );
+		d.supply -= b.cost;
+
 		d.pending = {
-			ticket, target, stage, zone: z.id, map: z.map, mode: z.mode,
-			team: z.team, swap: z.swap,
-			players: info.players, cls: cls || 'any', at: Date.now(),
+			ticket, kind, target, stage, zone: b.zone.id, map: b.zone.map, mode: b.zone.mode,
+			team: b.zone.team, swap: b.zone.swap,
+			players: b.players, roster: b.roster, mods: b.mods, cancelled: b.cancelled,
+			cfg: b.mods.filter( id => MODIFIERS[ id ].cfg ),
+			asset: b.asset, cost: b.cost, reward: b.reward,
+			cls: plan.cls || 'any', at: Date.now(),
 		};
-		d.prefs.cls = cls || 'any';
+		d.prefs.cls = plan.cls || 'any';
 	} );
 }
 
 // The deployment never produced a result (the player left, the game closed).
-// Nothing strategic changes.
+// Nothing strategic changes, and the asset is given back.
 export function abandonBattle( s ) {
 	return produce( s, d => {
-		if ( d.pending )
+		if ( d.pending ) {
 			log( d, 'log.retreated', { target: d.pending.target }, 'neutral', d.pending.target );
+			d.supply += d.pending.cost || 0;
+		}
 		d.pending = null;
 	} );
 }
 
-// winner: 'RED' | 'BLU' | null (stalemate). A stalemate is a repulsed attack.
-export function resolveBattle( s, winner, now = Date.now() ) {
+// winner: 'RED' | 'BLU' | null (stalemate). stats: the player's line of the
+// scoreboard, when the game sent one ({ score, kills, deaths, damage,
+// healing, teamRank }).
+export function resolveBattle( s, winner, { now = Date.now(), stats = null } = {} ) {
 	if ( !s.pending )
 		return s;
 
 	return produce( s, d => {
 		const p = d.pending;
-		const outcome = winner === d.faction ? 'win' : ( winner ? 'loss' : 'stalemate' );
-		const before = { stage: d.op.stage, momentum: d.op.momentum, owners: { ...d.owners } };
+		const defense = p.kind === 'defense';
+		// Holding is the defender's job: running the attacker's clock out is a win.
+		const outcome = winner === d.faction ? 'win' : !winner ? ( defense ? 'win' : 'stalemate' ) : 'loss';
+		const won = outcome === 'win';
+
+		const medals = medalsFor( stats );
+		const mvp = medals.includes( 'mvp' );
 		const result = {
-			ticket: p.ticket, outcome, target: p.target, map: p.map, mode: p.mode,
-			stageBefore: before.stage, stageAfter: before.stage,
-			momentumBefore: before.momentum, momentumAfter: before.momentum,
-			captured: false, collapsed: false, warWon: false, world: null, read: false,
+			ticket: p.ticket, kind: p.kind || 'attack', outcome, target: p.target, map: p.map, mode: p.mode,
+			mods: p.mods || [], asset: p.asset || null,
+			stageBefore: d.op?.stage ?? 0, stageAfter: d.op?.stage ?? 0,
+			momentumBefore: d.op?.momentum ?? 0, momentumAfter: d.op?.momentum ?? 0,
+			captured: false, collapsed: false, warWon: false, defended: false, sectorLost: null,
+			threatLost: null, opCut: null, saved: false, momentumBonus: false,
+			supplyGain: 0, xpGain: 0, medals, stats, rankBefore: rankFor( d.xp ).id, rankAfter: null,
+			world: null, read: false,
 		};
 
 		d.pending = null;
 		d.stats.battles += 1;
 		d.day += 1;
+		if ( won ) d.stats.wins += 1;
+		else d.stats.losses += 1;
 
-		if ( outcome === 'win' ) {
-			d.stats.wins += 1;
+		if ( defense ) {
+			d.threat = null;
+			if ( won ) {
+				d.stats.defended += 1;
+				result.defended = true;
+				result.supplyGain += SUPPLY_DEFENSE_WIN + ( p.reward || 0 );
+				log( d, 'log.defended', { target: p.target }, 'ally', p.target );
+			} else {
+				loseSector( d, p.target );
+				result.sectorLost = p.target;
+			}
+		} else if ( won ) {
+			result.supplyGain += SUPPLY_WIN + ( p.reward || 0 );
+			if ( p.asset && ASSETS[ p.asset ]?.momentum ) d.op.momentum = Math.min( MAX_MOMENTUM, d.op.momentum + ASSETS[ p.asset ].momentum );
 			if ( d.op.stage >= 3 ) {
 				d.owners[ p.target ] = 'ally';
 				delete d.pressure[ p.target ];
@@ -272,8 +431,10 @@ export function resolveBattle( s, winner, now = Date.now() ) {
 				log( d, 'log.advanced', { target: p.target, stage: d.op.stage }, 'ally', p.target );
 			}
 		} else {
-			d.stats.losses += 1;
-			d.op.momentum -= 1;
+			// The best player on the losing side kept the attack together:
+			// pushed back a stage, but no momentum lost.
+			result.saved = mvp;
+			if ( !mvp ) d.op.momentum -= 1;
 			result.momentumAfter = d.op.momentum;
 			if ( d.op.momentum <= 0 ) {
 				// The defence held long enough: the offensive runs out of steam
@@ -286,18 +447,58 @@ export function resolveBattle( s, winner, now = Date.now() ) {
 			} else {
 				d.op.stage = Math.max( 1, d.op.stage - 1 );
 				result.stageAfter = d.op.stage;
-				log( d, before.stage > 1 ? 'log.pushedBack' : 'log.held',
+				log( d, result.stageBefore > 1 ? 'log.pushedBack' : 'log.held',
 					{ target: p.target, stage: d.op.stage }, 'enemy', p.target );
 			}
 		}
 
+		// The winner of a battle was its best player: one more push.
+		if ( won && mvp && d.op && d.op.momentum < MAX_MOMENTUM ) {
+			d.op.momentum += 1;
+			result.momentumBonus = true;
+		}
+		if ( d.op ) result.momentumAfter = d.op.momentum;
+
+		// A counter-attack nobody answered.
+		if ( !defense && d.threat && !d.finished ) {
+			d.threat.left -= 1;
+			if ( d.threat.left <= 0 ) {
+				result.threatLost = d.threat.node;
+				loseSector( d, d.threat.node );
+				d.threat = null;
+			}
+		}
+
+		// The operation's target may have been cut off by what fell.
+		if ( d.op && !frontTargets( d ).includes( d.op.target ) ) {
+			result.opCut = d.op.target;
+			log( d, 'log.opCut', { target: d.op.target }, 'enemy', d.op.target );
+			d.op = null;
+		}
+
+		// The player's record.
+		result.xpGain = ( stats?.score || 0 ) + medals.length * MEDAL_XP;
+		d.xp += result.xpGain;
+		for ( const m of medals ) d.medals[ m ] = ( d.medals[ m ] || 0 ) + 1;
+		result.rankAfter = rankFor( d.xp ).id;
+		if ( result.rankAfter !== result.rankBefore )
+			log( d, 'log.promoted', { rank: result.rankAfter }, 'ally' );
+		d.supply += result.supplyGain;
+
 		if ( !d.finished )
 			result.world = worldTick( d );
 
-		result.front = frontDelta( before.owners, d.owners );
+		result.front = frontDelta( s.owners, d.owners );
 		d.debrief = result;
 		d.lastSeen = now;
 	} );
+}
+
+function loseSector( d, id ) {
+	d.owners[ id ] = 'enemy';
+	delete d.pressure[ id ];
+	d.stats.lost += 1;
+	log( d, 'log.sectorLost', { target: id }, 'enemy', id );
 }
 
 // Applies one world event to a draft; returns what happened for the debrief.
@@ -306,11 +507,12 @@ function worldTick( d ) {
 		if ( d.worldDone.includes( ev.id ) || !ev.when( d ) )
 			continue;
 		ev.apply( d );
+		if ( ev.threat )
+			d.threat = { node: ev.node, left: THREAT_BATTLES };
 		if ( ev.node )
 			d.worldDone.push( ev.id );
-		if ( ev.id === 'sawmill_lost' ) d.stats.lost += 1;
 		log( d, `world.${ ev.id }`, {}, ev.tone, ev.node );
-		return { id: ev.id, node: ev.node, tone: ev.tone };
+		return { id: ev.id, node: ev.node, tone: ev.tone, threat: !!ev.threat };
 	}
 	return null;
 }

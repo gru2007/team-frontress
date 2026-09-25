@@ -6,7 +6,7 @@ import { t, LANGUAGES, language } from '../core/i18n.js';
 import * as C from '../game/campaign.js';
 import { sectorName, codename, stageName, modeName, zoneName, mapTitle, factionOf } from '../ui/names.js';
 import { modeIcon } from '../ui/glyphs.js';
-import { emblem, stageTrack, momentum, stamp, closeButton, logo, chevrons } from './parts.js';
+import { emblem, stageTrack, momentum, stamp, closeButton, logo, chevrons, conditionChip, medal } from './parts.js';
 
 export function renderOverlay( ctx ) {
 	const o = ctx.ui.overlay;
@@ -62,21 +62,26 @@ const VIEWS = {
 	deploy( ctx, o ) {
 		const s = ctx.state;
 		const p = o.plan;
-		const info = C.stageInfo( p.stage );
+		const defense = p.kind === 'defense';
+		const size = p.roster ? `${ 1 + p.roster.allies } ${ t( 'common.vs' ) } ${ p.roster.enemies }` : C.stageInfo( p.stage ).size;
 
 		const lines = [
-			[ t( 'coord.front' ), `${ sectorName( s, p.target ) } — ${ t( 'hud.op', { codename: codename( p.target ) } ) }` ],
-			[ t( 'coord.stage' ), `${ stageName( p.stage ) } · ${ t( 'stage.n', { n: p.stage } ) }` ],
+			defense
+				? [ t( 'coord.threat' ), `${ sectorName( s, p.target ) } — ${ t( 'defense.title' ) }` ]
+				: [ t( 'coord.front' ), `${ sectorName( s, p.target ) } — ${ t( 'hud.op', { codename: codename( p.target ) } ) }` ],
+			defense ? null : [ t( 'coord.stage' ), `${ stageName( p.stage ) } · ${ t( 'stage.n', { n: p.stage } ) }` ],
 			[ t( 'coord.map' ), `${ mapTitle( p.map ) } · ${ modeName( p.mode ) } · ${ zoneName( p.zone ) }` ],
+			[ t( 'coord.conditions' ), p.mods?.length ? p.mods.map( id => t( `mod.${ id }` ) ).join( ' · ' ) : t( 'cond.none' ) ],
+			p.asset ? [ t( 'coord.asset' ), t( `asset.${ p.asset }` ) ] : null,
 			[ t( 'coord.side' ), p.swap ? t( 'coord.swapped', { faction: s.faction, team: p.team } ) : t( 'coord.yourSide', { faction: s.faction } ) ],
-			[ t( 'coord.match' ), t( 'coord.newMatch', { size: info.size } ) ],
-		];
+			[ t( 'coord.match' ), t( 'coord.newMatch', { size } ) ],
+		].filter( Boolean );
 
 		const card = h( 'div.battle-card', null,
 			h( 'div.bc-mode', null, modeIcon( p.mode ) ),
 			h( 'div.bc-text', null,
 				h( 'div.bc-map', null, mapTitle( p.map ) ),
-				h( 'div.bc-sub', null, `${ modeName( p.mode ) } · ${ info.size } · ${ p.map }` ) ),
+				h( 'div.bc-sub', null, `${ modeName( p.mode ) } · ${ size } · ${ p.map }` ) ),
 			h( 'div.bc-side', null, emblem( s.faction ) ),
 		);
 
@@ -95,7 +100,9 @@ const VIEWS = {
 				h( 'div.sim-head', null, h( 'strong', null, t( 'sim.title' ) ), h( 'span', null, t( 'sim.body' ) ) ),
 				h( 'div.sim-buttons', null,
 					h( 'button.btn.btn-good', { onclick: () => ctx.act.simulate( 'ally' ) }, t( 'sim.win' ) ),
+					h( 'button.btn.btn-good', { onclick: () => ctx.act.simulate( 'ally', true ) }, t( 'sim.winMvp' ) ),
 					h( 'button.btn.btn-bad', { onclick: () => ctx.act.simulate( 'enemy' ) }, t( 'sim.loss' ) ),
+					h( 'button.btn.btn-bad', { onclick: () => ctx.act.simulate( 'enemy', true ) }, t( 'sim.lossMvp' ) ),
 					h( 'button.btn', { onclick: () => ctx.act.simulate( null ) }, t( 'sim.stalemate' ) ),
 				) );
 		}
@@ -141,7 +148,11 @@ const VIEWS = {
 		if ( !d ) return null;
 
 		const changes = [];
-		if ( d.outcome === 'win' ) {
+		const defense = d.kind === 'defense';
+		if ( defense ) {
+			if ( d.defended ) changes.push( [ 'good big', t( 'debrief.defended', { target: sectorName( s, d.target ) } ) ] );
+			else changes.push( [ 'bad big', t( 'debrief.sectorLost', { target: sectorName( s, d.target ) } ) ] );
+		} else if ( d.outcome === 'win' ) {
 			if ( d.warWon ) changes.push( [ 'good big', t( 'debrief.warWon' ) ] );
 			else if ( d.captured ) changes.push( [ 'good big', t( 'debrief.captured', { target: sectorName( s, d.target ) } ) ] );
 			else changes.push( [ 'good', t( 'debrief.advanced', { from: stageName( d.stageBefore ), to: stageName( d.stageAfter ) } ) ] );
@@ -149,9 +160,24 @@ const VIEWS = {
 			if ( d.collapsed ) changes.push( [ 'bad big', t( 'debrief.collapsed', { target: sectorName( s, d.target ) } ) ] );
 			else if ( d.stageAfter < d.stageBefore ) changes.push( [ 'bad', t( 'debrief.pushedBack', { from: stageName( d.stageBefore ), to: stageName( d.stageAfter ) } ) ] );
 			else changes.push( [ 'bad', t( 'debrief.held', { stage: stageName( d.stageAfter ) } ) ] );
-			if ( !d.collapsed ) changes.push( [ 'bad', t( 'debrief.momentum', { n: d.momentumAfter } ) ] );
+			if ( !d.collapsed ) changes.push( [ d.saved ? 'good' : 'bad', d.saved ? t( 'debrief.saved' ) : t( 'debrief.momentum', { n: d.momentumAfter } ) ] );
 			if ( d.outcome === 'stalemate' ) changes.push( [ 'note', t( 'debrief.stalemateNote' ) ] );
 		}
+		if ( d.momentumBonus ) changes.push( [ 'good', t( 'debrief.momentumBonus' ) ] );
+		if ( d.threatLost ) changes.push( [ 'bad big', t( 'debrief.threatLost', { target: sectorName( s, d.threatLost ) } ) ] );
+		if ( d.opCut ) changes.push( [ 'bad', t( 'debrief.opCut', { codename: codename( d.opCut ) } ) ] );
+
+		// The player's own line: what they did, what it earned.
+		const you = h( 'section.debrief-you', null,
+			h( 'div.block-title', null, t( 'debrief.you' ) ),
+			h( 'p.you-stats', null, d.stats ? t( 'debrief.statsLine', d.stats ) : t( 'debrief.noStats' ) ),
+			d.medals?.length ? h( 'div.medal-row', null, d.medals.map( medal ) ) : null,
+			h( 'div.you-gains', null,
+				d.supplyGain ? h( 'span.gain.supply', null, t( 'debrief.supply', { n: d.supplyGain } ) ) : null,
+				d.xpGain ? h( 'span.gain.xp', null, t( 'debrief.xp', { n: d.xpGain } ) ) : null,
+				d.rankAfter && d.rankAfter !== d.rankBefore ? h( 'span.gain.rank', null, t( 'debrief.promoted', { rank: t( `rank.${ d.rankAfter }` ) } ) ) : null ),
+		);
+		const fought = d.mods?.length ? h( 'div.debrief-conds', null, d.mods.map( id => conditionChip( id ) ) ) : null;
 
 		const world = d.world && d.world.id !== 'quiet_front'
 			? h( 'section.meanwhile', { class: `tone-${ d.world.tone }` },
@@ -160,23 +186,26 @@ const VIEWS = {
 			: null;
 
 		const trackStage = d.captured ? 4 : Math.max( 1, d.stageAfter );
+		const showTrack = !defense && !d.collapsed && !d.opCut;
 		const title = t( `debrief.${ d.outcome }` );
 
 		return modal( `debrief-modal outcome-${ d.outcome }`,
 			h( 'div.debrief-hero', null,
 				stamp( title.toUpperCase(), `stamp-${ d.outcome }` ),
 				h( 'div.debrief-where', null,
-					h( 'div.paper-kicker', null, t( 'hud.op', { codename: codename( d.target ) } ) ),
+					h( 'div.paper-kicker', null, defense ? t( 'defense.kicker' ) : t( 'hud.op', { codename: codename( d.target ) } ) ),
 					h( 'h2', null, sectorName( s, d.target ) ),
-					h( 'div.debrief-map', null, modeIcon( d.mode ), `${ modeName( d.mode ) } · ${ mapTitle( d.map ) }` ) ),
+					h( 'div.debrief-map', null, modeIcon( d.mode ), `${ modeName( d.mode ) } · ${ mapTitle( d.map ) }` ),
+					fought ),
 			),
 			h( 'section.debrief-changes', null,
 				h( 'div.block-title', null, t( 'debrief.question' ) ),
 				h( 'ul', null, changes.map( ( [ cls, text ] ) => h( 'li', { class: cls }, text ) ) ),
-				d.collapsed ? null : h( 'div.debrief-track', { style: { '--from': Math.max( 0, Math.min( 3, d.stageBefore - 1 ) ) / 3 } },
+				!showTrack ? null : h( 'div.debrief-track', { style: { '--from': Math.max( 0, Math.min( 3, d.stageBefore - 1 ) ) / 3 } },
 					stageTrack( trackStage ),
 					!d.captured && s.op ? momentum( s.op.momentum ) : null ),
 			),
+			you,
 			world,
 			h( 'div.debrief-stats', null,
 				`${ t( 'hud.battles' ) } ${ s.stats.battles } · ${ t( 'hud.wins' ) } ${ s.stats.wins } · ${ t( 'hud.losses' ) } ${ s.stats.losses }` ),

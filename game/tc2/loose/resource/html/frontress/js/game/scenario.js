@@ -144,6 +144,13 @@ export const WORLD_EVENTS = [
 		when: s => s.owners.reservoir === 'enemy' && s.op?.target !== 'reservoir',
 		apply: s => { s.pressure.reservoir = -0.5; },
 	},
+	// A counter-attack is a threat, not a loss: the player has THREAT_BATTLES
+	// battles to go and defend the sector before it falls (campaign.js).
+	{
+		id: 'sawmill_attack', node: 'sawmill', tone: 'enemy', threat: true,
+		when: s => s.owners.sawmill === 'ally' && !s.threat && s.stats.battles >= 3,
+		apply: () => {},
+	},
 	{
 		id: 'enemy_digs_in', node: 'badwater', tone: 'enemy',
 		when: s => s.owners.badwater === 'enemy' && s.op?.target !== 'badwater',
@@ -151,19 +158,106 @@ export const WORLD_EVENTS = [
 	},
 	{
 		id: 'allies_take_reservoir', node: 'reservoir', tone: 'ally',
-		when: s => s.owners.reservoir === 'enemy' && s.op?.target !== 'reservoir' && s.stats.battles >= 4,
+		when: s => s.owners.reservoir === 'enemy' && s.op?.target !== 'reservoir' && s.stats.battles >= 5,
 		apply: s => { s.owners.reservoir = 'ally'; delete s.pressure.reservoir; },
 	},
 	{
-		id: 'sawmill_lost', node: 'sawmill', tone: 'enemy',
-		when: s => s.owners.sawmill === 'ally' && s.op?.target !== 'sawmill' && s.stats.battles >= 5,
-		apply: s => { s.owners.sawmill = 'enemy'; delete s.pressure.sawmill; },
+		id: 'junction_attack', node: 'junction', tone: 'enemy', threat: true,
+		when: s => s.owners.junction === 'ally' && !s.threat && s.stats.battles >= 6,
+		apply: () => {},
 	},
 	{
 		id: 'quiet_front', node: null, tone: 'neutral',
 		when: () => true,
 		apply: () => {},
 	},
+];
+
+// Battles the player has to answer a counter-attack before the sector falls.
+export const THREAT_BATTLES = 2;
+
+//-----------------------------------------------------------------------------
+// What makes one battle unlike another.
+//
+// A modifier is a condition of the fight, shown on the map and in the
+// dossier, and felt in the battle:
+//   roster  changes who fights -- the game adds the bots accordingly
+//           (tf_bot_add ... noquota, see tf_frontress_demo.cpp);
+//   cfg     the game execs cfg/frontress_mod_<id>.cfg after its own setup,
+//           and frontress_demo.cfg undoes it for the next battle.
+//   reward  supply earned on top of a win, for the harder conditions.
+// Some modifiers touch every bot or the whole server (sv_gravity,
+// tf_bot_melee_only): those are 'odd', not an edge for either side.
+//-----------------------------------------------------------------------------
+export const MODIFIERS = {
+	veterans:  { tone: 'hard', roster: { eskill: 1 }, reward: 1 },
+	snipers:   { tone: 'hard', roster: { eclass: [ 'sniper', 3 ] }, cfg: true, reward: 1 },
+	sentries:  { tone: 'hard', roster: { eclass: [ 'engineer', 2 ] }, cfg: true, reward: 1 },
+	longwaves: { tone: 'odd',  cfg: true },
+	nocrits:   { tone: 'odd',  cfg: true },
+	lowgrav:   { tone: 'odd',  cfg: true },
+	melee:     { tone: 'odd',  cfg: true },
+	grapples:  { tone: 'good', cfg: true },
+	partisans: { tone: 'good', roster: { allies: 1 } },
+};
+
+// The conditions of each stage of each operation...
+export const OPERATION_MODIFIERS = {
+	industrial: [ [ 'nocrits' ], [ 'sentries' ], [ 'veterans' ] ],
+	rail:       [ [ 'grapples' ], [ 'longwaves' ], [ 'snipers' ] ],
+	quarry:     [ [ 'snipers' ], [ 'lowgrav' ], [ 'sentries' ] ],
+	hydro:      [ [ 'longwaves' ], [ 'nocrits' ], [ 'veterans' ] ],
+	rural:      [ [ 'melee' ], [ 'snipers' ], [ 'longwaves' ] ],
+	hq:         [ [ 'veterans' ], [ 'sentries', 'longwaves' ], [ 'veterans', 'snipers' ] ],
+};
+
+// ...and what the state of the war adds: an enemy that dug in fights harder,
+// a sector allied squads are already pushing has partisans on your side.
+export const PRESSURE_MODIFIERS = { enemy: 'veterans', ally: 'partisans' };
+
+// Holding a sector: the attacker brings more.
+export const DEFENSE_MODIFIERS = [ 'veterans' ];
+
+//-----------------------------------------------------------------------------
+// Supply: earned by winning, spent on one asset per battle.
+//-----------------------------------------------------------------------------
+export const SUPPLY_START = 2;
+export const SUPPLY_WIN = 1;
+export const SUPPLY_DEFENSE_WIN = 2;
+
+export const ASSETS = {
+	reinforce: { cost: 2, roster: { allies: 2 } },
+	elite:     { cost: 2, roster: { askill: 1 } },
+	intel:     { cost: 1, cancels: 'hard' },      // takes the hardest condition off
+	gamble:    { cost: 0, roster: { enemies: 2, eskill: 1 }, reward: 2, momentum: 1 },
+};
+
+// Bot skill, as tf_bot_add spells it. The demo's base is 'normal'.
+export const SKILLS = [ 'easy', 'normal', 'hard', 'expert' ];
+export const BASE_SKILL = 1;
+
+//-----------------------------------------------------------------------------
+// The player's own record: medals from the battle's scoreboard, and rank from
+// the points earned across the war. The thresholds are per battle, for a
+// human among bots on a public-sized map.
+//-----------------------------------------------------------------------------
+export const MEDALS = [
+	{ id: 'mvp',          test: st => st.teamRank === 1 },
+	{ id: 'slayer',       test: st => st.kills >= 10 },
+	{ id: 'wrecker',      test: st => st.damage >= 3000 },
+	{ id: 'lifeline',     test: st => st.healing >= 2000 },
+	{ id: 'untouchable',  test: st => st.deaths === 0 && st.score >= 5 },
+];
+
+export const MEDAL_XP = 10;
+
+export const RANKS = [
+	{ id: 'private',    xp: 0 },
+	{ id: 'corporal',   xp: 40 },
+	{ id: 'sergeant',   xp: 100 },
+	{ id: 'lieutenant', xp: 180 },
+	{ id: 'captain',    xp: 280 },
+	{ id: 'major',      xp: 400 },
 ];
 
 // How many minutes away count as "while you were away".

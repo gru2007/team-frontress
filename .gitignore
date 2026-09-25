@@ -559,6 +559,10 @@ autoexec.cfg
 # The demo's campaign, written by the game at runtime.
 frontress_demo_state.json
 frontress_demo_state.json.tmp
+# Screenshot sessions (tools/shots).
+frontress_shots_marks.log
+tools/shots/out/
+tools/shots/node_modules/
 GameState.txt
 stats.txt
 voice_ban.dt
