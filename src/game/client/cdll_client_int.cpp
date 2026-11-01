@@ -1106,6 +1106,23 @@ int CHLClient::Init( CreateInterfaceFn appSystemFactory, CreateInterfaceFn physi
 
 	vgui::VGui_InitMatSysInterfacesList( "ClientDLL", &appSystemFactory, 1 );
 
+#if defined( TF_CLIENT_DLL )
+	// Some engines load only the mod's own localization, not TF2's base tokens.
+	// Load those only when they are missing, then reload the mod's file: a later
+	// AddFile replaces existing tokens, and the mod's overrides must win.
+	if ( !g_pVGuiLocalize->Find( "TF_Scout" ) )
+	{
+		char szModFile[ MAX_PATH ];
+		V_FileBase( engine->GetGameDirectory(), szModFile, sizeof( szModFile ) );
+		V_strncat( szModFile, "_%language%.txt", sizeof( szModFile ) );
+		char szModPath[ MAX_PATH ];
+		V_snprintf( szModPath, sizeof( szModPath ), "resource/%s", szModFile );
+
+		g_pVGuiLocalize->AddFile( "resource/tf_%language%.txt", "GAME", true );
+		g_pVGuiLocalize->AddFile( szModPath, "GAME", true );
+	}
+#endif
+
 	// Add the client systems.	
 	
 	// Client Leaf System has to be initialized first, since DetailObjectSystem uses it

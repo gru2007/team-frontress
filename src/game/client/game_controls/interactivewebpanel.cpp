@@ -85,7 +85,7 @@ void CInteractiveWebPanel::PerformLayout()
 	m_pHTML->SetSize(GetWide(), GetTall());
 	// Steam HTML expects a multiplier. Keep legacy panel scaling unchanged;
 	// responsive campaign pages use the actual viewport at 1:1.
-	float flZoom = m_bViewportScaling ? 1.0f : (float)vgui::scheme()->GetProportionalNormalizedValue( 100 );
+	float flZoom = m_bViewportScaling ? 1.0f : (float)vgui::scheme()->GetProportionalNormalizedValue( 100 ) / 100.0f;
 	m_pHTML->SetZoomLevel( flZoom );
 }
 

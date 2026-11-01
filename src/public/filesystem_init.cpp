@@ -696,6 +696,9 @@ FSReturnCode_t FileSystem_LoadSearchPaths( CFSSearchPathsInit &initInfo )
 			V_StripTrailingSlash( szAbsSearchPath );
 			FileSystem_AddLoadedSearchPath( initInfo, "GAME", szAbsSearchPath, false );
 			FileSystem_AddLoadedSearchPath( initInfo, "MOD", szAbsSearchPath, false );
+			// VGUI resolves layouts through its own path ID before falling back
+			// to GAME. Development overrides must also precede mounted TF2 VPKs.
+			FileSystem_AddLoadedSearchPath( initInfo, "VGUI", szAbsSearchPath, false );
 		}
 	}
 

@@ -17,6 +17,7 @@
 #include <dlfcn.h>
 #include <limits.h>
 #include <string.h>
+#include <sys/stat.h>
 #define MAX_PATH PATH_MAX
 #endif
 
@@ -835,10 +836,13 @@ static int LaunchBundledEngine( const char *pszExePath, int argc, char *argv[] )
 	// Default to the game named after the executable (tc2_osx -> tc2).
 	std::vector<char *> new_argv( argv, argv + argc );
 	bool bHasGame = false;
+	bool bHasSearchPath = false;
 	for ( int i = 1; i < argc; i++ )
 	{
 		if ( !strcmp( argv[i], "-game" ) )
 			bHasGame = true;
+		if ( !strcmp( argv[i], "-insert_search_path" ) )
+			bHasSearchPath = true;
 	}
 
 	static char szGamePath[ MAX_PATH ];
@@ -847,6 +851,26 @@ static int LaunchBundledEngine( const char *pszExePath, int argc, char *argv[] )
 		snprintf( szGamePath, sizeof( szGamePath ), "%s/%s", szRootDir, GetExecutableModName( (char *)pszExePath ) );
 		new_argv.push_back( (char *)"-game" );
 		new_argv.push_back( szGamePath );
+	}
+	// Engine-specific compiled content must take precedence over the installed
+	// TF2 shader cache: their static/dynamic combo layouts can differ.
+	static char szEngineContent[ MAX_PATH ];
+	snprintf( szEngineContent, sizeof( szEngineContent ), "%s/" PLATFORM_BIN_DIR "/content", szRootDir );
+	struct stat contentInfo;
+	std::string searchPaths;
+	if ( stat( szEngineContent, &contentInfo ) == 0 && S_ISDIR( contentInfo.st_mode ) )
+		searchPaths = szEngineContent;
+	char szDevelopmentContent[ MAX_PATH ];
+	snprintf( szDevelopmentContent, sizeof( szDevelopmentContent ), "%s/../game_src/%s/pak1", szRootDir, GetExecutableModName( (char *)pszExePath ) );
+	if ( stat( szDevelopmentContent, &contentInfo ) == 0 && S_ISDIR( contentInfo.st_mode ) )
+	{
+		if ( !searchPaths.empty() ) searchPaths += ",";
+		searchPaths += szDevelopmentContent;
+	}
+	if ( !bHasSearchPath && !searchPaths.empty() )
+	{
+		new_argv.push_back( (char *)"-insert_search_path" );
+		new_argv.push_back( (char *)searchPaths.c_str() );
 	}
 	new_argv.push_back( NULL );
 

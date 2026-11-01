@@ -32,7 +32,8 @@ flags=()
 [ "$mode" = "debug" ] && flags+=(--debug)
 
 ninja_file="$(python3 devtools/vpc_osx.py "${flags[@]}" "${targets[@]}")"
-ninja -f "$ninja_file"
+# Leave memory for the editor and Steam on 8 GB development machines.
+ninja -j "${JOBS:-4}" -f "$ninja_file"
 
 # ninja does not sign; arm64 macOS refuses to load unsigned code.
 for f in ../game/tc2/bin/$plat/*.dylib; do

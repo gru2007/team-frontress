@@ -171,11 +171,11 @@ ELobbyType CTFMMParty::WantedLobbyType()
 //-----------------------------------------------------------------------------
 void CTFMMParty::ApplyJoinPolicy()
 {
-	if ( !BValid() || !MM() || !BIsLeader() )
+	if ( !BValid() || !MM() )
 		return;
 
 	const ELobbyType eWanted = WantedLobbyType();
-	if ( eWanted == m_eAppliedLobbyType )
+	if ( eWanted == m_eAppliedLobbyType || !BIsLeader() )
 		return;
 
 	m_eAppliedLobbyType = eWanted;

@@ -293,6 +293,7 @@ CHudMainMenuOverride::CHudMainMenuOverride( IViewPort *pViewPort ) : BaseClass( 
 	// is off the panel is simply never shown. ApplySchemeSettings picks the
 	// layout, this is just so it starts out hidden before the first one.
 	m_pMainMenuWebUi = new CInteractiveWebPanel( this, "TFMainMenuWebUi", "ui/index.html", true, false );
+	m_pMainMenuWebUi->SetViewportScaling( true );
 	m_pMainMenuWebUi->SetVisible( tf_main_menu_html.GetBool() );
 
 	// The campaign / queue / news column. Built in code rather than in the .res
@@ -2507,10 +2508,11 @@ void CHudMainMenuOverride::StopUpdateGlow()
 void CHudMainMenuOverride::UpdateRankPanelVisibility()
 {
 	bool bConnectedToGC = GTFGCClientSystem()->BConnectedtoGC();
+	bool bShowRank = bConnectedToGC && !tf_main_menu_html.GetBool();
 
-	m_pRankPanel->SetVisible( bConnectedToGC );
-	m_pRankModelPanel->SetVisible( bConnectedToGC );
-	SetControlVisible( "CycleRankTypeButton", bConnectedToGC );
+	m_pRankPanel->SetVisible( bShowRank );
+	m_pRankModelPanel->SetVisible( bShowRank );
+	SetControlVisible( "CycleRankTypeButton", bShowRank );
 	SetControlVisible( "NoGCMessage", !bConnectedToGC, true );
 	SetControlVisible( "NoGCImage", !bConnectedToGC, true );
 	UpdateRankPanelType();

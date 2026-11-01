@@ -79,16 +79,16 @@ Scheme
 
 		FrameSystemButton.FgColor		"Blank"
 		FrameSystemButton.BgColor		"Blank"
-		FrameSystemButton.Icon			"replay/thumbnails/bg_images/icon_tf"
-		FrameSystemButton.DisabledIcon	"replay/thumbnails/bg_images/icon_tf_disabled"
+		FrameSystemButton.Icon			""
+		FrameSystemButton.DisabledIcon	""
 		Frame.TitleTextInsetX			"16"
 		Frame.ClientInsetX				"8"
 		Frame.ClientInsetY				"6"
 		Frame.AutoSnapRange				"0"
 		Frame.FocusTransitionEffectTime "0.2"
 		
-		Frame.BgColor					"Blank"
-		Frame.OutOfFocusBgColor			"Blank"
+		Frame.BgColor					"ListBG"
+		Frame.OutOfFocusBgColor			"ListBG"
 		FrameGrip.Color1				"TFTanLight"
 		FrameGrip.Color2				"TFDarkBrown"		
 		FrameTitleButton.FgColor		"TFTanBright"
@@ -165,17 +165,8 @@ Scheme
 		ButtonBorder	CustomButtonBorder
 		PropertySheetBorder	CustomPropertySheetBorder
 
-		FrameBorder
-		{
-			"bordertype"			"scalable_image"
-			"backgroundtype"		"2"
-			
-			"image"					"../vgui/replay/thumbnails/bg_images/vgui_bg"
-			"src_corner_height"		"16"				// pixels inside the image
-			"src_corner_width"		"16"
-			"draw_corner_width"		"4"				// screen size of the corners ( and sides ), proportional
-			"draw_corner_height" 	"4"
-		}
+		// Do not depend on optional legacy Replay frame textures.
+		FrameBorder	CustomBaseBorder
 		
 		CustomBaseBorder
 		{

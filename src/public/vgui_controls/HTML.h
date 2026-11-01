@@ -139,7 +139,16 @@ public:
 
 	void GetLinkAtPosition( int x, int y );
 
-	void SetZoomLevel(float flZoom) { m_flZoom = flZoom; }
+	// Steam uses a scale multiplier: 1.0 is 100%.
+	void SetZoomLevel(float flZoom)
+	{
+		if ( flZoom > 0.0f && flZoom != m_flZoom )
+		{
+			m_flZoom = flZoom;
+			m_iWideLastHTMLSize = m_iTalLastHTMLSize = 0;
+			InvalidateLayout();
+		}
+	}
 
 	void HidePopup();
 

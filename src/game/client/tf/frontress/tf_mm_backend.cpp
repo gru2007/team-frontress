@@ -77,6 +77,7 @@ CTFMMBackend::CTFMMBackend()
 	, m_bWarnedPublishFailed( false )
 	, m_bPartyPublished( false )
 	, m_bLobbyPublished( false )
+	, m_flNextPartyPublish( 0.0f )
 	, m_eQueuedMatchGroup( k_eTFMatchGroup_Invalid )
 	, m_flNextPollTime( 0.f )
 	, m_flQueueStartTime( 0.f )
@@ -201,8 +202,14 @@ void CTFMMBackend::Update( float frametime )
 	// The party object tracks the Steam lobby, which changes underneath us.
 	// Retry initial publication even for solo parties, and restore MM objects
 	// after Valve replaces our optional fallback cache.
-	if ( !m_bPartyPublished )
+	const float flNow = Plat_FloatTime();
+	if ( flNow >= m_flNextPartyPublish && ( !m_bPartyPublished || m_party.BValid() ) )
+	{
+		// Reading the Steam lobby involves synchronous IPC. Explicit party
+		// changes still publish immediately; background refreshes run at 4 Hz.
+		m_flNextPartyPublish = flNow + 0.25f;
 		PublishParty();
+	}
 	if ( !m_bLobbyPublished &&
 	     ( m_eState == k_eTFMMState_MatchReady || m_eState == k_eTFMMState_Connecting ||
 	       m_eState == k_eTFMMState_InMatch ) )
@@ -210,10 +217,9 @@ void CTFMMBackend::Update( float frametime )
 	if ( m_progress.bValid && m_vecPublishedRatingTypes.Count() == 0 )
 		PublishRatings();
 
-	// Republishing is cheap and idempotent; only do it while a lobby exists.
+	// Only touch Steam when the requested policy actually changes.
 	if ( m_party.BValid() )
 	{
-		PublishParty();
 		// The settings panel writes a convar; Steam has to be told.
 		m_party.ApplyJoinPolicy();
 	}

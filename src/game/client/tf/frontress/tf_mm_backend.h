@@ -385,6 +385,7 @@ private:
 	bool       m_bWarnedPublishFailed;
 	bool       m_bPartyPublished;
 	bool       m_bLobbyPublished;
+	float      m_flNextPartyPublish;
 
 	ETFMatchGroup m_eQueuedMatchGroup;
 	CUtlString    m_strTicketID;

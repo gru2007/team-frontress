@@ -1,0 +1,29 @@
+// macOS supplements for the private development engine. Game SDK sources only.
+$Macro SRCDIR "..\.."
+$Macro OUTBINNAME "game_shader_generic_frontress_effects"
+$Macro GAMENAME "tc2"
+$Macro OUTBINDIR "$SRCDIR\..\game\$GAMENAME\bin"
+$Include "$SRCDIR\vpc_scripts\source_dll_base.vpc"
+$Configuration
+{
+    $Linker
+    {
+        $SystemLibraries "iconv" [$OSXALL]
+    }
+    $Compiler
+    {
+        $AdditionalIncludeDirectories "$BASE;include;"
+        $PreprocessorDefinitions "$BASE;STDSHADER_DX9_DLL_EXPORT;FAST_MATERIALVAR_ACCESS;GAME_SHADER_DLL"
+    }
+}
+$Project "Frontress effects (macOS)"
+{
+    $File "BaseVSShader.cpp"
+    $File "KawaseBloom.cpp"
+    $Folder "Link Libraries"
+    {
+        $Lib mathlib
+        $Lib shaderlib
+        $Lib tier2
+    }
+}
