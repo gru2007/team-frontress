@@ -18,7 +18,7 @@
 #include "mathlib/math_pfns.h"
 
 // For MMX intrinsics
-#include <xmmintrin.h>
+#include "tier0/simd_intrin.h"
 
 // XXX remove me
 #undef clamp
@@ -1167,6 +1167,9 @@ FORCEINLINE int RoundFloatToInt(float f)
 	};
 	flResult = __fctiw( f );
 	return pResult[1];
+#elif defined( PLATFORM_ARM )
+	// Same rounding as cvtss2si: the current mode, round-half-to-even by default.
+	return (int)lrintf( f );
 #else
 #error Unknown architecture
 #endif
@@ -1187,6 +1190,8 @@ FORCEINLINE int RoundFloatToNearestInt(float f)
 	};
 	flResult = __fctiw( f );
 	return pResult[1];
+#elif defined( PLATFORM_ARM )
+	return (int)lrintf( f + f + 0.5f ) >> 1;
 #else
 #error Unknown architecture
 #endif
@@ -1218,7 +1223,9 @@ FORCEINLINE unsigned long RoundFloatToUnsignedLong(float f)
 	return pResult[1];
 #else  // !X360
 	
-#if defined( PLATFORM_WINDOWS_PC64 )
+#if defined( PLATFORM_ARM )
+	return (unsigned long)llrintf( f );
+#elif defined( PLATFORM_WINDOWS_PC64 )
 	uint nRet = ( uint ) f;
 	if ( nRet & 1 )
 	{

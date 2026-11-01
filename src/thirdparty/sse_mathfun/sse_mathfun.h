@@ -29,7 +29,11 @@
   (this is the zlib license)
 */
 
+#if defined(__aarch64__) || defined(__arm__)
+#include "../sse2neon/sse2neon.h"
+#else
 #include <xmmintrin.h>
+#endif
 
 /* yes I know, the top of this file is quite ugly */
 
@@ -45,7 +49,9 @@
 typedef __m128 v4sf;  // vector of 4 float (sse1)
 
 #ifdef USE_SSE2
-# include <emmintrin.h>
+# if !defined(__aarch64__) && !defined(__arm__)
+#  include <emmintrin.h>
+# endif
 typedef __m128i v4si; // vector of 4 int (sse2)
 #else
 typedef __m64 v2si;   // vector of 2 int (mmx)

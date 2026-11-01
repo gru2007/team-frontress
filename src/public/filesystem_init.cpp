@@ -593,6 +593,19 @@ static void Plat_OpenURL( const char *pchURL )
         Warning( "Plat_OpenURL: Failed to execute '%s'\n", szFullCommand );
     }
 }
+#elif defined( OSX )
+static void Plat_OpenURL( const char *pchURL )
+{
+	if( !pchURL || !*pchURL )
+		return;
+
+	char szFullCommand[4096];
+	V_sprintf_safe( szFullCommand, "open '%s' &", pchURL );
+	if ( system( szFullCommand ) == -1 )
+	{
+		Warning( "Plat_OpenURL: Failed to execute '%s'\n", szFullCommand );
+	}
+}
 #endif
 
 struct Source1AppidInfo_t
@@ -717,6 +730,35 @@ FSReturnCode_t FileSystem_LoadSearchPaths( CFSSearchPathsInit &initInfo )
 				Error( "Can't mount content from invalid appid." );
 			}
 
+			// Team Fortress 2 can be pointed at directly. On macOS it has to be:
+			// TF2 has no macOS depot, so Steam never reports it as installed there
+			// and the content comes from a copy made some other way.
+			const char *pszAppDirOverride = NULL;
+			if ( nAppId == 440 )
+			{
+				pszAppDirOverride = CommandLine()->ParmValue( "-tf2dir", getenv( "TC2_TF2_DIR" ) );
+#ifdef OSX
+				static char s_szDefaultTF2Dir[ MAX_PATH ];
+				if ( !pszAppDirOverride && getenv( "HOME" ) )
+				{
+					V_sprintf_safe( s_szDefaultTF2Dir, "%s/Library/Application Support/Steam/steamapps/common/Team Fortress 2", getenv( "HOME" ) );
+					char szCheck[ MAX_PATH ];
+					V_sprintf_safe( szCheck, "%s/tf/tf2_misc_dir.vpk", s_szDefaultTF2Dir );
+					struct stat st;
+					if ( stat( szCheck, &st ) == 0 )
+						pszAppDirOverride = s_szDefaultTF2Dir;
+				}
+#endif
+			}
+
+			if ( pszAppDirOverride && *pszAppDirOverride )
+			{
+				V_strcpy_safe( szAppInstallDir, pszAppDirOverride );
+				pszBaseDir = szAppInstallDir;
+			}
+			else
+			{
+
 			if ( !SteamApps() )
 			{
 				Error( "No SteamApps connection." );
@@ -750,6 +792,7 @@ FSReturnCode_t FileSystem_LoadSearchPaths( CFSSearchPathsInit &initInfo )
 				Error( "Couldn't get install dir for appid: %d", nAppId );
 			}
 			pszBaseDir = szAppInstallDir;
+			}
 #else
 			Error( "Appid based mounting is not supported on non-engine DLL projects." );
 #endif

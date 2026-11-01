@@ -68,7 +68,9 @@ static auto Launcher_GetProcAddress( HMODULE hHandle, const char *pszName )
 }
 #else
 #include <dlfcn.h>
+#ifndef OSX
 #include <SDL2/SDL.h>
+#endif
 
 static void* Launcher_LoadModule( const char *pszPath )
 {
@@ -85,7 +87,12 @@ static void *Launcher_GetProcAddress( void *pHandle, const char *pszName )
 	return dlsym( pHandle, pszName );
 }
 
+#ifdef OSX
+// No SDL in the macOS launcher (the engine brings its own); errors go to the terminal.
+#define MessageBox( x, text, title, y) fprintf( stderr, "%s: %s\n", title, text )
+#else
 #define MessageBox( x, text, title, y) SDL_ShowSimpleMessageBox( SDL_MESSAGEBOX_ERROR, title, text, NULL )
+#endif
 #endif
 
 static const AppId_t k_unTF2AppId = 440;
@@ -116,7 +123,8 @@ static void *s_SteamModule;
 
 #define CALL( fn ) __real_##fn
 
-// Some stubs for pre-exec.
+// Some stubs for pre-exec. Linux links with -Wl,--wrap; macOS has no --wrap.
+#ifndef OSX
 extern "C"
 {
     WRAP(fopen, FILE *, const char *path, const char *mode)
@@ -129,6 +137,7 @@ extern "C"
         return CALL(fopen64)( path, mode );
     }
 }
+#endif // !OSX
 #endif
 
 static void UnloadSteam()
@@ -717,6 +726,23 @@ static void WaitForDebuggerConnect( int argc, char *argv[], int time )
 
 #else
 
+#if defined( OSX )
+#include <mach-o/dyld.h>
+
+bool GetExePath( char *pszPath, size_t size )
+{
+	char szRaw[ MAX_PATH ];
+	uint32_t unSize = sizeof( szRaw );
+	if ( _NSGetExecutablePath( szRaw, &unSize ) != 0 )
+		return false;
+	char szReal[ PATH_MAX ];
+	if ( !realpath( szRaw, szReal ) || strlen( szReal ) >= size )
+		return false;
+	strcpy( pszPath, szReal );
+	return true;
+}
+#endif
+
 static void WaitForDebuggerConnect( int argc, char *argv[], int time )
 {
 }
@@ -778,6 +804,56 @@ void var_snprintf(std::string& dst, const char* format, ...) {
 	dst.assign(buffer.data());
 }
 
+#if defined( OSX )
+// macOS runs on the engine that ships next to the game, in game/bin/osxarm64:
+// Team Fortress 2 has no macOS engine any more, so there is no install to
+// borrow one from. Team Fortress 2 itself is only needed for its content,
+// which the filesystem finds on its own (see gameinfo.txt).
+static int LaunchBundledEngine( const char *pszExePath, int argc, char *argv[] )
+{
+	char szRootDir[ MAX_PATH ];
+	GetBaseDir( pszExePath, szRootDir );
+
+	char szLauncher[ MAX_PATH ];
+	snprintf( szLauncher, sizeof( szLauncher ), "%s/" PLATFORM_BIN_DIR "/launcher.dylib", szRootDir );
+
+	void *pLauncher = Launcher_LoadModule( szLauncher );
+	if ( !pLauncher )
+	{
+		fprintf( stderr, "Failed to load the launcher: %s\n%s\n", szLauncher, dlerror() );
+		MessageBox( 0, "Failed to load bin/" PLATFORM_DIR "/launcher.dylib. Is the engine installed next to the game?", "Launcher Error", MB_OK );
+		return 1;
+	}
+
+	LauncherMain_t entryFunc = (LauncherMain_t)Launcher_GetProcAddress( pLauncher, "LauncherMain" );
+	if ( !entryFunc )
+	{
+		fprintf( stderr, "Failed to load the launcher entry proc\n" );
+		return 1;
+	}
+
+	// Default to the game named after the executable (tc2_osx -> tc2).
+	std::vector<char *> new_argv( argv, argv + argc );
+	bool bHasGame = false;
+	for ( int i = 1; i < argc; i++ )
+	{
+		if ( !strcmp( argv[i], "-game" ) )
+			bHasGame = true;
+	}
+
+	static char szGamePath[ MAX_PATH ];
+	if ( !bHasGame )
+	{
+		snprintf( szGamePath, sizeof( szGamePath ), "%s/%s", szRootDir, GetExecutableModName( (char *)pszExePath ) );
+		new_argv.push_back( (char *)"-game" );
+		new_argv.push_back( szGamePath );
+	}
+	new_argv.push_back( NULL );
+
+	return entryFunc( (int)new_argv.size() - 1, new_argv.data() );
+}
+#endif
+
 int main( int argc, char *argv[] )
 {
 	char moduleName[MAX_PATH];
@@ -785,6 +861,10 @@ int main( int argc, char *argv[] )
 	{
 		return 1;
 	}
+
+#if defined( OSX )
+	return LaunchBundledEngine( moduleName, argc, argv );
+#endif
 
 	bool bLaunchDedicated = false;
 	bool bGatherDedicated = false;

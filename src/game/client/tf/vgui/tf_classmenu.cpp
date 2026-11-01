@@ -1283,7 +1283,9 @@ void CTFClassMenu::Go()
 
 	// This will complete any pending replay, commit if necessary, and clear - this way when the player respawns
 	// we will start with a fresh replay for the new life.
+#if defined( REPLAY_ENABLED )
 	g_pClientReplayContext->OnPlayerClassChanged();
+#endif
 
 	// Change class
 	BaseClass::OnCommand( CFmtStr( "joinclass %s", g_aRawPlayerClassNames[ iClass ] ).Access() );

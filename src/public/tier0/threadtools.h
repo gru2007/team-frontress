@@ -150,7 +150,9 @@ inline void ThreadPause()
 	#if defined( PLATFORM_INTEL )
 		__asm __volatile( "pause" );
 	#elif defined( PLATFORM_ARM )
-		pause();
+		// The spin-wait hint. Not pause(): that is the POSIX call that sleeps
+		// until a signal arrives.
+		__asm__ __volatile__( "yield" );
 	#else
 		#error
 	#endif
@@ -223,6 +225,9 @@ inline int ThreadWaitForObject( HANDLE handle, bool bWaitAll = true, unsigned ti
 		#pragma intrinsic(_ReadWriteBarrier)
 	#endif
 	#define ThreadMemoryBarrier() _ReadWriteBarrier()
+#elif defined(GNUC) && defined(PLATFORM_ARM)
+	// ARM is weakly ordered: a compiler barrier is not enough there.
+	#define ThreadMemoryBarrier() __atomic_thread_fence( __ATOMIC_SEQ_CST )
 #elif defined(GNUC)
 	// Prevent compiler reordering across this barrier. This is
 	// sufficient for most purposes on x86/x64.

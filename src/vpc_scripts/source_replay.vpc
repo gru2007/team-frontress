@@ -32,7 +32,9 @@
 // 
 //-----------------------------------------------------------------------------
 
-$Conditional BUILD_REPLAY		1
+// Not on macOS: the engine the macOS build runs on (devtools/vpc_osx.py) has
+// no replay system.
+$Conditional BUILD_REPLAY		1	[!$OSXALL]
 
 //-----------------------------------------------------------------------------
 

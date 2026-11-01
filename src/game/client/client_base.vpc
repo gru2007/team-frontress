@@ -1276,7 +1276,7 @@ $Project
 		$ImpLibexternal steam_api	[!$WIN64]
 		$ImpLibexternal steam_api64	[$WIN64]
 		
-		$Libexternal $LIBCOMMON/libcrypto [$OSXALL]
+		$Libexternal $LIBCOMMON/libcrypto [$OSX32]
 		$Libexternal "$SRCDIR\lib\common\$CRYPTOPPDIR\libcryptopp" [$LINUXALL&&!$SOURCESDK]
 		$Lib   "libz" [$WINDOWS]
 

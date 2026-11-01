@@ -3160,7 +3160,11 @@ void CTFGCServerSystem::UpdateConnectedPlayersAndServerInfo( CMsgGameServerMatch
 		bool bActive = false;
 		if ( engine->GetPlayerInfo( i, &sPlayerInfo ) )
 		{
+#if defined( REPLAY_ENABLED )
 			if ( sPlayerInfo.ishltv || sPlayerInfo.isreplay )
+#else
+			if ( sPlayerInfo.ishltv )
+#endif
 			{
 				++nAdminSlots;
 				continue;

@@ -33,7 +33,9 @@ $Configuration
 {
 	$Compiler
 	{
-		$PreprocessorDefinitions		"$BASE;QUICKTIME_VIDEO;FORCE_QUICKTIME"		[$OSXALL]				
+		// QuickTime is gone from macOS; the macOS build (devtools/vpc_osx.py) uses
+		// the same video path as Linux.
+		$PreprocessorDefinitions		"$BASE;BINK_VIDEO"		[$OSXALL]
 
 		// Windows PC, without Quicktime, and with Quicktime
 

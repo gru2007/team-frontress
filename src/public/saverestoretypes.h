@@ -512,8 +512,14 @@ inline const char *CSaveRestoreSegment::StringFromSymbol( int token )
 ///             compilers. Either way, there's no portable intrinsic.
 
 // Newer GCC versions provide this in this header, older did by default.
-#if !defined( _rotr ) && defined( COMPILER_GCC )
+#if !defined( _rotr ) && defined( COMPILER_GCC ) && !defined( PLATFORM_ARM )
 #include <x86intrin.h>
+#elif !defined( _rotr ) && defined( PLATFORM_ARM )
+inline unsigned int _rotr( unsigned int value, int shift )
+{
+	shift &= 31;
+	return ( value >> shift ) | ( value << ( ( 32 - shift ) & 31 ) );
+}
 #endif
 
 inline unsigned int CSaveRestoreSegment::HashString( const char *pszToken )

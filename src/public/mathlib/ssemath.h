@@ -9,7 +9,7 @@
 #if defined( _X360 )
 #include <xboxmath.h>
 #else
-#include <xmmintrin.h>
+#include "tier0/simd_intrin.h"
 #endif
 
 #include <mathlib/vector.h>

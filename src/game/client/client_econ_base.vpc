@@ -185,6 +185,6 @@ $Project
 	{
 		$Lib "$LIBCOMMON/jpeglib"
 		$Lib "$LIBCOMMON/libspng"
-		$Lib libz [!$LINUXALL]
+		$Lib libz [$WINDOWS]
 	}
 }

@@ -345,7 +345,11 @@ unsigned int CPhonemeTag::ComputeDataCheckSum()
 //-----------------------------------------------------------------------------
 // Purpose: Simple language to string and string to language lookup dictionary
 //-----------------------------------------------------------------------------
+// Not packed on macOS: Apple's linker refuses unaligned pointers in data.
+// The table is private to this file, so its layout does not matter.
+#ifndef OSX
 #pragma pack(1)
+#endif
 
 struct CCLanguage
 {
@@ -370,7 +374,9 @@ static CCLanguage g_CCLanguageLookup[] =
 	{ CC_PORTUGUESE,"portuguese",	0 ,		0,		150 },	
 };
 
+#ifndef OSX
 #pragma pack()
+#endif
 
 void CSentence::ColorForLanguage( int language, unsigned char& r, unsigned char& g, unsigned char& b )
 {

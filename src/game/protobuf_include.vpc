@@ -13,6 +13,7 @@ $Project
 		$Libexternal $SRCDIR\thirdparty\protobuf-2.6.1\bin\osx32\libc++\libprotobuf [$OSX32]
 		$Libexternal $SRCDIR\thirdparty\protobuf-2.6.1\bin\linux32\libprotobuf [$LINUX32]
 		$Libexternal $SRCDIR\thirdparty\protobuf-2.6.1\bin\linux64\libprotobuf [$LINUX64]
+		$Libexternal $SRCDIR\thirdparty\protobuf-2.6.1\bin\$PLATFORM\libprotobuf [$OSXALL]
 	}
 
 	// Currently there's an issue with debug build of libprotobuf not playing nice with the GCSDK on the Source SDK 2013 public repository.

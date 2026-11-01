@@ -657,3 +657,16 @@ game_src/tc2/pak1/scenes
 
 # Runtimes fetched by tools/macos-port/fetch-runtimes.sh.
 /macos-runtimes/
+
+# macOS (Apple Silicon). The engine there is the private source-engine build:
+# its binaries (game/bin/osxarm64, src/lib/*/osxarm64) are put in place by its
+# scripts/frontress/publish.sh and never committed here. 
+**/[Bb]in/osxarm64/*
+src/lib/public/osxarm64/
+src/lib/common/osxarm64/
+game/tc2_osx
+game/tc2/videoconfig_mac.cfg
+# Built from public sources (build_osx.sh / build_sentry.sh): fine to commit.
+!src/thirdparty/protobuf-2.6.1/bin/osxarm64/
+!src/thirdparty/protobuf-2.6.1/bin/osxarm64/*
+!src/thirdparty/sentry_native/lib/libsentry.dylib

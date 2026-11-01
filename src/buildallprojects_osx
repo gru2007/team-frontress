@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Build the game for macOS, on the engine in game/bin/<platform>
+# (published there from the source-engine repository).
+#
+#   ./buildallprojects_osx [debug|release] [extra vpc_osx.py targets...]
+#
+# See BUILDING_ENGINES.md.
+set -euo pipefail
+cd "$(dirname "$0")"
+
+mode="release"
+if [ $# -gt 0 ] && { [ "$1" = "debug" ] || [ "$1" = "release" ]; }; then
+	mode="$1"
+	shift
+fi
+targets=("${@:-+game}")
+[ ${#targets[@]} -eq 0 ] && targets=(+game)
+
+arch="$(uname -m)"
+case "$arch" in
+	arm64) plat=osxarm64 ;;
+	*)     plat=osx64 ;;
+esac
+
+if [ ! -f "lib/public/$plat/libtier0.dylib" ]; then
+	echo "lib/public/$plat/libtier0.dylib is missing: publish the engine first" >&2
+	echo "(source-engine: scripts/frontress/build.sh && scripts/frontress/publish.sh)" >&2
+	exit 1
+fi
+
+flags=()
+[ "$mode" = "debug" ] && flags+=(--debug)
+
+ninja_file="$(python3 devtools/vpc_osx.py "${flags[@]}" "${targets[@]}")"
+ninja -f "$ninja_file"
+
+# ninja does not sign; arm64 macOS refuses to load unsigned code.
+for f in ../game/tc2/bin/$plat/*.dylib; do
+	[ -f "$f" ] && codesign --force --sign - "$f" 2>/dev/null || true
+done
+# get-task-allow, so lldb and Xcode can attach.
+codesign --force --sign - --entitlements devtools/osx_debug.entitlements ../game/tc2_osx 2>/dev/null || true

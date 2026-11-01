@@ -487,7 +487,11 @@ typedef unsigned int *LPDWORD;
 	// On OSX, SIGTRAP doesn't really stop the thread cold when debugging.
 	// So if being debugged, use INT3 which is precise.
 #ifdef OSX
+#if defined( PLATFORM_ARM )
+#define DebuggerBreak()  if ( Plat_IsInDebugSession() ) { __builtin_debugtrap(); } else { raise(SIGTRAP); }
+#else
 #define DebuggerBreak()  if ( Plat_IsInDebugSession() ) { __asm ( "int $3" ); } else { raise(SIGTRAP); }
+#endif
 #else
 #define DebuggerBreak()  raise(SIGTRAP)
 #endif
@@ -911,6 +915,11 @@ static FORCEINLINE double fsel(double fComparand, double fValGE, double fLT)
 		#endif
 	#endif
 
+#elif defined( PLATFORM_ARM )
+
+	// No x87 on ARM; the FPU defaults are already what we want.
+	inline void SetupFPUControlWord() {}
+
 #else
 
 	inline void SetupFPUControlWord()
@@ -1255,6 +1264,11 @@ inline uint64 Plat_Rdtsc()
 	uint32 lo, hi;
 	__asm__ __volatile__ ( "rdtsc" : "=a" (lo), "=d" (hi));
 	return ( ( ( uint64 )hi ) << 32 ) | lo;
+#elif defined( __aarch64__ )
+	// The virtual counter: constant rate and monotonic, like an invariant TSC.
+	uint64 val;
+	__asm__ __volatile__ ( "mrs %0, cntvct_el0" : "=r" (val) );
+	return val;
 #else
 	#error
 #endif

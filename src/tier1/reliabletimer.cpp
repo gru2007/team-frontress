@@ -53,7 +53,14 @@ CReliableTimer::CReliableTimer()
 	// calculate performance frequency the first time we use a timer
 	if ( 0 == sm_nPerformanceFrequency )
 	{
+#if defined( __aarch64__ )
+		// QueryPerformanceCounter reads cntvct_el0 here; this is its rate.
+		uint64 nFreq;
+		__asm__ __volatile__ ( "mrs %0, cntfrq_el0" : "=r" ( nFreq ) );
+		sm_nPerformanceFrequency = (int64)nFreq;
+#else
 		sm_nPerformanceFrequency = g_ClockSpeed;
+#endif
 	}
 #endif
 }
@@ -83,6 +90,8 @@ int64 CReliableTimer::GetPerformanceCountNow()
 	uint64 ulNow;
 	SYS_TIMEBASE_GET( ulNow );
 	return ulNow;
+#elif defined( __aarch64__ )
+	return (int64)Plat_Rdtsc();
 #else
 	uint64 un64;
 	 __asm__ __volatile__ (
