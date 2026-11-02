@@ -1,0 +1,219 @@
+name: macOS client (developers)
+
+# The macOS client runs on the team's private development engine, which is
+# kept in a private repository. It is built here because public repositories
+# get free macOS runners. Nothing from the engine may become public, so:
+#   - the engine is checked out with a read-only token (SOURCE_ENGINE_TOKEN);
+#   - build output stays in files on the runner; the public job log only shows
+#     each step's result (ci_quiet.sh);
+#   - logs and the depot leave the runner only encrypted (FRONTRESS_CI_KEY);
+#   - no caches: workflows from forked pull requests can restore them;
+#   - never runs for pull requests or in forks;
+#   - the depot only goes live on a password-protected Steam branch.
+# Setup and decrypting logs: scripts/frontress/CI.md in the engine repository.
+
+on:
+  push:
+    tags:
+      - "release/*"
+      - "private/*"
+  workflow_dispatch:
+    inputs:
+      engine_ref:
+        description: "Engine branch, tag or commit"
+        default: "frontress"
+      publish:
+        description: "Upload to the private macOS Steam branch"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ENGINE_REPO: ${{ vars.ENGINE_REPO || 'gru2007/source-engine' }}
+  HOMEBREW_NO_AUTO_UPDATE: "1"
+  HOMEBREW_NO_INSTALL_CLEANUP: "1"
+
+jobs:
+  build:
+    name: Build macOS client
+    if: github.repository == 'gru2007/team-frontress'
+    runs-on: ${{ fromJSON(vars.MACOS_RUNS_ON || '"macos-15"') }}
+    timeout-minutes: 180
+    env:
+      FRONTRESS_CI_KEY: ${{ secrets.FRONTRESS_CI_KEY }}
+    steps:
+      - name: Check secrets
+        env:
+          HAS_ENGINE_TOKEN: ${{ secrets.SOURCE_ENGINE_TOKEN != '' }}
+        run: |
+          missing=0
+          [ "$HAS_ENGINE_TOKEN" = true ] || { echo "::error::SOURCE_ENGINE_TOKEN is not set (read access to $ENGINE_REPO)"; missing=1; }
+          [ -n "$FRONTRESS_CI_KEY" ] || { echo "::error::FRONTRESS_CI_KEY is not set (encrypts logs and the depot)"; missing=1; }
+          exit $missing
+
+      - name: Checkout game
+        uses: actions/checkout@v6
+        with:
+          path: game
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Checkout engine (private)
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ env.ENGINE_REPO }}
+          ref: ${{ inputs.engine_ref || vars.ENGINE_REF || 'frontress' }}
+          token: ${{ secrets.SOURCE_ENGINE_TOKEN }}
+          path: engine
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Prepare
+        run: |
+          set -euo pipefail
+          {
+            echo "ENGINE=$GITHUB_WORKSPACE/engine"
+            echo "GAME=$GITHUB_WORKSPACE/game"
+            echo "FRONTRESS_LOG_DIR=$RUNNER_TEMP/logs"
+            echo "JOBS=$(sysctl -n hw.ncpu)"
+          } >> "$GITHUB_ENV"
+          brew install --quiet ninja sdl2 sdl3 freetype fontconfig libpng jpeg-turbo > /dev/null
+
+      - name: Build engine
+        run: '"$ENGINE/scripts/frontress/ci_quiet.sh" engine "$ENGINE/scripts/frontress/build.sh" release "$GAME"'
+
+      - name: Publish engine into the game tree
+        run: '"$ENGINE/scripts/frontress/ci_quiet.sh" publish "$ENGINE/scripts/frontress/publish.sh" "$GAME"'
+
+      - name: Build game
+        run: '"$ENGINE/scripts/frontress/ci_quiet.sh" game "$GAME/src/buildallprojects_osx" release'
+
+      - name: Package depot
+        run: |
+          set -euo pipefail
+          "$ENGINE/scripts/frontress/ci_quiet.sh" package \
+            "$ENGINE/scripts/frontress/package_macos.sh" "$GAME" "$RUNNER_TEMP/depot-macos"
+          {
+            echo "### macOS depot"
+            echo '```'
+            cat "$RUNNER_TEMP/depot-macos/VERSION_MACOS"
+            du -sh "$RUNNER_TEMP/depot-macos" | cut -f1
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Public artifacts can be downloaded by anyone, so they carry ciphertext only.
+      # A tarball also keeps the executable bits that artifacts drop.
+      - name: Encrypt depot
+        run: |
+          set -euo pipefail
+          tar -C "$RUNNER_TEMP/depot-macos" -czf "$RUNNER_TEMP/depot.tar.gz" .
+          "$ENGINE/scripts/frontress/ci_crypt.sh" enc "$RUNNER_TEMP/depot.tar.gz" "$RUNNER_TEMP/frontress-macos.tar.gz.enc"
+          rm -f "$RUNNER_TEMP/depot.tar.gz"
+
+      - name: Upload encrypted depot
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontress-macos-encrypted
+          path: ${{ runner.temp }}/frontress-macos.tar.gz.enc
+          retention-days: 3
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Encrypt logs
+        if: always()
+        run: |
+          set -euo pipefail
+          [ -d "${FRONTRESS_LOG_DIR:-}" ] || exit 0
+          [ -n "$FRONTRESS_CI_KEY" ] || exit 0
+          tar -C "$FRONTRESS_LOG_DIR" -czf "$RUNNER_TEMP/logs.tar.gz" .
+          "$ENGINE/scripts/frontress/ci_crypt.sh" enc "$RUNNER_TEMP/logs.tar.gz" "$RUNNER_TEMP/frontress-macos-logs.tar.gz.enc"
+
+      - name: Upload encrypted logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontress-macos-logs
+          path: ${{ runner.temp }}/frontress-macos-logs.tar.gz.enc
+          retention-days: 7
+          if-no-files-found: ignore
+
+      # The runner is discarded anyway; a self-hosted one is not.
+      - name: Remove engine files
+        if: always()
+        run: rm -rf "$GITHUB_WORKSPACE/engine" "$RUNNER_TEMP/depot-macos" "$RUNNER_TEMP/logs.tar.gz" "${FRONTRESS_LOG_DIR:-/nonexistent}"
+
+  publish-steam:
+    name: Steam / private macOS branch
+    needs: build
+    if: >-
+      github.repository == 'gru2007/team-frontress' &&
+      (startsWith(github.ref, 'refs/tags/') || inputs.publish)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # One steamcmd session per account at a time, shared with build.yml.
+    concurrency:
+      group: team-frontress-steam-publish
+      cancel-in-progress: false
+    env:
+      FRONTRESS_CI_KEY: ${{ secrets.FRONTRESS_CI_KEY }}
+      STEAM_APPID: ${{ vars.STEAM_APPID || '5147520' }}
+      STEAM_DEPOT_MAC: ${{ vars.STEAM_DEPOT_MAC }}
+      STEAM_BRANCH: ${{ vars.STEAM_MAC_BRANCH || 'macos-dev' }}
+      STEAM_MAC_MAIN_APPID: ${{ vars.STEAM_MAC_MAIN_APPID || 'none' }}
+      STEAM_MAC_MAIN_DEPOT: ${{ vars.STEAM_MAC_MAIN_DEPOT }}
+      STEAM_MAC_MAIN_BRANCH: ${{ vars.STEAM_MAC_MAIN_BRANCH || 'macos-dev' }}
+      STEAM_USERNAME: ${{ secrets.STEAM_USERNAME }}
+      STEAM_CONFIG_VDF: ${{ secrets.STEAM_CONFIG_VDF }}
+      BUILD_DESC: macOS ${{ github.ref_name }} (${{ github.sha }})
+    steps:
+      - name: Checkout engine scripts
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ env.ENGINE_REPO }}
+          ref: ${{ inputs.engine_ref || vars.ENGINE_REF || 'frontress' }}
+          token: ${{ secrets.SOURCE_ENGINE_TOKEN }}
+          path: engine
+          sparse-checkout: scripts/frontress
+          persist-credentials: false
+
+      - name: Checkout packaging scripts
+        uses: actions/checkout@v6
+        with:
+          path: game
+          sparse-checkout: game_clean
+          persist-credentials: false
+
+      - name: Download encrypted depot
+        uses: actions/download-artifact@v7
+        with:
+          name: frontress-macos-encrypted
+          path: ${{ runner.temp }}
+
+      - name: Decrypt depot
+        run: |
+          set -euo pipefail
+          engine/scripts/frontress/ci_crypt.sh dec "$RUNNER_TEMP/frontress-macos.tar.gz.enc" "$RUNNER_TEMP/depot.tar.gz"
+          mkdir -p "$RUNNER_TEMP/depot-macos"
+          tar -C "$RUNNER_TEMP/depot-macos" -xzf "$RUNNER_TEMP/depot.tar.gz"
+          rm -f "$RUNNER_TEMP/depot.tar.gz"
+          test -x "$RUNNER_TEMP/depot-macos/tc2_osx"
+
+      - name: Upload to the playtest app
+        run: engine/scripts/frontress/steampipe_macos.sh "$RUNNER_TEMP/depot-macos"
+
+      - name: Upload to the main app
+        if: env.STEAM_MAC_MAIN_APPID != 'none'
+        run: |
+          set -euo pipefail
+          # The AppID is baked into gameinfo.txt and steam.inf; stamp it for the main app.
+          game/game_clean/retarget_appid.sh "$RUNNER_TEMP/depot-macos" "$STEAM_MAC_MAIN_APPID"
+          STEAM_APPID="$STEAM_MAC_MAIN_APPID" \
+          STEAM_DEPOT_MAC="$STEAM_MAC_MAIN_DEPOT" \
+          STEAM_BRANCH="$STEAM_MAC_MAIN_BRANCH" \
+            engine/scripts/frontress/steampipe_macos.sh "$RUNNER_TEMP/depot-macos"

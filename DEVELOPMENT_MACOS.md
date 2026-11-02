@@ -7,7 +7,10 @@ separately. Engine files in `game/bin/osxarm64` and `src/lib/*/osxarm64` are
 excluded from Git and must never be committed.
 
 Setup of the engine itself is documented in the private engine repository.
-Once it is published into this checkout:
+Developer builds for macOS come from `.github/workflows/macos.yml`: it builds
+against the private engine without exposing it (quiet logs, encrypted
+artifacts, no caches) and ships only to a password-protected Steam branch.
+Once the engine is published into this checkout:
 
 ```sh
 cd src
