@@ -43,7 +43,7 @@ jobs:
   build:
     name: Build macOS client
     if: github.repository == 'gru2007/team-frontress'
-    runs-on: ${{ fromJSON(vars.MACOS_RUNS_ON || '"macos-15"') }}
+    runs-on: ${{ fromJSON(vars.MACOS_RUNS_ON || '"macos-latest"') }}
     timeout-minutes: 180
     env:
       FRONTRESS_CI_KEY: ${{ secrets.FRONTRESS_CI_KEY }}
