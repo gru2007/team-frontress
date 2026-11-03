@@ -22,6 +22,9 @@ on:
       engine_ref:
         description: "Engine branch, tag or commit"
         default: "frontress"
+      d9mt_ref:
+        description: "D9MT native macOS branch, tag or commit"
+        default: "native-macos"
       publish:
         description: "Upload to the private macOS Steam branch"
         type: boolean
@@ -36,6 +39,7 @@ concurrency:
 
 env:
   ENGINE_REPO: ${{ vars.ENGINE_REPO || 'gru2007/source-engine' }}
+  D9MT_REPO: ${{ vars.D9MT_REPO || 'gru2007/d9mt-tf2-source' }}
   HOMEBREW_NO_AUTO_UPDATE: "1"
   HOMEBREW_NO_INSTALL_CLEANUP: "1"
 
@@ -74,22 +78,38 @@ jobs:
           submodules: recursive
           persist-credentials: false
 
+      - name: Checkout D9MT (native macOS)
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ env.D9MT_REPO }}
+          ref: ${{ inputs.d9mt_ref || vars.D9MT_REF || 'native-macos' }}
+          token: ${{ secrets.D9MT_TOKEN || secrets.SOURCE_ENGINE_TOKEN }}
+          path: d9mt
+          submodules: recursive
+          persist-credentials: false
+
       - name: Prepare
         run: |
           set -euo pipefail
+          [ "$(uname -m)" = arm64 ] || { echo "::error::Native Metal requires an Apple Silicon runner; configure MACOS_RUNS_ON."; exit 1; }
           {
             echo "ENGINE=$GITHUB_WORKSPACE/engine"
             echo "GAME=$GITHUB_WORKSPACE/game"
+            echo "D9MT=$GITHUB_WORKSPACE/d9mt"
+            echo "FRONTRESS_REQUIRE_METAL=1"
             echo "FRONTRESS_LOG_DIR=$RUNNER_TEMP/logs"
             echo "JOBS=$(sysctl -n hw.ncpu)"
           } >> "$GITHUB_ENV"
-          brew install --quiet ninja sdl2 sdl3 freetype fontconfig libpng jpeg-turbo > /dev/null
+          brew install --quiet ninja sdl2 sdl3 glslang freetype fontconfig libpng jpeg-turbo > /dev/null
 
       - name: Build engine
         run: '"$ENGINE/scripts/frontress/ci_quiet.sh" engine "$ENGINE/scripts/frontress/build.sh" release "$GAME"'
 
       - name: Publish engine into the game tree
         run: '"$ENGINE/scripts/frontress/ci_quiet.sh" publish "$ENGINE/scripts/frontress/publish.sh" "$GAME"'
+
+      - name: Test VTF header compatibility (no game launch)
+        run: '"$ENGINE/scripts/frontress/ci_quiet.sh" vtf-tests python3 "$ENGINE/scripts/frontress/test_vtf_headers.py"'
 
       - name: Build game
         run: '"$ENGINE/scripts/frontress/ci_quiet.sh" game "$GAME/src/buildallprojects_osx" release'
@@ -146,7 +166,7 @@ jobs:
       # The runner is discarded anyway; a self-hosted one is not.
       - name: Remove engine files
         if: always()
-        run: rm -rf "$GITHUB_WORKSPACE/engine" "$RUNNER_TEMP/depot-macos" "$RUNNER_TEMP/logs.tar.gz" "${FRONTRESS_LOG_DIR:-/nonexistent}"
+        run: rm -rf "$GITHUB_WORKSPACE/engine" "$GITHUB_WORKSPACE/d9mt" "$RUNNER_TEMP/depot-macos" "$RUNNER_TEMP/logs.tar.gz" "${FRONTRESS_LOG_DIR:-/nonexistent}"
 
   publish-steam:
     name: Steam / private macOS branch
