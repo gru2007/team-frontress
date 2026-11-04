@@ -659,3 +659,6 @@ game/tc2/videoconfig_mac.cfg
 !src/thirdparty/protobuf-2.6.1/bin/osxarm64/
 !src/thirdparty/protobuf-2.6.1/bin/osxarm64/*
 !src/thirdparty/sentry_native/lib/libsentry.dylib
+
+# Written by the GL shader backend at runtime.
+game/tc2/glshaders.cfg
