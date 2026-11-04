@@ -253,6 +253,8 @@ public:
 	// True only after ISDK/GetInventory supplied a genuine inventory subscription.
 	// A matchmaking-only SO cache must never make the backpack appear ready.
 	bool BValveInventoryReady() const { return m_WebapiInventory.m_bValveInventoryReady; }
+	// Where loading the TF2 inventory has got to (tf_inventory_status).
+	void PrintInventoryStatus() const;
 
 	void AcknowledgeInventoryReceive();
 

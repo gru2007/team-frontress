@@ -402,7 +402,7 @@ void CTFGCClientSystem::WebapiInventoryThink()
 		state.m_hSteamAuthTicket = SteamUser()->GetAuthTicketForWebApi( "tf2sdk" );
 		if ( state.m_hSteamAuthTicket == k_HAuthTicketInvalid )
 		{
-			DevWarning("Steam auth ticket request invalid.\n");
+			Warning( "[inventory] Steam would not issue a web API ticket (is the game running through Steam?); retrying.\n" );
 			state.Backoff();
 			return;
 		}
@@ -715,14 +715,14 @@ void CTFGCClientSystem::OnWebapiAuthTicketReceived( GetTicketForWebApiResponse_t
 	// Check that the request succeeded
 	if ( pInfo->m_eResult != k_EResultOK )
 	{
-		DevWarning("Steam auth ticket failed.\n");
+		Warning( "[inventory] Steam refused a web API ticket (result %d); retrying.\n", (int)pInfo->m_eResult );
 		return;
 	}
 
 	// Validate the token makes sense
 	if ( pInfo->m_cubTicket < 0 || pInfo->m_cubTicket > pInfo->k_nCubTicketMaxLength )
 	{
-		DevWarning("Steam auth ticket invalid.\n");
+		Warning( "[inventory] Steam's web API ticket is malformed; retrying.\n" );
 		return;
 	}
 
@@ -845,14 +845,14 @@ void CTFGCClientSystem::OnWebapiInventoryReceived( HTTPRequestCompleted_t* pInfo
 
 	case k_EResultFail:
 	{
-		DevWarning("Steam inventory response failed.\n");
+		Warning( "[inventory] teamfortress.com could not return the inventory; retrying.\n" );
 		return; // will retry after backoff timer expires
 	}
 
 	case k_EResultNotLoggedOn:
 	{
 		// re-request authentication after backoff time
-		DevWarning("Steam inventory authentication failed.\n");
+		Warning( "[inventory] teamfortress.com did not accept the Steam ticket; retrying.\n" );
 		state.m_eState = kWebapiInventoryState_RequestAuthToken;
 		return;
 	}
@@ -991,6 +991,36 @@ void CTFGCClientSystem::SDK_AddServerInventoryInfo( KeyValues* pKV, CGCClientSha
 		}
 	}
 	pKV->AddSubKey( pLoadoutKV );
+}
+
+//-----------------------------------------------------------------------------
+void CTFGCClientSystem::PrintInventoryStatus() const
+{
+	static const char *s_States[] = { "init", "request auth token", "waiting for auth token", "auth token received",
+		"request inventory", "waiting for inventory", "inventory received", "build server message", "request server auth token",
+		"waiting for server auth token", "server auth token received", "sent to server" };
+	const WebapiInventoryState_t &state = m_WebapiInventory;
+	const int iState = (int)state.m_eState;
+	Msg( "[inventory] %s; Valve inventory %s; backing off: %s\n",
+		iState >= 0 && iState < (int)ARRAYSIZE( s_States ) ? s_States[ iState ] : "?",
+		state.m_bValveInventoryReady ? "loaded" : "not loaded",
+		const_cast< WebapiInventoryState_t & >( state ).IsBackingOff() ? "yes" : "no" );
+	CTFPlayerInventory *pInv = TFInventoryManager() ? TFInventoryManager()->GetLocalTFInventory() : NULL;
+	int nPainted = 0, nUnusual = 0;
+	for ( int i = 0; pInv && i < pInv->GetItemCount(); ++i )
+	{
+		CEconItemView *pItem = pInv->GetItem( i );
+		if ( !pItem )
+			continue;
+		nPainted += GetPaintKitDefIndex( pItem ) ? 1 : 0;
+		nUnusual += pItem->GetQuality() == AE_UNUSUAL ? 1 : 0;
+	}
+	Msg( "[inventory] %d items in the backpack: %d with a war paint, %d unusual\n", pInv ? pInv->GetItemCount() : 0, nPainted, nUnusual );
+}
+
+CON_COMMAND( tf_inventory_status, "Where loading the TF2 inventory (teamfortress.com ISDK/GetInventory) has got to." )
+{
+	GTFGCClientSystem()->PrintInventoryStatus();
 }
 
 //-----------------------------------------------------------------------------
