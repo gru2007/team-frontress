@@ -30,16 +30,16 @@ env:
   SNIPER_SDK_IMAGE: registry.gitlab.steamos.cloud/steamrt/sniper/sdk:3.0.20260805.254768
 
 jobs:
-  # The coordinator is Go and builds in seconds. It runs first and on its own:
-  # a game build should not wait for it, and a broken coordinator should not
-  # stop a game release.
+  # The game coordinator is Go and builds in seconds. It runs first and on its
+  # own: a game build should not wait for it, and a broken GC should not stop a
+  # game release.
   coordinator:
-    name: Coordinator / Go
+    name: Game coordinator / Go
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
       run:
-        working-directory: services/coordinator
+        working-directory: services/gc
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -49,8 +49,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: services/coordinator/go.mod
-          cache-dependency-path: services/coordinator/go.sum
+          go-version-file: services/gc/go.mod
+          cache-dependency-path: services/gc/go.sum
 
       - name: Check formatting
         run: |
@@ -59,6 +59,20 @@ jobs:
           if [ -n "$unformatted" ]; then
             echo "::error::gofmt would change these files:"
             echo "$unformatted"
+            exit 1
+          fi
+
+      # The GC and the game must agree on every message. internal/gcpb is
+      # generated from the game's own .proto files; regenerate it and fail if
+      # anybody changed one side without the other.
+      - name: Protocol matches the game
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq protobuf-compiler
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6
+          PATH="$(go env GOPATH)/bin:$PATH" ./proto/gen.sh
+          if ! git diff --exit-code -I '^// \tprotoc ' -- internal/gcpb; then
+            echo "::error::internal/gcpb is out of date with the game's .proto files; run services/gc/proto/gen.sh"
             exit 1
           fi
 
@@ -72,28 +86,22 @@ jobs:
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME}-${GITHUB_SHA::8}"
-          # The agent ships with the coordinator: it is the half that runs next
-          # to a game server, and a coordinator release without one is a
-          # deployment where no match ever reports its result.
-          for cmd in coordinator greyline-agent; do
-            for target in linux/amd64 linux/arm64 windows/amd64; do
-              os="${target%%/*}"
-              arch="${target##*/}"
-              out="dist/${cmd}-${os}-${arch}"
-              [ "$os" = "windows" ] && out="${out}.exe"
-              echo "building ${out}"
-              CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
-                go build -trimpath -ldflags "-s -w -X main.version=${version}" \
-                -o "$out" "./cmd/${cmd}"
-            done
+          for target in linux/amd64 linux/arm64 windows/amd64; do
+            os="${target%%/*}"
+            arch="${target##*/}"
+            out="dist/frontress-gc-${os}-${arch}"
+            [ "$os" = "windows" ] && out="${out}.exe"
+            echo "building ${out}"
+            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
+              go build -trimpath -ldflags "-s -w" -o "$out" ./cmd/frontress-gc
           done
-          cp coordinator.example.json theater.example.json README.md dist/
+          cp gc.example.json theater.example.json README.md dist/
 
-      - name: Upload coordinator
+      - name: Upload game coordinator
         uses: actions/upload-artifact@v7
         with:
           name: coordinator
-          path: services/coordinator/dist
+          path: services/gc/dist
           if-no-files-found: error
 
   build:
@@ -582,9 +590,8 @@ jobs:
           cp "${TARBALL}" "${TARBALL}.sha256" release/
           # The coordinator lane can fail without stopping a game release, so
           # its binaries are optional here rather than required.
-          cp artifacts/coordinator/coordinator-* release/ 2>/dev/null || true
-          cp artifacts/coordinator/greyline-agent-* release/ 2>/dev/null || true
-          cp artifacts/coordinator/coordinator.example.json release/ 2>/dev/null || true
+          cp artifacts/coordinator/frontress-gc-* release/ 2>/dev/null || true
+          cp artifacts/coordinator/gc.example.json release/ 2>/dev/null || true
           ls -la release
 
       - name: Publish the release
