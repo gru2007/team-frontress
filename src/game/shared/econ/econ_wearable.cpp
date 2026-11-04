@@ -6,7 +6,7 @@
 
 #include "cbase.h"
 // GREYLINE FRONTRESS: team colours a battle may have swapped.
-#include "greyline/greyline_uniform.h"
+#include "tf/frontress_uniform.h"
 #include "econ_wearable.h"
 #include "vcollide_parse.h"
 
@@ -160,8 +160,8 @@ int CEconWearable::GetSkin( void )
 	// GREYLINE FRONTRESS: a battle can be fought with the war's sides in each
 	// other's in-game colours, and a cosmetic that stayed the team's colour
 	// while its wearer changed would look like a bug. No-op outside such a
-	// battle. See greyline_uniform.h.
-	const int iTeamNumber = greyline::DisplayTeam( GetTeamNumber() );
+	// battle. See frontress_uniform.h.
+	const int iTeamNumber = frontress::DisplayTeam( GetTeamNumber() );
 
 	CEconItemView *pItem = GetAttributeContainer()->GetItem(); // Safe. Checked in base class call.
 	if ( pItem )

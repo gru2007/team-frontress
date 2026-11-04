@@ -50,19 +50,21 @@ func (g *GC) sendConditions(srv *Server, l *Lobby) {
 	}
 	w := l.War
 	raw, err := json.Marshal(struct {
-		MatchID    string   `json:"match_id"`
-		Conditions []string `json:"conditions"`
-		Sector     string   `json:"sector"`
-		Stage      int      `json:"stage"`
-		Stages     int      `json:"stages"`
-		Kind       string   `json:"kind"`
-		Attacker   string   `json:"attacker"`      // the war side: red or blu
-		AttackerTm int32    `json:"attacker_team"` // the game team it wears: 2 or 3
-		Order      bool     `json:"order"`
+		MatchID     string   `json:"match_id"`
+		Conditions  []string `json:"conditions"`
+		Sector      string   `json:"sector"`
+		Stage       int      `json:"stage"`
+		Stages      int      `json:"stages"`
+		Kind        string   `json:"kind"`
+		Attacker    string   `json:"attacker"`      // the war side: red or blu
+		AttackerTm  int32    `json:"attacker_team"` // the game team it wears: 2 or 3
+		Order       bool     `json:"order"`
+		UniformSwap bool     `json:"uniform_swap"`
 	}{
 		MatchID: strconv.FormatUint(l.MatchID, 10), Conditions: append([]string{}, w.Conditions...),
 		Sector: w.NodeName, Stage: w.StageIndex + 1, Stages: w.StageCount, Kind: w.StageKind,
 		Attacker: strings.ToLower(w.Attacker), AttackerTm: gameTeam(w.AttackerTeam), Order: w.Order,
+		UniformSwap: w.UniformSwap,
 	})
 	if err != nil {
 		return

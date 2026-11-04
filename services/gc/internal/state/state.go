@@ -29,6 +29,8 @@ type Member struct {
 
 // War is a match's part in the campaign.
 type War struct {
+	Campaign     string `json:"campaign,omitempty"`
+	UniformSwap  bool   `json:"uniform_swap"`
 	FrontID      string `json:"front_id"`
 	NodeID       string `json:"node_id"`
 	NodeName     string `json:"node_name"`

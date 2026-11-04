@@ -24,6 +24,8 @@ type Record struct {
 	Losses      int       `json:"losses"`
 	Abandons    int       `json:"abandons"`
 	Rating      int       `json:"rating"`
+	WarCampaign string    `json:"war_campaign,omitempty"`
+	WarSide     string    `json:"war_side,omitempty"`
 	LastAbandon time.Time `json:"last_abandon,omitempty"`
 	LastMatch   time.Time `json:"last_match,omitempty"`
 	// QuestXP is experience from finished quests and war orders, on top of
@@ -57,6 +59,8 @@ type event struct {
 	Quest    string `json:"quest,omitempty"`
 	Progress int    `json:"progress,omitempty"`
 	XP       int    `json:"xp,omitempty"`
+	Campaign string `json:"campaign,omitempty"`
+	Side     string `json:"side,omitempty"`
 }
 
 const (
@@ -177,6 +181,8 @@ func (s *Store) apply(ev event) {
 		r.Name = ev.Name
 	}
 	switch ev.Type {
+	case "war_side":
+		r.WarCampaign, r.WarSide = ev.Campaign, ev.Side
 	case evPlayed:
 		r.Matches++
 		r.LastMatch = ev.At

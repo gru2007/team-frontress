@@ -167,6 +167,7 @@ func (g *GC) hello(id uint64, op socialOp) {
 	g.sendPresence(id)
 	g.sendClan(id)
 	g.sendSupportSummary(id)
+	g.sendFaction(id)
 }
 
 // --- chat --------------------------------------------------------------------

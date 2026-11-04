@@ -24,12 +24,17 @@ func init() {
 		}
 		var pick struct {
 			Front string `json:"front"`
+			Side  string `json:"side"`
 		}
 		if len(body.GetMsg()) > 256 || json.Unmarshal([]byte(body.GetMsg()), &pick) != nil {
 			return
 		}
 		if pick.Front != "" && !g.frontOpen(pick.Front) {
 			pick.Front = ""
+		}
+		if pick.Side != "" {
+			g.chooseFaction(s.SteamID, pick.Side)
+			return
 		}
 		g.player(s.SteamID).WarFront = pick.Front
 		g.publishWar()

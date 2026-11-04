@@ -70,9 +70,14 @@ type WebAPI struct {
 func (*WebAPI) Verified() bool { return true }
 
 func (v *WebAPI) Verify(ctx context.Context, claimed uint64, ticket string) (uint64, error) {
+	id, _, err := v.VerifyWithApp(ctx, claimed, ticket)
+	return id, err
+}
+
+func (v *WebAPI) VerifyWithApp(ctx context.Context, claimed uint64, ticket string) (uint64, uint32, error) {
 	ticket = strings.TrimSpace(ticket)
 	if ticket == "" {
-		return 0, fmt.Errorf("%w: no ticket", ErrRejected)
+		return 0, 0, fmt.Errorf("%w: no ticket", ErrRejected)
 	}
 	var rejected error
 	for _, appID := range v.ordered() {
@@ -83,9 +88,9 @@ func (v *WebAPI) Verify(ctx context.Context, claimed uint64, ticket string) (uin
 			v.lastGood = appID
 			v.mu.Unlock()
 			if claimed != 0 && claimed != id {
-				return 0, fmt.Errorf("%w: claimed %d, ticket belongs to %d", ErrRejected, claimed, id)
+				return 0, 0, fmt.Errorf("%w: claimed %d, ticket belongs to %d", ErrRejected, claimed, id)
 			}
-			return id, nil
+			return id, appID, nil
 		case errors.Is(err, ErrRejected):
 			// Steam says "invalid ticket", not "wrong app": only final once
 			// every app has turned it down.
@@ -93,13 +98,13 @@ func (v *WebAPI) Verify(ctx context.Context, claimed uint64, ticket string) (uin
 				rejected = err
 			}
 		default:
-			return 0, err
+			return 0, 0, err
 		}
 	}
 	if rejected == nil {
 		rejected = errors.New("steam auth: no app_id configured")
 	}
-	return 0, rejected
+	return 0, 0, rejected
 }
 
 func (v *WebAPI) ordered() []uint32 {
@@ -143,7 +148,7 @@ func (v *WebAPI) verifyWith(ctx context.Context, appID uint32, ticket string) (u
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return 0, fmt.Errorf("steam auth: %w", err)
+		return 0, errors.New("steam auth: request failed")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {

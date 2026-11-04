@@ -152,10 +152,10 @@ func (w *WebAPI) call(ctx context.Context, httpMethod, method, version string, f
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("steam %s: request failed", method)
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
 	if err != nil {
 		return err
 	}
@@ -320,6 +320,7 @@ type Order struct {
 	Opened   time.Time `json:"opened"`
 	Paid     time.Time `json:"paid,omitempty"`
 	Failed   string    `json:"failed,omitempty"`
+	Refunded bool      `json:"refunded"`
 }
 
 // Supporter is everything one player gave.
@@ -330,6 +331,7 @@ type Supporter struct {
 	Since     time.Time
 	Last      time.Time
 	Monthly   bool // has an active subscription, as far as we last heard
+	PaidUntil time.Time
 	Anon      bool // the last donation asked not to be named
 }
 
@@ -347,6 +349,7 @@ type event struct {
 	ID    uint64    `json:"id,string,omitempty"`
 	Why   string    `json:"why,omitempty"`
 	On    bool      `json:"on,omitempty"`
+	Until time.Time `json:"until,omitempty"`
 }
 
 // Book is the record of orders and supporters.
@@ -357,6 +360,7 @@ type Book struct {
 	wall       []Thanks
 	f          *os.File
 	now        func() time.Time
+	writeErr   error
 }
 
 // OpenBook opens the record. An empty path keeps it in memory.
@@ -370,9 +374,15 @@ func OpenBook(path string) (*Book, error) {
 		sc.Buffer(make([]byte, 0, 64<<10), 1<<20)
 		for sc.Scan() {
 			var ev event
-			if json.Unmarshal(sc.Bytes(), &ev) == nil {
-				b.apply(ev)
+			if err := json.Unmarshal(sc.Bytes(), &ev); err != nil {
+				f.Close()
+				return nil, fmt.Errorf("support log is corrupt: %w", err)
 			}
+			b.apply(ev)
+		}
+		if err := sc.Err(); err != nil {
+			f.Close()
+			return nil, err
 		}
 		f.Close()
 	} else if !os.IsNotExist(err) {
@@ -401,19 +411,67 @@ func (b *Book) Close() error {
 	return err
 }
 
-func (b *Book) write(ev event) {
+func (b *Book) write(ev event) error {
+	if b.writeErr != nil {
+		return b.writeErr
+	}
 	ev.At = b.now()
+	if b.f != nil {
+		raw, err := json.Marshal(ev)
+		if err != nil {
+			return err
+		}
+		if _, err = b.f.Write(append(raw, '\n')); err != nil {
+			b.writeErr = err
+			return err
+		}
+		if err = b.f.Sync(); err != nil {
+			b.writeErr = err
+			return err
+		}
+	}
 	b.apply(ev)
-	if b.f == nil {
-		return
-	}
-	if raw, err := json.Marshal(ev); err == nil {
-		_, _ = b.f.Write(append(raw, '\n'))
-	}
+	return nil
 }
 
 func (b *Book) apply(ev event) {
 	switch ev.Type {
+	case "refunded":
+		o := b.orders[ev.ID]
+		if o == nil || o.Refunded {
+			return
+		}
+		o.Refunded = true
+		if s := b.supporters[o.SteamID]; s != nil {
+			s.Donations = 0
+			hasMonthly := false
+			for _, past := range b.orders {
+				if past.SteamID == o.SteamID && !past.Paid.IsZero() && !past.Refunded {
+					s.Donations++
+					hasMonthly = hasMonthly || past.Kind == Monthly
+				}
+			}
+			if !hasMonthly {
+				s.Monthly = false
+			}
+			if s.Donations == 0 {
+				delete(b.supporters, o.SteamID)
+			}
+		}
+		b.wall = nil
+		orders := make([]Order, 0, len(b.orders))
+		for _, past := range b.orders {
+			if !past.Paid.IsZero() && !past.Refunded && !past.Anon {
+				orders = append(orders, *past)
+			}
+		}
+		sort.Slice(orders, func(i, j int) bool { return orders[i].Paid.Before(orders[j].Paid) })
+		for _, past := range orders {
+			b.wall = append(b.wall, Thanks{Name: past.Name, Kind: past.Kind, At: past.Paid})
+		}
+		if len(b.wall) > 40 {
+			b.wall = b.wall[len(b.wall)-40:]
+		}
 	case "open":
 		if ev.Order != nil {
 			o := *ev.Order
@@ -425,6 +483,7 @@ func (b *Book) apply(ev event) {
 			return
 		}
 		o.Paid = ev.At
+		o.Failed = ""
 		s := b.supporters[o.SteamID]
 		if s == nil {
 			s = &Supporter{SteamID: o.SteamID, Since: ev.At}
@@ -450,18 +509,25 @@ func (b *Book) apply(ev event) {
 			o.Failed = ev.Why
 		}
 	case "monthly":
+		if b.supporters[ev.ID] == nil && ev.On {
+			b.supporters[ev.ID] = &Supporter{SteamID: ev.ID, Since: ev.At}
+		}
 		if s := b.supporters[ev.ID]; s != nil {
 			s.Monthly = ev.On
+			s.PaidUntil = ev.Until
+			if !ev.On && s.Donations == 0 {
+				delete(b.supporters, ev.ID)
+			}
 		}
 	}
 }
 
 // Open records a new order.
-func (b *Book) Open(o Order) {
+func (b *Book) Open(o Order) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	o.Opened = b.now()
-	b.write(event{Type: "open", Order: &o})
+	return b.write(event{Type: "open", Order: &o})
 }
 
 // Order is an order by id, a copy, or nil.
@@ -477,14 +543,21 @@ func (b *Book) Order(id uint64) *Order {
 
 // Paid marks an order paid. It reports false if it already was.
 func (b *Book) Paid(id uint64) bool {
+	paid, _ := b.MarkPaid(id)
+	return paid
+}
+
+func (b *Book) MarkPaid(id uint64) (bool, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	o := b.orders[id]
 	if o == nil || !o.Paid.IsZero() {
-		return false
+		return false, nil
 	}
-	b.write(event{Type: "paid", ID: id})
-	return true
+	if err := b.write(event{Type: "paid", ID: id}); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // Failed marks an order as not going ahead.
@@ -511,6 +584,9 @@ func (b *Book) Supporter(id uint64) *Supporter {
 	defer b.mu.Unlock()
 	if s := b.supporters[id]; s != nil {
 		out := *s
+		if !out.PaidUntil.IsZero() && !b.now().Before(out.PaidUntil) {
+			out.Monthly = false
+		}
 		return &out
 	}
 	return nil
@@ -522,7 +598,7 @@ func (b *Book) IsSupporter(id uint64) (supporter, monthly bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	s := b.supporters[id]
-	return s != nil, s != nil && s.Monthly
+	return s != nil, s != nil && s.Monthly && (s.PaidUntil.IsZero() || b.now().Before(s.PaidUntil))
 }
 
 // Wall is the thank-you wall, newest first.
@@ -549,7 +625,7 @@ func (b *Book) Subscribers() int {
 	defer b.mu.Unlock()
 	n := 0
 	for _, s := range b.supporters {
-		if s.Monthly {
+		if s.Monthly && (s.PaidUntil.IsZero() || b.now().Before(s.PaidUntil)) {
 			n++
 		}
 	}

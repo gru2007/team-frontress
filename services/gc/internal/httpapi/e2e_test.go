@@ -3,6 +3,7 @@ package httpapi_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -19,6 +20,7 @@ import (
 	"github.com/gru2007/team-frontress/services/gc/internal/config"
 	"github.com/gru2007/team-frontress/services/gc/internal/gc"
 	"github.com/gru2007/team-frontress/services/gc/internal/gcpb"
+	"github.com/gru2007/team-frontress/services/gc/internal/history"
 	"github.com/gru2007/team-frontress/services/gc/internal/httpapi"
 	"github.com/gru2007/team-frontress/services/gc/internal/socache"
 	"github.com/gru2007/team-frontress/services/gc/internal/state"
@@ -408,6 +410,26 @@ func TestMatchEndToEnd(t *testing.T) {
 	resp.Body.Close()
 	if !strings.Contains(string(body), `"wins":1`) || !strings.Contains(string(body), `"rating":1516`) {
 		t.Fatalf("alice's record: %s", body)
+	}
+	resp, err = http.Get(base + "/v1/matches/" + strconv.FormatUint(matchID, 10))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var archived history.Match
+	err = json.NewDecoder(resp.Body).Decode(&archived)
+	resp.Body.Close()
+	if err != nil || resp.StatusCode != 200 || archived.State != "ended" || len(archived.Members) != 2 || archived.Result == nil || archived.Result.WinningTeam != aliceGameTeam {
+		t.Fatalf("finished match was lost: %+v, %v", archived, err)
+	}
+	resp, err = http.Get(base + "/v1/matches?steam_id=" + strconv.FormatUint(alice, 10) + "&state=ended&limit=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var page history.Page
+	err = json.NewDecoder(resp.Body).Decode(&page)
+	resp.Body.Close()
+	if err != nil || page.Total != 1 || len(page.Matches) != 1 {
+		t.Fatalf("history filter: %+v %v", page, err)
 	}
 }
 

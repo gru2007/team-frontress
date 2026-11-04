@@ -5,7 +5,7 @@
 //=============================================================================
 #include "cbase.h"
 // GREYLINE FRONTRESS: team colours a battle may have swapped.
-#include "greyline/greyline_uniform.h"
+#include "tf/frontress_uniform.h"
 #include "in_buttons.h"
 #include "takedamageinfo.h"
 #include "tf_weaponbase.h"
@@ -5128,7 +5128,7 @@ int CTFWeaponBase::GetSkin()
 	// other's in-game colours. Redrawing the player and not what they are
 	// holding is worse than not redrawing at all, so every team-coloured part
 	// of them goes through the same remap. No-op outside such a battle.
-	iTeamNumber = greyline::DisplayTeam( iTeamNumber );
+	iTeamNumber = frontress::DisplayTeam( iTeamNumber );
 
 	// See if the item wants to override the skin
 	int nSkin = GetSkinOverride();						// give custom gameplay code a chance to set whatever

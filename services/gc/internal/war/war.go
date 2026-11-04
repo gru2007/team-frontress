@@ -277,6 +277,7 @@ type EventKind string
 
 const (
 	EventCampaignStarted EventKind = "campaign_started"
+	EventCampaignWon     EventKind = "campaign_won"
 	EventFrontOpened     EventKind = "front_opened"
 	EventFrontClosed     EventKind = "front_closed"
 	EventStageWon        EventKind = "stage_won"  // attacker took a stage

@@ -30,7 +30,7 @@
 #include "c_tf_playerresource.h"
 // GREYLINE FRONTRESS: whether this battle is fought in swapped colours — see
 // C_TFPlayer::GetSkin.
-#include "greyline/greyline_uniform.h"
+#include "tf/frontress_uniform.h"
 #include "toolframework/itoolframework.h"
 #include "tier1/KeyValues.h"
 #include "tier0/vprof.h"
@@ -7682,13 +7682,13 @@ void C_TFPlayer::GetTeamColor( Color &color )
 {
 	color[3] = 255;
 
-	if ( GetTeamNumber() == TF_TEAM_RED )
+	if ( frontress::DisplayTeam( GetTeamNumber() ) == TF_TEAM_RED )
 	{
 		color[0] = 159;
 		color[1] = 55;
 		color[2] = 34;
 	}
-	else if ( GetTeamNumber() == TF_TEAM_BLUE )
+	else if ( frontress::DisplayTeam( GetTeamNumber() ) == TF_TEAM_BLUE )
 	{
 		color[0] = 76;
 		color[1] = 109;
@@ -8203,10 +8203,10 @@ int C_TFPlayer::GetSkin()
 	// other's colours — the attacking side always plays as BLU, whichever
 	// side is attacking. This puts the war's colours back on the bodies, per
 	// team and never per player, and does nothing at all unless
-	// greyline_uniform_by_war_side is on. It goes after the disguise
+	// tf_war_uniform_swap is on. It goes after the disguise
 	// resolution above on purpose: a disguised spy shows the colours of the
 	// team they are pretending to be, and those are swapped too.
-	iVisibleTeam = greyline::DisplayTeam( iVisibleTeam );
+	iVisibleTeam = frontress::DisplayTeam( iVisibleTeam );
 
 	int nSkin;
 

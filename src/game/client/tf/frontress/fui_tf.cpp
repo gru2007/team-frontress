@@ -1187,6 +1187,15 @@ void CFuiTF::OnCommand( const std::string &name, const std::vector< std::string 
 			GTFPartyClient()->RequestQueueForMatch( GroupForMode( arg ) );
 		}
 	}
+	else if ( name == "war_side" )
+	{
+		if ( ( arg == "red" || arg == "blu" ) && FrontressGC() && FrontressGC()->BConnected() && GCClientSystem() )
+		{
+			GCSDK::CProtoBufMsg< CMsgPartyChatMsg > msg( 51003 );
+			msg.Body().set_msg( ( "{\"side\":\"" + arg + "\"}" ).c_str() );
+			GCClientSystem()->BSendMessage( msg );
+		}
+	}
 	else if ( name == "war_join" )
 	{
 		// Tell the coordinator which operation we want (services/gc/internal/

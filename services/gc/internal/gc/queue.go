@@ -114,6 +114,12 @@ func (g *GC) seatStandby(p *Party) {
 		}
 		red, blu := l.teamCounts()
 		team, ok := mm.RoomFor(red, blu, 1, l.teamCap(grp))
+		if l.War != nil {
+			team, ok = g.factionTeam(l, id)
+			if (team == mm.Red && red >= l.teamCap(grp)) || (team == mm.Blu && blu >= l.teamCap(grp)) {
+				ok = false
+			}
+		}
 		if !ok {
 			continue
 		}
@@ -184,6 +190,9 @@ func (g *GC) queueFor(grp config.MatchGroupConfig) []mm.Entry {
 	for _, p := range g.parties {
 		at, queued := p.Queues[grp.MatchGroup]
 		if !queued {
+			continue
+		}
+		if g.admissible(p, grp) != nil {
 			continue
 		}
 		ready := true
@@ -262,6 +271,12 @@ func (g *GC) backfill(grp config.MatchGroupConfig, queue []mm.Entry) []mm.Entry 
 		for _, l := range open {
 			red, blu := l.teamCounts()
 			team, ok := mm.RoomFor(red, blu, e.Size(), l.teamCap(grp))
+			if l.War != nil {
+				team, ok = g.factionTeam(l, e.Players[0].SteamID)
+				if (team == mm.Red && red+e.Size() > l.teamCap(grp)) || (team == mm.Blu && blu+e.Size() > l.teamCap(grp)) {
+					ok = false
+				}
+			}
 			if !ok {
 				continue
 			}
@@ -314,10 +329,17 @@ func (g *GC) openLobbies(grp config.MatchGroupConfig) []*Lobby {
 func (g *GC) form(grp config.MatchGroupConfig, queue []mm.Entry) (mm.Formed, mm.Sizes, *battle, bool) {
 	sizes := mm.Sizes{Min: grp.MinPlayers, Ideal: grp.IdealPlayers, Max: grp.MaxPlayers}
 	b := g.nextBattle(grp, queue)
+	if g.cfg.FightsWar(grp) && b == nil {
+		return mm.Formed{}, sizes, nil, false
+	}
 	if b != nil {
 		sizes = mm.BattleSizes(sizes, b.Battle.Fields)
 	}
 	patience := time.Duration(grp.PatientSecs) * time.Second
+	if b != nil {
+		f, ok := g.formFactions(queue, sizes, patience)
+		return f, sizes, b, ok
+	}
 	f, ok := mm.Form(queue, sizes, patience, g.now())
 	return f, sizes, b, ok
 }

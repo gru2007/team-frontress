@@ -2,6 +2,7 @@ package war
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -108,7 +109,7 @@ func TestReconcileKeepsFrontsWithProgress(t *testing.T) {
 	}
 	// A battle lost: momentum spent, which is progress of a kind.
 	for _, f := range fronts {
-		if err := e.ApplyResult(f.ID, "m", false); err != nil {
+		if err := e.ApplyResult(f.ID, "m-"+f.ID, false); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -162,7 +163,7 @@ func TestAttackerWinningEveryStageCapturesAndAdvances(t *testing.T) {
 		if b.StageIndex != i {
 			t.Fatalf("stage = %d, want %d", b.StageIndex, i)
 		}
-		if err := e.ApplyResult(f.ID, "match", true); err != nil {
+		if err := e.ApplyResult(f.ID, fmt.Sprintf("match-%d", i), true); err != nil {
 			t.Fatalf("apply: %v", err)
 		}
 	}
@@ -194,7 +195,7 @@ func TestLostBattlesBreakTheOffensive(t *testing.T) {
 	}
 
 	for i := 1; i < MaxMomentum; i++ {
-		if err := e.ApplyResult(f.ID, "match", false); err != nil {
+		if err := e.ApplyResult(f.ID, fmt.Sprintf("match-%d", i), false); err != nil {
 			t.Fatalf("apply: %v", err)
 		}
 		open := false
@@ -214,7 +215,7 @@ func TestLostBattlesBreakTheOffensive(t *testing.T) {
 	if b, _ := e.NextBattle(f.ID); !hasCondition(b.Conditions, "longwaves") {
 		t.Errorf("an offensive on its last point fights under %v, want longwaves", b.Conditions)
 	}
-	if err := e.ApplyResult(f.ID, "match", false); err != nil {
+	if err := e.ApplyResult(f.ID, "match-final", false); err != nil {
 		t.Fatalf("apply: %v", err)
 	}
 	if got := e.Owner(f.NodeID); got != owner {

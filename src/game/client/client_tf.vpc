@@ -988,8 +988,8 @@ $Project "Client (TF)"
 				$File	"$SRCDIR\game\shared\tf\tf_gc_shared.h"
 				$File	"$SRCDIR\game\shared\tf\tf_gc_shared.cpp"
 
-				$File	"$SRCDIR\game\shared\greyline\greyline_uniform.cpp"
-				$File	"$SRCDIR\game\shared\greyline\greyline_uniform.h"
+				$File	"$SRCDIR\game\shared\tf\frontress_uniform.cpp"
+				$File	"$SRCDIR\game\shared\tf\frontress_uniform.h"
 
 				$File	"$SRCDIR\game\shared\tf\tf_match_description.cpp"
 				$File	"$SRCDIR\game\shared\tf\tf_match_description.h"

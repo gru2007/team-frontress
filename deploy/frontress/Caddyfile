@@ -1,0 +1,9 @@
+{$GC_HOST} {
+	@private path /admin/*
+	respond @private 404
+	reverse_proxy frontress-gc:27100
+}
+
+{$PORTAL_HOST} {
+	reverse_proxy pickup-portal:3000
+}

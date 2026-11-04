@@ -20,6 +20,7 @@
 #include <tier0/memdbgon.h>
 
 extern ConVar mp_developer;
+extern ConVar tf_war_battle;
 extern ConVar mp_teams_unbalance_limit;
 extern ConVar tf_arena_use_queue;
 extern ConVar mp_autoteambalance;
@@ -81,6 +82,7 @@ void CTFAutobalance::LevelShutdownPostEntity()
 //-----------------------------------------------------------------------------
 bool CTFAutobalance::ShouldBeActive() const
 {
+	if ( tf_war_battle.GetString()[0] ) return false;
 	if ( !TFGameRules() )
 		return false;
 

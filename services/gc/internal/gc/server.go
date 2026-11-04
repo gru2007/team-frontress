@@ -7,6 +7,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/gru2007/team-frontress/services/gc/internal/gcpb"
+	"github.com/gru2007/team-frontress/services/gc/internal/history"
 	"github.com/gru2007/team-frontress/services/gc/internal/mm"
 	"github.com/gru2007/team-frontress/services/gc/internal/players"
 	"github.com/gru2007/team-frontress/services/gc/internal/session"
@@ -179,6 +180,13 @@ func (g *GC) handleMatchResult(s *session.Session, m *wire.Msg) {
 		return
 	}
 	l.resultSeen = true
+	result := &history.Result{WinningTeam: msg.GetWinningTeam(), RedScore: msg.GetRedScore(), BlueScore: msg.GetBlueScore(), Duration: msg.GetDuration(), Players: []history.PlayerResult{}}
+	for _, rp := range msg.GetPlayers() {
+		if l.member(rp.GetSteamId()) == nil {
+			continue
+		}
+		result.Players = append(result.Players, history.PlayerResult{SteamID: strconv.FormatUint(rp.GetSteamId(), 10), Team: rp.GetTeam(), Score: rp.GetScore(), Kills: rp.GetKills(), Deaths: rp.GetDeaths(), Damage: rp.GetDamage(), Healing: rp.GetHealing()})
+	}
 
 	// Game teams: 2 is RED, 3 is BLU. Zero is a draw.
 	winner := msg.GetWinningTeam()
@@ -209,7 +217,7 @@ func (g *GC) handleMatchResult(s *session.Session, m *wire.Msg) {
 	g.creditQuests(l, &msg, results)
 	g.creditClans(l, results)
 
-	if l.War != nil && g.war != nil && (winner == 2 || winner == 3) {
+	if l.War != nil && g.war != nil && l.War.Campaign == g.war.Campaign() && (winner == 2 || winner == 3) {
 		// Which side the attacker's players ended up on is the server's word,
 		// not ours: a competitive match swaps sides at halftime.
 		attackerWon := false
@@ -228,10 +236,14 @@ func (g *GC) handleMatchResult(s *session.Session, m *wire.Msg) {
 		}
 		attackerWon = votes > 0
 		ownerBefore := g.war.Owner(l.War.NodeID)
+		winnerBefore := g.war.Snapshot().Winner
 		if err := g.war.ApplyResult(l.War.FrontID, strconv.FormatUint(l.MatchID, 10), attackerWon); err != nil {
 			g.log.Warn("war: could not apply result", "match", l.MatchID, "err", err)
 		} else {
 			g.warFeed(l, attackerWon, ownerBefore)
+			if winnerBefore == "" && g.war.Snapshot().Winner != "" {
+				g.stopWarQueues()
+			}
 		}
 	}
 	// A battle on the war's order pays everyone in it, won or lost.
@@ -241,6 +253,7 @@ func (g *GC) handleMatchResult(s *session.Session, m *wire.Msg) {
 		}
 	}
 
+	g.archiveMatch(l, result, "")
 	g.log.Info("match result", "lobby", l.ID, "match", l.MatchID, "winner", winner,
 		"red", msg.GetRedScore(), "blu", msg.GetBlueScore(), "players", len(ps))
 	g.hooks.Emit(sink.Event{Type: "match_result", At: g.now(), Data: g.matchSummary(l, map[string]any{
@@ -332,6 +345,10 @@ func (g *GC) handleChangeTeams(s *session.Session, m *wire.Msg) {
 	}
 	ok := false
 	if _, l := g.serverLobby(s, msg.GetLobbyId()); l != nil {
+		if l.War != nil {
+			g.reply(s, m, uint32(gcpb.ETFGCMsg_k_EMsgGC_ChangeMatchPlayerTeamsResponse), &gcpb.CMsgGCChangeMatchPlayerTeamsResponse{Success: proto.Bool(false)})
+			return
+		}
 		for _, ch := range msg.GetMember() {
 			if mem := l.member(ch.GetMemberId()); mem != nil {
 				switch ch.GetNewTeam() {

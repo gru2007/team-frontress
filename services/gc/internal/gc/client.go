@@ -19,6 +19,7 @@ type Player struct {
 	Online       bool
 	OfflineSince time.Time
 	Verified     bool
+	AuthAppID    uint32
 	PartyID      uint64
 	Look         *Look  // see looks.go
 	WarFront     string // the operation they asked to fight in, see warfront.go
@@ -53,6 +54,7 @@ func (g *GC) ClientConnected(s *session.Session, verified bool) {
 	p.Online = true
 	p.OfflineSince = time.Time{}
 	p.Verified = verified
+	p.AuthAppID = s.AppID
 
 	party := g.parties[p.PartyID]
 	if party == nil || !party.has(p.SteamID) {
@@ -61,6 +63,7 @@ func (g *GC) ClientConnected(s *session.Session, verified bool) {
 	g.publishParty(party)
 	g.publishRatings(p.SteamID)
 	g.sendWorldStatus(s)
+	g.sendFaction(s.SteamID)
 
 	// Everything else the GC holds for this player -- a lobby the game does
 	// not know about yet because it restarted, an invite -- goes out with the

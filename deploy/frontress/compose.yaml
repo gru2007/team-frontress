@@ -14,13 +14,15 @@ services:
     restart: unless-stopped
     environment:
       STEAM_API_KEY: "${STEAM_API_KEY:-}"
+      STEAM_PUBLISHER_KEY: "${STEAM_PUBLISHER_KEY:-}"
+      GC_ADMIN_KEY: "${GC_ADMIN_KEY:-}"
       # A server key game servers can present (in addition to gc.json's).
       GC_SERVER_KEY: "${FRONTRESS_COORDINATOR_SECRET:-}"
     volumes:
       - ${FRONTRESS_GC_CONFIG:-./gc.json}:/app/gc.json:ro
       - frontress_gc_data:/data
     ports:
-      - "${FRONTRESS_GC_BIND:-0.0.0.0}:${FRONTRESS_GC_PORT:-27100}:27100"
+      - "${FRONTRESS_GC_BIND:-127.0.0.1}:${FRONTRESS_GC_PORT:-27100}:27100"
 
 volumes:
   frontress_gc_data:

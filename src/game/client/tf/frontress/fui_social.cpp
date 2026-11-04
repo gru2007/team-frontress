@@ -269,6 +269,11 @@ void ApplyEvent( fui::Runtime &ui, const std::string &json )
 		ui.Set( "player.tag", Node( s.myTag ) );
 		s.bViewDirty = true;
 	}
+	else if ( t == "war_faction" )
+	{
+		ui.Set( "player.war_side", Node( Str( &ev, "side" ) ) );
+		ui.Set( "player.war_campaign", Node( Str( &ev, "campaign" ) ) );
+	}
 	else if ( t == "supporter" )
 	{
 		s.bMeSupporter = Bool( &ev, "supporter" );

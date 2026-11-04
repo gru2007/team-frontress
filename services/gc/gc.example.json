@@ -5,9 +5,10 @@
 
   "auth": {
     "mode": "dev",
+    "publisher_auth": false,
     "steam_api_key": "",
     "app_id": 5147520,
-    "app_ids": [5147380],
+    "app_ids": [],
     "identity": "frontress-gc"
   },
 

@@ -6,6 +6,7 @@
 //=============================================================================//
 
 #include "cbase.h"
+#include "tf/frontress_uniform.h"
 
 #include <tier1/fmtstr.h>
 #include <vgui_controls/Label.h>
@@ -1029,7 +1030,7 @@ void CTFClientScoreBoardDialog::UpdateTeamInfo()
 			const char *pDialogVarTeamPlayerCount = "";
 			const char *pDialogVarTeamName = "";
 
-			switch ( teamIndex )
+			switch ( frontress::DisplayTeam( teamIndex ) )
 			{
 				case TF_TEAM_RED:
 					pDialogVarTeamScore = "redteamscore";
@@ -1066,7 +1067,7 @@ void CTFClientScoreBoardDialog::UpdateTeamInfo()
 			SetDialogVariable( pDialogVarTeamScore, bMultiSeries ? TFGameRules()->GetSeriesPoints( TFGameRules()->GetGCTeamForGameTeam( teamIndex ) ) : team->Get_Score() );
 
 			// set the team name
-			SetDialogVariable( pDialogVarTeamName, team->Get_Localized_Name() );
+			SetDialogVariable( pDialogVarTeamName, GetGlobalTFTeam( frontress::DisplayTeam( teamIndex ) )->Get_Localized_Name() );
 		}
 	}
 
@@ -1328,7 +1329,7 @@ void CTFClientScoreBoardDialog::UpdatePlayerList()
 		{
 			SectionedListPanel *pPlayerList = NULL;
 			int nTeam = g_PR->GetTeam( playerIndex );
-			switch ( nTeam )
+			switch ( frontress::DisplayTeam( nTeam ) )
 			{
 			case TF_TEAM_BLUE:
 				pPlayerList = m_pPlayerListBlue;

@@ -14,6 +14,7 @@
 #pragma pop_macro( "Assert" )
 
 #include "fui_hud.h"
+#include "tf/frontress_uniform.h"
 
 #include "c_tf_player.h"
 #include "c_tf_team.h"
@@ -64,6 +65,7 @@ std::string UTF8( const wchar_t *pwsz )
 
 const char *TeamName( int iTeam )
 {
+	iTeam = frontress::DisplayTeam( iTeam );
 	return iTeam == TF_TEAM_BLUE ? "blu" : iTeam == TF_TEAM_RED ? "red" : "spec";
 }
 
@@ -304,7 +306,7 @@ void WriteObjective( Node &hud )
 	hud[ "overtime" ] = Node( pRules && pRules->InOvertime() );
 	hud[ "waiting" ] = Node( pRules && pRules->IsInWaitingForPlayers() );
 
-	C_TFTeam *pRed = GetGlobalTFTeam( TF_TEAM_RED ), *pBlu = GetGlobalTFTeam( TF_TEAM_BLUE );
+	C_TFTeam *pRed = GetGlobalTFTeam( frontress::DisplayTeam( TF_TEAM_RED ) ), *pBlu = GetGlobalTFTeam( frontress::DisplayTeam( TF_TEAM_BLUE ) );
 	const bool bFlags = mode == "ctf";
 	hud[ "score_red" ] = Node( pRed ? ( bFlags ? pRed->GetFlagCaptures() : pRed->Get_Score() ) : 0 );
 	hud[ "score_blu" ] = Node( pBlu ? ( bFlags ? pBlu->GetFlagCaptures() : pBlu->Get_Score() ) : 0 );
@@ -312,6 +314,12 @@ void WriteObjective( Node &hud )
 	// King of the hill: each side's clock.
 	hud[ "koth_red" ] = Node( mode == "koth" && pRules ? (int)ceilf( TimerLeft( pRules->GetRedKothRoundTimer() ) ) : -1 );
 	hud[ "koth_blu" ] = Node( mode == "koth" && pRules ? (int)ceilf( TimerLeft( pRules->GetBlueKothRoundTimer() ) ) : -1 );
+	if ( frontress::UniformSwapped() )
+	{
+		const int redTime = mode == "koth" && pRules ? (int)ceilf( TimerLeft( pRules->GetBlueKothRoundTimer() ) ) : -1;
+		const int bluTime = mode == "koth" && pRules ? (int)ceilf( TimerLeft( pRules->GetRedKothRoundTimer() ) ) : -1;
+		hud[ "koth_red" ] = Node( redTime ); hud[ "koth_blu" ] = Node( bluTime );
+	}
 
 	// Control points, in the map's order.
 	Node &points = hud[ "points" ];
@@ -322,8 +330,8 @@ void WriteObjective( Node &hud )
 			continue;
 		Node &p = points.Append();
 		const int iCapper = pObjectives->GetCappingTeam( i );
-		p[ "owner" ] = Node( pObjectives->GetOwningTeam( i ) == TF_TEAM_RED ? "red" : pObjectives->GetOwningTeam( i ) == TF_TEAM_BLUE ? "blu" : "neutral" );
-		p[ "capping" ] = Node( iCapper == TF_TEAM_RED ? "red" : iCapper == TF_TEAM_BLUE ? "blu" : "" );
+		p[ "owner" ] = Node( frontress::DisplayTeam( pObjectives->GetOwningTeam( i ) ) == TF_TEAM_RED ? "red" : frontress::DisplayTeam( pObjectives->GetOwningTeam( i ) ) == TF_TEAM_BLUE ? "blu" : "neutral" );
+		p[ "capping" ] = Node( frontress::DisplayTeam( iCapper ) == TF_TEAM_RED ? "red" : frontress::DisplayTeam( iCapper ) == TF_TEAM_BLUE ? "blu" : "" );
 		p[ "frac" ] = Node( iCapper >= FIRST_GAME_TEAM ? (double)pObjectives->GetCPCapPercentage( i ) : 0.0 );
 		p[ "cappers" ] = Node( iCapper >= FIRST_GAME_TEAM ? pObjectives->GetNumPlayersInArea( i, iCapper ) : 0 );
 		p[ "locked" ] = Node( pObjectives->GetCPLocked( i ) );

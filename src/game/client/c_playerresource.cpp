@@ -8,6 +8,9 @@
 #include "c_playerresource.h"
 #include "c_team.h"
 #include "gamestringpool.h"
+#ifdef TF_CLIENT_DLL
+#include "tf/frontress_uniform.h"
+#endif
 
 #ifdef HL2MP
 #include "hl2mp_gamerules.h"
@@ -325,6 +328,9 @@ int	C_PlayerResource::GetHealth( int iIndex )
 
 const Color &C_PlayerResource::GetTeamColor(int index_ )
 {
+#ifdef TF_CLIENT_DLL
+	index_ = frontress::DisplayTeam( index_ );
+#endif
 	if ( index_ < 0 || index_ >= MAX_TEAMS )
 	{
 		Assert( false );

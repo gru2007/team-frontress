@@ -52,6 +52,13 @@
 	<div id="campaign" class="glass in0" data-if="war.fronts.size > 0">
 		<div class="dim tiny upper">#fui_war_title · #fui_war_day {{ war.day }}<span data-if="war.days > 0"> #fui_war_of {{ war.days }}</span></div>
 		<h1 class="shadow">{{ war.name }}</h1>
+		<p class="small" data-if="war.winner == '' && player.war_side == ''">#fui_war_choose_hint</p>
+		<div class="row" data-if="war.winner == '' && player.war_side == ''">
+			<button class="red" data-event-click="cmd('war_side', 'red')">#fui_war_choose_red</button>
+			<button class="blu" data-event-click="cmd('war_side', 'blu')">#fui_war_choose_blu</button>
+		</div>
+		<p class="small" data-if="player.war_side != '' && war.winner == ''">#fui_war_faction_locked {{ player.war_side == 'red' ? 'RED' : 'BLU' }}</p>
+		<p class="small" data-if="war.winner != ''">#fui_war_campaign_winner {{ war.winner == 'red' ? 'RED' : 'BLU' }} · #fui_war_next_campaign</p>
 		<div class="tug-bar">
 			<div class="tug-fill" data-style-width="(war.red * 100) + '%'"></div>
 			<div class="tug-mid"></div>

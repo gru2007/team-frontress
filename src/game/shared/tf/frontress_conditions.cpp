@@ -29,6 +29,7 @@ ConVar tf_war_battle( "tf_war_battle", "", FCVAR_REPLICATED | FCVAR_HIDDEN, "The
 #include "tf_gcmessages.h"
 #include "tf_gcmessages.pb.h"
 #include "tf_gc_server.h"
+extern ConVar tf_war_uniform_swap;
 
 static const uint32 k_EMsgGCFrontress_MatchConditions = 51004;
 
@@ -100,6 +101,7 @@ struct PendingBattle_t
 	CUtlStringList m_Conditions;
 	CUtlString m_strBattle;
 	bool m_bApplied = false;
+	bool m_bUniformSwap = false;
 };
 PendingBattle_t s_Battle;
 
@@ -117,6 +119,7 @@ public:
 
 		PendingBattle_t battle;
 		battle.m_nMatchID = V_atoui64( JsonString( pszJSON, "match_id" ) );
+		battle.m_bUniformSwap = V_strcmp( JsonString( pszJSON, "uniform_swap" ).Get(), "true" ) == 0;
 		CUtlStringList conditions;
 		JsonStrings( pszJSON, "conditions", conditions );
 		for ( int i = 0; i < conditions.Count(); ++i )
@@ -138,6 +141,7 @@ public:
 		for ( int i = 0; i < battle.m_Conditions.Count(); ++i )
 			s_Battle.m_Conditions.CopyAndAddToTail( battle.m_Conditions[ i ] );
 		s_Battle.m_strBattle = battle.m_strBattle;
+		s_Battle.m_bUniformSwap = battle.m_bUniformSwap;
 		s_Battle.m_bApplied = false;
 		Msg( "War battle for match %llu: %s, conditions: %d\n", (unsigned long long)battle.m_nMatchID, battle.m_strBattle.Get(), battle.m_Conditions.Count() );
 		return true;
@@ -184,6 +188,7 @@ public:
 		}
 		tf_war_conditions.SetValue( list.Get() );
 		tf_war_battle.SetValue( s_Battle.m_strBattle.Get() );
+		tf_war_uniform_swap.SetValue( s_Battle.m_bUniformSwap ? 1 : 0 );
 		s_Battle.m_bApplied = true;
 	}
 
@@ -193,6 +198,7 @@ private:
 		engine->ServerCommand( "exec frontress_cond_reset.cfg\n" );
 		tf_war_conditions.SetValue( "" );
 		tf_war_battle.SetValue( "" );
+		tf_war_uniform_swap.SetValue( 0 );
 		s_Battle.m_bApplied = false;
 		s_Battle.m_nMatchID = 0;
 	}

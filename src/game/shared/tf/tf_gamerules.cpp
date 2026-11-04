@@ -19,6 +19,7 @@
 #include "tf_logic_player_destruction.h"
 #include "tf_matchmaking_shared.h"
 #include "tf_progression_description.h"
+extern ConVar tf_war_battle;
 
 #ifdef CLIENT_DLL
 	#include <game/client/iviewport.h>
@@ -24547,7 +24548,7 @@ int CTFGameRules::GetTeamAssignmentOverride( CTFPlayer *pTFPlayer, int iDesiredT
 	}
 	else if ( pMatch )
 	{
-		if ( !bAutoBalance )
+		if ( !bAutoBalance || tf_war_battle.GetString()[0] )
 		{
 			CSteamID steamID;
 			if ( pMatchPlayer )

@@ -82,6 +82,22 @@ job.
 Public JSON: `GET /v1/status` (what the main menu shows), `GET
 /v1/player/{steamid}` (record, XP, level, rating), `GET /healthz`.
 
+Match history for the tf2pickup portal: `GET /v1/matches` and
+`GET /v1/matches/{match_id}`. The list accepts `offset` (0..1000000), `limit`
+(1..100, default 20), `steam_id` and `state` (`setup`, `run`, `ended`). IDs are
+decimal strings. Records retain all roster participants, including leavers,
+and the reported result after the lobby is destroyed. They contain no server
+keys, GC sessions or private connection addresses.
+
+With `data_dir` set, the archive lives in `history/<match_id>.json`, separately
+from the live recovery snapshot `matches.json`. Back up both. The archive starts
+with this version; old finished matches cannot be reconstructed from player
+totals. Existing tf2pickup Mongo history remains separate. A restored match is
+reconciled with its archive; an archive entry with no live snapshot is closed
+with an explicit restart reason. Archive write failures are logged as errors;
+alert on them. The initial archive is indexed in memory and needs retention or
+a database index before a large deployment.
+
 ## Running it
 
 ```bash
@@ -90,13 +106,13 @@ cp gc.example.json gc.json   # then edit it
 go run ./cmd/frontress-gc -config gc.json
 ```
 
-Point the game at it with `tf_gc_server_url "http://host:27100"`. `tf_gc_status`
+Point the game client at it with `tf_gc_url "http://host:27100"`. `tf_gc_status`
 prints the connection state, `tf_gc_debug 1` logs every message.
 
 A dedicated server needs, in its `server.cfg`:
 
 ```text
-tf_gc_url "http://host:27100"
+tf_gc_server_url "http://host:27100"
 tf_gc_server_key "<a key from server_keys>"
 tf_mm_servermode 1
 tf_mm_strict 1
@@ -175,7 +191,7 @@ far, the online list, its clan and its supporter badge.
   weekly clan contract that pays everyone who helped, a clan order (+50 XP per
   battle in the chosen operation), a bigger roster, a gold tag, and the war
   feed naming the clan when its sector falls.
-- **Support** (`internal/support`, `support.jsonl`): InitTxn opens the order
+- **Support** (`internal/support`, `support-<appid>-<realm>.jsonl`): InitTxn opens the order
   and Steam asks the player in the overlay; the game passes Steam's answer
   back and the GC finalizes it. A monthly tier is the same order with a
   Steam-billed agreement (`billingtype` Steam, `period` Month); players cancel

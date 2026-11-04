@@ -25,7 +25,8 @@ type Config struct {
 	Listen string `json:"listen"`
 	// DataDir holds the durable state: running matches, player records and
 	// the war's log. Empty keeps everything in memory, which a restart loses.
-	DataDir string `json:"data_dir"`
+	DataDir  string `json:"data_dir"`
+	AdminKey string `json:"admin_key,omitempty"`
 
 	Auth        AuthConfig         `json:"auth"`
 	ServerKeys  []ServerKey        `json:"server_keys"`
@@ -88,10 +89,11 @@ type Prices struct {
 type AuthConfig struct {
 	// Mode is "dev" (take the client's word for its SteamID) or "webapi"
 	// (verify a Steam web API ticket). Only "webapi" belongs in production.
-	Mode        string   `json:"mode"`
-	SteamAPIKey string   `json:"steam_api_key"`
-	AppID       uint32   `json:"app_id"`
-	AppIDs      []uint32 `json:"app_ids"`
+	Mode          string   `json:"mode"`
+	SteamAPIKey   string   `json:"steam_api_key"`
+	PublisherAuth bool     `json:"publisher_auth"`
+	AppID         uint32   `json:"app_id"`
+	AppIDs        []uint32 `json:"app_ids"`
 	// Identity is the string the game passes to GetAuthTicketForWebApi.
 	Identity string `json:"identity"`
 }
@@ -293,6 +295,9 @@ func Load(path string) (Config, error) {
 }
 
 func (c *Config) applyEnv() {
+	if v := os.Getenv("GC_ADMIN_KEY"); v != "" {
+		c.AdminKey = v
+	}
 	if v := os.Getenv("STEAM_API_KEY"); v != "" {
 		c.Auth.SteamAPIKey = v
 	}
@@ -314,6 +319,9 @@ func (c *Config) applyEnv() {
 // Validate refuses a config that cannot work, at startup, rather than at the
 // first queue that trips over it.
 func (c *Config) Validate() error {
+	if c.AdminKey != "" && len(c.AdminKey) < 32 {
+		return errors.New("admin_key must have at least 32 characters")
+	}
 	if c.Listen == "" {
 		c.Listen = ":27100"
 	}
@@ -341,6 +349,19 @@ func (c *Config) Validate() error {
 		c.Chat.History = 60
 	}
 	if c.Support.Enabled {
+		if !c.Support.Fake && c.DataDir == "" {
+			return errors.New("support: persistent data_dir is required for Steam orders")
+		}
+		for currency, prices := range c.Support.Prices {
+			if len(currency) != 3 {
+				return fmt.Errorf("support: invalid currency %q", currency)
+			}
+			for _, amount := range append(append([]int64{}, prices.Once...), prices.Monthly...) {
+				if amount <= 0 {
+					return fmt.Errorf("support: %s prices must be positive", currency)
+				}
+			}
+		}
 		if c.Support.AppID == 0 {
 			c.Support.AppID = c.Auth.AppID
 		}

@@ -176,6 +176,7 @@ func (g *GC) lobbyChanged(l *Lobby) {
 	l.MMVersion++
 	g.publishLobby(l)
 	g.dirty = true
+	g.archiveMatch(l, nil, "")
 }
 
 // --- forming -------------------------------------------------------------------
@@ -247,10 +248,15 @@ func (g *GC) createLobby(grp config.MatchGroupConfig, f mm.Formed, sizes mm.Size
 		if field.AttackerTeam != 0 {
 			attacker = field.AttackerTeam
 		}
+		if attacker == 0 && b.Battle.Attacker == war.SideRED {
+			attacker = 2
+		}
 		if attacker == 2 { // TF_TEAM_RED
 			attackerGC = mm.Red
 		}
 		l.War = &state.War{
+			Campaign:     g.war.Campaign(),
+			UniformSwap:  (b.Battle.Attacker == war.SideRED) != (attackerGC == mm.Red),
 			FrontID:      b.Front.ID,
 			NodeID:       b.Front.NodeID,
 			NodeName:     b.Battle.NodeName,
@@ -278,8 +284,12 @@ func (g *GC) createLobby(grp config.MatchGroupConfig, f mm.Formed, sizes mm.Size
 			}
 		}
 	}
-	seat(f.Red, mm.Red)
-	seat(f.Blu, mm.Blu)
+	redTeam, bluTeam := mm.Red, mm.Blu
+	if l.War != nil && l.War.UniformSwap {
+		redTeam, bluTeam = mm.Blu, mm.Red
+	}
+	seat(f.Red, redTeam)
+	seat(f.Blu, bluTeam)
 
 	g.lobbies[l.ID] = l
 	g.dirty = true
@@ -293,6 +303,7 @@ func (g *GC) createLobby(grp config.MatchGroupConfig, f mm.Formed, sizes mm.Size
 	g.log.Info("match formed", "lobby", l.ID, "match", l.MatchID, "group", grp.Name,
 		"map", l.Map, "red", red, "blu", blu)
 	g.assignServer(l)
+	g.archiveMatch(l, nil, "")
 }
 
 // --- servers -------------------------------------------------------------------
@@ -390,6 +401,7 @@ func (g *GC) endLobby(l *Lobby, why string, requeue bool) {
 	if g.lobbies[l.ID] == nil {
 		return
 	}
+	g.archiveMatch(l, nil, why)
 	delete(g.lobbies, l.ID)
 	g.dirty = true
 	for _, m := range l.Members {
@@ -435,6 +447,22 @@ func (g *GC) endLobby(l *Lobby, why string, requeue bool) {
 // tickLobbies enforces every deadline a match has.
 func (g *GC) tickLobbies() {
 	if g.war != nil {
+		busy := false
+		for _, l := range g.lobbies {
+			if l.War != nil {
+				busy = true
+				break
+			}
+		}
+		if !busy {
+			if advanced, err := g.war.AdvanceCampaign(g.now(), 24*time.Hour); err != nil {
+				g.log.Error("campaign restart", "err", err)
+			} else if advanced {
+				for id := range g.online {
+					g.sendFaction(id)
+				}
+			}
+		}
 		online := 0
 		for _, p := range g.online {
 			if p.Online {
@@ -507,6 +535,9 @@ func (g *GC) restoreLobby(r state.Lobby) {
 		FormedAt: r.FormedAt, StartedAt: r.StartedAt,
 		MMVersion: r.MMVersion, War: r.War, everConnected: true,
 	}
+	if archived, ok := g.history.Get(lobbyKey(r.MatchID)); ok {
+		l.resultSeen = archived.Result != nil
+	}
 	for _, m := range r.Members {
 		l.Members = append(l.Members, &Member{
 			SteamID: m.SteamID, Team: mm.Team(m.Team), PartyID: m.PartyID,
@@ -522,6 +553,7 @@ func (g *GC) restoreLobby(r state.Lobby) {
 	// them in their refresh.
 	g.publishLobby(l)
 	g.log.Info("match restored", "lobby", l.ID, "state", l.State, "members", len(l.Members))
+	g.archiveMatch(l, nil, "")
 }
 
 // matchSummary is what other projects are told about a match.

@@ -6,7 +6,7 @@
 //=============================================================================//
 #include "cbase.h"
 // GREYLINE FRONTRESS: team colours a battle may have swapped.
-#include "greyline/greyline_uniform.h"
+#include "tf/frontress_uniform.h"
 #include "c_tf_player.h"
 #include "vgui_bitmapbutton.h"
 #include "vgui/ILocalize.h"
@@ -356,7 +356,7 @@ void C_ObjectSentrygun::CreateShield( void )
 	{
 		m_hShieldModel->FollowEntity( this, false );
 		m_hShieldModel->ChangeTeam( GetTeamNumber() );
-		m_hShieldModel->m_nSkin = ( greyline::DisplayTeam( GetTeamNumber() ) == TF_TEAM_RED ) ? 0 : 1;
+		m_hShieldModel->m_nSkin = ( frontress::DisplayTeam( GetTeamNumber() ) == TF_TEAM_RED ) ? 0 : 1;
 	}
 
 	m_hShieldEffect = ParticleProp()->Create( "turret_shield", PATTACH_ABSORIGIN_FOLLOW, 0, Vector( 0,0,30) );

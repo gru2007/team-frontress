@@ -33,6 +33,7 @@
 #include "hud.h" // for gEngfuncs
 #include "c_tf_player.h"
 #include "tf_gamerules.h"
+#include "tf_gc_client.h"
 #include "c_team.h"
 #include "tf_hud_notification_panel.h"
 #include "iinput.h"
@@ -341,6 +342,7 @@ void CTFTeamMenu::ApplySchemeSettings( IScheme *pScheme )
 //-----------------------------------------------------------------------------
 void CTFTeamMenu::ShowPanel( bool bShow )
 {
+	if ( bShow && GTFGCClientSystem() && GTFGCClientSystem()->BHaveLiveMatch() ) return;
 	if ( BaseClass::IsVisible() == bShow )
 		return;
 	

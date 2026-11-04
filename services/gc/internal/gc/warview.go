@@ -23,15 +23,18 @@ import (
 // (territory, borders, the front line) is derived on the client from the
 // sectors and their owners.
 type WarView struct {
-	Name      string  `json:"name"`
-	Campaign  string  `json:"campaign"`
-	Day       int     `json:"day"`
-	Days      int     `json:"days"`
-	Red       float64 `json:"red"`
-	RedFronts int     `json:"red_fronts"`
-	BluFronts int     `json:"blu_fronts"`
-	Battles   int     `json:"battles"`
-	Soldiers  int     `json:"soldiers"`
+	Winner         string  `json:"winner"`
+	EndedAt        int64   `json:"ended_at"`
+	NextCampaignAt int64   `json:"next_campaign_at"`
+	Name           string  `json:"name"`
+	Campaign       string  `json:"campaign"`
+	Day            int     `json:"day"`
+	Days           int     `json:"days"`
+	Red            float64 `json:"red"`
+	RedFronts      int     `json:"red_fronts"`
+	BluFronts      int     `json:"blu_fronts"`
+	Battles        int     `json:"battles"`
+	Soldiers       int     `json:"soldiers"`
 	// The pool: servers connected to the GC, and how many of them are free
 	// for the next battle. The war is never wider than the pool.
 	Servers     int       `json:"servers"`
@@ -175,6 +178,10 @@ func (g *GC) publishWar() {
 	v := &WarView{Name: t.Name, Campaign: snap.Campaign, Fronts: []WarNode{}, Links: []WarLink{}, Ops: []WarOp{}, Events: []WarEvent{},
 		Servers: g.poolSize(), ServersFree: g.freeServers(""), Live: []WarBattle{}, OrderXP: orderBonusXP}
 	order := g.orderFront()
+	v.Winner, v.EndedAt = strings.ToLower(string(snap.Winner)), snap.EndedAt
+	if snap.EndedAt > 0 {
+		v.NextCampaignAt = snap.EndedAt + 86400
+	}
 
 	// Campaign ids end in the unix time they started.
 	if i := strings.LastIndexByte(snap.Campaign, '-'); i >= 0 {

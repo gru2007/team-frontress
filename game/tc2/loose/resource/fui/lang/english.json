@@ -1,4 +1,10 @@
 {
+	"fui_war_choose_hint": "Choose a faction. You can change it only in the next campaign.",
+	"fui_war_choose_red": "Enlist with RED",
+	"fui_war_choose_blu": "Enlist with BLU",
+	"fui_war_faction_locked": "Your faction for this campaign:",
+	"fui_war_campaign_winner": "Campaign winner:",
+	"fui_war_next_campaign": "The next campaign begins 24 hours after victory",
 	"fui_tab_home": "Home",
 	"fui_tab_play": "Modes",
 	"fui_tab_war": "War",

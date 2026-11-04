@@ -26,6 +26,7 @@ import (
 	"github.com/gru2007/team-frontress/services/gc/internal/clans"
 	"github.com/gru2007/team-frontress/services/gc/internal/config"
 	"github.com/gru2007/team-frontress/services/gc/internal/gcpb"
+	"github.com/gru2007/team-frontress/services/gc/internal/history"
 	"github.com/gru2007/team-frontress/services/gc/internal/players"
 	"github.com/gru2007/team-frontress/services/gc/internal/session"
 	"github.com/gru2007/team-frontress/services/gc/internal/sink"
@@ -45,10 +46,12 @@ type GC struct {
 	players  *players.Store
 	war      *war.Engine
 	store    *state.Store
+	history  *history.Store
 	hooks    *sink.Webhooks
 	clans    *clans.Store
 	book     *support.Book
 	steam    support.Steam
+	commerce *support.Admin
 	now      func() time.Time
 
 	loop chan func()
@@ -80,14 +83,16 @@ type Deps struct {
 	Players *players.Store
 	War     *war.Engine
 	Store   *state.Store
+	History *history.Store
 	Hooks   *sink.Webhooks
 	// Clans; nil keeps them in memory.
 	Clans *clans.Store
 	// Support is the record of donations; Steam takes them. Both are needed
 	// for the support tab (config support.enabled).
-	Support *support.Book
-	Steam   support.Steam
-	Now     func() time.Time
+	Support  *support.Book
+	Steam    support.Steam
+	Commerce *support.Admin
+	Now      func() time.Time
 }
 
 // New makes a GC and restores the matches that were running when it last
@@ -99,10 +104,12 @@ func New(d Deps) (*GC, error) {
 		players:    d.Players,
 		war:        d.War,
 		store:      d.Store,
+		history:    d.History,
 		hooks:      d.Hooks,
 		clans:      d.Clans,
 		book:       d.Support,
 		steam:      d.Steam,
+		commerce:   d.Commerce,
 		chat:       map[string][]ChatLine{},
 		now:        d.Now,
 		loop:       make(chan func(), 4096),
@@ -123,6 +130,9 @@ func New(d Deps) (*GC, error) {
 	}
 	if g.store == nil {
 		g.store = state.Memory()
+	}
+	if g.history == nil {
+		g.history, _ = history.Open("")
 	}
 	if g.hooks == nil {
 		g.hooks = sink.New(nil, g.log)
@@ -148,8 +158,16 @@ func New(d Deps) (*GC, error) {
 	if err != nil {
 		return nil, err
 	}
+	active := map[string]bool{}
 	for _, rec := range saved {
+		if archived, ok := g.history.Get(lobbyKey(rec.MatchID)); ok && archived.State == "ended" {
+			continue
+		}
 		g.restoreLobby(rec)
+		active[lobbyKey(rec.MatchID)] = true
+	}
+	if err := g.history.Reconcile(active, g.now()); err != nil {
+		return nil, err
 	}
 	g.publishStatus()
 	return g, nil

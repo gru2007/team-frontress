@@ -517,7 +517,21 @@ func (g *GC) admissible(p *Party, grp config.MatchGroupConfig) error {
 		return fmt.Errorf("%s needs a party of at least %d", grp.Name, r.MinPartySize)
 	}
 	now := g.now()
+	var faction string
+	if g.cfg.FightsWar(grp) && (g.war == nil || g.war.Snapshot().Winner != "") {
+		return fmt.Errorf("the campaign is in intermission")
+	}
 	for _, id := range p.Members {
+		if g.cfg.FightsWar(grp) {
+			side := string(g.warSide(id))
+			if side == "" {
+				return fmt.Errorf("choose your campaign faction on the war screen first")
+			}
+			if faction != "" && faction != side {
+				return fmt.Errorf("war parties must belong to the same faction")
+			}
+			faction = side
+		}
 		pl := g.online[id]
 		if pl == nil || !pl.Online {
 			return fmt.Errorf("everybody in the party has to be online")

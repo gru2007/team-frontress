@@ -56,6 +56,7 @@ type Session struct {
 	ID      string
 	Kind    Kind
 	SteamID uint64
+	AppID   uint32
 	Created time.Time
 
 	// Server sessions only.

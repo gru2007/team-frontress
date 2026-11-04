@@ -60,6 +60,10 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("POST /gc/v1/send", a.send)
 	mux.HandleFunc("GET /gc/v1/recv", a.recv)
 	mux.HandleFunc("GET /v1/status", a.status)
+	mux.HandleFunc("GET /v1/matches", a.matchList)
+	mux.HandleFunc("GET /v1/matches/{id}", a.matchDetail)
+	mux.HandleFunc("GET /admin/v1/payments", a.adminPayments)
+	mux.HandleFunc("POST /admin/v1/payments/operations", a.adminPaymentOperation)
 	mux.HandleFunc("GET /v1/war", a.war)
 	mux.HandleFunc("GET /v1/player/{steamid}", a.playerRecord)
 	mux.HandleFunc("GET /v1/player/{steamid}/quests", a.playerQuests)
@@ -106,7 +110,16 @@ func (a *API) session(w http.ResponseWriter, r *http.Request) {
 
 	switch r.PostForm.Get("kind") {
 	case "client":
-		id, err := a.auth.Verify(ctx, steamID, r.PostForm.Get("ticket"))
+		var id uint64
+		var appID uint32
+		var err error
+		if verifier, ok := a.auth.(interface {
+			VerifyWithApp(context.Context, uint64, string) (uint64, uint32, error)
+		}); ok {
+			id, appID, err = verifier.VerifyWithApp(ctx, steamID, r.PostForm.Get("ticket"))
+		} else {
+			id, err = a.auth.Verify(ctx, steamID, r.PostForm.Get("ticket"))
+		}
 		if err != nil {
 			a.log.Info("client refused", "steamid", steamID, "err", err)
 			code := http.StatusUnauthorized
@@ -116,7 +129,7 @@ func (a *API) session(w http.ResponseWriter, r *http.Request) {
 			writeKV(w, code, "error", "Steam could not confirm who you are")
 			return
 		}
-		s := a.gc.Sessions().Open(session.Client, id, nil)
+		s := a.gc.Sessions().Open(session.Client, id, func(s *session.Session) { s.AppID = appID })
 		if err := a.gc.Call(ctx, func() { a.gc.ClientConnected(s, a.auth.Verified()) }); err != nil {
 			writeKV(w, http.StatusServiceUnavailable, "error", "coordinator busy")
 			return

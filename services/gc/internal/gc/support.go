@@ -17,6 +17,8 @@ import (
 
 const steamTimeout = 25 * time.Second
 
+func (g *GC) Commerce() *support.Admin { return g.commerce }
+
 func (g *GC) supportOn() bool { return g.cfg.Support.Enabled && g.steam != nil && g.book != nil }
 
 func (g *GC) handleSupport(id uint64, op socialOp) {
@@ -79,7 +81,10 @@ func (g *GC) supportInfo(id uint64) {
 		for _, a := range agreements {
 			active = active || strings.EqualFold(a.Status, "Active")
 		}
-		g.book.SetMonthly(id, active)
+		// Production renewal entitlement comes from reconciled Steam charges.
+		if g.cfg.Support.Fake {
+			g.book.SetMonthly(id, active)
+		}
 		if p := g.online[id]; p != nil {
 			p.Currency = currency
 		}
@@ -149,6 +154,10 @@ func (g *GC) supportBuy(id uint64, kind support.Kind, tier int, anon bool) {
 		return
 	}
 	p := g.player(id)
+	if !g.cfg.Support.Fake && p.AuthAppID != g.cfg.Support.AppID {
+		g.notice(id, "Support purchases are not enabled for this Steam app. Open the production game to support Frontress.")
+		return
+	}
 	if !p.supportBusy.IsZero() && g.now().Sub(p.supportBusy) < time.Minute {
 		g.fail(id, "support_busy")
 		return
@@ -168,7 +177,9 @@ func (g *GC) supportBuy(id uint64, kind support.Kind, tier int, anon bool) {
 			return err
 		}
 		order = support.Order{ID: newID(), SteamID: id, Name: name, Kind: kind, Tier: tier, Amount: amount, Currency: currency, Anon: anon}
-		g.book.Open(order)
+		if err := g.book.Open(order); err != nil {
+			return err
+		}
 		desc := fmt.Sprintf("Team Frontress: donation %s", FormatPrice(amount, currency))
 		if kind == support.Monthly {
 			desc = fmt.Sprintf("Team Frontress: monthly support %s", FormatPrice(amount, currency))
@@ -220,7 +231,13 @@ func (g *GC) supportAuthorized(id, orderID uint64, ok bool) {
 			g.emit(id, "support_result", map[string]any{"ok": false, "error": steamErrKey(err)})
 			return
 		}
-		if !g.book.Paid(orderID) {
+		paid, recordErr := g.book.MarkPaid(orderID)
+		if recordErr != nil {
+			g.log.Error("support: could not persist paid order; reconcile with Steam", "order", orderID, "err", recordErr)
+			g.emit(id, "support_result", map[string]any{"ok": false, "error": "unreachable"})
+			return
+		}
+		if !paid {
 			return
 		}
 		g.log.Info("support: paid", "steamid", id, "order", orderID, "kind", o.Kind, "amount", o.Amount, "currency", o.Currency)
@@ -258,7 +275,9 @@ func (g *GC) supportCancel(id uint64) {
 			g.emit(id, "support_result", map[string]any{"ok": false, "error": steamErrKey(err)})
 			return
 		}
-		g.book.SetMonthly(id, false)
+		if g.cfg.Support.Fake {
+			g.book.SetMonthly(id, false)
+		}
 		g.emit(id, "support_result", map[string]any{"ok": true, "kind": "cancelled"})
 		g.sendSupportSummary(id)
 		g.supportInfo(id)

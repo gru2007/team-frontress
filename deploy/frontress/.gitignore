@@ -1,0 +1,4 @@
+.env
+gc.json
+theater.json
+*.backup

@@ -7030,6 +7030,29 @@ bool CTFPlayer::ShouldForceAutoTeam( void )
 //-----------------------------------------------------------------------------
 void CTFPlayer::HandleCommand_JoinTeam( const char *pTeamName )
 {
+	if ( GTFGCClientSystem() && GTFGCClientSystem()->GetMatch() )
+	{
+		CSteamID id;
+		const CMatchInfo::PlayerMatchData_t *seat = GetSteamID( &id ) ? GTFGCClientSystem()->GetMatch()->GetMatchDataForPlayer( id ) : NULL;
+		if ( seat && !seat->bDropped && TFGameRules() )
+		{
+			const int assigned = TFGameRules()->GetGameTeamForGCTeam( seat->eGCTeam );
+			if ( assigned == TF_TEAM_RED || assigned == TF_TEAM_BLUE )
+			{
+				if ( GetTeamNumber() == TF_TEAM_RED || GetTeamNumber() == TF_TEAM_BLUE )
+				{
+					if ( GetTeamNumber() != assigned ) ForceChangeTeam( assigned );
+					ClientPrint( this, HUD_PRINTCENTER, "#TF_Ladder_NoTeamChange" );
+					return;
+				}
+				// Keep the normal initial join and class-selection flow, but only
+				// allow the seat assigned by the coordinator.
+				pTeamName = assigned == TF_TEAM_RED ? "red" : "blue";
+			}
+			else return;
+		}
+		else return;
+	}
 	if ( TFGameRules()->State_Get() == GR_STATE_GAME_OVER )
 		return;
 
@@ -7302,6 +7325,7 @@ void CTFPlayer::HandleCommand_JoinTeam( const char *pTeamName )
 //-----------------------------------------------------------------------------
 void CTFPlayer::HandleCommand_JoinTeam_NoMenus( const char *pTeamName )
 {
+	if ( GTFGCClientSystem() && GTFGCClientSystem()->GetMatch() ) { HandleCommand_JoinTeam( pTeamName ); return; }
 	Assert( IsX360() );
 
 	Msg( "Client command HandleCommand_JoinTeam_NoMenus: %s\n", pTeamName );

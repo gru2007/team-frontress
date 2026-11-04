@@ -14,13 +14,16 @@ type Engine struct {
 	theater  *Theater
 	log      *Log
 	campaign string
+	winner   Side
+	endedAt  int64
 	owner    map[string]Side // node id -> owner
 	fronts   map[string]*Front
 	nextID   int
 	now      func() time.Time
 	// recent is the tail of the log, newest last, for the war screen's
 	// front-line report.
-	recent []Event
+	recent  []Event
+	results map[string]bool
 }
 
 // recentEvents is how much of the log the war screen can show.
@@ -35,6 +38,7 @@ func NewEngine(t *Theater, l *Log, past []Event) (*Engine, error) {
 		owner:   map[string]Side{},
 		fronts:  map[string]*Front{},
 		now:     time.Now,
+		results: map[string]bool{},
 	}
 	for _, n := range t.Nodes {
 		e.owner[n.ID] = n.Owner
@@ -52,18 +56,59 @@ func NewEngine(t *Theater, l *Log, past []Event) (*Engine, error) {
 		}
 		e.apply(ev)
 	}
+	// Finish a durable capture interrupted before its follow-up events.
+	for _, f := range e.Fronts() {
+		if e.owner[f.NodeID] == f.Attacker {
+			ev, err := e.log.Append(Event{Kind: EventFrontClosed, FrontID: f.ID, NodeID: f.NodeID, Note: "recovered capture"})
+			if err != nil {
+				return nil, err
+			}
+			e.apply(ev)
+		}
+	}
+	if e.winner == "" {
+		var victory *Event
+		for _, side := range []Side{SideRED, SideBLU} {
+			node := t.HQ[side]
+			owner := e.owner[node]
+			if node == "" || owner == "" || owner == side {
+				continue
+			}
+			if victory != nil {
+				return nil, fmt.Errorf("both headquarters were captured in a legacy campaign; reconcile its winner before upgrading")
+			}
+			ev := Event{Kind: EventCampaignWon, Campaign: e.campaign, Side: owner, NodeID: node}
+			for _, old := range past {
+				if old.Kind == EventNodeCaptured && old.NodeID == node && old.Side == owner {
+					ev.At = old.At
+				}
+			}
+			victory = &ev
+		}
+		if victory != nil {
+			ev, err := e.log.Append(*victory)
+			if err != nil {
+				return nil, err
+			}
+			e.apply(ev)
+		}
+	}
 	return e, nil
 }
 
 // apply folds one event into state. It must stay total: an event kind it does
 // not know is ignored, so an older binary can still read a newer log.
 func (e *Engine) apply(ev Event) {
+	if ev.MatchID != "" {
+		e.results[ev.MatchID] = true
+	}
 	e.recent = append(e.recent, ev)
 	if len(e.recent) > recentEvents {
 		e.recent = append([]Event(nil), e.recent[len(e.recent)-recentEvents:]...)
 	}
 	switch ev.Kind {
 	case EventCampaignStarted:
+		e.winner, e.endedAt = "", 0
 		e.campaign = ev.Campaign
 		// A new campaign resets ownership to the theater's own starting line.
 		for _, n := range e.theater.Nodes {
@@ -71,6 +116,9 @@ func (e *Engine) apply(ev Event) {
 		}
 		e.fronts = map[string]*Front{}
 		e.recent = []Event{ev}
+	case EventCampaignWon:
+		e.winner, e.endedAt = ev.Side, ev.At
+		e.fronts = map[string]*Front{}
 	case EventFrontOpened:
 		e.fronts[ev.FrontID] = &Front{
 			ID:       ev.FrontID,
@@ -107,6 +155,8 @@ func (e *Engine) Campaign() string {
 
 // Snapshot is the war at one moment, for drawing it.
 type Snapshot struct {
+	Winner   Side
+	EndedAt  int64
 	Theater  *Theater
 	Campaign string
 	Owner    map[string]Side
@@ -120,7 +170,7 @@ type Snapshot struct {
 func (e *Engine) Snapshot() Snapshot {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	s := Snapshot{Theater: e.theater, Campaign: e.campaign, Owner: make(map[string]Side, len(e.owner))}
+	s := Snapshot{Theater: e.theater, Campaign: e.campaign, Owner: make(map[string]Side, len(e.owner)), Winner: e.winner, EndedAt: e.endedAt}
 	for k, v := range e.owner {
 		s.Owner[k] = v
 	}
@@ -177,6 +227,9 @@ func (t *Theater) WantFronts(population int) int {
 func (e *Engine) Reconcile(population, servers int) ([]Front, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.winner != "" {
+		return []Front{}, nil
+	}
 
 	want := e.theater.WantFronts(population)
 	if servers < want {
@@ -365,6 +418,12 @@ func (e *Engine) NextBattle(frontID string) (Battle, error) {
 func (e *Engine) ApplyResult(frontID, matchID string, attackerWon bool) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if matchID != "" && e.results[matchID] {
+		return nil
+	}
+	if e.winner != "" {
+		return nil
+	}
 
 	f, ok := e.fronts[frontID]
 	if !ok {
@@ -433,6 +492,14 @@ func (e *Engine) ApplyResult(frontID, matchID string, attackerWon bool) error {
 		return err
 	}
 	e.apply(closed)
+	if e.theater.HQ[attacker.Other()] == captured.NodeID {
+		won, err := e.log.Append(Event{Kind: EventCampaignWon, Campaign: e.campaign, Side: attacker, NodeID: captured.NodeID, MatchID: matchID})
+		if err != nil {
+			return err
+		}
+		e.apply(won)
+		return nil
+	}
 
 	// Push the front deeper: the first neighbour of the captured node still
 	// held by the defender becomes the next objective.

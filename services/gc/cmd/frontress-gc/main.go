@@ -17,6 +17,7 @@ import (
 	"github.com/gru2007/team-frontress/services/gc/internal/clans"
 	"github.com/gru2007/team-frontress/services/gc/internal/config"
 	"github.com/gru2007/team-frontress/services/gc/internal/gc"
+	"github.com/gru2007/team-frontress/services/gc/internal/history"
 	"github.com/gru2007/team-frontress/services/gc/internal/httpapi"
 	"github.com/gru2007/team-frontress/services/gc/internal/players"
 	"github.com/gru2007/team-frontress/services/gc/internal/sink"
@@ -66,13 +67,32 @@ func run(path string, log *slog.Logger) error {
 		return err
 	}
 	defer ps.Close()
+	archiveDir := ""
+	if cfg.DataDir != "" {
+		archiveDir = filepath.Join(cfg.DataDir, "history")
+	}
+	archive, err := history.Open(archiveDir)
+	if err != nil {
+		return err
+	}
 
 	cs, err := clans.Open(file("clans.jsonl"))
 	if err != nil {
 		return err
 	}
 	defer cs.Close()
-	book, err := support.OpenBook(file("support.jsonl"))
+	supportLog := "support.jsonl"
+	realm := "live"
+	if cfg.Support.Sandbox {
+		realm = "sandbox"
+	}
+	if cfg.Support.Fake {
+		realm = "fake"
+	}
+	if cfg.Support.Enabled {
+		supportLog = fmt.Sprintf("support-%d-%s.jsonl", cfg.Support.AppID, realm)
+	}
+	book, err := support.OpenBook(file(supportLog))
 	if err != nil {
 		return err
 	}
@@ -85,6 +105,13 @@ func run(path string, log *slog.Logger) error {
 		log.Warn("support.fake: donations are approved without Steam. Never run this in public.")
 	default:
 		steam = &support.WebAPI{Key: cfg.Support.PublisherKey, AppID: cfg.Support.AppID, Sandbox: cfg.Support.Sandbox}
+	}
+	var commerce *support.Admin
+	if management, ok := steam.(support.Management); ok {
+		commerce, err = support.OpenAdmin(file(fmt.Sprintf("payment-admin-%d-%s.json", cfg.Support.AppID, realm)), management, book, cfg.Support.AppID, cfg.Support.Sandbox)
+		if err != nil {
+			return err
+		}
 	}
 
 	var engine *war.Engine
@@ -110,22 +137,28 @@ func run(path string, log *slog.Logger) error {
 
 	var auth steamauth.Verifier = steamauth.Dev{}
 	if cfg.Auth.Verified() {
-		auth = &steamauth.WebAPI{APIKey: cfg.Auth.SteamAPIKey, AppIDs: cfg.Auth.AppIDList(), Identity: cfg.Auth.Identity}
+		base := ""
+		if cfg.Auth.PublisherAuth {
+			base = "https://partner.steam-api.com"
+		}
+		auth = &steamauth.WebAPI{APIKey: cfg.Auth.SteamAPIKey, AppIDs: cfg.Auth.AppIDList(), Identity: cfg.Auth.Identity, BaseURL: base}
 	} else {
 		log.Warn("auth.mode is dev: the GC believes whatever SteamID a client claims. Never run this in public.")
 	}
 
 	hooks := sink.New(cfg.Webhooks, log)
 	g, err := gc.New(gc.Deps{
-		Config:  cfg,
-		Log:     log,
-		Players: ps,
-		War:     engine,
-		Store:   state.Open(file("matches.json")),
-		Hooks:   hooks,
-		Clans:   cs,
-		Support: book,
-		Steam:   steam,
+		Config:   cfg,
+		Log:      log,
+		Players:  ps,
+		War:      engine,
+		Store:    state.Open(file("matches.json")),
+		History:  archive,
+		Hooks:    hooks,
+		Clans:    cs,
+		Support:  book,
+		Steam:    steam,
+		Commerce: commerce,
 	})
 	if err != nil {
 		return err
@@ -135,6 +168,13 @@ func run(path string, log *slog.Logger) error {
 	defer stop()
 
 	go hooks.Run(ctx)
+	commerceDone := make(chan struct{})
+	if commerce != nil {
+		go func() { defer close(commerceDone); commerce.Run(ctx) }()
+	} else {
+		close(commerceDone)
+	}
+	defer func() { stop(); <-commerceDone }()
 	loopDone := make(chan struct{})
 	go func() { g.Run(ctx); close(loopDone) }()
 
