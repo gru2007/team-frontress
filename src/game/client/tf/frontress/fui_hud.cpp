@@ -22,7 +22,7 @@
 #include "c_team_train_watcher.h"
 #include "entity_capture_flag.h"
 #include "filesystem.h"
-#include "gameeventlistener.h"
+#include "GameEventListener.h"
 #include "hud.h"
 #include "teamplay_round_timer.h"
 #include "tf_gamerules.h"

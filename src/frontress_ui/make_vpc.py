@@ -35,6 +35,7 @@ $Configuration
 		$AdditionalIncludeDirectories	"$BASE;$SRCDIR\thirdparty\RmlUi\Include;$SRCDIR\frontress_ui"
 		$PreprocessorDefinitions		"$BASE;RMLUI_STATIC_LIB;_CRT_SECURE_NO_WARNINGS"
 		$TreatWarningsAsErrors			"No"
+		$LanguageStandard				"ISO C++17 Standard (/std:c++17)"	[$WIN32 || $WIN64]
 	}
 }
 '''

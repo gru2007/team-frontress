@@ -71,7 +71,9 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y -qq protobuf-compiler
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6
           PATH="$(go env GOPATH)/bin:$PATH" ./proto/gen.sh
-          if ! git diff --exit-code -I '^// \tprotoc ' -- internal/gcpb; then
+          # Git's POSIX regex does not interpret \t as a tab. Ignore only
+          # the compiler version comment, which varies between installations.
+          if ! git diff --exit-code -I '^//[[:space:]]*protoc[[:space:]]' -- internal/gcpb; then
             echo "::error::internal/gcpb is out of date with the game's .proto files; run services/gc/proto/gen.sh"
             exit 1
           fi
