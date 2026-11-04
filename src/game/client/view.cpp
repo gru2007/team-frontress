@@ -1092,6 +1092,8 @@ void CViewRender::SetUpOverView()
 // Purpose: Render current view into specified rectangle
 // Input  : *rect - is computed by CVideoMode_Common::GetClientViewRect()
 //-----------------------------------------------------------------------------
+ConVar cl_view_tile( "cl_view_tile", "", FCVAR_CHEAT | FCVAR_DONTRECORD, "Draw one tile of a bigger frame: \"<cols> <rows> <col> <row>\" (store art; see tools/steam-art)." );
+
 void CViewRender::Render( vrect_t *rect )
 {
 	Assert(s_DbgSetupOrigin == m_View.origin);
@@ -1242,6 +1244,26 @@ void CViewRender::Render( vrect_t *rect )
 		{
 			// we should use the monitor view from the left eye for both eyes
 			flags |= RENDERVIEW_SUPPRESSMONITORRENDERING;
+		}
+
+		// Tiled rendering for pictures bigger than the window (store art):
+		// cl_view_tile "<cols> <rows> <col> <row>" draws one tile of a bigger
+		// frame through an off-center frustum; screenshots of every tile,
+		// taken with time stopped, stitch into one image.
+		{
+			static ConVarRef cl_view_tile( "cl_view_tile" );
+			int nCols = 0, nRows = 0, iCol = 0, iRow = 0;
+			if ( eEye == STEREO_EYE_MONO && cl_view_tile.IsValid() && cl_view_tile.GetString()[ 0 ] &&
+				sscanf( cl_view_tile.GetString(), "%d %d %d %d", &nCols, &nRows, &iCol, &iRow ) == 4 &&
+				nCols > 0 && nRows > 0 && iCol >= 0 && iCol < nCols && iRow >= 0 && iRow < nRows )
+			{
+				viewEye.m_bOffCenter = true;
+				viewEye.m_flOffCenterLeft = (float)iCol / nCols;
+				viewEye.m_flOffCenterRight = (float)( iCol + 1 ) / nCols;
+				viewEye.m_flOffCenterTop = 1.f - (float)iRow / nRows;
+				viewEye.m_flOffCenterBottom = 1.f - (float)( iRow + 1 ) / nRows;
+				flags &= ~( RENDERVIEW_DRAWHUD | RENDERVIEW_DRAWVIEWMODEL );
+			}
 		}
 
 	    RenderView( viewEye, nClearFlags, flags );
