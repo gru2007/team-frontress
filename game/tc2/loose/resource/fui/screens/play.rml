@@ -1,0 +1,47 @@
+<rml>
+<!-- Modes: pick what the play button queues for, and which maps. -->
+<head>
+	<title>Play</title>
+	<link type="text/rcss" href="../style/base.rcss"/>
+	<link type="text/rcss" href="../style/play.rcss"/>
+</head>
+<body>
+<div class="root" data-model="fr" data-class-world="app.world">
+	<div class="world-standin" data-if="app.preview"></div>
+	<div class="dim-all"></div>
+	<div class="screen">
+		<h1 class="shadow page-title">#fui_choose_mode</h1>
+		<div id="modes">
+			<div class="mode rise" data-for="m : modes"
+				data-class-selected="m.id == ui.mode" data-class-off="!m.enabled"
+				data-event-click="cmd('select_mode', m.id)">
+				<div class="mode-art" data-style-decorator="'image(tex:' + m.image + ' cover center top)'"></div>
+				<div class="mode-shade"></div>
+				<div class="mode-tag chip gold" data-if="m.tag != ''">{{ m.tag | t }}</div>
+				<div class="mode-text">
+					<div class="title mode-title outline">{{ m.name | t }}</div>
+					<div class="mode-desc">{{ m.desc | t }}</div>
+					<div class="row mode-meta">
+						<span class="chip" data-if="m.size != ''">{{ m.size }}</span>
+						<div class="spacer"></div>
+						<span class="dim small" data-if="m.players > 0"><span class="live"></span>{{ m.players | thousands }} #fui_players_now</span>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div id="pool" class="panel" data-if="ui.mode == 'casual' || ui.mode == 'ranked'">
+			<div class="panel-title pool-title">#fui_map_pool</div>
+			<div class="dimmer small pool-hint">#fui_map_pool_hint</div>
+			<div id="maps">
+				<div class="map" data-for="map, i : maps" data-class-on="map.on" data-event-click="cmd('toggle_map', map.id)">
+					<div class="map-art" data-style-decorator="'image(tex:' + map.image + ' cover center top)'"></div>
+					<div class="map-name">{{ map.name }}</div>
+					<div class="map-check" data-if="map.on"><div class="tick"></div></div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+</body>
+</rml>

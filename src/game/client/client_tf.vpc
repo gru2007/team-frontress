@@ -28,6 +28,15 @@ $Configuration
 		$PreprocessorDefinitions		"$BASE;WORKSHOP_IMPORT_ENABLED" [$WORKSHOP_IMPORT_ENABLE]
 		$PreprocessorDefinitions		"$BASE;SIXENSE" [!$SOURCESDK]
 		$PreprocessorDefinitions		"$BASE;DISABLE_GC_CONNECTION;DISABLE_IN_SOURCESDK;INVENTORY_VIA_WEBAPI" [$SOURCESDK]
+
+		// Frontress UI (src/frontress_ui, built as its own library).
+		$AdditionalIncludeDirectories	"$BASE;$SRCDIR\frontress_ui;$SRCDIR\thirdparty\RmlUi\Include"
+		$PreprocessorDefinitions		"$BASE;RMLUI_STATIC_LIB"
+	}
+
+	$General
+	{
+		$AdditionalProjectDependencies	"$BASE;frontress_ui"
 	}
 }
 
@@ -926,15 +935,33 @@ $Project "Client (TF)"
 
 			$Folder	"Matchmaking"
 			{
-				// Team Frontress: matchmaking without a Valve game coordinator.
-				$File	"$SRCDIR\game\client\tf\frontress\tf_mm_backend.h"
-				$File	"$SRCDIR\game\client\tf\frontress\tf_mm_backend.cpp"
-				$File	"$SRCDIR\game\client\tf\frontress\tf_mm_party.cpp"
-				$File	"$SRCDIR\game\client\tf\frontress\tf_mm_coordinator.cpp"
-				$File	"$SRCDIR\game\client\tf\frontress\tf_mainmenu_info.h"
-				$File	"$SRCDIR\game\client\tf\frontress\tf_mainmenu_info.cpp"
-				$File	"$SRCDIR\game\client\tf\frontress\tf_campaign_map.h"
-				$File	"$SRCDIR\game\client\tf\frontress\tf_campaign_map.cpp"
+				// Team Frontress: the connection to our own game coordinator
+				// (services/gc), and what the menu shows about it.
+				$File	"$SRCDIR\game\shared\tf\frontress_gc.h"
+				$File	"$SRCDIR\game\shared\tf\frontress_gc.cpp"
+				$File	"$SRCDIR\game\shared\tf\frontress_lobby_world.cpp"
+				$File	"$SRCDIR\game\shared\tf\frontress_conditions.cpp"
+				$File	"$SRCDIR\game\client\tf\frontress\tf_gc_status.h"
+				$File	"$SRCDIR\game\client\tf\frontress\tf_gc_status.cpp"
+			}
+
+			$Folder	"Frontress UI"
+			{
+				// The main menu, drawn by src/frontress_ui from resource/fui.
+				$File	"$SRCDIR\game\client\tf\frontress\fui_host.h"
+				$File	"$SRCDIR\game\client\tf\frontress\fui_host.cpp"
+				$File	"$SRCDIR\game\client\tf\frontress\fui_tf.h"
+				$File	"$SRCDIR\game\client\tf\frontress\fui_tf.cpp"
+				$File	"$SRCDIR\game\client\tf\frontress\fui_stage.h"
+				$File	"$SRCDIR\game\client\tf\frontress\fui_stage.cpp"
+				$File	"$SRCDIR\game\client\tf\frontress\fui_hud.cpp"
+				$File	"$SRCDIR\game\client\tf\frontress\fui_hud.h"
+				$File	"$SRCDIR\game\client\tf\frontress\fui_social.cpp"
+				$File	"$SRCDIR\game\client\tf\frontress\fui_social.h"
+			}
+
+			$Folder	"Matchmaking (stock)"
+			{
 
 				$File	"$SRCDIR\game\client\tf\tf_gc_client.cpp"
 				$File	"$SRCDIR\game\client\tf\tf_gc_client.h"

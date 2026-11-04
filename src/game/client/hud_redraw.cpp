@@ -42,6 +42,11 @@ static void FovChanged_Callback( IConVar *pConVar, const char *pOldString, float
 
 static ConVar fov_watcher( "_fov", "0", 0, "Automates fov command to server.", FovChanged_Callback );
 
+#ifdef TF_CLIENT_DLL
+// Parts of the HUD that the Frontress HUD draws itself (tf/frontress/fui_hud.h).
+extern bool FrontressHudReplaces( const char *pszElement );
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose: Think
 //-----------------------------------------------------------------------------
@@ -58,6 +63,9 @@ void CHud::Think(void)
 	{
 		// Visible?
 		bool visible = m_HudList[i]->ShouldDraw();
+#ifdef TF_CLIENT_DLL
+		visible = visible && !FrontressHudReplaces( m_HudList[i]->GetName() );
+#endif
 
 #if defined( REPLAY_ENABLED )
 		visible = visible && !bPlayingReplay;

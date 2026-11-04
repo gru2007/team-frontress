@@ -1,0 +1,206 @@
+/* Support the developers */
+
+.glow {
+	position: absolute;
+	left: 0; top: 0; right: 0; bottom: 0;
+	decorator: radial-gradient(circle farthest-corner at 80% 0%, #ff6fa82a 0%, #ff6fa800 45%);
+}
+.pink { color: #ff9ec4; }
+
+/* ------------------------------------------------------------ hero */
+.hero { align-items: flex-start; gap: 30dp; margin-bottom: 22dp; }
+.hero h1 { font-size: 60dp; line-height: 64dp; }
+.hero-text { max-width: 1060dp; }
+.lead { font-size: 22dp; line-height: 29dp; margin-top: 8dp; color: #ece3cb; }
+.fair { gap: 12dp; margin-top: 14dp; align-items: flex-start; }
+.fair-shield {
+	width: 26dp; height: 30dp;
+	flex: 0 0 auto;
+	border-radius: 6dp 6dp 13dp 13dp;
+	background-color: #8fd16a;
+}
+.fair-shield .tick { margin-top: 6dp; width: 6dp; height: 11dp; }
+.fair .dim { font-size: 17dp; line-height: 22dp; }
+
+.status-card {
+	width: 400dp;
+	padding: 18dp 20dp;
+	border-radius: 16dp;
+	decorator: linear-gradient(to bottom, #2e1d24ee, #170f12f2);
+	border: 1dp #ff6fa866;
+}
+.status-line { gap: 12dp; margin-top: 8dp; }
+.status-text { font-size: 22dp; line-height: 26dp; color: #ffd1e3; margin-top: 6dp; }
+.totals { gap: 34dp; margin-top: 14dp; }
+.total .title { font-size: 34dp; line-height: 36dp; }
+
+.unavailable { margin-top: 40dp; padding: 30dp; text-align: center; }
+.unavailable .title { font-size: 30dp; margin-bottom: 8dp; }
+.loading { margin-top: 60dp; text-align: center; font-size: 30dp; }
+
+/* ------------------------------------------------------------ body */
+.support-body { align-items: stretch; gap: 22dp; height: 590dp; }
+
+.once { width: 760dp; padding: 18dp; }
+.tiers { display: flex; flex-direction: row; flex-wrap: wrap; gap: 14dp; }
+.tier {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	width: 314dp;
+	height: 190dp;
+	padding: 14dp 16dp;
+	border-radius: 14dp;
+	decorator: linear-gradient(to bottom, #3a2a20 0%, #1d1511 100%);
+	border: 2dp #5a4636;
+	cursor: pointer;
+	transition: transform border-color 0.15s cubic-out;
+}
+.tier:hover { transform: translateY(-5dp) scale(1.02); border-color: #ffc93c; }
+.tier.busy { opacity: 0.5; }
+.tier.t3 { decorator: linear-gradient(to bottom, #3a2030 0%, #1d1015 100%); border-color: #ff6fa888; }
+.tier.t3:hover { border-color: #ff9ec4; }
+.tier-art {
+	position: absolute;
+	right: 10dp; top: 10dp;
+	width: 120dp; height: 120dp;
+	border-radius: 60dp;
+	decorator: radial-gradient(circle closest-side, #ffc93c30 0%, #ffc93c00 100%);
+}
+.tier.t3 .tier-art { decorator: radial-gradient(circle closest-side, #ff6fa840 0%, #ff6fa800 100%); }
+.tier-art img { width: 120dp; height: 120dp; }
+.tier-art { width: 110dp; height: 110dp; }
+.tier-art img { width: 110dp; height: 110dp; }
+.tier-name { font-size: 24dp; line-height: 26dp; color: #ece3cb; width: 200dp; margin-top: 4dp; }
+.tier-desc { font-size: 15dp; line-height: 19dp; width: 200dp; margin-top: 6dp; }
+.tier-price { font-size: 34dp; line-height: 36dp; color: #ffc93c; }
+.tier.t3 .tier-price { color: #ff9ec4; }
+.tier-go {
+	position: absolute;
+	right: 14dp; bottom: 14dp;
+	font-family: "TF2 Build";
+	font-size: 16dp;
+	text-transform: uppercase;
+	padding: 8dp 14dp;
+	border-radius: 9dp;
+	color: #2a1a05;
+	decorator: linear-gradient(to bottom, #ffe066, #ffb623);
+	border-bottom: 3dp #c27a0a;
+}
+.tier.t3 .tier-go { color: #3a0d1f; decorator: linear-gradient(to bottom, #ffd1e3, #ff6fa8); border-bottom-color: #b8386c; }
+
+.check-row {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 10dp;
+	margin-top: 14dp;
+	padding: 6dp;
+	border-radius: 8dp;
+	cursor: pointer;
+	color: #b8ab92;
+	font-size: 17dp;
+}
+.check-row:hover { background-color: #ffffff0a; }
+.box { width: 22dp; height: 22dp; border-radius: 6dp; border: 2dp #ffffff40; }
+.check-row.on .box { background-color: #8fd16a; border-color: #8fd16a; }
+.box .tick { margin-top: 2dp; width: 5dp; height: 10dp; }
+
+.monthly { width: 520dp; padding: 18dp; border-color: #ff6fa866; }
+.plan {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 14dp;
+	padding: 14dp;
+	margin-bottom: 12dp;
+	border-radius: 14dp;
+	decorator: linear-gradient(to right, #3a2030 0%, #1d1015 100%);
+	border: 2dp #ff6fa855;
+	cursor: pointer;
+	transition: transform border-color 0.15s cubic-out;
+}
+.plan:hover { transform: translateX(4dp); border-color: #ff9ec4; }
+.plan.busy { opacity: 0.5; }
+.plan-art { width: 72dp; height: 72dp; }
+.plan-art img { width: 72dp; height: 72dp; }
+.plan-name { font-size: 21dp; color: #ffd1e3; }
+.plan-price { text-align: right; }
+.plan-price .title { font-size: 26dp; color: #ff9ec4; }
+.plan-go {
+	font-family: "TF2 Build";
+	font-size: 14dp;
+	text-transform: uppercase;
+	padding: 8dp 12dp;
+	border-radius: 9dp;
+	color: #3a0d1f;
+	decorator: linear-gradient(to bottom, #ffd1e3, #ff6fa8);
+}
+.sub-active {
+	padding: 16dp;
+	margin-bottom: 12dp;
+	border-radius: 14dp;
+	background-color: #ff6fa81a;
+	border: 2dp #ff6fa8;
+}
+.sub-active .title { font-size: 24dp; color: #ffd1e3; margin-left: 12dp; }
+.sub-active .cancel { margin-top: 12dp; }
+.perks { margin-top: 10dp; padding-top: 12dp; border-top: 1dp #ffffff12; }
+.perks-title { margin-bottom: 8dp; }
+.perk-line { gap: 10dp; font-size: 16dp; line-height: 21dp; color: #d8cdb4; margin-bottom: 7dp; align-items: flex-start; }
+.perk-line .sup-gem { margin-top: 5dp; flex: 0 0 auto; }
+
+.wall { flex: 1 1 0; padding: 18dp; }
+.wall-list { flex: 1 1 0; overflow: hidden; }
+.thanks {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 8dp;
+	padding: 9dp 8dp;
+	border-bottom: 1dp #ffffff0a;
+}
+.thanks.k-monthly { background-color: #ff6fa80f; border-radius: 8dp; }
+.thanks-name { font-size: 18dp; color: #ece3cb; white-space: nowrap; overflow: hidden; }
+.thanks-ago { flex: 0 0 auto; white-space: nowrap; }
+.thanks.k-monthly .thanks-name { color: #ffd1e3; }
+
+/* ------------------------------------------------------------ status, footer */
+.result {
+	position: absolute;
+	left: 50%; bottom: 66dp;
+	width: 760dp;
+	margin-left: -380dp;
+	padding: 14dp 20dp;
+	border-radius: 14dp;
+	text-align: center;
+	font-family: "TF2 Build";
+	font-size: 20dp;
+	text-transform: uppercase;
+	decorator: linear-gradient(to bottom, #2a1f19f5, #17110ef8);
+	border: 2dp #ffc93c;
+	animation: 0.3s cubic-out 1 pop;
+}
+.result.r-thanks { border-color: #8fd16a; color: #b8e6a0; }
+.result.r-error { border-color: #ef5a4c; color: #ffb0a8; }
+.result.r-cancelled { border-color: #b8ab92; }
+.pulse-dot {
+	display: inline-block;
+	width: 10dp; height: 10dp;
+	border-radius: 5dp;
+	margin-right: 8dp;
+	background-color: #ffc93c;
+	animation: 0.6s quadratic-in-out infinite alternate pulse;
+}
+.footer { position: absolute; left: 56dp; right: 56dp; bottom: 30dp; gap: 16dp; }
+.sandbox {
+	font-family: "TF2 Build";
+	font-size: 13dp;
+	text-transform: uppercase;
+	padding: 4dp 10dp;
+	border-radius: 6dp;
+	color: #2a1a05;
+	background-color: #ffc93c;
+}
+.support-modal { width: 560dp; padding: 30dp; text-align: center; border-color: #ff6fa8; }
+.support-modal p { margin: 12dp 0 6dp 0; }

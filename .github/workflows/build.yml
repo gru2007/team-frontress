@@ -130,8 +130,6 @@ jobs:
       # To find and download the previous build's ccache artifact.
       actions: read
     env:
-      VCPKG_ROOT: ${{ github.workspace }}/../vcpkg
-      VCPKG_DEFAULT_TRIPLET: x64-windows
       CCACHE_DIR: ${{ github.workspace }}/.ccache
 
     steps:
@@ -273,54 +271,6 @@ jobs:
         working-directory: ${{ github.workspace }}/src
         run: .\createallprojects.bat
 
-      # VCPKG_ROOT lives beside the workspace, so the workspace archive does not
-      # cover it, and without this every run re-clones vcpkg, re-bootstraps it
-      # and rebuilds crow.
-      - name: Restore vcpkg from the previous build
-        id: vcpkg
-        if: ${{ matrix.target == 'windows' && github.event.inputs.fresh != 'true' }}
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: bash .github/scripts/artifact-cache.sh restore vcpkg-windows "$(cd .. && pwd)/vcpkg"
-
-      - name: Install Windows dependencies
-        if: matrix.target == 'windows'
-        shell: pwsh
-        run: |
-          Set-Location ..
-          if (-not (Test-Path vcpkg/.vcpkg-root)) {
-            # A half-restored cache would make git refuse to clone into it.
-            if (Test-Path vcpkg) { Remove-Item -Recurse -Force vcpkg }
-            git clone --depth=1 https://github.com/microsoft/vcpkg.git
-          }
-          Set-Location vcpkg
-          if (-not (Test-Path vcpkg.exe)) {
-            .\bootstrap-vcpkg.bat
-          }
-          .\vcpkg integrate install
-          .\vcpkg install crow
-
-      # Only when it was not restored: the port set is fixed, so a warm vcpkg
-      # is byte-identical to the one already stored. The long retention is what
-      # keeps it warm without a re-upload every release.
-      - name: Pack vcpkg
-        id: packvcpkg
-        if: ${{ matrix.target == 'windows' && steps.vcpkg.outputs.restored != '1' }}
-        shell: bash
-        continue-on-error: true
-        run: bash .github/scripts/artifact-cache.sh pack vcpkg.tar "$(cd .. && pwd)/vcpkg" ./buildtrees ./packages
-
-      - name: Upload vcpkg for the next build
-        if: ${{ matrix.target == 'windows' && steps.packvcpkg.outputs.packed == '1' }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: vcpkg-windows
-          path: vcpkg.tar
-          compression-level: 0
-          retention-days: 90
-          if-no-files-found: warn
-
       - name: Build Windows solution
         if: matrix.target == 'windows'
         shell: cmd
@@ -344,7 +294,7 @@ jobs:
           # -- .ci-bootstrap among them, since it is re-checked-out every run and
           # survives into this step only when the cache was already warm.
           bash .github/scripts/artifact-cache.sh pack workspace.tar . \
-            ./workspace.tar ./vcpkg.tar ./.ci-bootstrap \
+            ./workspace.tar ./.ci-bootstrap \
             ./game_dist ./game_dist_debug ./steam_build \
             './game/tc2/pak1*.vpk'
 

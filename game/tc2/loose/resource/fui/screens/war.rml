@@ -1,0 +1,238 @@
+<rml>
+<!-- War: the campaign's planet, the whole screen.
+
+     The planet is <warmap>: territory, sector borders and the front line
+     come from the sectors' owners; drag turns it, the wheel zooms, picking a
+     sector turns it there. Around it, like a war room's glass: the campaign
+     and who holds how much (top left), the main push and the operations
+     under way (left), the chosen sector with what its next battle decides
+     and the button that goes there (right), and the front-line report
+     running along the bottom.
+
+     An operation is one side's push on one sector, fought as a fixed series
+     of stages: a win moves it a stage on, a loss a stage back, winning the
+     last stage takes the sector and the front moves. -->
+<head>
+	<title>War</title>
+	<link type="text/rcss" href="../style/base.rcss"/>
+	<link type="text/rcss" href="../style/war.rcss"/>
+</head>
+<body>
+<div class="root" data-model="fr" data-class-world="app.world">
+	<div class="space"></div>
+
+	<warmap id="planet" source="war" select="ui.front" hover="ui.war_hover" texture="planet" center-x="0.5" center-y="0.56" radius="0.43">
+		<div class="sector" data-for="f : war.fronts" data-attr-node="f.id"
+			data-class-red="f.owner == 'red'" data-class-blu="f.owner == 'blu'"
+			data-class-hq="f.hq" data-class-target="f.attacker != ''"
+			data-class-selected="f.id == ui.front" data-class-hovered="f.id == ui.war_hover"
+			data-event-click="set('ui.front', f.id)" sfx="click">
+			<div class="pulse" data-if="f.attacker != ''"></div>
+			<div data-if="f.banner.tag != ''" data-attr-class="'clan-flag c-' + f.banner.color"><div class="pole"></div><div class="cloth">{{ f.banner.tag }}</div></div>
+			<div class="card">
+				<div class="ring"></div>
+				<div class="thumb" data-style-decorator="'image(tex:' + f.image + ' cover center top)'"></div>
+				<div class="emblem" data-if="f.hq">{{ f.owner == 'red' ? 'R' : 'B' }}</div>
+				<div class="stage-tag" data-if="f.attacker != ''" data-class-red="f.attacker == 'red'" data-class-blu="f.attacker == 'blu'">{{ f.stage }}/{{ f.stages }}</div>
+			</div>
+			<div class="plate"><span class="outline">{{ f.name }}</span></div>
+			<div class="fight" data-if="f.battles > 0"><span class="fight-dot"></span>{{ 'fui_war_fights' | t(f.battles) }}</div>
+			<div class="players" data-if="f.soldiers > 0"><span class="dot"></span>{{ f.soldiers | thousands }}</div>
+		</div>
+	</warmap>
+
+	<div class="vignette"></div>
+
+	<div id="no-war" class="panel" data-if="war.fronts.size == 0">
+		<h2 class="shadow">#fui_war_none</h2>
+		<p class="dim">#fui_war_none_body</p>
+	</div>
+
+	<!-- The campaign: name, day, who holds how much -->
+	<div id="campaign" class="glass in0" data-if="war.fronts.size > 0">
+		<div class="dim tiny upper">#fui_war_title · #fui_war_day {{ war.day }}<span data-if="war.days > 0"> #fui_war_of {{ war.days }}</span></div>
+		<h1 class="shadow">{{ war.name }}</h1>
+		<div class="tug-bar">
+			<div class="tug-fill" data-style-width="(war.red * 100) + '%'"></div>
+			<div class="tug-mid"></div>
+		</div>
+		<div class="row tug-labels">
+			<span class="tug-red">RED {{ war.red | percent }} · {{ war.red_fronts }}</span>
+			<div class="spacer"></div>
+			<span class="dim tiny upper">#fui_war_control</span>
+			<div class="spacer"></div>
+			<span class="tug-blu">{{ war.blu_fronts }} · {{ (1 - war.red) | percent }} BLU</span>
+		</div>
+	</div>
+
+	<div id="war-stats" class="row in0" data-if="war.fronts.size > 0">
+		<div class="stat"><div class="stat-num">{{ war.ops.size }}</div><div class="dim tiny upper">#fui_war_ops_live</div></div>
+		<div class="stat"><div class="stat-num">{{ war.battles }}</div><div class="dim tiny upper">#fui_war_battles</div></div>
+		<div class="stat"><div class="stat-num">{{ war.soldiers | thousands }}</div><div class="dim tiny upper">#fui_war_soldiers</div></div>
+		<div class="stat"><div class="stat-num">{{ war.servers_free }}<span class="stat-of">/{{ war.servers }}</span></div><div class="dim tiny upper">#fui_war_servers</div></div>
+	</div>
+
+	<!-- The main push, then every operation -->
+	<div id="war-left" class="inl" data-if="war.fronts.size > 0">
+		<div data-for="o : war.ops">
+			<div class="order glass" data-if="o.node == war.top" data-event-click="set('ui.front', o.node)" sfx="click"
+				data-class-red="o.attacker == 'red'" data-class-blu="o.attacker == 'blu'">
+				<div class="order-kicker row"><span class="order-icon">!</span>#fui_war_order<div class="spacer"></div><span class="order-xp">{{ 'fui_war_order_xp' | t(war.order_xp) }}</span></div>
+				<div class="order-title">{{ (o.attacker == 'red' ? 'fui_war_order_red' : 'fui_war_order_blu') | t(o.name) }}</div>
+				<div class="dim small">{{ 'fui_war_order_body' | t(o.from_name, '#fui_wmode_' + o.mode) }}</div>
+				<div class="lib row">
+					<div class="lib-bar grow"><div class="lib-fill" data-style-width="((o.stage - 1) * 100 / o.stages) + '%'"></div></div>
+					<span class="lib-pct">{{ ((o.stage - 1) / o.stages) | percent }}</span>
+				</div>
+				<div class="row tiny dim"><span>{{ 'fui_war_stage_of' | t(o.stage, o.stages) }} · {{ ('#fui_stage_' + o.kind) | t }}</span><div class="spacer"></div>
+					<span class="mom-label">#fui_war_momentum</span><span class="mom" data-for="k, j : o.plan" data-class-left="j < o.momentum"></span></div>
+			</div>
+		</div>
+
+		<div class="glass ops">
+			<div class="panel-title">#fui_war_ops <span class="sub">{{ war.ops.size }}</span></div>
+			<div class="op row" data-for="o : war.ops"
+				data-class-red="o.attacker == 'red'" data-class-blu="o.attacker == 'blu'"
+				data-class-selected="o.node == ui.front"
+				data-event-click="set('ui.front', o.node)" sfx="click">
+				<span class="side-tag" data-class-red="o.attacker == 'red'" data-class-blu="o.attacker == 'blu'">{{ o.attacker == 'red' ? 'RED' : 'BLU' }}</span>
+				<div class="col grow">
+					<div class="op-name">{{ o.name }}</div>
+					<div class="pips row">
+						<div class="pip" data-for="k, j : o.plan" data-class-done="j < o.stage - 1" data-class-now="j == o.stage - 1"></div>
+					</div>
+				</div>
+				<div class="col op-side">
+					<div class="op-count"><span class="dot"></span>{{ o.soldiers | thousands }}</div>
+					<div class="row mom-row"><span class="mom" data-for="k, j : o.plan" data-class-left="j < o.momentum"></span></div>
+				</div>
+			</div>
+			<div class="dim small empty" data-if="war.ops.size == 0">#fui_war_no_ops</div>
+		</div>
+
+		<div class="glass live">
+			<div class="panel-title">#fui_war_live <span class="sub">{{ war.live.size }}</span></div>
+			<div class="battle row" data-for="b : war.live" data-event-click="set('ui.front', b.node)" sfx="click"
+				data-class-red="b.attacker == 'red'" data-class-blu="b.attacker == 'blu'">
+				<div class="battle-thumb" data-style-decorator="'image(tex:' + b.image + ' cover center top)'"><span class="live-dot"></span></div>
+				<div class="col grow">
+					<div class="battle-title">{{ b.name }} <span class="dimmer">· {{ ('#fui_stage_' + b.stage_kind) | t }}</span></div>
+					<div class="tiny dim">{{ ('#fui_wmode_' + b.mode) | t }} · {{ b.map }}</div>
+					<div class="row battle-conds" data-if="b.conditions.size > 0">
+						<span class="cond-chip" data-for="c : b.conditions">{{ ('#fui_cond_' + c) | t }}</span>
+					</div>
+				</div>
+				<div class="col battle-side">
+					<div class="battle-time">{{ b.seconds | clock }}</div>
+					<div class="tiny dim">{{ b.players }}/{{ b.max }}</div>
+					<div class="tiny gold" data-if="b.order">#fui_war_order_short</div>
+				</div>
+			</div>
+			<div class="dim small empty" data-if="war.live.size == 0">#fui_war_no_live</div>
+		</div>
+	</div>
+
+	<!-- The chosen sector -->
+	<div id="war-right" class="inr" data-if="war.fronts.size > 0">
+		<div data-for="f : war.fronts">
+			<div class="dossier glass rise" data-if="f.id == ui.front">
+				<div class="card-art" data-style-decorator="'image(tex:' + f.image + ' cover center top)'">
+					<div class="art-fade"></div>
+					<div class="art-chips row">
+						<span class="chip red" data-if="f.owner == 'red'">#fui_war_held_red</span>
+						<span class="chip blu" data-if="f.owner == 'blu'">#fui_war_held_blu</span>
+						<span class="chip gold" data-if="f.attacker != ''">#fui_war_under_attack</span>
+						<span class="chip" data-if="f.attacker == '' && f.frontline">#fui_war_frontline</span>
+						<span class="chip" data-if="f.attacker == '' && !f.frontline">#fui_war_rear</span>
+					</div>
+				</div>
+				<h2 class="shadow card-title">{{ f.name }}</h2>
+				<div class="dim small pad" data-if="f.hq">#fui_war_hq_note</div>
+				<div class="row banner-line" data-if="f.banner.tag != ''">
+					<div data-attr-class="'banner small c-' + f.banner.color">
+						<img data-attr-src="'tex:hud/leaderboard_class_' + (f.banner.emblem == 'demoman' ? 'demo' : f.banner.emblem)"/>
+					</div>
+					<div class="col grow">
+						<div class="dimmer tiny upper">#fui_war_banner</div>
+						<div class="small"><span class="clan-tag">{{ f.banner.tag }}</span> {{ f.banner.name }}</div>
+					</div>
+				</div>
+
+				<div data-for="o : war.ops">
+					<div class="op-detail" data-if="o.node == f.id">
+						<div class="small">{{ (o.attacker == 'red' ? 'fui_war_push_red' : 'fui_war_push_blu') | t(o.from_name) }}</div>
+						<div class="stages row">
+							<div class="stage col" data-for="k, j : o.plan" data-class-done="j < o.stage - 1" data-class-now="j == o.stage - 1"
+								data-class-red="o.attacker == 'red'" data-class-blu="o.attacker == 'blu'">
+								<div class="stage-bar"></div>
+								<div class="stage-name">{{ ('#fui_stage_' + k) | t }}</div>
+							</div>
+						</div>
+						<div class="row mom-detail">
+							<span class="dim tiny upper">#fui_war_momentum</span>
+							<span class="mom big" data-for="k, j : o.plan" data-class-left="j < o.momentum"></span>
+							<div class="spacer"></div>
+							<span class="tiny dim">{{ (o.momentum <= 1 ? 'fui_war_momentum_last' : 'fui_war_momentum_left') | t(o.momentum) }}</span>
+						</div>
+						<div class="conds" data-if="o.conditions.size > 0">
+							<div class="dimmer tiny upper">#fui_war_conditions</div>
+							<div class="cond row" data-for="c : o.conditions">
+								<span class="cond-chip">{{ ('#fui_cond_' + c) | t }}</span>
+								<span class="tiny dim grow">{{ ('#fui_condd_' + c) | t }}</span>
+							</div>
+						</div>
+						<div class="next row">
+							<div class="col grow">
+								<div class="dimmer tiny upper">#fui_war_next</div>
+								<div class="next-mode">{{ ('#fui_wmode_' + o.mode) | t }}</div>
+								<div class="dim tiny">{{ o.map }}</div>
+							</div>
+							<div class="fact"><div class="fact-num">{{ o.battles }}</div><div class="dim tiny upper">#fui_war_battles_here</div></div>
+							<div class="fact"><div class="fact-num">{{ o.soldiers | thousands }}</div><div class="dim tiny upper">#fui_war_fighting</div></div>
+						</div>
+						<div class="stakes">
+							<div class="stake row good">
+								<span class="stake-mark">+</span>
+								<span class="small grow">{{ (o.stage >= o.stages ? (o.hq ? 'fui_war_win_war' : 'fui_war_win_take') : 'fui_war_win_next') | t(o.attacker == 'red' ? 'RED' : 'BLU', o.name, '#fui_stage_' + o.next) }}</span>
+							</div>
+							<div class="stake row bad">
+								<span class="stake-mark">−</span>
+								<span class="small grow">{{ (o.stage <= 1 ? 'fui_war_lose_break' : 'fui_war_lose_back') | t(o.defender == 'red' ? 'RED' : 'BLU', o.name, '#fui_stage_' + o.prev) }}</span>
+							</div>
+						</div>
+						<div class="button primary deploy" data-event-click="cmd('war_join', o.front)" sfx="play">{{ 'fui_war_join' | t(o.name) }}</div>
+						<div class="dimmer tiny center" data-if="o.want > 0">{{ 'fui_war_want' | t(o.want) }}</div>
+					</div>
+				</div>
+
+				<div class="quiet" data-if="f.attacker == ''">
+					<p class="dim small">{{ (f.frontline ? 'fui_war_quiet_front' : 'fui_war_quiet_rear') | t }}</p>
+					<div data-for="o : war.ops">
+						<div class="button deploy" data-if="o.node == war.top" data-event-click="set('ui.front', o.node)">{{ 'fui_war_goto' | t(o.name) }}</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- The report, and how to handle the planet -->
+	<div id="ticker" class="row in2" data-if="war.fronts.size > 0">
+		<div class="ticker-title">#fui_war_feed</div>
+		<div class="ticker-items row grow">
+			<div class="event row" data-for="e : war.events" data-event-click="set('ui.front', e.node)">
+				<span class="side-dot" data-class-red="e.side == 'red'" data-class-blu="e.side == 'blu'"></span>
+				<span class="ev-text">{{ ('fui_war_ev_' + e.kind) | t(e.side == 'red' ? 'RED' : 'BLU', e.name, '#fui_stage_' + e.stage_kind) }}</span>
+				<span class="dimmer ev-ago">{{ e.ago | duration }}</span>
+			</div>
+		</div>
+	</div>
+	<div id="legend" class="row" data-if="war.fronts.size > 0">
+		<span class="lg"><i class="sw red"></i>#fui_war_lg_red</span>
+		<span class="lg"><i class="sw blu"></i>#fui_war_lg_blu</span>
+		<span class="lg"><i class="sw line"></i>#fui_war_lg_front</span>
+		<span class="lg"><i class="sw arrow"></i>#fui_war_lg_attack</span>
+		<span class="lg dimmer">#fui_war_drag_hint</span>
+	</div>
+</div>
+</body>
+</rml>

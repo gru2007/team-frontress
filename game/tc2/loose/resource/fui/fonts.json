@@ -1,0 +1,9 @@
+// Fonts the UI may use, by family name in the stylesheets. TF2's own come
+// from the installed game; Nunito ships with us and covers what they lack.
+[
+	{ "file": "resource/tf2build.ttf", "family": "TF2 Build" },
+	{ "file": "resource/tf2secondary.ttf", "family": "TF2 Secondary" },
+	{ "file": "resource/tf2.ttf", "family": "TF2" },
+	{ "file": "resource/nunito-bold.ttf", "family": "Nunito", "weight": 700, "fallback": true },
+	{ "file": "resource/nunito-medium.ttf", "family": "Nunito", "weight": 500 }
+]

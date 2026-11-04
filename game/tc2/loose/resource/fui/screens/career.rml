@@ -1,0 +1,81 @@
+<rml>
+<!-- Career: who you are in this war. -->
+<head>
+	<title>Career</title>
+	<link type="text/rcss" href="../style/base.rcss"/>
+	<link type="text/rcss" href="../style/career.rcss"/>
+</head>
+<body>
+<div class="root" data-model="fr" data-class-world="app.world">
+	<div class="world-standin" data-if="app.preview"></div>
+	<div class="dim-all"></div>
+	<div class="screen">
+		<div id="profile" class="row">
+			<img class="avatar big-avatar" data-if="player.avatar != ''" data-attr-src="player.avatar"/><div class="avatar big-avatar blank" data-if="player.avatar == ''"></div>
+			<div class="col">
+				<h1 class="shadow">{{ player.name }}</h1>
+				<div class="row">
+					<span class="badge">{{ player.level }}</span>
+					<span class="dim">&nbsp; {{ player.title }} · {{ player.rank }}</span>
+				</div>
+			</div>
+			<div class="spacer"></div>
+			<div class="big-stat"><div class="num">{{ career.hours }}</div><div class="dim tiny upper">#fui_career_hours</div></div>
+			<div class="big-stat"><div class="num">{{ career.matches | thousands }}</div><div class="dim tiny upper">#fui_career_matches</div></div>
+			<div class="big-stat"><div class="num gold">{{ career.wins | percent }}</div><div class="dim tiny upper">#fui_career_wins</div></div>
+			<div class="big-stat"><div class="num">{{ career.mvp }}</div><div class="dim tiny upper">#fui_career_mvp</div></div>
+		</div>
+
+		<div class="row cols">
+			<div class="col left">
+				<div class="panel">
+					<div class="panel-title">#fui_career_ratings</div>
+					<div class="dim empty" data-if="career.ratings.size == 0">#fui_career_no_ratings</div>
+					<div class="rating" data-for="r : career.ratings">
+						<div class="row">
+							<div class="title rating-mode grow">{{ r.mode | t }}</div>
+							<div class="rating-num">{{ r.rating }}</div>
+							<div data-attr-class="'delta ' + (r.delta >= 0 ? 'good' : 'bad')">{{ r.delta | signed }}</div>
+						</div>
+						<div class="row tiny dim"><span>{{ r.rank }}</span></div>
+						<div class="bar"><div class="fill" data-style-width="(r.frac * 100) + '%'"></div></div>
+					</div>
+				</div>
+				<div class="panel" data-if="career.classes.size > 0">
+					<div class="panel-title">#fui_career_classes</div>
+					<div class="class-row" data-for="c : career.classes">
+						<img class="class-face" data-attr-src="'tex:vgui/class_portraits/' + c.id"/>
+						<div class="class-label">{{ ('fui_class_' + c.id) | t }}</div>
+						<div class="bar grow"><div class="fill" data-style-width="(c.frac * 100) + '%'"></div></div>
+						<div class="class-hours">{{ c.hours }} #fui_hours</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="panel history">
+				<div class="panel-title">#fui_career_history</div>
+				<div class="dim empty" data-if="career.history.size == 0">#fui_career_no_history</div>
+				<div class="match" data-for="m : career.history" data-class-win="m.result == 'win'">
+					<div class="match-art" data-style-decorator="'image(tex:' + m.image + ' cover center top)'"></div>
+					<div class="col grow">
+						<div class="row">
+							<span class="title match-map">{{ m.map }}</span>
+							<span class="chip">{{ m.mode | t }}</span>
+						</div>
+						<div class="dimmer small">{{ m.when }} · {{ ('fui_class_' + m.class) | t }}</div>
+					</div>
+					<div class="match-result">
+						<div class="title" data-class-good="m.result == 'win'" data-class-bad="m.result == 'loss'">{{ (m.result == 'win' ? 'fui_win' : 'fui_loss') | t }}</div>
+						<div class="dim small">{{ m.score }}</div>
+					</div>
+					<div class="match-xp">
+						<div class="gold title">+{{ m.xp }} XP</div>
+						<div data-attr-class="'small ' + (m.delta >= 0 ? 'good' : 'bad')" data-if="m.delta != 0">{{ m.delta | signed }}</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+</body>
+</rml>

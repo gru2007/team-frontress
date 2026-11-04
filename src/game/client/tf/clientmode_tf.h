@@ -37,6 +37,10 @@ private:
 
 // IClientMode overrides.
 public:
+	// The main menu's background level puts the camera at the lobby's spot
+	// (frontress_lobby_world.cpp).
+	virtual void	OverrideView( CViewSetup *pSetup ) OVERRIDE;
+
 
 					ClientModeTFNormal();
 	virtual			~ClientModeTFNormal();

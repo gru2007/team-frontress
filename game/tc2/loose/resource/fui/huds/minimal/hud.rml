@@ -1,0 +1,35 @@
+<rml>
+<!-- The minimal HUD: the game's own HUD (or the classic custom HUD the player
+     installed in custom/) stays, and this only adds the quest tracker and
+     notifications. It replaces nothing. -->
+<head>
+	<title>HUD</title>
+	<link type="text/rcss" href="../../style/base.rcss"/>
+	<link type="text/rcss" href="../../style/ingame.rcss"/>
+</head>
+<body id="hud" data-replaces="">
+<div class="root" data-model="fr" data-class-world="app.world">
+	<div class="world-standin game-still" data-if="app.preview"></div>
+	<div id="tracker" data-if="quests.total > 0 && quests.done < quests.total">
+		<div class="tracker-title">#fui_tab_quests <span class="dimmer">{{ quests.done }}/{{ quests.total }}</span></div>
+		<div class="track" data-for="q : quests.daily" data-if="!q.done">
+			<div class="track-text">{{ ('fui_q_' + q.kind) | t(q.target, '#fui_class_' + q.class) }}</div>
+			<div class="row">
+				<div class="bar grow"><div class="fill" data-style-width="(q.frac * 100) + '%'"></div></div>
+				<div class="track-count">{{ q.progress | thousands }}/{{ q.target | thousands }}</div>
+			</div>
+		</div>
+	</div>
+
+	<div id="hud-toasts">
+		<div class="toast" data-for="t : toasts" data-class-quest="t.kind == 'quest'" data-class-party="t.kind == 'party'">
+			<img class="toast-icon" data-if="t.icon != ''" data-attr-src="t.icon"/>
+			<div class="col grow">
+				<div class="toast-title">{{ t.title }}</div>
+				<div class="toast-body">{{ t.body }}</div>
+			</div>
+		</div>
+	</div>
+</div>
+</body>
+</rml>

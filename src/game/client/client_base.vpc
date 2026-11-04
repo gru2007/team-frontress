@@ -18,7 +18,6 @@ $include "$SRCDIR\vpc_scripts\protobuf_builder.vpc"
 $Include "$SRCDIR\vpc_scripts\source_replay.vpc"	[$TF]
 $Include "$SRCDIR\game\protobuf_include.vpc"
 $Include "$SRCDIR\game\shared\crashreport.vpc"
-$Include "$SRCDIR\game\shared\gamestate.vpc"
 
 $Configuration	"Debug"
 {
@@ -669,7 +668,6 @@ $Project
 			$File	"game_controls\teammenu.cpp"
 			$File	"game_controls\vguitextwindow.cpp"
 			$File	"game_controls\IconPanel.cpp"
-			$File	"game_controls\interactivewebpanel.cpp"
 			$File	"game_controls\interactivehtml.cpp"
 		}
 
@@ -1255,7 +1253,6 @@ $Project
 		$File	"game_controls\teammenu.h"
 		$File	"game_controls\vguitextwindow.h"
 		$File	"game_controls\IconPanel.h"
-		$File	"game_controls\interactivewebpanel.h"
 		$File	"game_controls\interactivehtml.h"
 	}
 	

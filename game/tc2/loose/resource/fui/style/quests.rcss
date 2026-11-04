@@ -1,0 +1,99 @@
+/* Quests */
+.q-head { margin-bottom: 26dp; }
+.q-head h1 { font-size: 60dp; line-height: 64dp; }
+.summary { text-align: right; }
+.summary-num { font-size: 56dp; line-height: 58dp; }
+
+.q-body { align-items: flex-start; gap: 36dp; }
+.daily { width: 1230dp; }
+.cards { display: flex; flex-direction: row; gap: 28dp; margin-top: 8dp; }
+
+/* A daily quest: a photo pinned to a card, the way TF2's contracts were. */
+.card {
+	display: flex;
+	flex-direction: column;
+	width: 380dp;
+	height: 560dp;
+	padding: 18dp;
+	border-radius: 14dp;
+	decorator: linear-gradient(to bottom, #efe5cc 0%, #ded2b4 100%);
+	color: #2a1f16;
+	border-bottom: 6dp #b7a785;
+	transition: transform 0.18s cubic-out;
+	cursor: default;
+}
+.tilt0 { transform: rotate(-1.4deg); }
+.tilt1 { transform: rotate(0.8deg); }
+.tilt2 { transform: rotate(-0.6deg); }
+.card:hover { transform: rotate(0deg) translateY(-8dp) scale(1.02); }
+.photo-frame {
+	position: relative;
+	height: 250dp;
+	padding: 10dp 10dp 30dp 10dp;
+	background-color: #fbf7ee;
+	border-radius: 4dp;
+	transform: rotate(1.5deg);
+}
+.photo { width: 100%; height: 100%; }
+.card-kind { color: #8a7a5c; margin-top: 18dp; letter-spacing: 1dp; }
+.card-text { font-size: 30dp; line-height: 33dp; color: #2a1f16; margin-top: 6dp; }
+.card-progress { margin-bottom: 10dp; }
+.card-count { font-size: 18dp; color: #2a1f16; }
+.card-count .title { font-size: 30dp; }
+.card .dimmer { color: #8a7a5c; }
+.reward {
+	font-family: "TF2 Build";
+	font-size: 20dp;
+	padding: 6dp 12dp;
+	border-radius: 8dp;
+	background-color: #2a1f16;
+	color: #ffc93c;
+}
+.big-bar { height: 14dp; border-radius: 7dp; background-color: #00000033; border-width: 0; }
+.big-bar .fill { border-radius: 7dp; }
+.card.done .big-bar .fill, .week-card.done .big-bar .fill { decorator: linear-gradient(to right, #4d7a33, #8fd16a); }
+
+.stamp.big-stamp {
+	position: absolute;
+	left: 50%; top: 50%;
+	width: 240dp;
+	margin-left: -120dp; margin-top: -32dp;
+	text-align: center;
+	font-size: 34dp;
+	line-height: 50dp;
+	color: #b4302a;
+	border: 5dp #b4302a;
+	background-color: #fbf7eecc;
+	transform: rotate(-12deg);
+	animation: 0.4s back-out 1 slam;
+}
+@keyframes slam { from { transform: rotate(-12deg) scale(2.2); opacity: 0; } to { transform: rotate(-12deg) scale(1); opacity: 1; } }
+
+/* The weekly one: bigger, darker, worth more. */
+.weekly { flex: 1 1 0; }
+.week-card {
+	border-radius: 16dp;
+	decorator: linear-gradient(to bottom, #2a1f19f2 0%, #17110ef5 100%);
+	border: 1dp #6a5442;
+	border-top: 3dp #ffc93c;
+	margin-top: 8dp;
+}
+.week-photo { position: relative; height: 230dp; border-radius: 13dp 13dp 0 0; }
+.week-badge {
+	position: absolute;
+	left: 14dp; top: 14dp;
+	font-family: "TF2 Build";
+	font-size: 15dp;
+	text-transform: uppercase;
+	padding: 4dp 10dp;
+	border-radius: 6dp;
+	background-color: #ffc93c;
+	color: #2a1a05;
+}
+.week-body { padding: 18dp; }
+.week-text { font-size: 30dp; line-height: 33dp; margin: 6dp 0 18dp 0; }
+.week-card .card-count { color: #ece3cb; }
+.big-reward { font-size: 24dp; background-color: #ffc93c; color: #2a1a05; }
+.week-card .big-bar { background-color: #00000066; }
+.tip { margin-top: 20dp; }
+.tip-title { margin-bottom: 6dp; color: #ffc93c; }

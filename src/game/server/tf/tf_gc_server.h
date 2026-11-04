@@ -376,10 +376,8 @@ public:
 	virtual void	SOCacheSubscribed( const CSteamID & steamIDOwner, GCSDK::ESOCacheEvent eEvent ) OVERRIDE { }
 	virtual void	SOCacheUnsubscribed( const CSteamID & steamIDOwner, GCSDK::ESOCacheEvent eEvent ) OVERRIDE { }
 
-	// PreClientUpdate normally installs this listener after Steam assigns the
-	// game-server ID. A hibernating empty server may receive an RCON match
-	// assignment without running that frame hook, so the local coordinator must
-	// be able to install it synchronously before publishing its lobby.
+	// Listen to our own cache, where the GC puts our lobby. PreClientUpdate
+	// calls it when Steam assigns the game-server ID.
 	bool EnsureSOCacheListener();
 
 	void DumpLobby();

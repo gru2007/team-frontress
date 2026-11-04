@@ -1,0 +1,53 @@
+/* Results */
+#banner {
+	margin: 0 auto;
+	width: 900dp;
+	padding: 10dp 0;
+	text-align: center;
+	transform: rotate(-2deg);
+	decorator: linear-gradient(to right, #8e2a2600 0%, #c8413b 18%, #c8413b 82%, #8e2a2600 100%);
+	animation: 0.45s cubic-out 1 pop;
+}
+#banner.loss { decorator: linear-gradient(to right, #2f567900 0%, #4a7fae 18%, #4a7fae 82%, #2f567900 100%); }
+.banner-text { font-family: "TF2 Build"; font-size: 104dp; line-height: 110dp; text-transform: uppercase; color: #fff4e8; }
+
+#scoreline { justify-content: center; gap: 40dp; margin: 18dp 0 26dp 0; }
+.score { font-family: "TF2 Build"; font-size: 84dp; line-height: 86dp; width: 120dp; text-align: center; border-radius: 16dp; }
+.red-score { background-color: #c8413b; color: #fff4e8; }
+.blu-score { background-color: #4a7fae; color: #f0f6ff; }
+.score-mid { text-align: center; width: 360dp; }
+.score-mid .title { font-size: 40dp; }
+
+.res-cols { align-items: flex-start; gap: 24dp; }
+.res-xp { width: 560dp; }
+.xp-line { padding: 8dp 0; border-bottom: 1dp #ffffff12; font-size: 19dp; }
+.xp-line .title { font-size: 22dp; }
+.xp-line.total { border-bottom-width: 0; margin-top: 6dp; }
+.level-row { gap: 12dp; margin-top: 16dp; }
+.lvl-bar { height: 16dp; border-radius: 8dp; }
+.lvl-bar .fill { border-radius: 8dp; }
+
+.res-mid { width: 520dp; gap: 20dp; }
+.split-bar { height: 16dp; border-radius: 8dp; background-color: #4a7fae; margin-bottom: 8dp; }
+.split-red { height: 16dp; border-radius: 8dp 0 0 8dp; decorator: linear-gradient(to right, #8e2a26, #e2564d); }
+.rating-big { font-family: "TF2 Build"; font-size: 64dp; line-height: 66dp; margin-right: 16dp; }
+.rating-delta { font-family: "TF2 Build"; font-size: 34dp; }
+
+.res-mvp { flex: 1 1 0; }
+.mvp {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 14dp;
+	padding: 10dp;
+	margin-bottom: 10dp;
+	border-radius: 12dp;
+	background-color: #c8413b33;
+	border-left: 5dp #c8413b;
+}
+.mvp.blu { background-color: #4a7fae33; border-left-color: #4a7fae; }
+.mvp-rank { font-size: 36dp; width: 34dp; text-align: center; color: #ffc93c; }
+.mvp-face { width: 60dp; height: 60dp; border-radius: 30dp; }
+.mvp-name { font-size: 22dp; }
+
+.res-buttons { justify-content: center; gap: 20dp; margin-top: 30dp; }

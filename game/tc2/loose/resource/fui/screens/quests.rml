@@ -1,0 +1,76 @@
+<rml>
+<!-- Quests: what to do in matches today and this week. The coordinator picks
+     them and counts them from match results (services/gc/internal/quests). -->
+<head>
+	<title>Quests</title>
+	<link type="text/rcss" href="../style/base.rcss"/>
+	<link type="text/rcss" href="../style/quests.rcss"/>
+</head>
+<body>
+<div class="root" data-model="fr" data-class-world="app.world">
+	<div class="world-standin" data-if="app.preview"></div>
+	<div class="dim-all"></div>
+	<div class="screen">
+		<div class="row q-head in0">
+			<div class="col">
+				<h1 class="shadow">#fui_tab_quests</h1>
+				<div class="dim">#fui_quests_sub</div>
+			</div>
+			<div class="spacer"></div>
+			<div class="summary">
+				<div class="summary-num title"><span class="gold">{{ quests.done }}</span><span class="dimmer">/{{ quests.total }}</span></div>
+				<div class="dim tiny upper">#fui_quests_done</div>
+			</div>
+		</div>
+
+		<div class="row q-body">
+			<div class="col daily">
+				<div class="panel-title in0">#fui_quests_today <span class="sub">· #fui_quests_reset {{ quests.daily_left | duration }}</span></div>
+				<div class="cards">
+					<div data-for="q, i : quests.daily" data-attr-class="'card in' + (i + 1) + ' tilt' + i + (q.done ? ' done' : '')">
+						<div class="photo-frame">
+							<div class="photo" data-style-decorator="'image(tex:' + q.photo + ' cover)'"></div>
+							<div class="stamp big-stamp" data-if="q.done">#fui_quest_done</div>
+						</div>
+						<div class="card-kind dimmer tiny upper">{{ ('fui_qk_' + q.kind) | t }}</div>
+						<div class="card-text title">{{ ('fui_q_' + q.kind) | t(q.target, '#fui_class_' + q.class) }}</div>
+						<div class="spacer"></div>
+						<div class="row card-progress">
+							<div class="card-count"><span class="title">{{ q.progress | thousands }}</span><span class="dimmer"> / {{ q.target | thousands }}</span></div>
+							<div class="spacer"></div>
+							<div class="reward">+{{ q.xp }} XP</div>
+						</div>
+						<div class="bar big-bar"><div class="fill" data-style-width="(q.frac * 100) + '%'"></div></div>
+					</div>
+				</div>
+			</div>
+
+			<div class="col weekly in3">
+				<div class="panel-title">#fui_quests_week <span class="sub">· #fui_quests_reset {{ quests.weekly_left | duration }}</span></div>
+				<div data-for="q : quests.weekly" data-attr-class="'week-card' + (q.done ? ' done' : '')">
+					<div class="week-photo" data-style-decorator="'image(tex:' + q.photo + ' cover)'">
+						<div class="week-badge">#fui_quests_week_badge</div>
+						<div class="stamp big-stamp" data-if="q.done">#fui_quest_done</div>
+					</div>
+					<div class="week-body">
+						<div class="card-kind dimmer tiny upper">{{ ('fui_qk_' + q.kind) | t }}</div>
+						<div class="week-text title">{{ ('fui_q_' + q.kind) | t(q.target, '#fui_class_' + q.class) }}</div>
+						<div class="row card-progress">
+							<div class="card-count"><span class="title">{{ q.progress | thousands }}</span><span class="dimmer"> / {{ q.target | thousands }}</span></div>
+							<div class="spacer"></div>
+							<div class="reward big-reward">+{{ q.xp }} XP</div>
+						</div>
+						<div class="bar big-bar"><div class="fill" data-style-width="(q.frac * 100) + '%'"></div></div>
+					</div>
+				</div>
+				<div class="tip panel flat">
+					<div class="tip-title title small">#fui_quests_how</div>
+					<div class="dim small">#fui_quests_how_body</div>
+				</div>
+			</div>
+		</div>
+		<div class="dim empty" data-if="quests.total == 0">#fui_quests_none</div>
+	</div>
+</div>
+</body>
+</rml>

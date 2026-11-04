@@ -1,0 +1,142 @@
+/* In a match: pause menu, class select, HUD. The game shows through. */
+
+/* ---------------------------------------------------------------- pause */
+.pause-dim {
+	position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+	decorator: linear-gradient(to right, #0d0907f2 0%, #0d0907c8 30%, #0d090770 60%, #0d0907a0 100%);
+}
+#pause-menu { position: absolute; left: 96dp; top: 120dp; width: 520dp; }
+.logo-small { font-family: "TF2 Build"; font-size: 20dp; color: #ffc93c; text-transform: uppercase; letter-spacing: 7dp; }
+.logo-big { font-family: "TF2 Build"; font-size: 64dp; line-height: 62dp; text-transform: uppercase; font-effect: shadow(4dp 4dp #8e2a26); margin-bottom: 36dp; }
+.menu-item {
+	font-family: "TF2 Build";
+	font-size: 34dp;
+	text-transform: uppercase;
+	color: #d8cdb4;
+	padding: 10dp 18dp;
+	margin-bottom: 4dp;
+	border-radius: 10dp;
+	border-left: 4dp #00000000;
+	cursor: pointer;
+	transition: background-color color padding-left 0.12s cubic-out;
+}
+.menu-item .kbd { margin-right: 14dp; vertical-align: middle; }
+.menu-item:hover { color: #ffc93c; background-color: #ffc93c14; border-left-color: #ffc93c; padding-left: 28dp; }
+.menu-item.primary { color: #ffc93c; }
+.menu-item.danger:hover { color: #ef5a4c; background-color: #c8413b1c; border-left-color: #ef5a4c; }
+.menu-gap { height: 26dp; }
+
+#match-card {
+	position: absolute;
+	right: 64dp; top: 120dp;
+	width: 520dp;
+	border-radius: 16dp;
+	decorator: linear-gradient(to bottom, #2a1f19f2, #17110ef5);
+	border: 1dp #6a5442;
+}
+.match-art { position: relative; height: 210dp; border-radius: 15dp 15dp 0 0; }
+.match-shade { position: absolute; left: 0; right: 0; bottom: 0; height: 120dp; decorator: linear-gradient(to bottom, #17110e00, #17110ef5); }
+.match-title { position: absolute; left: 20dp; bottom: 10dp; }
+.scoreline { padding: 18dp; gap: 16dp; }
+.score { font-family: "TF2 Build"; font-size: 58dp; line-height: 64dp; width: 96dp; text-align: center; border-radius: 12dp; }
+.red-score { background-color: #c8413b; color: #fff4e8; }
+.blu-score { background-color: #4a7fae; color: #f0f6ff; }
+.score-mid { text-align: center; }
+.you-on { font-family: "TF2 Build"; font-size: 22dp; text-transform: uppercase; }
+
+#pause-quests { position: absolute; right: 64dp; top: 470dp; width: 480dp; }
+.mini-quest { margin-bottom: 12dp; }
+.mini-quest .bar { margin-top: 5dp; }
+.mini-quest.done .small { color: #8fd16a; }
+.mini-quest.done .fill { decorator: linear-gradient(to right, #4d7a33, #8fd16a); }
+/* The previewer has no match behind these screens: a still of one. */
+.game-still { decorator: image(tex:console/background_2fort_widescreen cover); animation: none; }
+
+/* ---------------------------------------------------------------- class select */
+/* The class stands under this layer (3D), so its middle stays light. */
+.class-dim { position: absolute; left: 0; top: 0; right: 0; bottom: 0; decorator: radial-gradient(ellipse farthest-corner at 50% 45%, #3a1a1430 0%, #3a1a1460 30%, #0d0907f0 80%); }
+.class-dim.team-blu { decorator: radial-gradient(ellipse farthest-corner at 50% 45%, #14283a30 0%, #14283a60 30%, #070b0df0 80%); }
+.class-head { position: absolute; left: 0; right: 0; top: 54dp; text-align: center; }
+.class-head h1 { font-size: 56dp; }
+.team-tag {
+	display: inline-block;
+	font-family: "TF2 Build";
+	font-size: 18dp;
+	padding: 3dp 14dp;
+	border-radius: 6dp;
+	background-color: #c8413b;
+	color: #fff4e8;
+	margin-bottom: 6dp;
+}
+.team-tag.team-blu { background-color: #4a7fae; }
+
+#class-hero { position: absolute; left: 50%; top: 120dp; width: 560dp; height: 700dp; margin-left: -280dp; }
+.hero-model { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
+.hero-model .stand-in { width: 100%; height: 100%; }
+.hero-floor {
+	position: absolute; left: 10%; right: 10%; bottom: -10dp; height: 70dp;
+	decorator: radial-gradient(ellipse closest-side, #ffc93c40 0%, #ffc93c00 100%);
+}
+#class-info { position: absolute; left: 120dp; top: 300dp; width: 480dp; }
+.class-name { font-size: 80dp; line-height: 82dp; color: #ffc93c; }
+.class-desc { font-size: 19dp; line-height: 25dp; margin-top: 10dp; }
+
+#class-row {
+	position: absolute;
+	left: 0; right: 0; bottom: 130dp;
+	display: flex;
+	flex-direction: row;
+	justify-content: center;
+	gap: 10dp;
+}
+.class-card {
+	position: relative;
+	width: 118dp;
+	height: 150dp;
+	border-radius: 12dp;
+	decorator: linear-gradient(to bottom, #2a1f19ee, #120d0bf5);
+	border: 2dp #4a3a2e;
+	cursor: pointer;
+	transition: transform border-color 0.12s cubic-out;
+}
+.class-card.gap { margin-left: 30dp; }
+.class-card.hover { transform: translateY(-12dp) scale(1.06); border-color: #ffc93c; }
+.class-card.current { border-color: #8fd16a; }
+.card-face { position: absolute; left: 9dp; top: 8dp; width: 100dp; height: 100dp; }
+.card-key {
+	position: absolute; left: 6dp; top: 6dp;
+	font-family: "TF2 Build"; font-size: 14dp;
+	width: 22dp; height: 22dp; line-height: 22dp; text-align: center;
+	border-radius: 5dp; background-color: #000000aa; color: #ece3cb;
+}
+.card-name { position: absolute; left: 0; right: 0; bottom: 10dp; text-align: center; font-family: "TF2 Build"; font-size: 13dp; text-transform: uppercase; }
+.class-card.hover .card-name { color: #ffc93c; }
+#class-actions { position: absolute; left: 0; right: 0; bottom: 48dp; justify-content: center; gap: 14dp; }
+
+/* ---------------------------------------------------------------- HUD */
+body#hud { pointer-events: none; }
+#tracker {
+	position: absolute;
+	left: 24dp; top: 300dp;
+	width: 320dp;
+	padding: 12dp 14dp;
+	border-radius: 12dp;
+	background-color: #0d0907a8;
+	border-left: 4dp #ffc93c;
+}
+.tracker-title { font-family: "TF2 Build"; font-size: 15dp; text-transform: uppercase; color: #ffc93c; margin-bottom: 6dp; }
+.track { margin-bottom: 8dp; }
+.track-text { font-size: 14dp; line-height: 17dp; font-effect: shadow(1dp 1dp #000000); }
+.track .bar { height: 6dp; margin-top: 3dp; }
+.track-count { font-size: 12dp; color: #d8cdb4; margin-left: 8dp; }
+#hud-toasts { position: absolute; right: 24dp; top: 140dp; width: 360dp; }
+#hud-toasts .toast {
+	display: flex; flex-direction: row; align-items: center; gap: 12dp;
+	margin-bottom: 8dp; padding: 8dp 14dp 8dp 8dp;
+	border-radius: 12dp; background-color: #17110ee8; border-left: 5dp #ffc93c;
+	animation: 0.4s back-out 1 inr;
+}
+#hud-toasts .toast.quest, #hud-toasts .toast.k-quest { border-left-color: #8fd16a; }
+#hud-toasts .toast-icon { width: 40dp; height: 40dp; border-radius: 6dp; }
+#hud-toasts .toast-title { font-family: "TF2 Build"; font-size: 16dp; }
+#hud-toasts .toast-body { font-size: 14dp; color: #d8cdb4; }

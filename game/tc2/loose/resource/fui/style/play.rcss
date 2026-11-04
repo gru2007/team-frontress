@@ -1,0 +1,98 @@
+/* Modes */
+.page-title { font-size: 52dp; line-height: 56dp; margin: 4dp 0 22dp 0; }
+
+#modes {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	gap: 20dp;
+	width: 1300dp;
+}
+.mode {
+	position: relative;
+	width: 410dp;
+	height: 290dp;
+	border-radius: 18dp;
+	border: 3dp #3d3027;
+	background-color: #1a1310;
+	cursor: pointer;
+	transition: transform border-color 0.15s cubic-out;
+}
+.mode:hover { transform: scale(1.025); border-color: #ece3cb77; }
+.mode.selected { border-color: #ffc93c; transform: scale(1.025); }
+.mode.off { cursor: arrow; }
+.mode.off .mode-art { opacity: 0.35; }
+.mode.off:hover { transform: none; border-color: #3d3027; }
+.mode-art {
+	position: absolute;
+	left: 0; top: 0; right: 0; bottom: 0;
+	border-radius: 15dp;
+}
+.mode-shade {
+	position: absolute;
+	left: 0; right: 0; bottom: 0; height: 170dp;
+	border-radius: 0 0 15dp 15dp;
+	decorator: linear-gradient(to bottom, #120d0a00 0%, #120d0ad0 45%, #120d0afa 100%);
+}
+.mode-tag { position: absolute; top: 14dp; left: 14dp; font-family: "TF2 Build"; text-transform: uppercase; }
+.mode-text {
+	position: absolute;
+	left: 18dp; right: 18dp; bottom: 14dp;
+}
+.mode-title { font-size: 34dp; line-height: 36dp; }
+.mode.selected .mode-title { color: #ffc93c; }
+.mode-desc { font-size: 15dp; line-height: 18dp; color: #cfc4ab; margin: 4dp 0 8dp 0; }
+.live {
+	display: inline-block;
+	width: 8dp; height: 8dp;
+	border-radius: 4dp;
+	background-color: #8fd16a;
+	margin-right: 6dp;
+}
+
+#pool {
+	position: absolute;
+	right: 56dp; top: 112dp;
+	width: 430dp;
+	bottom: 340dp;
+}
+#maps {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	gap: 10dp;
+	overflow-y: auto;
+	height: 500dp;
+	align-content: flex-start;
+}
+.map {
+	position: relative;
+	width: 186dp;
+	height: 98dp;
+	border-radius: 10dp;
+	border: 2dp #ffffff14;
+	cursor: pointer;
+	transition: border-color 0.12s cubic-out;
+}
+.map-art { position: absolute; left: 0; top: 0; right: 0; bottom: 0; border-radius: 8dp; opacity: 0.35; }
+.map.on .map-art { opacity: 1; }
+.map:hover { border-color: #ece3cb88; }
+.map.on { border-color: #ffc93c; }
+.map-name {
+	position: absolute;
+	left: 0; right: 0; bottom: 0;
+	padding: 4dp 8dp;
+	border-radius: 0 0 8dp 8dp;
+	font-family: "TF2 Build";
+	font-size: 16dp;
+	background-color: #000000aa;
+}
+.map-check {
+	position: absolute;
+	top: 6dp; right: 6dp;
+	width: 24dp; height: 24dp;
+	border-radius: 12dp;
+	background-color: #ffc93c;
+}
+.pool-title { margin-bottom: 2dp; }
+.pool-hint { margin-bottom: 14dp; }

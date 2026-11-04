@@ -1,0 +1,26 @@
+// The main menu's world: the engine picks one of these at random as the
+// background level (cl_main.cpp), and the menu's camera stands at one of the
+// map's spectator cameras (src/game/shared/tf/frontress_lobby_world.cpp).
+// They must be maps players have: these ship with Team Fortress 2.
+"chapters"
+{
+	1	"koth_harvest_final"
+	2	"cp_granary"
+	3	"pl_upward"
+	4	"ctf_2fort"
+	5	"koth_lakeside_final"
+	6	"cp_process_final"
+	7	"koth_viaduct"
+	8	"pl_badwater"
+}
+"BackgroundMaps"
+{
+	1	"koth_harvest_final"
+	2	"cp_granary"
+	3	"pl_upward"
+	4	"ctf_2fort"
+	5	"koth_lakeside_final"
+	6	"cp_process_final"
+	7	"koth_viaduct"
+	8	"pl_badwater"
+}

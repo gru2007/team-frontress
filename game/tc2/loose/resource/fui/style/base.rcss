@@ -1,0 +1,460 @@
+/*
+ * Team Frontress UI: shared styles.
+ *
+ * Laid out in dp on a 1920 x 1080 design (the runtime scales dp to the
+ * window). RCSS is CSS with RmlUi's differences: no default stylesheet (so the
+ * reset below matters), no custom properties, decorators instead of
+ * background-image. Not available here: box-shadow, filter, mask-image.
+ *
+ * Palette
+ *   ink      #120d0a  #1d1612  #2a211b   backgrounds
+ *   tan      #ece3cb  #b8ab92  #7d705e   text
+ *   gold     #ffc93c  #f39c12            the call to action
+ *   RED      #c8413b  #8e2a26
+ *   BLU      #5b8fbf  #2f5679
+ *   quality  unique #ffd700, strange #cf6a32, vintage #476291, genuine #4d7455,
+ *            unusual #8650ac, collectors #aa0000, haunted #38f3ab
+ */
+
+body, div, p, h1, h2, h3, h4, form, ul, li, span.block, section, header, footer, nav, main, aside {
+	display: block;
+}
+
+body {
+	width: 100%;
+	height: 100%;
+	font-family: "TF2 Secondary";
+	font-size: 20dp;
+	color: #ece3cb;
+}
+
+/* Documents bind the data model on this, not on body: RmlUi attaches a
+   body's model only after parsing, too late for data-for. */
+.root {
+	position: absolute;
+	left: 0; top: 0; right: 0; bottom: 0;
+}
+
+img { display: inline-block; }
+span, label { display: inline; }
+
+h1, h2, h3, .title {
+	font-family: "TF2 Build";
+	font-weight: normal;
+	text-transform: uppercase;
+}
+h1 { font-size: 64dp; line-height: 64dp; }
+h2 { font-size: 34dp; line-height: 38dp; }
+h3 { font-size: 24dp; line-height: 28dp; }
+
+.shadow { font-effect: shadow(2dp 3dp #000000aa); }
+.outline { font-effect: outline(3dp #120d0a); }
+.dim { color: #b8ab92; }
+.dimmer { color: #7d705e; }
+.small { font-size: 16dp; }
+.tiny { font-size: 13dp; }
+.upper { text-transform: uppercase; }
+.gold { color: #ffc93c; }
+.red { color: #ef5a4c; }
+.blu { color: #7fb2e5; }
+.good { color: #8fd16a; }
+.bad { color: #ef5a4c; }
+
+.row { display: flex; flex-direction: row; align-items: center; }
+.col { display: flex; flex-direction: column; }
+.grow { flex: 1 1 0; }
+.spacer { flex: 1 1 0; }
+.nowrap { white-space: nowrap; }
+
+/* A tick drawn with borders: the fonts have no check mark. Sits centred in
+   a 24-26dp circle. */
+.tick {
+	width: 7dp;
+	height: 13dp;
+	margin: 4dp auto 0 auto;
+	border-right: 3dp #1a1205;
+	border-bottom: 3dp #1a1205;
+	transform: rotate(45deg);
+}
+
+/* Screens fill the window under the shell's top bar. */
+.screen {
+	position: absolute;
+	left: 0; top: 0; right: 0; bottom: 0;
+	padding: 112dp 56dp 40dp 56dp;
+}
+
+/* The backdrop every screen shares: warm dark, a light from above. */
+.backdrop {
+	position: absolute;
+	left: 0; top: 0; right: 0; bottom: 0;
+	decorator: radial-gradient(circle farthest-corner at 50% 0%, #4a2b1c 0%, #1f1510 45%, #0d0907 100%);
+}
+.backdrop.red { decorator: radial-gradient(circle farthest-corner at 35% 10%, #5a2219 0%, #23130f 48%, #0d0907 100%); }
+.backdrop.blu { decorator: radial-gradient(circle farthest-corner at 35% 10%, #1f3a52 0%, #121a22 48%, #0b0d10 100%); }
+.stripes {
+	position: absolute;
+	left: 0; top: 0; right: 0; bottom: 0;
+	decorator: repeating-linear-gradient(115deg, #ffffff06 0dp, #ffffff06 2dp, #00000000 2dp, #00000000 22dp);
+}
+
+/* Panels: dark glass with a thin warm rim. */
+.panel {
+	decorator: linear-gradient(to bottom, #2a1f19ee 0%, #17110ef2 60%, #120d0bf5 100%);
+	border: 1dp #4a3a2e;
+	border-top-color: #6a5442;
+	border-radius: 16dp;
+	padding: 20dp;
+}
+.panel.flat { background-color: #00000066; border-color: #ffffff12; }
+.panel-title {
+	font-family: "TF2 Build";
+	font-size: 21dp;
+	text-transform: uppercase;
+	color: #d8cdb4;
+	margin-bottom: 14dp;
+	letter-spacing: 1dp;
+	padding-left: 14dp;
+	border-left: 4dp #ffc93c;
+	line-height: 22dp;
+}
+.panel-title .sub { font-family: "TF2 Secondary"; text-transform: none; color: #8a7d68; font-size: 15dp; letter-spacing: 0; }
+
+/* Buttons. The big one is TF2 gold, slanted like a Fortnite play button. */
+button, .button {
+	display: inline-block;
+	font-family: "TF2 Build";
+	text-transform: uppercase;
+	font-size: 22dp;
+	padding: 12dp 26dp;
+	border-radius: 10dp;
+	background-color: #3a2e25;
+	color: #ece3cb;
+	text-align: center;
+	cursor: pointer;
+	transition: background-color color transform 0.12s cubic-out;
+}
+button:hover, .button:hover { background-color: #54443a; transform: scale(1.03); }
+button:active, .button:active { transform: scale(0.97); }
+
+.button.primary {
+	color: #2a1a05;
+	decorator: linear-gradient(to bottom, #ffe066, #ffb623);
+	border-bottom: 5dp #c27a0a;
+}
+.button.primary:hover { decorator: linear-gradient(to bottom, #fff09a, #ffc23c); }
+.button.danger { background-color: #a8352f; border-bottom: 5dp #6e1f1b; }
+.button.danger:hover { background-color: #c8413b; }
+.button.ghost { background-color: #00000000; border: 2dp #ece3cb44; }
+.button.ghost:hover { border-color: #ece3cbaa; background-color: #ffffff10; }
+.button.disabled, .button.disabled:hover { background-color: #2a221c; color: #6a5f50; decorator: none; border-bottom-width: 0; transform: none; cursor: arrow; }
+
+/* Chips and badges */
+.chip {
+	display: inline-block;
+	padding: 5dp 12dp;
+	border-radius: 20dp;
+	background-color: #ffffff14;
+	font-size: 15dp;
+	color: #ece3cb;
+}
+.chip.gold { background-color: #ffc93c; color: #2a1a05; }
+.chip.red { background-color: #c8413b; color: #fff4e8; }
+.chip.blu { background-color: #4a7fae; color: #f0f6ff; }
+.badge {
+	display: inline-block;
+	font-family: "TF2 Build";
+	font-size: 15dp;
+	padding: 3dp 9dp;
+	border-radius: 6dp;
+	background-color: #ffc93c;
+	color: #2a1a05;
+}
+
+/* Progress bars */
+.bar {
+	height: 10dp;
+	border-radius: 5dp;
+	background-color: #00000088;
+	border: 1dp #ffffff14;
+}
+.bar .fill {
+	height: 100%;
+	border-radius: 5dp;
+	decorator: linear-gradient(to right, #ffb623, #ffe066);
+	transition: width 0.6s cubic-out;
+}
+.bar .fill.red { decorator: linear-gradient(to right, #8e2a26, #e2564d); }
+.bar .fill.blu { decorator: linear-gradient(to right, #2f5679, #6aa2d8); }
+
+/* Avatars */
+.avatar {
+	width: 48dp;
+	height: 48dp;
+	border-radius: 10dp;
+	border: 2dp #ffffff22;
+}
+.avatar.blank { display: block; background-color: #3a2e25; }
+.empty { padding: 18dp 0; text-align: center; }
+
+/* Item quality colours, as text and as tile backgrounds. */
+.q-normal { color: #c8c2b4; }
+.q-unique { color: #ffd700; }
+.q-strange { color: #e08a52; }
+.q-vintage { color: #7d9ad0; }
+.q-genuine { color: #6fa37d; }
+.q-unusual { color: #b07ddb; }
+.q-collectors { color: #e24a4a; }
+.q-haunted { color: #38f3ab; }
+
+.tile-normal { decorator: radial-gradient(circle farthest-side at 50% 35%, #6a6458 0%, #35322c 70%, #201e1a 100%); border-color: #8f897c; }
+.tile-unique { decorator: radial-gradient(circle farthest-side at 50% 35%, #8a6f2a 0%, #3d3018 70%, #241c10 100%); border-color: #c9a227; }
+.tile-strange { decorator: radial-gradient(circle farthest-side at 50% 35%, #9a5426 0%, #4a2812 70%, #2a170b 100%); border-color: #cf6a32; }
+.tile-vintage { decorator: radial-gradient(circle farthest-side at 50% 35%, #3f5f99 0%, #22324f 70%, #141d2e 100%); border-color: #5b7cc0; }
+.tile-genuine { decorator: radial-gradient(circle farthest-side at 50% 35%, #4a7856 0%, #26402d 70%, #15241a 100%); border-color: #5f9a6d; }
+.tile-unusual { decorator: radial-gradient(circle farthest-side at 50% 35%, #8650ac 0%, #43265a 70%, #251433 100%); border-color: #a874d4; }
+.tile-collectors { decorator: radial-gradient(circle farthest-side at 50% 35%, #a82020 0%, #551010 70%, #2e0909 100%); border-color: #d23a3a; }
+.tile-haunted { decorator: radial-gradient(circle farthest-side at 50% 35%, #1f9a6c 0%, #0f4d36 70%, #082a1e 100%); border-color: #38f3ab; }
+.tile-empty { background-color: #00000055; border-color: #ffffff18; }
+
+/* Scrollbars */
+scrollbarvertical {
+	width: 8dp;
+	margin-left: 4dp;
+}
+scrollbarvertical slidertrack {
+	background-color: #ffffff08;
+	border-radius: 4dp;
+}
+scrollbarvertical sliderbar {
+	background-color: #ffffff30;
+	border-radius: 4dp;
+	min-height: 40dp;
+}
+scrollbarvertical sliderbar:hover { background-color: #ffc93c99; }
+scrollbarvertical sliderarrowdec, scrollbarvertical sliderarrowinc { height: 0; }
+
+input.text {
+	display: inline-block;
+	font-family: "TF2 Secondary";
+	font-size: 18dp;
+	color: #ece3cb;
+	background-color: #00000066;
+	border: 2dp #ffffff1a;
+	border-radius: 10dp;
+	padding: 8dp 14dp;
+	cursor: text;
+}
+input.text:focus { border-color: #ffc93c99; }
+
+@keyframes pulse {
+	from { opacity: 1; }
+	to { opacity: 0.25; }
+}
+@keyframes rise {
+	from { opacity: 0; transform: translateY(24dp); }
+	to { opacity: 1; transform: translateY(0dp); }
+}
+@keyframes pop {
+	0% { transform: scale(0.6); opacity: 0; }
+	70% { transform: scale(1.06); opacity: 1; }
+	100% { transform: scale(1); opacity: 1; }
+}
+@keyframes sway {
+	from { transform: translateY(0dp); }
+	to { transform: translateY(-10dp); }
+}
+.rise { animation: 0.35s cubic-out 1 rise; }
+
+/* Staggered entrances: the later ones hold still a little longer. RmlUi has
+   no animation-fill, so the hold is in the keyframes rather than a delay. */
+@keyframes in0 { from { opacity: 0; transform: translateY(28dp); } to { opacity: 1; transform: translateY(0dp); } }
+@keyframes in1 { 0% { opacity: 0; transform: translateY(28dp); } 18% { opacity: 0; transform: translateY(28dp); } 100% { opacity: 1; transform: translateY(0dp); } }
+@keyframes in2 { 0% { opacity: 0; transform: translateY(28dp); } 32% { opacity: 0; transform: translateY(28dp); } 100% { opacity: 1; transform: translateY(0dp); } }
+@keyframes in3 { 0% { opacity: 0; transform: translateY(28dp); } 44% { opacity: 0; transform: translateY(28dp); } 100% { opacity: 1; transform: translateY(0dp); } }
+@keyframes in4 { 0% { opacity: 0; transform: translateY(28dp); } 54% { opacity: 0; transform: translateY(28dp); } 100% { opacity: 1; transform: translateY(0dp); } }
+@keyframes inl { from { opacity: 0; transform: translateX(-40dp); } to { opacity: 1; transform: translateX(0dp); } }
+@keyframes inr { from { opacity: 0; transform: translateX(40dp); } to { opacity: 1; transform: translateX(0dp); } }
+.in0 { animation: 0.45s cubic-out 1 in0; }
+.in1 { animation: 0.55s cubic-out 1 in1; }
+.in2 { animation: 0.65s cubic-out 1 in2; }
+.in3 { animation: 0.75s cubic-out 1 in3; }
+.in4 { animation: 0.85s cubic-out 1 in4; }
+.inl { animation: 0.5s cubic-out 1 inl; }
+.inr { animation: 0.5s cubic-out 1 inr; }
+
+/* The world behind the menu. In the game the background map is really
+   there (app.world); the previewer shows a still of one instead. */
+.world-standin {
+	position: absolute;
+	left: -40dp; top: -40dp; right: -40dp; bottom: -40dp;
+	decorator: image(tex:console/background_upward_widescreen cover);
+	animation: 40s sine-in-out infinite alternate drift;
+}
+@keyframes drift { from { transform: scale(1.0) translateX(0dp); } to { transform: scale(1.08) translateX(-30dp); } }
+.grade {
+	position: absolute;
+	left: 0; top: 0; right: 0; bottom: 0;
+	decorator: linear-gradient(to bottom, #0d0907e0 0%, #0d090760 22%, #0d090720 55%, #0d0907c8 100%);
+}
+.grade-side {
+	position: absolute;
+	left: 0; top: 0; right: 0; bottom: 0;
+	decorator: linear-gradient(to right, #0d0907d8 0%, #0d090700 30%, #0d090700 70%, #0d0907d8 100%);
+}
+.dim-all {
+	position: absolute;
+	left: 0; top: 0; right: 0; bottom: 0;
+	decorator: linear-gradient(to bottom, #0d0907f2 0%, #0d0907d8 40%, #0d0907f0 100%);
+}
+
+/* Over the real world (the game) the 3D characters are under these layers
+   too: keep the middle clear. */
+.world .grade { decorator: linear-gradient(to bottom, #0d0907c0 0%, #0d090700 16%, #0d090700 82%, #0d090790 100%); }
+.world .grade-side { decorator: linear-gradient(to right, #0d0907c8 0%, #0d090700 22%, #0d090700 78%, #0d0907c8 100%); }
+.world .dim-all { decorator: linear-gradient(to bottom, #0d0907e0 0%, #0d090740 30%, #0d090740 70%, #0d0907d8 100%); }
+.world .spot { display: none; }
+
+/* Embers drifting up through the menu. */
+.embers { position: absolute; left: 0; top: 0; right: 0; bottom: 0; pointer-events: none; }
+.ember {
+	position: absolute;
+	bottom: -20dp;
+	width: 5dp; height: 5dp;
+	border-radius: 3dp;
+	background-color: #ffb347;
+}
+@keyframes ember-a { 0% { transform: translate(0dp, 0dp); opacity: 0; } 10% { opacity: 0.9; } 100% { transform: translate(60dp, -900dp); opacity: 0; } }
+@keyframes ember-b { 0% { transform: translate(0dp, 0dp); opacity: 0; } 15% { opacity: 0.7; } 100% { transform: translate(-80dp, -1000dp); opacity: 0; } }
+@keyframes ember-c { 0% { transform: translate(0dp, 0dp); opacity: 0; } 20% { opacity: 0.8; } 100% { transform: translate(30dp, -760dp); opacity: 0; } }
+.e1 { left: 8%;  animation: 11s linear infinite ember-a; }
+.e2 { left: 17%; animation: 14s linear infinite ember-b; width: 3dp; height: 3dp; }
+.e3 { left: 29%; animation: 9s linear infinite ember-c; }
+.e4 { left: 41%; animation: 16s linear infinite ember-a; width: 3dp; height: 3dp; }
+.e5 { left: 55%; animation: 12s linear infinite ember-b; }
+.e6 { left: 63%; animation: 10s linear infinite ember-c; width: 4dp; height: 4dp; }
+.e7 { left: 74%; animation: 15s linear infinite ember-a; }
+.e8 { left: 86%; animation: 13s linear infinite ember-b; width: 3dp; height: 3dp; }
+.e9 { left: 93%; animation: 8s linear infinite ember-c; }
+
+/* Primary buttons carry a sheen that sweeps across now and then. It fades at
+   both ends instead of being clipped: the renderer has no clip masks, and
+   the play button is skewed. */
+.sheen-box { position: relative; }
+.sheen {
+	position: absolute;
+	top: 6dp; bottom: 10dp; left: 16dp;
+	width: 60dp;
+	decorator: linear-gradient(to right, #ffffff00, #ffffff80, #ffffff00);
+	transform: skewX(-20deg);
+	opacity: 0;
+	animation: 3.6s linear infinite sweep;
+	pointer-events: none;
+}
+@keyframes sweep {
+	0% { left: 16dp; opacity: 0; }
+	55% { left: 16dp; opacity: 0; }
+	62% { opacity: 1; }
+	92% { opacity: 1; }
+	100% { left: 330dp; opacity: 0; }
+}
+
+.stamp {
+	font-family: "TF2 Build";
+	text-transform: uppercase;
+	color: #8fd16a;
+	border: 3dp #8fd16a;
+	border-radius: 6dp;
+	padding: 2dp 10dp;
+	transform: rotate(-8deg);
+	font-size: 18dp;
+}
+.kbd {
+	display: inline-block;
+	font-family: "TF2 Build";
+	font-size: 13dp;
+	min-width: 22dp;
+	padding: 2dp 6dp;
+	text-align: center;
+	border-radius: 5dp;
+	border: 1dp #ffffff40;
+	border-bottom-width: 3dp;
+	color: #d8cdb4;
+	background-color: #00000066;
+}
+
+/* A clan tag on a nameplate or a list: a small plate. */
+.clan-tag, .plate-tag {
+	display: inline-block;
+	font-family: "TF2 Build";
+	font-size: 13dp;
+	padding: 1dp 6dp;
+	border-radius: 4dp;
+	color: #d8cdb4;
+	background-color: #ffffff14;
+	border: 1dp #ffffff2a;
+}
+.clan-tag.gold, .plate-tag.gold { color: #2a1a05; background-color: #ffc93c; border-color: #ffe066; }
+
+/* The supporter's badge: a pink gem (the fonts have no heart). */
+.sup-gem {
+	display: inline-block;
+	width: 11dp; height: 11dp;
+	margin: 0 4dp;
+	transform: rotate(45deg);
+	border-radius: 2dp;
+	decorator: linear-gradient(135deg, #ffd1e3, #ff6fa8);
+	border: 1dp #ffffff80;
+}
+.sup-gem.small { width: 8dp; height: 8dp; }
+.sup-gem.big { width: 18dp; height: 18dp; border-radius: 3dp; }
+
+/* Clan banners: a coloured shield with the clan's class emblem. */
+.banner {
+	position: relative;
+	width: 64dp; height: 76dp;
+	border-radius: 8dp 8dp 32dp 32dp;
+	border: 2dp #ffffff40;
+	text-align: center;
+}
+.banner img { width: 70%; height: auto; margin-top: 10%; }
+.banner.c-red { decorator: linear-gradient(to bottom, #d6463d, #7c221e); border-color: #ff9a8a; }
+.banner.c-blu { decorator: linear-gradient(to bottom, #5b8fbf, #26425e); border-color: #a8cdf0; }
+.banner.c-gold { decorator: linear-gradient(to bottom, #ffd34d, #a8700c); border-color: #ffe9a0; }
+.banner.c-green { decorator: linear-gradient(to bottom, #6fb34d, #2f5c22); border-color: #b8e6a0; }
+.banner.c-purple { decorator: linear-gradient(to bottom, #9a63c8, #4a2768); border-color: #d6b8f0; }
+.banner.c-teal { decorator: linear-gradient(to bottom, #3fb3a8, #1a5751); border-color: #9ae6de; }
+.banner.small { width: 34dp; height: 40dp; border-radius: 5dp 5dp 17dp 17dp; border-width: 1dp; }
+.banner.big { width: 128dp; height: 152dp; border-radius: 14dp 14dp 64dp 64dp; border-width: 3dp; }
+
+/* Shared by the shell and the screens: small text buttons, modals. */
+.icon-button {
+	font-family: "TF2 Build";
+	font-size: 15dp;
+	text-transform: uppercase;
+	color: #b8ab92;
+	padding: 10dp 14dp;
+	border-radius: 10dp;
+	background-color: #ffffff0a;
+	margin-left: 8dp;
+	cursor: pointer;
+	transition: background-color color 0.12s cubic-out;
+}
+.icon-button:hover { background-color: #ffffff1c; color: #ece3cb; }
+.modal-dim {
+	position: absolute;
+	left: 0; top: 0; right: 0; bottom: 0;
+	background-color: #000000b0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+}
+.modal {
+	border-radius: 18dp;
+	background-color: #1d1612;
+	border: 3dp #ffc93c;
+	animation: 0.3s cubic-out 1 pop;
+}
+.mf-buttons { justify-content: center; gap: 16dp; margin-top: 22dp; }
+.small-button { font-size: 16dp; padding: 8dp 16dp; }

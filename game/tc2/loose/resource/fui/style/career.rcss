@@ -1,0 +1,41 @@
+/* Career */
+#profile { gap: 22dp; margin-bottom: 26dp; }
+.big-avatar { width: 110dp; height: 110dp; border-radius: 20dp; border: 3dp #ffc93c; }
+#profile h1 { font-size: 60dp; line-height: 62dp; }
+.big-stat { text-align: right; margin-left: 26dp; }
+.big-stat .num { font-family: "TF2 Build"; font-size: 46dp; line-height: 48dp; }
+
+.cols { align-items: flex-start; gap: 24dp; }
+.left { width: 620dp; gap: 16dp; }
+.left .panel { padding: 16dp 20dp; }
+.rating { margin-bottom: 10dp; }
+
+.rating { margin-bottom: 16dp; }
+.rating-mode { font-size: 22dp; }
+.rating-num { font-family: "TF2 Build"; font-size: 30dp; margin-right: 10dp; }
+.delta { font-family: "TF2 Build"; font-size: 18dp; min-width: 46dp; text-align: right; }
+.rating .bar { margin-top: 6dp; }
+
+.class-row { display: flex; flex-direction: row; align-items: center; gap: 12dp; margin-bottom: 3dp; }
+.class-row .class-face { width: 32dp; height: 32dp; border-radius: 16dp; }
+.class-label { width: 130dp; font-family: "TF2 Build"; font-size: 16dp; text-transform: uppercase; }
+.class-hours { width: 60dp; text-align: right; color: #b8ab92; font-size: 15dp; }
+
+.history { flex: 1 1 0; }
+.match {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 18dp;
+	padding: 10dp;
+	margin-bottom: 10dp;
+	border-radius: 12dp;
+	background-color: #00000044;
+	border-left: 6dp #c8413b;
+}
+.match.win { border-left-color: #8fd16a; }
+.match-art { width: 150dp; height: 84dp; border-radius: 8dp; }
+.match-map { font-size: 24dp; margin-right: 10dp; }
+.match-result { width: 140dp; text-align: center; }
+.match-result .title { font-size: 22dp; }
+.match-xp { width: 130dp; text-align: right; }

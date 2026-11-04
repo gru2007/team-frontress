@@ -1,0 +1,189 @@
+<rml>
+<!--
+	Always on top of the current screen: the top bar, the play button, the
+	queue, notifications and modals. The body lets clicks through; only the
+	pieces with .hit take them. In a match (ui.in_game) the main menu's
+	pieces step aside for the pause and class screens.
+-->
+<head>
+	<title>Shell</title>
+	<link type="text/rcss" href="style/base.rcss"/>
+	<link type="text/rcss" href="style/shell.rcss"/>
+</head>
+<body id="shell">
+<div class="root" data-model="fr">
+
+	<!-- Top bar -->
+	<div id="topbar" class="hit" data-if="!ui.in_game">
+		<div id="logo" data-event-click="nav('home')" sfx="tab">
+			<div class="logo-small">Team</div>
+			<div class="logo-big">Frontress</div>
+		</div>
+
+		<div id="tabs">
+			<div class="tab" sfx="tab" data-class-active="ui.screen == 'home'" data-event-click="nav('home')">#fui_tab_home</div>
+			<div class="tab" sfx="tab" data-class-active="ui.screen == 'play'" data-event-click="nav('play')">#fui_tab_play</div>
+			<div class="tab" sfx="tab" data-class-active="ui.screen == 'war'" data-event-click="nav('war')">#fui_tab_war<span class="live-dot" data-if="war.battles > 0"></span></div>
+			<div class="tab" sfx="tab" data-class-active="ui.screen == 'quests'" data-event-click="nav('quests')">#fui_tab_quests<span class="count-badge" data-if="quests.total > 0 && quests.done < quests.total">{{ quests.total - quests.done }}</span></div>
+			<div class="tab" sfx="tab" data-class-active="ui.screen == 'clan'" data-event-click="nav('clan')">#fui_tab_clan<span class="count-badge" data-if="clan.invites.size > 0 && !clan.has">{{ clan.invites.size }}</span></div>
+			<div class="tab" sfx="tab" data-class-active="ui.screen == 'locker'" data-event-click="nav('locker')">#fui_tab_locker</div>
+			<div class="tab" sfx="tab" data-class-active="ui.screen == 'career'" data-event-click="nav('career')">#fui_tab_career</div>
+		</div>
+
+		<div class="spacer"></div>
+
+		<div id="status">
+			<div class="row status-line">
+				<span class="gc-dot" data-class-online="app.gc == 'online'" data-class-connecting="app.gc == 'connecting'"></span>
+				<span class="online-count">{{ app.online | thousands }}</span>
+				<span class="dim small">&nbsp;#fui_online</span>
+			</div>
+			<div class="dimmer tiny" data-if="app.gc == 'online'">{{ app.matches_live }} #fui_matches_live</div>
+			<div class="bad tiny" data-if="app.gc == 'offline'">#fui_gc_offline</div>
+			<div class="dim tiny" data-if="app.gc == 'connecting'">#fui_gc_connecting</div>
+		</div>
+
+		<div id="player-chip" sfx="" data-event-click="nav('career')">
+			<div class="chip-avatar">
+				<img class="avatar" data-if="player.avatar != ''" data-attr-src="player.avatar"/>
+				<div class="avatar blank" data-if="player.avatar == ''"></div>
+				<div class="chip-level">{{ player.level }}</div>
+			</div>
+			<div class="who">
+				<div class="name"><span class="clan-tag chip-tag" data-if="player.tag != ''">{{ player.tag }}</span>{{ player.name }}<div class="sup-gem" data-if="player.sup"></div></div>
+				<div class="bar xp"><div class="fill" data-style-width="(player.xp_frac * 100) + '%'"></div></div>
+			</div>
+		</div>
+
+		<div class="icon-button support-button" sfx="" data-class-active="ui.screen == 'support'" data-event-click="nav('support')"><div class="sup-gem"></div><span>#fui_tab_support</span></div>
+		<div class="icon-button" sfx="" data-event-click="cmd('open_settings')">#fui_settings</div>
+		<div class="icon-button quit" sfx="" data-event-click="set('ui.modal', 'quit')">#fui_quit</div>
+	</div>
+
+	<!-- Notifications -->
+	<div id="toasts">
+		<div class="toast" data-for="t : toasts" data-attr-class="'toast k-' + t.kind">
+			<img class="toast-icon" data-if="t.icon != ''" data-attr-src="t.icon"/>
+			<div class="col grow">
+				<div class="toast-title">{{ t.title }}</div>
+				<div class="toast-body">{{ t.body }}</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Queue status, under the top bar on every screen. -->
+	<div id="queue-strip" data-if="queue.state == 'searching' && !ui.in_game">
+		<div class="queue-pill hit in0">
+			<div class="radar"><div class="radar-ring"></div><div class="radar-dot"></div></div>
+			<div class="col">
+				<div class="title small">#fui_searching</div>
+				<div class="dim tiny">{{ ('fui_mode_' + queue.mode) | t }} · {{ queue.players }}/{{ queue.needed }} #fui_players_found</div>
+			</div>
+			<div class="queue-time">{{ queue.seconds | clock }}</div>
+			<div class="button ghost small-button" sfx="" data-event-click="cmd('unqueue')">#fui_cancel</div>
+		</div>
+	</div>
+
+	<!-- The play button: Fortnite's corner, TF2's colours. -->
+	<div id="play-cluster" class="hit inr" data-if="!ui.in_game && (ui.screen == 'home' || ui.screen == 'play')">
+		<div id="mode-card" sfx="" data-event-click="nav('play')">
+			<div data-for="m : modes">
+				<div class="mode-inner" data-if="m.id == ui.mode">
+					<img class="mode-thumb" data-attr-src="'tex:' + m.image"/>
+					<div class="col grow">
+						<div class="dimmer tiny upper">#fui_choose_mode</div>
+						<div class="title mode-name">{{ m.name | t }}</div>
+						<div class="dim small">{{ m.size }}</div>
+					</div>
+					<div class="change">#fui_change ›</div>
+				</div>
+			</div>
+		</div>
+		<div class="play-glow" data-if="queue.state == 'idle'"></div>
+		<div class="play-button sheen-box" sfx="play" data-if="queue.state == 'idle'" data-event-click="cmd('queue', ui.mode)">
+			<div class="sheen"></div>
+			<div class="label">#fui_play</div>
+			<div class="play-hint">{{ party.count }}/{{ party.max }} · {{ ('fui_mode_' + ui.mode) | t }}</div>
+		</div>
+		<div class="play-button searching" sfx="" data-if="queue.state != 'idle'" data-event-click="cmd('unqueue')">
+			<div class="label">#fui_cancel</div>
+			<div class="sub">{{ queue.seconds | clock }}</div>
+		</div>
+	</div>
+
+	<!-- Match found -->
+	<div class="modal-dim hit" data-if="queue.state == 'found' || queue.state == 'joining'">
+		<div class="modal match-found">
+			<div class="mf-image" data-style-decorator="'image(tex:' + queue.map_image + ' cover center top)'"></div>
+			<div class="mf-body">
+				<div class="gold title mf-title outline">#fui_match_found</div>
+				<h2 class="shadow">{{ queue.map }}</h2>
+				<div class="dim">{{ ('fui_mode_' + queue.mode) | t }}</div>
+				<div class="row mf-buttons" data-if="queue.state == 'found'">
+					<div class="button primary big" sfx="play" data-event-click="cmd('accept')">#fui_accept</div>
+					<div class="button ghost" sfx="" data-event-click="cmd('decline')">#fui_decline</div>
+				</div>
+				<div class="dim mf-joining" data-if="queue.state == 'joining'"><span class="pulse"></span> #fui_joining</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Settings: the game's options, the HUD, everything else the classic
+	     menu had -->
+	<div class="modal-dim hit" data-if="ui.modal == 'settings'">
+		<div class="modal settings-modal">
+			<div class="row">
+				<h2 class="shadow grow">#fui_settings</h2>
+				<div class="icon-button" sfx="" data-event-click="set('ui.modal', '')">#fui_close</div>
+			</div>
+			<div class="set-grid">
+				<div class="set-tile" sfx="" data-event-click="cmd('classic', 'options')">
+					<div class="set-title">#fui_set_options</div><div class="dim tiny">#fui_set_options_d</div>
+				</div>
+				<div class="set-tile" sfx="" data-event-click="cmd('classic', 'advanced')">
+					<div class="set-title">#fui_set_advanced</div><div class="dim tiny">#fui_set_advanced_d</div>
+				</div>
+				<div class="set-tile" sfx="" data-event-click="cmd('classic', 'achievements')">
+					<div class="set-title">#fui_set_achievements</div><div class="dim tiny">#fui_set_achievements_d</div>
+				</div>
+				<div class="set-tile" sfx="" data-event-click="cmd('classic', 'workshop')">
+					<div class="set-title">#fui_set_workshop</div><div class="dim tiny">#fui_set_workshop_d</div>
+				</div>
+				<div class="set-tile" sfx="" data-event-click="cmd('classic', 'servers')">
+					<div class="set-title">#fui_set_servers</div><div class="dim tiny">#fui_set_servers_d</div>
+				</div>
+				<div class="set-tile" sfx="" data-event-click="cmd('classic', 'create')">
+					<div class="set-title">#fui_set_create</div><div class="dim tiny">#fui_set_create_d</div>
+				</div>
+				<div class="set-tile" sfx="" data-event-click="cmd('classic', 'console')">
+					<div class="set-title">#fui_set_console</div><div class="dim tiny">#fui_set_console_d</div>
+				</div>
+				<div class="set-tile" sfx="" data-event-click="cmd('classic', 'classic_menu')">
+					<div class="set-title">#fui_set_classic</div><div class="dim tiny">#fui_set_classic_d</div>
+				</div>
+			</div>
+			<div class="panel-title hud-title">#fui_set_hud <span class="sub">#fui_set_hud_d</span></div>
+			<div class="row hud-styles">
+				<div class="hud-style" data-for="h : settings.huds" data-class-active="h == settings.hud_style"
+					data-event-click="cmd('hud_style', h)" sfx="">
+					<div class="set-title">{{ ('#fui_hud_style_' + h) | t }}</div>
+					<div class="dimmer tiny">{{ h }}</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Quit -->
+	<div class="modal-dim hit" data-if="ui.modal == 'quit'">
+		<div class="modal quit-modal">
+			<h2 class="shadow">#fui_quit_title</h2>
+			<p class="dim">#fui_quit_body</p>
+			<div class="row mf-buttons">
+				<div class="button danger" sfx="" data-event-click="cmd('quit')">#fui_quit_yes</div>
+				<div class="button primary" sfx="" data-event-click="set('ui.modal', '')">#fui_quit_no</div>
+			</div>
+		</div>
+	</div>
+</div>
+</body>
+</rml>

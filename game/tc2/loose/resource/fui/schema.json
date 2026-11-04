@@ -1,0 +1,113 @@
+// Every value the documents read, with the value it has before the game says
+// otherwise. A top-level key that is not here is invisible to the documents.
+// The game fills these in src/game/client/tf/frontress/fui_tf.cpp; the
+// previewer from tools/fui-preview/mock.json.
+{
+	// Local UI state. Documents write it with set()/toggle()/nav().
+	"ui": {
+		"screen": "home",
+		"class": "soldier",		// locker: class shown
+		"slot": "primary",		// locker: slot being filled
+		"pick": -1,				// locker: index into locker.items under the cursor
+		"mode": "casual",		// play: mode the play button queues for
+		"front": "",			// war: the sector shown in the side panel
+		"war_hover": "",		// war: the sector under the cursor
+		"modal": "",			// "", "quit", "invite"
+		"in_game": false,		// in a match: the pause, class and HUD screens
+		"class_hover": "soldier",	// class select: the class shown
+		"chat_draft": ""			// the chat line being typed
+	},
+	// world: a map is behind the menu (the game's background level or the
+	// match). preview: tools/fui-preview, which draws 2D stand-ins where the
+	// game puts 3D characters.
+	"app": { "gc": "offline", "online": 0, "version": "", "matches_live": 0, "world": false, "preview": false },
+	// tag: clan tag; sup: supports the developers (sup_monthly: subscribes)
+	"player": { "name": "", "avatar": "", "level": 1, "xp": 0, "xp_next": 1, "xp_frac": 0, "side": "red", "rank": "", "title": "", "tag": "", "sup": false, "sup_monthly": false },
+	// members: { key ("me" / "member:<id>", the 3D look), name, avatar, level,
+	// leader, me, class, slot (lobby position 0-4), has_look }
+	"party": { "max": 6, "count": 1, "members": [], "empty": [] },
+	// state: idle | searching | found | joining | live
+	"queue": { "state": "idle", "mode": "", "seconds": 0, "players": 0, "needed": 0, "map": "", "map_image": "" },
+	"modes": [],
+	"maps": [],
+	// The coordinator's GET /v1/war as it is (services/gc/internal/gc/warview.go):
+	// fronts are sectors { id, name, icon, hq, x, y, owner, frontline, front,
+	// attacker, from, stage, stages, mode, map, image, ... }, links roads
+	// { a, b, side }, ops the operations { front, node, name, attacker,
+	// defender, from_name, stage, stages, plan, kind, next, prev, mode, ... },
+	// top the sector to send people to, events { kind, side, name, stage_kind, ago }.
+	"war": { "name": "", "day": 0, "days": 0, "red": 0.5, "red_fronts": 0, "blu_fronts": 0, "battles": 0, "soldiers": 0, "servers": 0, "servers_free": 0,
+		"fronts": [], "links": [], "ops": [], "top": "", "hot": "", "order_xp": 0, "live": [], "events": [] },
+	// The in-match HUD (src/game/client/tf/frontress/fui_hud.cpp), for
+	// resource/fui/huds/*. Numbers are -1 when there is nothing to show.
+	// points: { owner, capping, frac, cappers, locked, blocked }
+	// cart: { progress 0..1, speed (-1 back, 0..3), team }
+	// flags: { team, status (home|stolen|dropped), return 0..1 }
+	// kills: { killer, killer_team, assist, victim, victim_team, icon, crit, me }
+	"hud": {
+		"visible": true, "alive": false, "class": "", "team": "red",
+		"health": 0, "max": 1, "frac": 0, "overheal": 0, "low": false,
+		"weapon": "", "weapon_icon": "", "clip": -1, "reserve": -1, "clip_max": 0, "clip_low": false,
+		"charge": -1, "charge_ready": false, "respawn": -1, "killed_by": "",
+		"mode": "", "timer": -1, "setup": false, "overtime": false, "waiting": false,
+		"score_red": 0, "score_blu": 0, "koth_red": -1, "koth_blu": -1,
+		"points": [], "cart": { "progress": -1, "speed": 0, "team": "blu" }, "flags": [], "kills": [],
+		// war: { active, sector, stage, stages, kind, attacker, attacking, order, conditions[] }
+		"war": { "active": false, "sector": "", "stage": 0, "stages": 0, "kind": "", "attacker": "", "attacking": false, "order": false, "conditions": [] }
+	},
+	// The settings window: the HUDs installed (resource/fui/huds) and the one in use.
+	"settings": { "hud_style": "auto", "huds": [ "auto" ] },
+	"locker": {
+		"classes": [
+			{ "id": "scout", "name": "#fui_class_scout" }, { "id": "soldier", "name": "#fui_class_soldier" },
+			{ "id": "pyro", "name": "#fui_class_pyro" }, { "id": "demoman", "name": "#fui_class_demoman" },
+			{ "id": "heavy", "name": "#fui_class_heavy" }, { "id": "engineer", "name": "#fui_class_engineer" },
+			{ "id": "medic", "name": "#fui_class_medic" }, { "id": "sniper", "name": "#fui_class_sniper" },
+			{ "id": "spy", "name": "#fui_class_spy" }
+		],
+		// slot entries: { id, name, item } where item is like a locker.items entry or null
+		"equipped": [],
+		// items that fit ui.class and ui.slot: { index, name, type, icon, quality, level, equipped }
+		"view": [],
+		"detail": {},
+		"filter": "all",
+		"count": 0
+	},
+	"career": { "hours": 0, "matches": 0, "wins": 0, "mvp": 0, "ratings": [], "classes": [], "history": [] },
+	"results": { "result": "", "map": "", "image": "", "mode": "", "score_red": 0, "score_blu": 0, "duration": 0, "front": "", "front_before": 0, "front_after": 0,
+		"xp_total": 0, "level_before": 0, "frac_before": 0, "frac_after": 0, "rating": 0, "delta": 0, "xp": [], "mvps": [] },
+	// The coordinator's social side (src/game/client/tf/frontress/fui_social.cpp).
+	// tab: global | clan | party | online. view: the open tab's chat lines
+	// { id, ch, name, tag, gold, sup, text, sys, key, a1..a4, kind, time, me }
+	// (a system line says key | t(a1, a2, ...)). online: { total, menu, queue,
+	// match, lfg, clans, players: [{ id, name, tag, gold, sup, level, status
+	// (menu|queue|match), mode, map, lfg, note, party, me }] }.
+	"social": { "tab": "global", "view": [], "unread_clan": 0, "unread_party": 0, "has_clan": false, "has_party": false,
+		"lfg": false, "lfg_note": "", "online": { "total": 0, "menu": 0, "queue": 0, "match": 0, "lfg": 0, "clans": 0, "players": [] } },
+	// The clan (services/gc/internal/gc/clan.go): has, c (the clan: id, name,
+	// tag, motto, emblem (a class), color, open, level, xp, xp_from, xp_to,
+	// frac, count, cap, online, wins, battles, banner, gold, role, members[],
+	// perks[{ id, level, on }], contract{ kind, target, progress, frac, paid,
+	// left, on, clan_xp, member_xp }, order, order_name, order_xp, bonus),
+	// officer, leader, invites[] and top[] (clan cards).
+	"clan": { "loaded": false, "has": false, "officer": false, "leader": false, "c": {}, "invites": [], "top": [] },
+	// The create / settings form.
+	"clanform": { "name": "", "tag": "", "motto": "", "emblem": "soldier", "color": "red", "open": true },
+	// The support tab (services/gc/internal/gc/support.go): offered,
+	// available, loading, busy, sandbox, currency, once[] and monthly[] tiers
+	// { tier, kind, amount, price }, me { supporter, monthly, donations, since },
+	// wall[] { name, kind, ago }, count, subscribers, anon, result (opening,
+	// pending, thanks, cancelled, error), error, problem.
+	"support": { "offered": false, "available": false, "loading": false, "busy": false, "sandbox": false, "currency": "",
+		"once": [], "monthly": [], "me": { "supporter": false, "monthly": false, "donations": 0, "since": 0 }, "wall": [],
+		"count": 0, "subscribers": 0, "anon": false, "result": "", "error": "", "problem": "" },
+	// From the coordinator (GET /v1/player/<id>/quests). Each quest:
+	// { key, kind, class, target, progress, frac, xp, done, weekly, photo }
+	"quests": { "daily": [], "weekly": [], "daily_left": 0, "weekly_left": 0, "done": 0, "total": 0 },
+	// The match being played, for the pause screen.
+	"match": { "active": false, "map": "", "map_id": "", "image": "", "red": 0, "blu": 0, "team": "none", "class": "", "official": false },
+	// Class select: whose team, and the class played now.
+	"classsel": { "team": "red", "current": "" },
+	// Notifications: { kind (quest, party, clan, support, error), title, body, icon (a texture source) }
+	"toasts": []
+}

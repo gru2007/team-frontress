@@ -20,7 +20,7 @@
 #include "tf_partyclient.h"
 #include "util_misc.h"
 #include "tf_matchmaking_dashboard_explanations.h"
-#include "frontress/tf_mm_backend.h"
+#include "frontress/tf_gc_status.h"
 
 using namespace vgui;
 using namespace GCSDK;
@@ -256,16 +256,16 @@ bool CPlayListEntry::BGroupHosted() const
 	// Only the service that would actually take the queue gets to answer, and
 	// only once it has: before the first status reply every mode is assumed
 	// to exist, because hiding one on a guess is worse than a slow reveal.
-	if ( !TFMMBackend()->BActive() || !TFMMBackend()->BGroupsKnown() )
+	if ( !TFGCStatus()->BActive() || !TFGCStatus()->BGroupsKnown() )
 		return true;
 
 	// Never empty the list. If the coordinator offered nothing at all, showing
 	// the modes with their reasons on them is recoverable and a blank panel is
 	// not: the player cannot tell it apart from a menu that failed to load.
-	if ( !TFMMBackend()->BAnyGroupOffered() )
+	if ( !TFGCStatus()->BAnyGroupOffered() )
 		return true;
 
-	return TFMMBackend()->BGroupOffered( m_eMatchGroup );
+	return TFGCStatus()->BGroupOffered( m_eMatchGroup );
 }
 
 void CPlayListEntry::UpdateDisabledState()
@@ -751,7 +751,7 @@ void CTFPlaylistPanel::OnThink()
 	// Which modes exist at all is the coordinator's answer, and it arrives
 	// well after this panel was built. Nothing else fires when it changes, and
 	// an entry that hid itself stopped ticking, so the panel watches for it.
-	const uint32 nGeneration = TFMMBackend()->GetMapPoolGeneration();
+	const uint32 nGeneration = TFGCStatus()->GetMapPoolGeneration();
 	if ( nGeneration != m_nLastPoolGeneration )
 	{
 		m_nLastPoolGeneration = nGeneration;

@@ -49,8 +49,7 @@
 using namespace GCSDK;
 
 #ifdef TF_CLIENT_DLL
-// Implemented by tf_gc_client.cpp; never use the MM-only cache to signal
-// Steam inventory readiness. Other inventories and game servers unaffected.
+// Implemented by tf_gc_client.cpp: whether the Steam web inventory has loaded.
 extern bool BTFWebapiInventoryReady();
 #endif
 
@@ -1683,8 +1682,9 @@ void CPlayerInventory::SOCacheSubscribed( const CSteamID & steamIDOwner, GCSDK::
 		return;
 
 #ifdef TF_CLIENT_DLL
-	// The MM backend may subscribe a party-only cache if Valve is down.
-	// Do not purge items or dispatch econ_inventory_connected for it.
+	// Our game coordinator subscribes the local player's cache for party and
+	// lobby objects (frontress_gc.cpp). That cache has no items: it must not
+	// purge the web inventory or announce econ_inventory_connected.
 	if ( InventoryManager()->GetLocalInventory() == this && !BTFWebapiInventoryReady() )
 		return;
 #endif

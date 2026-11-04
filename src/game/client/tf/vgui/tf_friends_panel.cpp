@@ -6,7 +6,6 @@
 
 
 #include "cbase.h"
-#include "frontress/tf_mm_backend.h"
 #include "tf_gc_client.h"
 #include "tf_friends_panel.h"
 #include "vgui_avatarimage.h"
@@ -98,16 +97,6 @@ void CSteamFriendPanel::OnCommand( const char *command )
 					contextMenuBuilder.AddMenuItem( "#TF_Friends_JoinServer", new KeyValues( "Context_JoinServer" ), "server" );
 				}
 
-				// Watching is the one thing that always works. A matchmade
-				// server will refuse anybody not on its roster, and being told
-				// so by a failed connect is a bad way to learn it -- but the
-				// relay is a separate server with its own slots and no roster
-				// at all, so a friend can always watch.
-				if ( CTFMMParty::GetFriendSTV( m_steamID ) != NULL )
-				{
-					contextMenuBuilder.AddMenuItem( "#TF_Friends_WatchMatch", new KeyValues( "Context_WatchMatch" ), "server" );
-				}
-
 				// You can join someone if you're not in a party, or in a party of just you
 				if ( GTFPartyClient()->BCanRequestToJoinPlayer( m_steamID ) && GTFPartyClient()->GetNumPartyMembers() == 1 )
 				{
@@ -168,12 +157,6 @@ void CSteamFriendPanel::DoJoinServer()
 	// is to let the connect fail and say why rather than pretend.
 	engine->ClientCmd_Unrestricted( "password \"\"" );
 	engine->ClientCmd_Unrestricted( strConnect.Get() );
-}
-
-void CSteamFriendPanel::DoWatchMatch()
-{
-	engine->ClientCmd_Unrestricted( CFmtStr( "tf_mm_watch %llu",
-	                                         (unsigned long long)m_steamID.ConvertToUint64() ) );
 }
 
 void CSteamFriendPanel::DoInviteToParty()

@@ -1,0 +1,365 @@
+<rml>
+<!-- Clans (services/gc/internal/clans): found or join one, or, in one, see
+     what it has earned. Levels come from playing, more from playing together,
+     and each unlocks a perk that changes something real (clan.c.perks). -->
+<head>
+	<title>Clan</title>
+	<link type="text/rcss" href="../style/base.rcss"/>
+	<link type="text/rcss" href="../style/clan.rcss"/>
+</head>
+<body>
+<div class="root" data-model="fr" data-class-world="app.world">
+	<div class="world-standin" data-if="app.preview"></div>
+	<div class="dim-all"></div>
+	<div class="stripes"></div>
+
+	<!-- ============================================================ in a clan -->
+	<div class="screen" data-if="clan.has">
+		<div class="row hero in0">
+			<div data-attr-class="'banner big c-' + clan.c.color">
+				<img data-attr-src="'tex:hud/leaderboard_class_' + (clan.c.emblem == 'demoman' ? 'demo' : clan.c.emblem)"/>
+				<div class="banner-tag title">{{ clan.c.tag }}</div>
+			</div>
+			<div class="col hero-text">
+				<div class="row">
+					<span data-attr-class="'clan-tag big' + (clan.c.gold ? ' gold' : '')">{{ clan.c.tag }}</span>
+					<h1 class="shadow clan-name">{{ clan.c.name }}</h1>
+				</div>
+				<div class="motto dim" data-if="clan.c.motto != ''">«{{ clan.c.motto }}»</div>
+				<div class="row hero-stats">
+					<div class="hstat"><span class="title">{{ clan.c.count }}</span><span class="dimmer">/{{ clan.c.cap }}</span><div class="dim tiny upper">#fui_clan_members</div></div>
+					<div class="hstat"><span class="title good">{{ clan.c.online }}</span><div class="dim tiny upper">#fui_clan_online</div></div>
+					<div class="hstat"><span class="title gold">{{ clan.c.wins }}</span><div class="dim tiny upper">#fui_clan_wins</div></div>
+					<div class="hstat"><span class="title">{{ clan.c.battles }}</span><div class="dim tiny upper">#fui_clan_battles</div></div>
+					<div class="hstat" data-if="clan.c.bonus > 0"><span class="title good">+{{ clan.c.bonus }}%</span><div class="dim tiny upper">XP</div></div>
+				</div>
+			</div>
+			<div class="spacer"></div>
+			<div class="col level-box">
+				<div class="row">
+					<div class="clan-level-ring"><div class="title">{{ clan.c.level }}</div></div>
+					<div class="col grow">
+						<div class="title level-label">#fui_clan_level</div>
+						<div class="dim tiny">{{ clan.c.xp | thousands }} / {{ clan.c.xp_to | thousands }} #fui_clan_xp</div>
+					</div>
+				</div>
+				<div class="bar big-bar"><div class="fill" data-style-width="(clan.c.frac * 100) + '%'"></div></div>
+				<div class="row hero-buttons">
+					<div class="button ghost small-button" sfx="" data-if="clan.officer" data-event-click="set('ui.modal', 'clan_settings')">#fui_clan_settings</div>
+					<div class="button ghost small-button" sfx="" data-event-click="set('ui.modal', 'clan_leave')">#fui_clan_leave</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="row clan-body">
+			<!-- Perks: the reason to level the clan -->
+			<div class="col perks-col panel in1">
+				<div class="panel-title">#fui_clan_perks <span class="sub">#fui_clan_perks_d</span></div>
+				<div data-for="p : clan.c.perks" data-attr-class="'perk' + (p.on ? ' on' : '') + (p.level == clan.c.level + 1 ? ' next' : '')">
+					<div class="perk-level title">{{ p.level }}</div>
+					<div class="col grow">
+						<div class="perk-name">{{ ('fui_clan_perk_' + p.id) | t }}</div>
+						<div class="perk-desc">{{ ('fui_clan_perk_' + p.id + '_d') | t }}</div>
+					</div>
+					<div class="perk-check" data-if="p.on"><div class="tick"></div></div>
+					<div class="perk-lock" data-if="!p.on"></div>
+				</div>
+			</div>
+
+			<!-- What the clan is doing this week -->
+			<div class="col mid-col">
+				<div class="panel contract in2" data-class-locked="!clan.c.contract.on">
+					<div class="row">
+						<div class="panel-title grow">#fui_clan_contract</div>
+						<div class="dim small nowrap" data-if="clan.c.contract.on && !clan.c.contract.paid">#fui_clan_left {{ clan.c.contract.left | duration }}</div>
+					</div>
+					<div class="contract-goal title">{{ ('fui_clan_contract_' + clan.c.contract.kind) | t(clan.c.contract.target) }}</div>
+					<div class="row contract-row">
+						<div class="bar grow big-bar"><div class="fill" data-class-done="clan.c.contract.paid" data-style-width="(clan.c.contract.frac * 100) + '%'"></div></div>
+						<div class="contract-count title">{{ clan.c.contract.progress }}<span class="dimmer">/{{ clan.c.contract.target }}</span></div>
+					</div>
+					<div class="dim small" data-if="!clan.c.contract.paid">{{ 'fui_clan_contract_reward' | t(clan.c.contract.clan_xp, clan.c.contract.member_xp) }}</div>
+					<div class="good small" data-if="clan.c.contract.paid">#fui_clan_contract_done</div>
+					<div class="locked-note" data-if="!clan.c.contract.on">#fui_clan_contract_locked</div>
+				</div>
+
+				<div class="panel order in3">
+					<div class="panel-title">#fui_clan_order</div>
+					<div data-if="clan.c.level &lt; 5" class="dim small">#fui_clan_order_locked</div>
+					<div data-if="clan.c.level &gt;= 5">
+						<div class="row order-now">
+							<div class="order-flag" data-class-on="clan.c.order != ''"></div>
+							<div class="col grow">
+								<div class="title order-name" data-if="clan.c.order != ''">{{ clan.c.order_name }}</div>
+								<div class="title order-name dimmer" data-if="clan.c.order == ''">#fui_clan_order_none</div>
+								<div class="dim tiny">{{ 'fui_clan_order_d' | t(clan.c.order_xp) }}</div>
+							</div>
+						</div>
+						<div data-if="clan.officer">
+							<div class="dimmer tiny upper order-pick">#fui_clan_order_pick</div>
+							<div class="row ops">
+								<div data-for="o : war.ops" data-attr-class="'op ' + o.attacker + (o.front == clan.c.order ? ' on' : '')" sfx="" data-event-click="cmd('clan_order', o.front)">
+									<span class="op-side"></span>{{ o.name }}
+								</div>
+								<div class="op ghost" sfx="" data-if="clan.c.order != ''" data-event-click="cmd('clan_order', '')">#fui_clan_order_clear</div>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<div class="panel banner-card in4">
+					<div class="row">
+						<div data-attr-class="'banner c-' + clan.c.color">
+							<img data-attr-src="'tex:hud/leaderboard_class_' + (clan.c.emblem == 'demoman' ? 'demo' : clan.c.emblem)"/>
+						</div>
+						<div class="col grow banner-text">
+							<div class="panel-title">#fui_clan_banner</div>
+							<div class="small" data-if="clan.c.banner != '' && clan.c.level &gt;= 3">{{ 'fui_clan_banner_at' | t(clan.c.banner) }}</div>
+							<div class="dim small" data-if="clan.c.banner == '' || clan.c.level &lt; 3">#fui_clan_banner_none</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- The roster -->
+			<div class="col roster panel in2">
+				<div class="row">
+					<div class="panel-title grow">#fui_clan_members <span class="sub">{{ clan.c.online }} #fui_clan_online</span></div>
+				</div>
+				<div class="roster-list">
+					<div data-for="m : clan.c.members" data-attr-class="'rm' + (m.online ? ' online' : '') + (m.me ? ' me' : '')">
+						<div data-attr-class="'who-dot ' + m.status"></div>
+						<div class="col grow">
+							<div class="row">
+								<span class="rm-name">{{ m.name }}</span>
+								<span data-attr-class="'role role-' + m.role">{{ ('fui_clan_role_' + m.role) | t }}</span>
+							</div>
+							<div class="rm-sub">{{ ('fui_clan_st_' + m.status) | t }} · {{ m.week_xp | thousands }} XP #fui_clan_week_xp</div>
+						</div>
+						<div class="rm-xp title">{{ m.xp | thousands }}</div>
+						<div class="rm-acts">
+							<div class="rm-act" sfx="" data-if="!m.me && m.online && m.status != 'match'" data-event-click="cmd('invite_player', m.id)">#fui_soc_invite</div>
+							<div class="rm-act ghost" sfx="" data-if="clan.leader && m.role == 'member'" data-event-click="cmd('clan_role', m.id, 'officer')">#fui_clan_promote</div>
+							<div class="rm-act ghost" sfx="" data-if="clan.leader && m.role == 'officer'" data-event-click="cmd('clan_role', m.id, 'member')">#fui_clan_demote</div>
+							<div class="rm-act ghost" sfx="" data-if="clan.leader && m.role == 'officer'" data-event-click="cmd('clan_role', m.id, 'leader')">#fui_clan_make_leader</div>
+							<div class="rm-act danger" sfx="" data-if="!m.me && (clan.leader || (clan.officer && m.role == 'member'))" data-event-click="cmd('clan_kick', m.id)">#fui_clan_kick</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- ============================================================ no clan yet -->
+	<div class="screen" data-if="!clan.has">
+		<div class="row hero in0">
+			<div class="col">
+				<h1 class="shadow">#fui_clan_title</h1>
+				<div class="dim why">#fui_clan_why</div>
+			</div>
+		</div>
+
+		<div class="row clan-body">
+			<!-- Found one -->
+			<div class="col create panel in1">
+				<div class="panel-title">#fui_clan_create</div>
+				<div class="row create-top">
+					<div class="col grow">
+						<div class="field-label dimmer tiny upper">#fui_clan_name</div>
+						<input type="text" class="text" maxlength="24" data-value="clanform.name"/>
+						<div class="field-label dimmer tiny upper">#fui_clan_tag</div>
+						<input type="text" class="text tag-input" maxlength="5" data-value="clanform.tag"/>
+					</div>
+					<div data-attr-class="'banner big c-' + clanform.color">
+						<img data-attr-src="'tex:hud/leaderboard_class_' + (clanform.emblem == 'demoman' ? 'demo' : clanform.emblem)"/>
+						<div class="banner-tag title">{{ clanform.tag }}</div>
+					</div>
+				</div>
+				<div class="field-label dimmer tiny upper">#fui_clan_motto</div>
+				<input type="text" class="text" maxlength="80" data-value="clanform.motto"/>
+				<div class="field-label dimmer tiny upper">#fui_clan_emblem</div>
+				<div class="row emblems">
+					<div data-for="c : locker.classes" data-attr-class="'emblem' + (c.id == clanform.emblem ? ' on' : '')" sfx="class" data-event-click="set('clanform.emblem', c.id)">
+						<img data-attr-src="'tex:hud/leaderboard_class_' + (c.id == 'demoman' ? 'demo' : c.id)"/>
+					</div>
+				</div>
+				<div class="field-label dimmer tiny upper">#fui_clan_color</div>
+				<div class="row swatches">
+					<div class="swatch c-red" sfx="" data-class-on="clanform.color == 'red'" data-event-click="set('clanform.color', 'red')"></div>
+					<div class="swatch c-blu" sfx="" data-class-on="clanform.color == 'blu'" data-event-click="set('clanform.color', 'blu')"></div>
+					<div class="swatch c-gold" sfx="" data-class-on="clanform.color == 'gold'" data-event-click="set('clanform.color', 'gold')"></div>
+					<div class="swatch c-green" sfx="" data-class-on="clanform.color == 'green'" data-event-click="set('clanform.color', 'green')"></div>
+					<div class="swatch c-purple" sfx="" data-class-on="clanform.color == 'purple'" data-event-click="set('clanform.color', 'purple')"></div>
+					<div class="swatch c-teal" sfx="" data-class-on="clanform.color == 'teal'" data-event-click="set('clanform.color', 'teal')"></div>
+				</div>
+				<div data-attr-class="'check-row' + (clanform.open ? ' on' : '')" sfx="" data-event-click="toggle('clanform.open')">
+					<div class="lfg-box"><div class="tick" data-if="clanform.open"></div></div>
+					<span data-if="clanform.open">#fui_clan_open</span>
+					<span data-if="!clanform.open">#fui_clan_closed</span>
+				</div>
+				<div class="spacer"></div>
+				<div class="button primary found-button" sfx="play" data-event-click="cmd('clan_create')">#fui_clan_found</div>
+			</div>
+
+			<!-- Or join one -->
+			<div class="col list-col in2">
+				<div class="panel invites" data-if="clan.invites.size > 0">
+					<div class="panel-title">#fui_clan_invites</div>
+					<div class="clan-card invite" data-for="c : clan.invites">
+						<div data-attr-class="'banner small c-' + c.color">
+							<img data-attr-src="'tex:hud/leaderboard_class_' + (c.emblem == 'demoman' ? 'demo' : c.emblem)"/>
+						</div>
+						<div class="col grow">
+							<div class="row"><span data-attr-class="'clan-tag' + (c.gold ? ' gold' : '')">{{ c.tag }}</span><span class="cc-name">{{ c.name }}</span></div>
+							<div class="dim tiny">#fui_clan_level {{ c.level }} · {{ c.count }}/{{ c.cap }} · {{ c.online }} #fui_clan_online</div>
+						</div>
+						<div class="button primary small-button" sfx="" data-event-click="cmd('clan_join', c.id)">#fui_clan_accept</div>
+						<div class="button ghost small-button" sfx="" data-event-click="cmd('clan_decline', c.id)">#fui_clan_decline</div>
+					</div>
+				</div>
+				<div class="panel list grow">
+					<div class="panel-title">#fui_clan_list</div>
+					<div class="clan-list">
+						<div class="clan-card" data-for="c, i : clan.top">
+							<div class="cc-rank title">{{ i + 1 }}</div>
+							<div data-attr-class="'banner small c-' + c.color">
+								<img data-attr-src="'tex:hud/leaderboard_class_' + (c.emblem == 'demoman' ? 'demo' : c.emblem)"/>
+							</div>
+							<div class="col grow">
+								<div class="row"><span data-attr-class="'clan-tag' + (c.gold ? ' gold' : '')">{{ c.tag }}</span><span class="cc-name">{{ c.name }}</span></div>
+								<div class="dim tiny cc-motto" data-if="c.motto != ''">«{{ c.motto }}»</div>
+								<div class="row cc-stats">
+									<span class="cc-chip">#fui_clan_level {{ c.level }}</span>
+									<span class="cc-chip">{{ c.count }}/{{ c.cap }}</span>
+									<span class="cc-chip good" data-if="c.online > 0">{{ c.online }} #fui_clan_online</span>
+									<span class="cc-chip gold" data-if="c.wins > 0">{{ c.wins }} #fui_clan_wins</span>
+									<span class="cc-chip banner-chip" data-if="c.banner != ''"><span class="flag-pip"></span>{{ c.banner }}</span>
+								</div>
+							</div>
+							<div class="button primary small-button" sfx="" data-if="c.open && c.count &lt; c.cap" data-event-click="cmd('clan_join', c.id)">#fui_clan_join</div>
+							<div class="closed-note dimmer tiny upper" data-if="!c.open">#fui_clan_invite_only</div>
+						</div>
+						<div class="dim empty" data-if="clan.top.size == 0">#fui_clan_none_yet</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- What a clan unlocks -->
+			<div class="col perks-col preview panel in3">
+				<div class="panel-title">#fui_clan_perks <span class="sub">#fui_clan_perks_d</span></div>
+				<div class="perk preview-perk">
+					<div class="perk-level title">1</div>
+					<div class="col grow">
+						<div class="perk-name">#fui_clan_perk_tag</div>
+						<div class="perk-desc">#fui_clan_perk_tag_d</div>
+					</div>
+				</div>
+				<div class="perk preview-perk">
+					<div class="perk-level title">2</div>
+					<div class="col grow">
+						<div class="perk-name">#fui_clan_perk_brothers</div>
+						<div class="perk-desc">#fui_clan_perk_brothers_d</div>
+					</div>
+				</div>
+				<div class="perk preview-perk">
+					<div class="perk-level title">3</div>
+					<div class="col grow">
+						<div class="perk-name">#fui_clan_perk_banner</div>
+						<div class="perk-desc">#fui_clan_perk_banner_d</div>
+					</div>
+				</div>
+				<div class="perk preview-perk">
+					<div class="perk-level title">4</div>
+					<div class="col grow">
+						<div class="perk-name">#fui_clan_perk_contract</div>
+						<div class="perk-desc">#fui_clan_perk_contract_d</div>
+					</div>
+				</div>
+				<div class="perk preview-perk">
+					<div class="perk-level title">5</div>
+					<div class="col grow">
+						<div class="perk-name">#fui_clan_perk_order</div>
+						<div class="perk-desc">#fui_clan_perk_order_d</div>
+					</div>
+				</div>
+				<div class="perk preview-perk">
+					<div class="perk-level title">6</div>
+					<div class="col grow">
+						<div class="perk-name">#fui_clan_perk_roster</div>
+						<div class="perk-desc">#fui_clan_perk_roster_d</div>
+					</div>
+				</div>
+				<div class="perk preview-perk">
+					<div class="perk-level title">7</div>
+					<div class="col grow">
+						<div class="perk-name">#fui_clan_perk_veterans</div>
+						<div class="perk-desc">#fui_clan_perk_veterans_d</div>
+					</div>
+				</div>
+				<div class="perk preview-perk">
+					<div class="perk-level title">8</div>
+					<div class="col grow">
+						<div class="perk-name">#fui_clan_perk_gold</div>
+						<div class="perk-desc">#fui_clan_perk_gold_d</div>
+					</div>
+				</div>
+				<div class="perk preview-perk">
+					<div class="perk-level title">10</div>
+					<div class="col grow">
+						<div class="perk-name">#fui_clan_perk_legend</div>
+						<div class="perk-desc">#fui_clan_perk_legend_d</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Settings -->
+	<div class="modal-dim" data-if="ui.modal == 'clan_settings'">
+		<div class="modal clan-modal panel">
+			<div class="row">
+				<h2 class="shadow grow">#fui_clan_settings</h2>
+				<div class="icon-button" sfx="" data-event-click="set('ui.modal', '')">#fui_close</div>
+			</div>
+			<div class="field-label dimmer tiny upper">#fui_clan_motto</div>
+			<input type="text" class="text" maxlength="80" data-value="clanform.motto"/>
+			<div class="field-label dimmer tiny upper">#fui_clan_emblem</div>
+			<div class="row emblems">
+				<div data-for="c : locker.classes" data-attr-class="'emblem' + (c.id == clanform.emblem ? ' on' : '')" sfx="class" data-event-click="set('clanform.emblem', c.id)">
+					<img data-attr-src="'tex:hud/leaderboard_class_' + (c.id == 'demoman' ? 'demo' : c.id)"/>
+				</div>
+			</div>
+			<div class="field-label dimmer tiny upper">#fui_clan_color</div>
+			<div class="row swatches">
+				<div class="swatch c-red" sfx="" data-class-on="clanform.color == 'red'" data-event-click="set('clanform.color', 'red')"></div>
+				<div class="swatch c-blu" sfx="" data-class-on="clanform.color == 'blu'" data-event-click="set('clanform.color', 'blu')"></div>
+				<div class="swatch c-gold" sfx="" data-class-on="clanform.color == 'gold'" data-event-click="set('clanform.color', 'gold')"></div>
+				<div class="swatch c-green" sfx="" data-class-on="clanform.color == 'green'" data-event-click="set('clanform.color', 'green')"></div>
+				<div class="swatch c-purple" sfx="" data-class-on="clanform.color == 'purple'" data-event-click="set('clanform.color', 'purple')"></div>
+				<div class="swatch c-teal" sfx="" data-class-on="clanform.color == 'teal'" data-event-click="set('clanform.color', 'teal')"></div>
+			</div>
+			<div data-attr-class="'check-row' + (clanform.open ? ' on' : '')" sfx="" data-event-click="toggle('clanform.open')">
+				<div class="lfg-box"><div class="tick" data-if="clanform.open"></div></div>
+				<span data-if="clanform.open">#fui_clan_open</span>
+				<span data-if="!clanform.open">#fui_clan_closed</span>
+			</div>
+			<div class="row mf-buttons">
+				<div class="button primary" sfx="" data-event-click="cmd('clan_settings')">#fui_clan_save</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Leave -->
+	<div class="modal-dim" data-if="ui.modal == 'clan_leave'">
+		<div class="modal clan-modal small panel">
+			<h2 class="shadow">#fui_clan_leave_q</h2>
+			<p class="dim">#fui_clan_leave_body</p>
+			<div class="row mf-buttons">
+				<div class="button danger" sfx="" data-event-click="cmd('clan_leave')">#fui_clan_leave</div>
+				<div class="button primary" sfx="" data-event-click="set('ui.modal', '')">#fui_support_keep</div>
+			</div>
+		</div>
+	</div>
+</div>
+</body>
+</rml>

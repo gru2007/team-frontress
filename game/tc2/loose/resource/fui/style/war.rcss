@@ -1,0 +1,379 @@
+/* War: the planet fills the screen; the panels float over it. */
+
+.space {
+	position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+	decorator: radial-gradient(circle farthest-corner at 50% 55%, #2a1a12 0%, #120c09 45%, #050403 100%);
+}
+#planet {
+	display: block;
+	position: absolute;
+	left: 0; top: 0; right: 0; bottom: 0;
+	cursor: move;
+	drag: drag;
+}
+.vignette {
+	position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+	pointer-events: none;
+	decorator: linear-gradient(to right, #050403d0 0%, #05040300 26%, #05040300 72%, #050403d0 100%);
+}
+
+/* War-room glass. */
+.glass {
+	decorator: linear-gradient(to bottom, #1d1510e8, #0f0b08ee);
+	border: 1dp #6a544266;
+	border-top-color: #b8935f88;
+	border-radius: 12dp;
+	padding: 14dp 16dp;
+}
+
+#no-war { position: absolute; left: 50%; top: 40%; width: 640dp; margin-left: -320dp; text-align: center; }
+
+/* --- The campaign --- */
+#campaign { position: absolute; left: 40dp; top: 104dp; width: 400dp; }
+#campaign h1 { font-size: 40dp; line-height: 44dp; margin: 2dp 0 10dp 0; }
+.tug-bar {
+	position: relative;
+	height: 12dp;
+	border-radius: 6dp;
+	border: 1dp #00000099;
+	decorator: linear-gradient(to right, #2f5679, #6aa2d8);
+}
+.tug-fill {
+	position: absolute; left: 0; top: 0; bottom: 0;
+	border-radius: 6dp 0 0 6dp;
+	decorator: linear-gradient(to right, #8e2a26, #e2564d);
+	transition: width 0.8s cubic-out;
+}
+.tug-mid { position: absolute; left: 50%; top: -3dp; bottom: -3dp; width: 2dp; background-color: #ffffff60; }
+.tug-labels { margin-top: 6dp; }
+.tug-red { font-family: "TF2 Build"; color: #ef6a5c; font-size: 15dp; }
+.tug-blu { font-family: "TF2 Build"; color: #8fbde9; font-size: 15dp; }
+
+#war-stats { position: absolute; right: 40dp; top: 104dp; }
+.stat { margin-left: 30dp; text-align: right; }
+.stat-num { font-family: "TF2 Build"; font-size: 34dp; line-height: 38dp; color: #ffc93c; font-effect: shadow(2dp 2dp #000000aa); }
+.stat-of { font-size: 20dp; color: #b8ab92; }
+
+/* --- Left: the main push and the operations --- */
+#war-left { position: absolute; left: 40dp; top: 268dp; width: 400dp; }
+#war-left > * { margin-bottom: 12dp; }
+.order { position: relative; cursor: pointer; border-left: 5dp #ffc93c; margin-bottom: 12dp; }
+.order.red { border-left-color: #d6463d; }
+.order.blu { border-left-color: #5b8fbf; }
+.order:hover { border-color: #ffc93caa; }
+.order-kicker {
+	font-family: "TF2 Build";
+	font-size: 14dp;
+	color: #ffc93c;
+	text-transform: uppercase;
+	letter-spacing: 1dp;
+	align-items: center;
+}
+.order-icon {
+	display: block;
+	width: 20dp; height: 20dp;
+	margin-right: 8dp;
+	border-radius: 4dp;
+	background-color: #ffc93c;
+	color: #2a1a05;
+	text-align: center;
+	line-height: 20dp;
+	transform: rotate(45deg);
+}
+.order-title { font-family: "TF2 Build"; font-size: 26dp; line-height: 30dp; color: #fff4e8; margin: 6dp 0 2dp 0; }
+.lib { margin: 10dp 0 4dp 0; align-items: center; }
+.lib-bar { height: 10dp; border-radius: 5dp; background-color: #00000099; border: 1dp #ffffff18; }
+.lib-fill { height: 100%; border-radius: 5dp; decorator: linear-gradient(to right, #ffb623, #ffe066); }
+.order.red .lib-fill { decorator: linear-gradient(to right, #8e2a26, #ef6a5c); }
+.order.blu .lib-fill { decorator: linear-gradient(to right, #2f5679, #7fb2e5); }
+.lib-pct { font-family: "TF2 Build"; font-size: 18dp; color: #fff4e8; margin-left: 10dp; }
+
+.ops { padding: 12dp 12dp 6dp 12dp; }
+.op {
+	align-items: center;
+	padding: 8dp 10dp;
+	margin-bottom: 6dp;
+	border-radius: 8dp;
+	background-color: #00000044;
+	border: 1dp #ffffff0c;
+	cursor: pointer;
+	gap: 10dp;
+}
+.op:hover { background-color: #ffffff10; }
+.op.selected { background-color: #ffc93c18; border-color: #ffc93c99; }
+.op-name { font-family: "TF2 Build"; font-size: 17dp; color: #fff4e8; margin-bottom: 4dp; }
+.side-tag { font-family: "TF2 Build"; font-size: 13dp; padding: 2dp 7dp; border-radius: 5dp; color: #fff4e8; }
+.side-tag.red { background-color: #b8382f; }
+.side-tag.blu { background-color: #3f6f9c; }
+.pips { gap: 4dp; }
+.pip { flex: 1 1 0; height: 5dp; border-radius: 3dp; background-color: #ffffff1a; }
+.op.red .pip.done { background-color: #d6463d; }
+.op.blu .pip.done { background-color: #5b8fbf; }
+.pip.now { background-color: #ffc93c; animation: 1.2s sine-in-out infinite alternate pip-glow; }
+@keyframes pip-glow { from { opacity: 0.55; } to { opacity: 1; } }
+.op-count { font-size: 14dp; color: #d8cdb4; white-space: nowrap; }
+.dot { display: inline-block; width: 7dp; height: 7dp; border-radius: 4dp; background-color: #8fd16a; margin-right: 6dp; vertical-align: middle; }
+
+.how { padding: 12dp 14dp 4dp 14dp; background-color: #00000000; decorator: linear-gradient(to bottom, #120d0ab0, #0d0907c0); }
+.how-step { align-items: flex-start; margin-bottom: 8dp; color: #b8ab92; }
+.how-num {
+	width: 20dp; height: 20dp;
+	margin-right: 10dp;
+	border-radius: 10dp;
+	background-color: #ffc93c;
+	color: #2a1a05;
+	font-family: "TF2 Build";
+	font-size: 13dp;
+	line-height: 20dp;
+	text-align: center;
+}
+
+/* --- Sector markers: placed by <warmap> on the planet --- */
+.sector { position: absolute; width: 0; height: 0; cursor: pointer; }
+.card {
+	position: absolute;
+	left: -38dp; top: -25dp;
+	width: 76dp; height: 50dp;
+	transition: transform 0.15s cubic-out;
+}
+.sector:hover .card, .sector.hovered .card { transform: scale(1.1); }
+.sector.selected .card { transform: scale(1.22); }
+.ring {
+	position: absolute;
+	left: 0; top: 0; width: 76dp; height: 50dp;
+	border-radius: 9dp;
+	background-color: #c8413b;
+	border: 2dp #120d0a;
+}
+.sector.blu .ring { background-color: #4a7fae; }
+.sector.target .ring { background-color: #ffc93c; }
+.sector.selected .ring { background-color: #fff4e8; }
+.thumb { position: absolute; left: 4dp; top: 4dp; width: 68dp; height: 42dp; border-radius: 6dp; }
+.sector.hq .card { left: -46dp; top: -30dp; width: 92dp; height: 60dp; }
+.sector.hq .ring { width: 92dp; height: 60dp; }
+.sector.hq .thumb { width: 84dp; height: 52dp; }
+.emblem {
+	position: absolute; left: -12dp; top: -12dp;
+	width: 28dp; height: 28dp;
+	border-radius: 14dp;
+	border: 2dp #120d0a;
+	background-color: #c8413b;
+	font-family: "TF2 Build";
+	font-size: 17dp;
+	line-height: 24dp;
+	text-align: center;
+	color: #fff4e8;
+}
+.sector.blu .emblem { background-color: #4a7fae; }
+.stage-tag {
+	position: absolute;
+	left: -8dp; top: -10dp;
+	padding: 1dp 6dp;
+	border-radius: 8dp;
+	font-family: "TF2 Build";
+	font-size: 12dp;
+	color: #fff4e8;
+	border: 2dp #120d0a;
+}
+.stage-tag.red { background-color: #c8413b; }
+.stage-tag.blu { background-color: #4a7fae; }
+.pulse {
+	position: absolute;
+	left: -50dp; top: -36dp;
+	width: 100dp; height: 72dp;
+	border-radius: 16dp;
+	border: 3dp #ffc93c;
+	animation: 1.6s cubic-out infinite pulse-ring;
+}
+@keyframes pulse-ring {
+	from { transform: scale(0.8); opacity: 1; }
+	to { transform: scale(1.3); opacity: 0; }
+}
+/* Names wrap onto two short lines on a dark plate, so neighbours do not run
+   into each other; the sector under the cursor or picked comes to the top. */
+.sector.hovered, .sector.selected { z-index: 5; }
+.plate { position: absolute; left: -62dp; top: 28dp; width: 124dp; text-align: center; }
+.sector.hq .plate { top: 33dp; }
+.plate span {
+	font-family: "TF2 Build";
+	font-size: 13dp;
+	line-height: 15dp;
+	color: #fff4e8;
+	text-transform: uppercase;
+	padding: 1dp 5dp;
+	border-radius: 4dp;
+	background-color: #120d0ab8;
+}
+.sector.selected .plate span, .sector.hovered .plate span { color: #ffc93c; background-color: #120d0ae8; }
+.players { position: absolute; left: 41dp; top: -9dp; width: 60dp; text-align: left; font-size: 12dp; color: #d8cdb4; font-effect: outline(2dp #120d0a); }
+.sector.hq .players { left: 49dp; }
+
+/* --- Right: the chosen sector --- */
+#war-right { position: absolute; right: 40dp; top: 170dp; width: 400dp; }
+.dossier { padding: 0 0 16dp 0; overflow: hidden; }
+.card-art { position: relative; height: 160dp; border-radius: 12dp 12dp 0 0; }
+.art-fade { position: absolute; left: 0; right: 0; bottom: 0; height: 90dp; decorator: linear-gradient(to bottom, #0f0b0800, #0f0b08f2); }
+.art-chips { position: absolute; left: 14dp; top: 14dp; gap: 6dp; }
+.card-title { margin: 8dp 18dp 2dp 18dp; font-size: 30dp; line-height: 34dp; }
+.pad { margin: 0 18dp; }
+.op-detail, .quiet { padding: 6dp 18dp 0 18dp; }
+.stages { gap: 6dp; margin: 12dp 0 10dp 0; }
+.stage { flex: 1 1 0; }
+.stage-bar { height: 9dp; border-radius: 5dp; background-color: #ffffff18; }
+.stage.done.red .stage-bar { background-color: #d6463d; }
+.stage.done.blu .stage-bar { background-color: #5b8fbf; }
+.stage.now .stage-bar { background-color: #ffc93c; animation: 1.2s sine-in-out infinite alternate pip-glow; }
+.stage-name { margin-top: 5dp; font-size: 12dp; color: #8a7d68; text-transform: uppercase; text-align: center; }
+.stage.done .stage-name { color: #cfc4ad; }
+.stage.now .stage-name { color: #ffc93c; font-family: "TF2 Build"; }
+.next { padding: 10dp 12dp; border-radius: 8dp; background-color: #00000066; align-items: center; }
+.next-mode { font-family: "TF2 Build"; font-size: 19dp; color: #fff4e8; }
+.fact { margin-left: 14dp; text-align: center; }
+.fact-num { font-family: "TF2 Build"; font-size: 22dp; color: #ffc93c; }
+.stakes { margin: 10dp 0 2dp 0; }
+.stake { align-items: flex-start; margin-bottom: 6dp; color: #cfc4ad; }
+.stake-mark {
+	display: block;
+	width: 20dp; height: 20dp;
+	margin-right: 10dp;
+	border-radius: 10dp;
+	text-align: center;
+	font-family: "TF2 Build";
+	font-size: 16dp;
+	line-height: 20dp;
+	color: #120d0a;
+}
+.stake.good .stake-mark { background-color: #8fd16a; }
+.stake.bad .stake-mark { background-color: #ef5a4c; }
+.deploy { display: block; margin-top: 12dp; text-align: center; font-size: 21dp; }
+.center { text-align: center; margin-top: 8dp; }
+.quiet p { margin: 8dp 0 4dp 0; }
+
+/* --- Bottom: the report, the legend --- */
+#ticker {
+	position: absolute;
+	left: 40dp; right: 40dp; bottom: 52dp;
+	height: 44dp;
+	padding: 0 14dp;
+	border-radius: 10dp;
+	background-color: #0d0907d8;
+	border: 1dp #6a544255;
+	align-items: center;
+	overflow: hidden;
+}
+.ticker-title {
+	font-family: "TF2 Build";
+	font-size: 15dp;
+	color: #ffc93c;
+	text-transform: uppercase;
+	padding-right: 14dp;
+	margin-right: 14dp;
+	border-right: 2dp #ffc93c66;
+	white-space: nowrap;
+}
+.ticker-items { overflow: hidden; white-space: nowrap; }
+.event { flex: 0 0 auto; align-items: center; margin-right: 26dp; cursor: pointer; white-space: nowrap; }
+.event:hover .ev-text { color: #ffc93c; }
+.ev-text { font-size: 15dp; }
+.ev-ago { font-size: 12dp; margin-left: 8dp; }
+.side-dot { display: block; width: 9dp; height: 9dp; border-radius: 5dp; margin-right: 8dp; background-color: #8a7d68; }
+.side-dot.red { background-color: #d6463d; }
+.side-dot.blu { background-color: #5b8fbf; }
+
+#legend { position: absolute; left: 48dp; bottom: 18dp; gap: 22dp; font-size: 13dp; color: #b8ab92; }
+.lg { display: inline; }
+.sw { display: inline-block; width: 16dp; height: 11dp; margin-right: 7dp; border-radius: 3dp; }
+.sw.red { background-color: #b8473a; }
+.sw.blu { background-color: #4f7fae; }
+.sw.line { height: 4dp; margin-bottom: 3dp; background-color: #f6e4c4; }
+.sw.arrow { height: 6dp; margin-bottom: 2dp; decorator: linear-gradient(to right, #de523c00, #de523c); }
+
+/* --- Momentum, conditions, battles under way --- */
+.order-xp { font-family: "TF2 Build"; font-size: 13dp; padding: 2dp 8dp; border-radius: 6dp; background-color: #ffc93c; color: #2a1a05; letter-spacing: 0; }
+.mom-label { font-size: 12dp; color: #8a7d68; text-transform: uppercase; margin-right: 6dp; }
+.mom { display: inline-block; width: 9dp; height: 9dp; margin-left: 3dp; border-radius: 2dp; background-color: #ffffff20; transform: rotate(45deg); }
+.mom.left { background-color: #ffc93c; }
+.mom.big { width: 12dp; height: 12dp; margin-left: 6dp; }
+.op-side { align-items: flex-end; gap: 4dp; }
+.mom-row { justify-content: flex-end; }
+.mom-detail { align-items: center; margin: 2dp 0 10dp 0; }
+
+.conds { margin-bottom: 10dp; }
+.cond { align-items: center; gap: 8dp; margin-top: 5dp; }
+.cond-chip {
+	padding: 2dp 8dp;
+	border-radius: 9dp;
+	background-color: #3a2a1e;
+	border: 1dp #ffc93c66;
+	font-size: 12dp;
+	color: #ffe0a0;
+	white-space: nowrap;
+}
+
+.live { padding: 12dp 12dp 6dp 12dp; }
+.battle {
+	align-items: center;
+	gap: 10dp;
+	padding: 7dp 8dp;
+	margin-bottom: 6dp;
+	border-radius: 8dp;
+	background-color: #00000044;
+	border-left: 4dp #ffc93c;
+	cursor: pointer;
+}
+.battle.red { border-left-color: #d6463d; }
+.battle.blu { border-left-color: #5b8fbf; }
+.battle:hover { background-color: #ffffff10; }
+.battle-thumb { position: relative; width: 64dp; height: 40dp; border-radius: 6dp; }
+.live-dot {
+	position: absolute; left: 4dp; top: 4dp;
+	width: 8dp; height: 8dp; border-radius: 4dp;
+	background-color: #ff4a3a;
+	animation: 0.8s sine-in-out infinite alternate pip-glow;
+}
+.battle-title { font-family: "TF2 Build"; font-size: 15dp; color: #fff4e8; }
+.battle-conds { gap: 4dp; margin-top: 3dp; flex-wrap: wrap; }
+.battle-side { align-items: flex-end; }
+.battle-time { font-family: "TF2 Build"; font-size: 17dp; color: #ffc93c; }
+
+.fight {
+	position: absolute;
+	left: -44dp; top: -46dp;
+	width: 88dp;
+	text-align: center;
+	font-family: "TF2 Build";
+	font-size: 12dp;
+	color: #fff4e8;
+	font-effect: outline(2dp #120d0a);
+}
+.fight-dot {
+	display: inline-block; width: 8dp; height: 8dp; margin-right: 4dp; border-radius: 4dp;
+	background-color: #ff4a3a;
+	animation: 0.8s sine-in-out infinite alternate pip-glow;
+}
+.live { max-height: 268dp; overflow-y: auto; }
+.battle-thumb { width: 56dp; height: 36dp; }
+
+/* A clan's banner over the sector it fought hardest for. */
+.clan-flag { position: absolute; left: -34dp; top: -78dp; width: 60dp; height: 60dp; pointer-events: none; }
+.clan-flag .pole { position: absolute; left: 0; top: 0; width: 3dp; height: 52dp; background-color: #d8cdb4; }
+.clan-flag .cloth {
+	position: absolute;
+	left: 3dp; top: 2dp;
+	padding: 3dp 8dp 3dp 6dp;
+	font-family: "TF2 Build";
+	font-size: 13dp;
+	color: #fff8ec;
+	border-radius: 0 6dp 6dp 0;
+	font-effect: outline(1dp #00000088);
+	animation: 1.4s sine-in-out infinite alternate flutter;
+}
+@keyframes flutter { from { transform: skewY(-4deg); } to { transform: skewY(4deg); } }
+.clan-flag.c-red .cloth { background-color: #c8413b; }
+.clan-flag.c-blu .cloth { background-color: #4a7fae; }
+.clan-flag.c-gold .cloth { background-color: #d9a21c; }
+.clan-flag.c-green .cloth { background-color: #4d8a35; }
+.clan-flag.c-purple .cloth { background-color: #7a4aa6; }
+.clan-flag.c-teal .cloth { background-color: #2f8c83; }
+.banner-line { gap: 12dp; margin: 6dp 16dp 4dp 16dp; padding: 8dp 10dp; border-radius: 10dp; background-color: #ffffff0a; }
+.banner-line .clan-tag { font-size: 12dp; }

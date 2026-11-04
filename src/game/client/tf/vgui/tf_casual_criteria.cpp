@@ -5,7 +5,7 @@
 //=============================================================================//
 #include "cbase.h"
 
-#include "frontress/tf_mm_backend.h"
+#include "frontress/tf_gc_status.h"
 
 #include "tf_party.h"
 #include "tf_casual_criteria.h"
@@ -43,7 +43,7 @@ using namespace vgui;
 static bool BCategoryHasOfferedMaps( const SchemaGameCategory_t *pCategory )
 {
 	const CUtlVector< CUtlString > *pPool =
-		TFMMBackend()->GetGroupMaps( k_eTFMatchGroup_Casual_12v12 );
+		TFGCStatus()->GetGroupMaps( k_eTFMatchGroup_Casual_12v12 );
 	if ( !pPool )
 		return true;
 
@@ -131,7 +131,7 @@ public:
 			// hosts means the player picks it, queues, and gets something
 			// else -- the list has to mean what it says.
 			const CUtlVector< CUtlString > *pPool =
-				TFMMBackend()->GetGroupMaps( k_eTFMatchGroup_Casual_12v12 );
+				TFGCStatus()->GetGroupMaps( k_eTFMatchGroup_Casual_12v12 );
 			if ( pPool )
 			{
 				FOR_EACH_VEC_BACK( vecSortedMaps, iMap )
@@ -320,7 +320,7 @@ void CCasualCriteriaPanel::OnThink()
 	// The coordinator's map pools arrive on a poll, long after this list was
 	// first built. Rebuild when they change, or it keeps showing what it knew
 	// before the answer came.
-	const uint32 nMapPoolGeneration = TFMMBackend()->GetMapPoolGeneration();
+	const uint32 nMapPoolGeneration = TFGCStatus()->GetMapPoolGeneration();
 	if ( nMapPoolGeneration != m_nMapPoolGeneration )
 	{
 		m_nMapPoolGeneration = nMapPoolGeneration;

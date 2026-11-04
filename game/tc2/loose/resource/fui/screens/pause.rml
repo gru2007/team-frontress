@@ -1,0 +1,61 @@
+<rml>
+<!-- The game menu in a match (Esc). The match goes on behind it. -->
+<head>
+	<title>Pause</title>
+	<link type="text/rcss" href="../style/base.rcss"/>
+	<link type="text/rcss" href="../style/ingame.rcss"/>
+</head>
+<body>
+<div class="root" data-model="fr" data-class-world="app.world">
+	<div class="world-standin game-still" data-if="app.preview"></div>
+	<div class="pause-dim"></div>
+	<div id="pause-menu" class="inl">
+		<div class="logo-small">Team</div>
+		<div class="logo-big">Frontress</div>
+		<div class="menu-list">
+			<div class="menu-item primary" sfx="" data-event-click="cmd('resume')"><span class="kbd">Esc</span>#fui_resume</div>
+			<div class="menu-item" sfx="" data-event-click="cmd('changeclass')"><span class="kbd">,</span>#fui_change_class</div>
+			<div class="menu-item" sfx="" data-event-click="cmd('changeteam')"><span class="kbd">.</span>#fui_change_team</div>
+			<div class="menu-item" sfx="" data-event-click="nav('locker')">#fui_tab_locker</div>
+			<div class="menu-item" sfx="" data-event-click="nav('quests')">#fui_tab_quests</div>
+			<div class="menu-item" sfx="" data-event-click="cmd('classic', 'vote')">#fui_vote</div>
+			<div class="menu-item" sfx="" data-event-click="cmd('classic', 'mute')">#fui_mute</div>
+			<div class="menu-item" sfx="" data-event-click="cmd('open_settings')">#fui_settings</div>
+			<div class="menu-gap"></div>
+			<div class="menu-item danger" sfx="" data-event-click="cmd('disconnect')">#fui_disconnect</div>
+		</div>
+	</div>
+
+	<div id="match-card" class="in1" data-if="match.active">
+		<div class="match-art" data-style-decorator="'image(tex:' + match.image + ' cover center top)'">
+			<div class="match-shade"></div>
+			<div class="match-title">
+				<div class="dim tiny upper">#fui_now_playing</div>
+				<h2 class="shadow">{{ match.map }}</h2>
+			</div>
+		</div>
+		<div class="row scoreline">
+			<div class="score red-score">{{ match.red }}</div>
+			<div class="col grow score-mid">
+				<div class="you-on" data-if="match.team == 'red'"><span class="red">#fui_you_red</span></div>
+				<div class="you-on" data-if="match.team == 'blu'"><span class="blu">#fui_you_blu</span></div>
+				<div class="dim small" data-if="match.class != ''">{{ ('fui_class_' + match.class) | t }}</div>
+			</div>
+			<div class="score blu-score">{{ match.blu }}</div>
+		</div>
+	</div>
+
+	<div id="pause-quests" class="panel in2" data-if="quests.total > 0">
+		<div class="panel-title">#fui_quests_today</div>
+		<div class="mini-quest" data-for="q : quests.daily" data-class-done="q.done">
+			<div class="row">
+				<div class="grow small">{{ ('fui_q_' + q.kind) | t(q.target, '#fui_class_' + q.class) }}</div>
+				<div class="tiny dim">{{ q.progress | thousands }}/{{ q.target | thousands }}</div>
+			</div>
+			<div class="bar"><div class="fill" data-style-width="(q.frac * 100) + '%'"></div></div>
+		</div>
+		<div class="dimmer tiny">#fui_quests_after_match</div>
+	</div>
+</div>
+</body>
+</rml>

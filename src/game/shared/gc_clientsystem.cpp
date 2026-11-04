@@ -25,9 +25,9 @@
 
 #ifdef TF_CLIENT_DLL
 #include "secure_command_line.h"
-#include "frontress/tf_mm_backend.h"
-#elif defined( TF_DLL )
-#include "frontress/tf_mm_server.h"
+#endif
+#if defined( TF_CLIENT_DLL ) || defined( TF_DLL )
+#include "frontress_gc.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -142,27 +142,6 @@ bool CGCClientSystem::BSendMessage( const GCSDK::CGCMsgBase& msg )
 //-----------------------------------------------------------------------------
 bool CGCClientSystem::BSendMessage( const GCSDK::CProtoBufMsgBase& msg )									
 { 
-#if defined( TF_CLIENT_DLL ) || defined( TF_DLL )
-	// There is no Valve GC. The matchmaking backend answers the messages it
-	// knows in-process; the rest still go to the (absent) GC, which is how
-	// anything we have not implemented stays visibly unimplemented rather than
-	// silently swallowed.
-	::google::protobuf::Message *pBody = msg.GetGenericBody();
-#ifdef TF_CLIENT_DLL
-	if ( pBody && TFMMBackend()->BActive() &&
-	     TFMMBackend()->BHandleClientMsg( msg.GetEMsg(), *pBody, NULL ) )
-	{
-		return true;
-	}
-#else
-	if ( pBody && TFMMServer()->BActive() &&
-	     TFMMServer()->BHandleServerMsg( msg.GetEMsg(), *pBody, NULL ) )
-	{
-		return true;
-	}
-#endif
-#endif
-
 	return m_GCClient.BSendMessage( msg );
 }
 
@@ -435,6 +414,9 @@ void CGCClientSystem::LevelShutdownPostEntity()
 void CGCClientSystem::Shutdown()
 {
 	// Shutdown the GC.
+#if defined( TF_CLIENT_DLL ) || defined( TF_DLL )
+	FrontressGC()->Shutdown();
+#endif
 	m_GCClient.Uninit();
 
 	// Reset the init flag.
@@ -477,7 +459,13 @@ void CGCClientSystem::InitGC()
 	if ( m_bInittedGC )
 		return;
 
+#if defined( TF_CLIENT_DLL ) || defined( TF_DLL )
+	// Our own game coordinator. Everything gcsdk sends goes through it, and
+	// everything the GC sends comes back into gcsdk through it.
+	m_GCClient.BInit( FrontressGC() );
+#else
 	m_GCClient.BInit( nullptr );
+#endif
 	m_bInittedGC = true;
 }
 
@@ -526,13 +514,24 @@ void CGCClientSystem::ThinkConnection()
 			SetupGC();
 		}
 
-
+#if defined( TF_CLIENT_DLL ) || defined( TF_DLL )
+		// "Connected to the GC" means our coordinator session is up. The
+		// whole matchmaking UI, and the reliable message queue, gate on it.
+		FrontressGC()->Think();
+		if ( FrontressGC()->BConnected() != m_bConnectedToGC )
+		{
+			SetConnectedToGC( FrontressGC()->BConnected() );
+		}
+#endif
 	}
 	else
 	{
 
 		// We're not logged on.  Clear all connection state flags
 		m_bLoggedOn = false;
+#if defined( TF_CLIENT_DLL ) || defined( TF_DLL )
+		FrontressGC()->Think(); // notices it should not have a session
+#endif
 		SetConnectedToGC( false );
 		m_timeLastSendHello = -999.9;
 	}

@@ -1,0 +1,171 @@
+<rml>
+<!-- The Frontress HUD.
+
+     Bottom left: health, with the class and the overheal on top of it.
+     Bottom right: the weapon in hand and its ammo; a medic's ÜberCharge.
+     Top: the score, the clock and the objective (points, the cart, flags).
+     Top right: the kill feed. Left: the quest tracker. Centre: who killed
+     you and when you are back.
+
+     data-replaces names the game's HUD parts this file draws itself, so
+     they stay hidden while it is up: health ammo medic objective killfeed.
+     Everything here reads "hud" (schema.json); see huds/README.md to make
+     your own. -->
+<head>
+	<title>HUD</title>
+	<link type="text/rcss" href="../../style/base.rcss"/>
+	<link type="text/rcss" href="hud.rcss"/>
+</head>
+<body id="hud" data-replaces="health ammo medic objective killfeed">
+<div class="root" data-model="fr" data-class-world="app.world">
+	<div class="world-standin game-still" data-if="app.preview"></div>
+	<div class="hud" data-if="hud.visible" data-class-team-blu="hud.team == 'blu'">
+
+		<!-- The match: score, clock, objective. BLU on the left, as TF2 has it. -->
+		<div id="match" data-if="hud.mode != ''">
+			<div id="scorebar" class="row">
+				<div class="team-score blu-side"><span>{{ hud.score_blu }}</span></div>
+				<div class="clock" data-class-hurry="hud.timer >= 0 && hud.timer <= 30" data-class-none="hud.timer < 0">
+					<div class="clock-time">{{ hud.timer >= 0 ? (hud.timer | clock) : '—' }}</div>
+					<div class="clock-note" data-if="hud.setup">#fui_hud_setup</div>
+					<div class="clock-note hot" data-if="hud.overtime">#fui_hud_overtime</div>
+					<div class="clock-note" data-if="hud.waiting">#fui_hud_waiting</div>
+				</div>
+				<div class="team-score red-side"><span>{{ hud.score_red }}</span></div>
+			</div>
+
+			<!-- Control points (and King of the Hill: the hill between the clocks) -->
+			<div id="points" class="row" data-if="hud.mode == 'cp' || hud.mode == 'koth'">
+				<div class="koth-clock blu-side" data-if="hud.mode == 'koth'">{{ hud.koth_blu | clock }}</div>
+				<div class="cp" data-for="p, i : hud.points" data-class-capping="p.capping != ''" data-class-locked="p.locked"
+					data-class-red="p.owner == 'red'" data-class-blu="p.owner == 'blu'">
+					<div class="cp-disc"><span>{{ i + 1 }}</span></div>
+					<div class="cp-cap" data-if="p.capping != ''">
+						<div class="cp-fill" data-class-red="p.capping == 'red'" data-class-blu="p.capping == 'blu'" data-style-width="(p.frac * 100) + '%'"></div>
+					</div>
+					<div class="cp-cappers" data-if="p.cappers > 1">×{{ p.cappers }}</div>
+				</div>
+				<div class="koth-clock red-side" data-if="hud.mode == 'koth'">{{ hud.koth_red | clock }}</div>
+			</div>
+
+			<!-- Payload: the track, the cart on it, its speed -->
+			<div id="cart" data-if="hud.mode == 'pl' && hud.cart.progress >= 0">
+				<div class="track">
+					<div class="track-done" data-style-width="(hud.cart.progress * 100) + '%'"></div>
+					<div class="track-cp" data-for="p, i : hud.points"
+						data-style-left="((i + 1) * 100 / hud.points.size) + '%'"
+						data-class-taken="p.owner == hud.cart.team"></div>
+					<div class="cart-marker" data-style-left="(hud.cart.progress * 100) + '%'"
+						data-class-back="hud.cart.speed < 0">
+						<span data-if="hud.cart.speed > 0">{{ hud.cart.speed == 1 ? '›' : (hud.cart.speed == 2 ? '››' : '›››') }}</span>
+					</div>
+				</div>
+			</div>
+
+			<!-- A war battle: what it is for, and what it is fought under -->
+			<div id="war-banner" data-if="hud.war.active" data-class-attacking="hud.war.attacking">
+				<div class="wb-row row">
+					<span class="wb-tag">#fui_hud_war</span>
+					<span class="wb-sector">{{ hud.war.sector }}</span>
+					<span class="wb-stage">{{ 'fui_war_stage_of' | t(hud.war.stage, hud.war.stages) }} · {{ ('#fui_stage_' + hud.war.kind) | t }}</span>
+					<span class="wb-role">{{ (hud.war.attacking ? 'fui_hud_war_attack' : 'fui_hud_war_defend') | t }}</span>
+					<span class="wb-order" data-if="hud.war.order">#fui_hud_war_order</span>
+				</div>
+				<div class="wb-conds row" data-if="hud.war.conditions.size > 0">
+					<span class="wb-cond" data-for="c : hud.war.conditions">{{ ('#fui_cond_' + c) | t }}</span>
+				</div>
+			</div>
+
+			<!-- Capture the flag: where each intelligence is -->
+			<div id="flags" class="row" data-if="hud.mode == 'ctf'">
+				<div class="flag" data-for="f : hud.flags" data-class-red="f.team == 'red'" data-class-blu="f.team == 'blu'"
+					data-class-stolen="f.status == 'stolen'" data-class-dropped="f.status == 'dropped'">
+					<span class="flag-team">{{ f.team == 'red' ? 'RED' : 'BLU' }}</span>
+					<span class="flag-state">{{ ('#fui_hud_flag_' + f.status) | t }}</span>
+					<div class="flag-return" data-if="f.status == 'dropped'"><div class="fill" data-style-width="(f.return * 100) + '%'"></div></div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Kill feed -->
+		<div id="killfeed">
+			<div class="kill" data-for="k : hud.kills" data-class-me="k.me" data-class-crit="k.crit">
+				<span class="kname" data-if="k.killer != ''" data-class-blu="k.killer_team == 'blu'">{{ k.killer }}</span>
+				<span class="kassist" data-if="k.assist != ''" data-class-blu="k.killer_team == 'blu'">+ {{ k.assist }}</span>
+				<img class="kicon" data-attr-src="k.icon"/>
+				<span class="kname" data-class-blu="k.victim_team == 'blu'">{{ k.victim }}</span>
+			</div>
+		</div>
+
+		<!-- Quests -->
+		<div id="tracker" data-if="quests.total > 0 && quests.done < quests.total">
+			<div class="tracker-title">#fui_tab_quests <span class="dimmer">{{ quests.done }}/{{ quests.total }}</span></div>
+			<div class="track-q" data-for="q : quests.daily" data-if="!q.done">
+				<div class="track-text">{{ ('fui_q_' + q.kind) | t(q.target, '#fui_class_' + q.class) }}</div>
+				<div class="row">
+					<div class="bar grow"><div class="fill" data-style-width="(q.frac * 100) + '%'"></div></div>
+					<div class="track-count">{{ q.progress | thousands }}/{{ q.target | thousands }}</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Dead: by whom, and how long until we are back -->
+		<div id="dead" data-if="!hud.alive && hud.respawn >= 0">
+			<div class="dead-by" data-if="hud.killed_by != ''">{{ 'fui_hud_killed_by' | t(hud.killed_by) }}</div>
+			<div class="dead-in">{{ hud.respawn > 0 ? ('fui_hud_respawn_in' | t(hud.respawn)) : ('fui_hud_respawn_now' | t) }}</div>
+		</div>
+
+		<!-- Health -->
+		<div id="vitals" class="row" data-if="hud.alive" data-class-low="hud.low" data-class-over="hud.overheal > 0">
+			<div class="vitals-bg"></div>
+			<div class="portrait" data-style-decorator="'image(tex:hud/class_' + (hud.class == 'demoman' ? 'demo' : (hud.class == 'engineer' ? 'engi' : hud.class)) + (hud.team == 'blu' ? 'blue' : 'red') + ' contain)'"></div>
+			<div class="col grow">
+				<div class="row hp-row">
+					<span class="hp-cross">+</span>
+					<span class="hp-num">{{ hud.health }}</span>
+					<span class="hp-max">/ {{ hud.max }}</span>
+				</div>
+				<div class="hp-bar">
+					<div class="hp-fill" data-style-width="(hud.frac * 100) + '%'"></div>
+					<div class="hp-over" data-style-width="(hud.overheal * 100) + '%'"></div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Weapon and ammo -->
+		<div id="arms" data-if="hud.alive">
+			<div id="uber" data-if="hud.charge >= 0" data-class-ready="hud.charge_ready">
+				<div class="row">
+					<span class="uber-label">#fui_hud_uber</span>
+					<div class="spacer"></div>
+					<span class="uber-pct">{{ hud.charge_ready ? ('fui_hud_uber_ready' | t) : (hud.charge | percent) }}</span>
+				</div>
+				<div class="uber-bar"><div class="uber-fill" data-style-width="(hud.charge > 0 ? hud.charge * 100 : 0) + '%'"></div></div>
+			</div>
+			<div class="arms-card row">
+				<div class="arms-bg"></div>
+				<img class="weapon-icon" data-if="hud.weapon_icon != ''" data-attr-src="hud.weapon_icon"/>
+				<div class="col grow ammo-col">
+					<div class="weapon-name">{{ hud.weapon }}</div>
+					<div class="row ammo-row" data-if="hud.clip >= 0" data-class-low="hud.clip_low">
+						<span class="clip">{{ hud.clip }}</span>
+						<span class="reserve" data-if="hud.reserve >= 0">/ {{ hud.reserve }}</span>
+					</div>
+					<div class="clip-bar" data-if="hud.clip_max > 0"><div class="clip-fill" data-style-width="(hud.clip_max > 0 ? hud.clip * 100 / hud.clip_max : 0) + '%'"></div></div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div id="hud-toasts">
+		<div class="toast" data-for="t : toasts" data-class-quest="t.kind == 'quest'" data-class-party="t.kind == 'party'">
+			<img class="toast-icon" data-if="t.icon != ''" data-attr-src="t.icon"/>
+			<div class="col grow">
+				<div class="toast-title">{{ t.title }}</div>
+				<div class="toast-body">{{ t.body }}</div>
+			</div>
+		</div>
+	</div>
+</div>
+</body>
+</rml>

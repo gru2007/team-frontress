@@ -18,7 +18,6 @@
 #include <vgui/ISurface.h>
 #include "hud.h"
 #include "hudelement.h"
-#include "interactivewebpanel.h"
 #include "tf_shareddefs.h"
 #include "vgui_avatarimage.h"
 #include "tf_imagepanel.h"
@@ -204,20 +203,7 @@ private:
 	float					m_flPlayMusicTime;
 	int32					m_iPlayMusicFrame;
 
-	CInteractiveWebPanel* m_pMainMenuWebUi;
-	class CTFMainMenuInfoPanel* m_pInfoPanel;
-	class CTFMenuFriendsPanel*  m_pFriendsPanel;
 
-public:
-	// Called when tf_main_menu_html changes. Public because the convar's
-	// change callback is a free function.
-	void UpdateMainMenuWebUiVisibility();
-	void UpdateMainMenuChrome();
-	void ReloadMainMenuInfo();
-
-private:
-
-	int						m_MainMenuWebUiZIndex;
 
 	vgui::ImagePanel		*m_pCharacterImagePanel;
 	int						 m_iCharacterImageIdx;

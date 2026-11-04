@@ -1,0 +1,142 @@
+/* Locker */
+#locker-spot {
+	position: absolute;
+	left: 380dp; top: 160dp;
+	width: 760dp; height: 900dp;
+	decorator: radial-gradient(circle closest-side, #ffcf8a24 0%, #00000000 100%);
+}
+#locker-hero {
+	position: absolute;
+	left: 430dp; bottom: 30dp;
+	width: 580dp; height: 820dp;
+}
+#locker-hero .stand-in { width: 100%; height: 100%; }
+.world #locker-spot { display: none; }
+
+#classes { display: flex; flex-direction: row; gap: 4dp; margin-bottom: 18dp; }
+.class {
+	width: 86dp;
+	text-align: center;
+	cursor: pointer;
+	padding: 6dp 0;
+	border-radius: 12dp;
+	border: 2dp #00000000;
+	transition: background-color border-color 0.12s cubic-out;
+}
+.class:hover { background-color: #ffffff10; }
+.class.active { background-color: #ffc93c22; border-color: #ffc93c; }
+.class-face { width: 64dp; height: 64dp; border-radius: 32dp; opacity: 0.6; }
+.class.active .class-face, .class:hover .class-face { opacity: 1; }
+.class-name { font-family: "TF2 Build"; font-size: 11dp; white-space: nowrap; text-transform: uppercase; color: #b8ab92; margin-top: 2dp; }
+.class.active .class-name { color: #ffc93c; }
+
+#slots { width: 390dp; }
+.slot {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 14dp;
+	padding: 6dp;
+	margin-bottom: 8dp;
+	border-radius: 14dp;
+	border: 2dp #00000000;
+	background-color: #1a1310bb;
+	cursor: pointer;
+	transition: border-color background-color 0.12s cubic-out;
+}
+.slot:hover { background-color: #2a201acc; }
+.slot.active { border-color: #ffc93c; background-color: #2a201aee; }
+.slot-tile {
+	width: 78dp; height: 78dp;
+	border-radius: 10dp;
+	border: 2dp;
+}
+.slot-icon { width: 74dp; height: 74dp; }
+.slot-name { font-family: "TF2 Build"; font-size: 15dp; text-transform: uppercase; color: #7d705e; }
+.slot-item { font-family: "TF2 Build"; font-size: 17dp; line-height: 19dp; }
+
+#browser {
+	position: absolute;
+	right: 56dp; top: 112dp; bottom: 40dp;
+	width: 790dp;
+	padding: 18dp 18dp 0 18dp;
+}
+.browser-head { margin-bottom: 12dp; gap: 8dp; }
+.browser-title { font-size: 34dp; line-height: 36dp; }
+.filter {
+	font-family: "TF2 Build";
+	font-size: 15dp;
+	text-transform: uppercase;
+	padding: 7dp 14dp;
+	border-radius: 18dp;
+	background-color: #ffffff0d;
+	color: #b8ab92;
+	cursor: pointer;
+}
+.filter:hover { background-color: #ffffff1c; }
+.filter.on { background-color: #ffc93c; color: #2a1a05; }
+
+#grid {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	gap: 12dp;
+	height: 640dp;
+	overflow-y: auto;
+	padding: 4dp;
+	align-content: flex-start;
+}
+.item {
+	position: relative;
+	width: 140dp;
+	height: 160dp;
+	border-radius: 12dp;
+	border: 2dp;
+	cursor: pointer;
+	transition: transform 0.12s cubic-out;
+}
+.item:hover { transform: scale(1.05); }
+.item.picked { border-color: #fff4e8; border-width: 3dp; transform: scale(1.05); }
+.item-icon { position: absolute; left: 10dp; top: 4dp; width: 120dp; height: 120dp; }
+.item-name {
+	position: absolute;
+	left: 0; right: 0; bottom: 0;
+	height: 40dp;
+	padding: 3dp 8dp;
+	border-radius: 0 0 10dp 10dp;
+	background-color: #00000099;
+	font-family: "TF2 Build";
+	font-size: 13dp;
+	line-height: 15dp;
+	text-align: center;
+}
+.item-check, .detail-check {
+	position: absolute;
+	top: 6dp; right: 6dp;
+	width: 26dp; height: 26dp;
+	border-radius: 13dp;
+	background-color: #8fd16a;
+}
+
+#detail {
+	position: absolute;
+	left: 0; right: 0; bottom: 0;
+	height: 150dp;
+	padding: 16dp 18dp;
+	border-radius: 0 0 12dp 12dp;
+	background-color: #0d0907f0;
+	border-top: 2dp #3d3027;
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 18dp;
+}
+#detail.hint { justify-content: center; }
+.detail-tile { width: 112dp; height: 112dp; border-radius: 12dp; border: 2dp; }
+.detail-icon { width: 108dp; height: 108dp; }
+.detail-name { font-size: 28dp; line-height: 30dp; }
+.detail-desc { margin-top: 6dp; font-size: 14dp; line-height: 17dp; }
+
+/* The game's own item windows */
+#classic-items { position: absolute; left: 56dp; bottom: 40dp; gap: 10dp; }
+.small-button { font-size: 16dp; padding: 8dp 16dp; }

@@ -691,8 +691,6 @@ def main():
         flags += " " + " ".join("-I" + ninja_escape(rel(i)) for i in incs)
         flags += " " + comp.get("gcc_extracompilerflags", "").replace("-arch x86_64", "")
         flags += " -isystem " + rel(os.path.join(SRC, "devtools", "osx_include"))
-        # Crow is installed system-wide on Linux; here it is the submodule.
-        flags += " -isystem thirdparty/Crow/include"
         sysinc = os.environ.get("VPC_OSX_INCLUDES", "/opt/homebrew/include /opt/homebrew/include/SDL2 /opt/homebrew/include/freetype2")
         flags += " " + " ".join("-isystem " + p for p in sysinc.split())
         for fi in comp.get("forceincludes", "").split(";"):

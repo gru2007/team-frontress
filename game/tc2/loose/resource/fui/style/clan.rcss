@@ -1,0 +1,269 @@
+/* Clans */
+
+/* ------------------------------------------------------------ hero */
+.hero { align-items: center; gap: 26dp; margin-bottom: 22dp; min-height: 150dp; }
+.hero h1 { font-size: 60dp; line-height: 64dp; }
+.why { max-width: 980dp; font-size: 20dp; line-height: 26dp; margin-top: 6dp; }
+.banner-tag {
+	position: absolute;
+	left: 0; right: 0; bottom: 18dp;
+	font-size: 22dp;
+	color: #fff8ec;
+	font-effect: outline(2dp #00000099);
+}
+.banner.big img { margin-top: 12dp; width: 64%; }
+.hero-text { gap: 4dp; }
+.clan-tag.big { font-size: 22dp; padding: 3dp 10dp; margin-right: 14dp; }
+.clan-name { font-size: 52dp; line-height: 56dp; }
+.motto { font-size: 20dp; font-style: italic; margin-top: 2dp; }
+.hero-stats { gap: 30dp; margin-top: 12dp; }
+.hstat .title { font-size: 30dp; line-height: 32dp; }
+
+.level-box {
+	width: 420dp;
+	padding: 16dp 18dp;
+	border-radius: 16dp;
+	decorator: linear-gradient(to bottom, #2a1f19ee, #17110ef2);
+	border: 1dp #6a5442;
+}
+.clan-level-ring {
+	width: 64dp; height: 64dp;
+	border-radius: 32dp;
+	border: 4dp #ffc93c;
+	decorator: radial-gradient(circle closest-side, #3a2a14 0%, #1a1310 100%);
+	margin-right: 14dp;
+	text-align: center;
+}
+.clan-level-ring .title { font-size: 30dp; line-height: 56dp; color: #ffc93c; }
+.level-label { font-size: 20dp; color: #ece3cb; }
+.big-bar { height: 14dp; border-radius: 7dp; margin: 12dp 0 4dp 0; }
+.big-bar .fill { border-radius: 7dp; }
+.big-bar .fill.done { decorator: linear-gradient(to right, #4d7a33, #8fd16a); }
+.hero-buttons { gap: 8dp; margin-top: 10dp; justify-content: flex-end; }
+
+/* ------------------------------------------------------------ body */
+.clan-body { align-items: stretch; gap: 22dp; height: 720dp; }
+
+.perks-col { width: 460dp; padding: 16dp 16dp 8dp 16dp; }
+.perk {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 12dp;
+	padding: 8dp 6dp;
+	border-top: 1dp #ffffff0c;
+	opacity: 0.55;
+}
+.perk.on, .perk.next, .preview-perk { opacity: 1; }
+.perk-level {
+	width: 34dp; height: 34dp;
+	border-radius: 17dp;
+	text-align: center;
+	font-size: 17dp;
+	line-height: 34dp;
+	color: #b8ab92;
+	background-color: #ffffff10;
+	border: 2dp #ffffff20;
+}
+.perk.on .perk-level { color: #2a1a05; background-color: #ffc93c; border-color: #ffe066; }
+.perk.next .perk-level { color: #ffc93c; border-color: #ffc93c; animation: 1.2s sine-in-out infinite alternate breathe-ring; }
+@keyframes breathe-ring { from { transform: scale(0.94); } to { transform: scale(1.06); } }
+.preview-perk .perk-level { color: #ffc93c; border-color: #ffc93c88; }
+.perk-name { font-family: "TF2 Build"; font-size: 16dp; text-transform: uppercase; color: #ece3cb; }
+.perk.on .perk-name { color: #ffc93c; }
+.perk-desc { font-size: 13dp; line-height: 16dp; color: #9a8d78; }
+.perk-check { width: 22dp; height: 22dp; border-radius: 11dp; background-color: #8fd16a; }
+.perk-check .tick { margin-top: 2dp; width: 5dp; height: 10dp; }
+.perk-lock {
+	width: 12dp; height: 10dp;
+	margin: 6dp 5dp 0 5dp;
+	border-radius: 2dp;
+	background-color: #7d705e;
+}
+
+.mid-col { width: 560dp; gap: 16dp; }
+.contract { padding: 18dp; }
+.contract.locked { opacity: 0.6; }
+.contract-goal { font-size: 24dp; line-height: 28dp; color: #ece3cb; margin-top: 2dp; }
+.contract-row { gap: 14dp; margin: 2dp 0 6dp 0; }
+.contract-count { font-size: 26dp; color: #ffc93c; }
+.locked-note {
+	margin-top: 10dp;
+	font-family: "TF2 Build";
+	font-size: 14dp;
+	text-transform: uppercase;
+	color: #ffc93c;
+}
+
+.order { padding: 18dp; }
+.order-now { gap: 14dp; }
+.order-flag {
+	width: 26dp; height: 34dp;
+	border-left: 4dp #7d705e;
+	decorator: linear-gradient(to right, #7d705e, #7d705e00);
+}
+.order-flag.on { border-left-color: #ffc93c; decorator: linear-gradient(to right, #ef5a4c, #ef5a4c00); animation: 0.9s sine-in-out infinite alternate wave; }
+@keyframes wave { from { transform: skewY(-6deg); } to { transform: skewY(6deg); } }
+.order-name { font-size: 24dp; color: #ece3cb; }
+.order-pick { margin: 14dp 0 6dp 0; }
+.ops { flex-wrap: wrap; gap: 8dp; }
+.op {
+	font-family: "TF2 Build";
+	font-size: 14dp;
+	text-transform: uppercase;
+	padding: 6dp 12dp;
+	border-radius: 8dp;
+	background-color: #ffffff10;
+	border: 1dp #ffffff20;
+	cursor: pointer;
+	transition: background-color border-color 0.12s cubic-out;
+}
+.op:hover { background-color: #ffffff20; }
+.op.on { border-color: #ffc93c; background-color: #ffc93c22; color: #ffc93c; }
+.op.ghost { color: #b8ab92; }
+.op-side { display: inline-block; width: 8dp; height: 8dp; border-radius: 4dp; margin-right: 7dp; background-color: #b8ab92; }
+.op.red .op-side { background-color: #ef5a4c; }
+.op.blu .op-side { background-color: #7fb2e5; }
+
+.banner-card { padding: 16dp 18dp; }
+.banner-text { margin-left: 18dp; }
+.banner-text .panel-title { margin-bottom: 6dp; }
+
+/* ------------------------------------------------------------ roster */
+.roster { flex: 1 1 0; padding: 16dp; }
+.roster-list { flex: 1 1 0; overflow-y: auto; }
+.rm {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 12dp;
+	padding: 9dp 8dp;
+	border-radius: 10dp;
+	border-bottom: 1dp #ffffff0a;
+	opacity: 0.6;
+}
+.rm.online { opacity: 1; }
+.rm:hover { background-color: #ffffff08; }
+.rm.me { background-color: #ffc93c0c; }
+.who-dot { width: 10dp; height: 10dp; border-radius: 5dp; background-color: #8fd16a; }
+.who-dot.offline { background-color: #4a3f34; }
+.who-dot.queue { background-color: #ffc93c; }
+.who-dot.match { background-color: #ef5a4c; }
+.rm-name { font-size: 18dp; color: #ece3cb; margin-right: 8dp; white-space: nowrap; }
+.rm.me .rm-name { color: #ffc93c; }
+.role {
+	font-family: "TF2 Build";
+	font-size: 11dp;
+	text-transform: uppercase;
+	padding: 2dp 6dp;
+	border-radius: 4dp;
+	color: #b8ab92;
+	border: 1dp #ffffff26;
+}
+.role-leader { color: #2a1a05; background-color: #ffc93c; border-color: #ffe066; }
+.role-officer { color: #ffc93c; border-color: #ffc93c88; }
+.rm-sub { font-size: 12dp; color: #8a7d68; }
+.rm-xp { font-size: 16dp; color: #d8cdb4; margin-right: 4dp; }
+.rm-acts { display: flex; flex-direction: row; gap: 4dp; }
+.rm-act {
+	font-family: "TF2 Build";
+	font-size: 11dp;
+	text-transform: uppercase;
+	padding: 5dp 8dp;
+	border-radius: 6dp;
+	color: #2a1a05;
+	background-color: #ffc93c;
+	cursor: pointer;
+	white-space: nowrap;
+}
+.rm-act:hover { background-color: #ffe066; }
+.rm-act.ghost { color: #ece3cb; background-color: #ffffff14; }
+.rm-act.ghost:hover { background-color: #ffffff26; }
+.rm-act.danger { color: #fff4e8; background-color: #8e2a26; }
+.rm-act.danger:hover { background-color: #c8413b; }
+
+/* ------------------------------------------------------------ no clan */
+.create { width: 560dp; padding: 18dp 20dp; }
+.create-top { gap: 20dp; align-items: flex-start; }
+.field-label { margin: 12dp 0 5dp 2dp; letter-spacing: 1dp; }
+.create input.text, .clan-modal input.text { display: block; width: auto; }
+.tag-input { width: 130dp; text-transform: uppercase; font-family: "TF2 Build"; }
+.emblems { gap: 6dp; }
+.emblem {
+	width: 44dp; height: 44dp;
+	border-radius: 10dp;
+	background-color: #ffffff0c;
+	border: 2dp #ffffff14;
+	cursor: pointer;
+	text-align: center;
+	transition: background-color border-color transform 0.12s cubic-out;
+}
+.emblem img { width: 30dp; height: 30dp; margin-top: 5dp; opacity: 0.6; }
+.emblem:hover { transform: translateY(-3dp); }
+.emblem.on { background-color: #ffc93c33; border-color: #ffc93c; }
+.emblem.on img { opacity: 1; }
+.swatches { gap: 10dp; }
+.swatch {
+	width: 40dp; height: 40dp;
+	border-radius: 20dp;
+	border: 3dp #ffffff22;
+	cursor: pointer;
+	transition: transform border-color 0.12s cubic-out;
+}
+.swatch:hover { transform: scale(1.1); }
+.swatch.on { border-color: #ffffff; transform: scale(1.12); }
+.swatch.c-red { decorator: linear-gradient(to bottom, #d6463d, #7c221e); }
+.swatch.c-blu { decorator: linear-gradient(to bottom, #5b8fbf, #26425e); }
+.swatch.c-gold { decorator: linear-gradient(to bottom, #ffd34d, #a8700c); }
+.swatch.c-green { decorator: linear-gradient(to bottom, #6fb34d, #2f5c22); }
+.swatch.c-purple { decorator: linear-gradient(to bottom, #9a63c8, #4a2768); }
+.swatch.c-teal { decorator: linear-gradient(to bottom, #3fb3a8, #1a5751); }
+.check-row {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 10dp;
+	margin-top: 16dp;
+	padding: 6dp;
+	border-radius: 8dp;
+	cursor: pointer;
+	color: #b8ab92;
+	font-size: 17dp;
+}
+.check-row:hover { background-color: #ffffff0a; }
+.check-row.on { color: #a9d98c; }
+.lfg-box { width: 22dp; height: 22dp; border-radius: 6dp; border: 2dp #ffffff40; }
+.check-row.on .lfg-box { background-color: #8fd16a; border-color: #8fd16a; }
+.lfg-box .tick { margin-top: 2dp; width: 5dp; height: 10dp; }
+.found-button { margin-top: 16dp; font-size: 28dp; padding: 14dp 0; }
+
+.list-col { flex: 1 1 0; gap: 16dp; }
+.invites { padding: 16dp; border-color: #ffc93c88; }
+.list { padding: 16dp; }
+.clan-list { flex: 1 1 0; overflow-y: auto; height: 540dp; }
+.clan-card {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 14dp;
+	padding: 10dp;
+	border-radius: 12dp;
+	border-bottom: 1dp #ffffff0c;
+	transition: background-color 0.12s cubic-out;
+}
+.clan-card:hover { background-color: #ffffff08; }
+.cc-rank { width: 30dp; font-size: 22dp; color: #7d705e; text-align: center; }
+.cc-name { font-family: "TF2 Build"; font-size: 20dp; margin-left: 8dp; color: #ece3cb; }
+.cc-motto { font-style: italic; margin-top: 2dp; }
+.cc-stats { gap: 6dp; margin-top: 6dp; flex-wrap: wrap; }
+.cc-chip { font-size: 12dp; padding: 2dp 8dp; border-radius: 10dp; background-color: #ffffff10; color: #b8ab92; }
+.cc-chip.good { color: #a9d98c; background-color: #8fd16a1a; }
+.cc-chip.gold { color: #ffc93c; background-color: #ffc93c1a; }
+.flag-pip { display: inline-block; width: 6dp; height: 10dp; margin-right: 5dp; background-color: #ef5a4c; border-left: 2dp #ece3cb; }
+.closed-note { width: 110dp; text-align: center; }
+.preview { width: 420dp; }
+
+/* ------------------------------------------------------------ modals */
+.clan-modal { width: 640dp; padding: 26dp 30dp; border-color: #ffc93c; }
+.clan-modal.small { width: 560dp; text-align: center; }
+.clan-modal p { margin: 12dp 0 6dp 0; }

@@ -1,0 +1,83 @@
+<rml>
+<!-- Locker: Fortnite's locker with TF2's items. Class along the top, the
+     loadout's slots down the left, the class in the middle, the backpack
+     (only what fits the chosen slot) on the right. -->
+<head>
+	<title>Locker</title>
+	<link type="text/rcss" href="../style/base.rcss"/>
+	<link type="text/rcss" href="../style/locker.rcss"/>
+</head>
+<body>
+<div class="root" data-model="fr" data-class-world="app.world">
+	<div class="world-standin" data-if="app.preview"></div>
+	<div class="dim-all"></div>
+	<div id="locker-spot"></div>
+	<div id="locker-hero" fui-model="me">
+		<img class="stand-in" data-if="app.preview" data-attr-src="'tex:console/characters/' + ui.class"/>
+	</div>
+
+	<div class="screen">
+		<div id="classes">
+			<div class="class" data-for="c : locker.classes" data-class-active="c.id == ui.class" data-event-click="cmd('locker_class', c.id)">
+				<img class="class-face" data-attr-src="'tex:vgui/class_portraits/' + c.id"/>
+				<div class="class-name">{{ c.name }}</div>
+			</div>
+		</div>
+
+		<div id="slots">
+			<div class="slot" data-for="s : locker.equipped" data-class-active="s.id == ui.slot" data-event-click="cmd('locker_slot', s.id)">
+				<div data-attr-class="'slot-tile tile-' + (s.item.quality == '' ? 'empty' : s.item.quality)">
+					<img class="slot-icon" data-if="s.item.icon != ''" data-attr-src="'tex:' + s.item.icon"/>
+				</div>
+				<div class="col grow slot-text">
+					<div class="slot-name">{{ s.name }}</div>
+					<div data-attr-class="'slot-item q-' + s.item.quality" data-if="s.item.name != ''">{{ s.item.name }}</div>
+					<div class="slot-item dimmer" data-if="s.item.name == ''">#fui_empty_slot</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- The game's own item windows, for what the locker does not do -->
+		<div id="classic-items" class="row">
+			<div class="button ghost small-button" sfx="" data-event-click="cmd('classic', 'backpack')">#fui_backpack</div>
+			<div class="button ghost small-button" sfx="" data-event-click="cmd('classic', 'crafting')">#fui_crafting</div>
+			<div class="button ghost small-button" sfx="" data-event-click="cmd('classic', 'armory')">#fui_armory</div>
+		</div>
+
+		<div id="browser" class="panel">
+			<div class="row browser-head">
+				<div class="col grow">
+					<div class="title browser-title">{{ ('fui_slot_' + (ui.slot == 'cosmetic2' || ui.slot == 'cosmetic3' ? 'cosmetic' : ui.slot)) | t }}</div>
+					<div class="dimmer tiny">{{ locker.count }} #fui_items · {{ ('fui_class_' + ui.class) | t }}</div>
+				</div>
+				<div class="filter" data-class-on="locker.filter == 'all'" data-event-click="cmd('locker_filter', 'all')">#fui_filter_all</div>
+				<div class="filter" data-class-on="locker.filter == 'strange'" data-event-click="cmd('locker_filter', 'strange')">#fui_filter_strange</div>
+				<div class="filter" data-class-on="locker.filter == 'rare'" data-event-click="cmd('locker_filter', 'rare')">#fui_filter_rare</div>
+			</div>
+
+			<div id="grid">
+				<div data-for="it : locker.view"
+					data-attr-class="'item tile-' + it.quality + (it.index == ui.pick ? ' picked' : '') + (it.equipped ? ' equipped' : '')"
+					data-event-click="cmd('locker_pick', it.index)" data-event-dblclick="cmd('equip', it.index)">
+					<img class="item-icon" data-attr-src="'tex:' + it.icon"/>
+					<div class="item-check" data-if="it.equipped"><div class="tick"></div></div>
+					<div class="item-name">{{ it.name }}</div>
+				</div>
+			</div>
+
+			<div id="detail" data-if="locker.detail.name != ''">
+				<div data-attr-class="'detail-tile tile-' + locker.detail.quality"><img class="detail-icon" data-attr-src="'tex:' + locker.detail.icon"/></div>
+				<div class="col grow">
+					<div data-attr-class="'title detail-name q-' + locker.detail.quality">{{ locker.detail.name }}</div>
+					<div class="dim small">{{ ('fui_quality_' + locker.detail.quality) | t }} {{ locker.detail.type }} · #fui_item_level {{ locker.detail.level }}</div>
+					<div class="detail-desc dimmer small">{{ locker.detail.desc }}</div>
+				</div>
+				<div class="button primary" data-if="!locker.detail.equipped" data-event-click="cmd('equip', locker.detail.index)">#fui_equip</div>
+				<div class="button disabled" data-if="locker.detail.equipped">#fui_equipped</div>
+			</div>
+			<div id="detail" class="hint" data-if="locker.detail.name == ''"><div class="dimmer">#fui_locker_hint</div></div>
+		</div>
+	</div>
+</div>
+</body>
+</rml>

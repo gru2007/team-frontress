@@ -1717,13 +1717,9 @@ void CTFGCServerSystem::PreClientUpdate( )
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: Listen to the shared-object cache belonging to this game server.
-//
-// Normally PreClientUpdate notices the Steam ID transition and calls this.
-// Empty dedicated servers hibernate immediately, however, and can receive a
-// match over RCON after Steam login without running another PreClientUpdate.
-// Publishing a lobby in that window succeeds but nobody receives SOCreated,
-// so CMatchInfo is never constructed and strict admission rejects everybody.
+// Purpose: Listen to the shared-object cache belonging to this game server,
+//			which is where the game coordinator puts the lobby of our match.
+//			Called whenever the server's Steam ID changes.
 //-----------------------------------------------------------------------------
 bool CTFGCServerSystem::EnsureSOCacheListener()
 {
@@ -4104,8 +4100,9 @@ void CTFGCServerSystem::SendCompetitiveMatchResult( GCSDK::CProtoBufMsg< CMsgGC_
 		Assert( false );
 	}
 
-	// TODO(mcoms)
-#if 0
+	// The game coordinator records the result: who played, who won, the
+	// rating and the war. Reliable, because a result that is lost is a match
+	// that never happened as far as everybody's record is concerned.
 	ReliableMsgMatchResult *pReliable = new ReliableMsgMatchResult;
 	auto &msg = pReliable->Msg().Body();
 	/// XXX(JohnS): With refactor this is now kinda silly. Callers should really just be giving us a CMsgGC_Match_Result
@@ -4113,10 +4110,11 @@ void CTFGCServerSystem::SendCompetitiveMatchResult( GCSDK::CProtoBufMsg< CMsgGC_
 	msg.CopyFrom( pMatchResultMsg->Body() );
 	ReliableMsgQueue().Enqueue( pReliable );
 
-	m_pMatchInfo->m_bSentResult = true;
-#else
+	if ( m_pMatchInfo )
+		m_pMatchInfo->m_bSentResult = true;
+
+	// Valve's SDK endpoint keeps its copy as well, as it always has.
 	BSendMessageComtress( *pMatchResultMsg );
-#endif
 }
 
 // **************************************************************************************************

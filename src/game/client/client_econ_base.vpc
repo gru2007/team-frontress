@@ -185,6 +185,7 @@ $Project
 	{
 		$Lib "$LIBCOMMON/jpeglib"
 		$Lib "$LIBCOMMON/libspng"
+		$Lib "$LIBCOMMON/frontress_ui" [$TF]
 		$Lib libz [$WINDOWS]
 	}
 }

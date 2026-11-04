@@ -1,8 +1,7 @@
 //========= Copyright Valve Corporation, All rights reserved. ============//
 #include "cbase.h"
-
-#include "frontress/tf_mm_backend.h"
 #include "tf_gc_client.h"
+#include "frontress_gc.h"
 #include "gcsdk/gcsdk_auto.h"
 #include "tf_gcmessages.h"
 #include "kvpacker.h"
@@ -84,7 +83,7 @@ static const char* GetWebBaseUrl()
 static CTFGCClientSystem s_TFGCClientSystem;
 CTFGCClientSystem *GTFGCClientSystem() { return &s_TFGCClientSystem; }
 
-// Inventory readiness is separate from locally emulated GC connectivity.
+// Inventory readiness is separate from game coordinator connectivity.
 bool BTFWebapiInventoryReady() { return GTFGCClientSystem()->BValveInventoryReady(); }
 
 static CTFPartyClient s_TFPartyClient;
@@ -1028,14 +1027,6 @@ void CTFGCClientSystem::Update( float frametime )
 {
 	BaseClass::Update( frametime );
 
-	// There is no Valve GC to connect to. The matchmaking UI gates almost
-	// everything on BConnectedtoGC(), so report the backend's availability
-	// there: when it is up, the things the UI would do actually work.
-	if ( BConnectedtoGC() != TFMMBackend()->BActive() )
-	{
-		SetConnectedToGC( TFMMBackend()->BActive() );
-	}
-
 	WebapiInventoryThink();
 
 
@@ -1054,6 +1045,11 @@ void CTFGCClientSystem::SOCacheSubscribed( const CSteamID & steamIDOwner, GCSDK:
 		// Assert( m_pSOCache == NULL ); // we *can* get two SOCacheSubscribed calls in a row.
 		m_pSOCache = GCClientSystem()->GetSOCache( steamIDOwner );
 		Assert( m_pSOCache != NULL );
+
+		// Something replaced our cache wholesale -- the web API inventory
+		// does -- and the coordinator's objects (party, match, invites) went
+		// with it. Ask for them back.
+		FrontressGC()->RequestCacheRefresh( steamIDOwner );
 
 		if ( gameeventmanager )
 		{
@@ -1613,9 +1609,9 @@ bool CTFGCClientSystem::BHaveLiveMatch() const
 
 EAbandonGameStatus CTFGCClientSystem::GetAssignedMatchAbandonStatus()
 {
-	// No penalties yet: the coordinator does not track abandons, and inventing
-	// a penalty the backend cannot actually apply would only mislead players.
-	return BHaveLiveMatch() ? k_EAbandonGameStatus_AbandonWithoutPenalty
+	// The coordinator records walking out of a live match against the
+	// player (XP, and a queue cooldown where a group sets one).
+	return BHaveLiveMatch() ? k_EAbandonGameStatus_AbandonWithPenalty
 	                        : k_EAbandonGameStatus_Safe;
 }
 
@@ -1634,9 +1630,14 @@ void CTFGCClientSystem::JoinMMMatch()
 		return;
 	}
 
-	// The backend knows the password; go through it so the connect is set up
-	// the same way whether the player clicked join or it happened for them.
-	TFMMBackend()->JoinAssignedMatch();
+	if ( !pLobby->GetConnect() || !pLobby->GetConnect()[0] )
+	{
+		Warning( "The match has no server address yet.\n" );
+		return;
+	}
+
+	// No password: the server admits the lobby's roster and nobody else.
+	ConnectToServer( pLobby->GetConnect() );
 }
 
 //-----------------------------------------------------------------------------
@@ -1690,16 +1691,7 @@ void CTFGCClientSystem::RequestAcceptMatchInvite( PlayerGroupID_t nLobbyID )
 //-----------------------------------------------------------------------------
 bool CTFGCClientSystem::BIsMatchGroupDisabled( ETFMatchGroup eMatchGroup ) const
 {
-	// Frontress and Valve's GC must never both be authorities for queue
-	// availability. The Frontress coordinator is what will actually accept
-	// the queue request, so its /v1/status answer wins while that backend is
-	// active. Keeping the old WorldStatus check here made a stale Valve
-	// disabled_match_groups entry put the "mode unavailable" warning on the
-	// dashboard even though the Frontress queue command worked.
-	if ( TFMMBackend()->BActive() )
-		return !TFMMBackend()->BGroupOffered( eMatchGroup );
-
-	// Legacy fallback for builds that deliberately turn Frontress MM off.
+	// The coordinator lists the groups it does not run in its world status.
 	for ( int i = 0; i < WorldStatus().disabled_match_groups_size(); i++ )
 	{
 		if ( WorldStatus().disabled_match_groups( i ) == eMatchGroup )

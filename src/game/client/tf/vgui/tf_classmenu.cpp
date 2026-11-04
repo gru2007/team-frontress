@@ -27,6 +27,7 @@
 #include "replay/ienginereplay.h"
 #include "replay/shared_defs.h"
 #endif
+#include "frontress/fui_tf.h"
 
 extern IGameUIFuncs *gameuifuncs; // for key binding details
 
@@ -669,6 +670,13 @@ void CTFClassMenu::ShowPanel( bool bShow )
 				}
 			}
 
+			return;
+		}
+
+		// The Frontress menu draws its own class select (resource/fui/screens/classes.rml).
+		if ( FuiTF().ShowClassSelect( iPanelTeam ) )
+		{
+			SetVisible( false );
 			return;
 		}
 

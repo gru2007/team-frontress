@@ -85,12 +85,8 @@ protected:
 	virtual void PostInitGC() {}
 
 
-protected:
-	// The TF client sets this from its own matchmaking backend: there is no
-	// Valve GC to connect to, and the UI gates on it.
-	void SetConnectedToGC( bool bConnected );
-
 private:
+	void SetConnectedToGC( bool bConnected );
 
 	#ifdef CLIENT_DLL
 		void SteamLoggedOnCallback( const SteamLoggedOnChange_t &loggedOnState );

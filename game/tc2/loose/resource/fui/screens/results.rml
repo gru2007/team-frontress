@@ -1,0 +1,75 @@
+<rml>
+<!-- Results: what the match was worth. Shown when a match ends. -->
+<head>
+	<title>Results</title>
+	<link type="text/rcss" href="../style/base.rcss"/>
+	<link type="text/rcss" href="../style/results.rcss"/>
+</head>
+<body>
+<div class="root" data-model="fr" data-class-world="app.world">
+	<div class="world-standin" data-if="app.preview"></div>
+	<div class="dim-all"></div>
+	<div class="screen">
+		<div id="banner" class="pop" data-class-loss="results.result == 'loss'">
+			<div class="banner-text outline">{{ (results.result == 'win' ? 'fui_results_win' : 'fui_results_loss') | t }}</div>
+		</div>
+		<div id="scoreline" class="row">
+			<div class="score red-score">{{ results.score_red }}</div>
+			<div class="col score-mid">
+				<div class="title">{{ results.map }}</div>
+				<div class="dim small">{{ results.mode | t }} · {{ results.duration | clock }}</div>
+			</div>
+			<div class="score blu-score">{{ results.score_blu }}</div>
+		</div>
+
+		<div class="row res-cols">
+			<div class="panel res-xp rise">
+				<div class="panel-title">#fui_results_xp</div>
+				<div class="xp-line row" data-for="x : results.xp">
+					<span class="grow">{{ x.what }}</span><span class="gold title">+{{ x.xp }}</span>
+				</div>
+				<div class="xp-line row total">
+					<span class="grow title">#fui_results_total</span><span class="gold title">+{{ results.xp_total }} XP</span>
+				</div>
+				<div class="row level-row">
+					<span class="badge">{{ results.level_before }}</span>
+					<div class="bar grow lvl-bar">
+						<div class="fill" data-style-width="(results.frac_after * 100) + '%'"></div>
+					</div>
+					<span class="badge">{{ results.level_before + 1 }}</span>
+				</div>
+			</div>
+
+			<div class="col res-mid">
+				<div class="panel rise">
+					<div class="panel-title">#fui_results_front · {{ results.front }}</div>
+					<div class="split-bar"><div class="split-red" data-style-width="(results.front_after * 100) + '%'"></div></div>
+					<div class="row small"><span class="red">RED {{ results.front_after | percent }}</span><div class="spacer"></div><span class="good">+{{ (results.front_after - results.front_before) | percent }}</span><div class="spacer"></div><span class="blu">{{ (1 - results.front_after) | percent }} BLU</span></div>
+				</div>
+				<div class="panel rise">
+					<div class="panel-title">#fui_results_rating</div>
+					<div class="row"><div class="rating-big">{{ results.rating }}</div><div data-attr-class="'rating-delta ' + (results.delta >= 0 ? 'good' : 'bad')">{{ results.delta | signed }}</div></div>
+				</div>
+			</div>
+
+			<div class="panel res-mvp rise">
+				<div class="panel-title">#fui_results_mvp</div>
+				<div class="mvp" data-for="p, i : results.mvps" data-class-blu="p.team == 'blu'">
+					<div class="mvp-rank title">{{ i + 1 }}</div>
+					<img class="mvp-face" data-attr-src="'tex:vgui/class_portraits/' + p.class"/>
+					<div class="col grow">
+						<div class="title mvp-name">{{ p.name }}</div>
+						<div class="dim small">{{ p.stat }}</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="row res-buttons">
+			<div class="button ghost" data-event-click="nav('home')">#fui_results_lobby</div>
+			<div class="button primary big" data-event-click="cmd('queue', results.mode == '#fui_mode_war' ? 'war' : ui.mode)">#fui_results_again</div>
+		</div>
+	</div>
+</div>
+</body>
+</rml>

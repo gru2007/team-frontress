@@ -1,0 +1,47 @@
+<rml>
+<!-- Class select in a match: the chosen class stands there in your own
+     loadout (3D), the nine to pick from along the bottom. 1-9 pick, Esc
+     closes (fui_host.cpp). -->
+<head>
+	<title>Classes</title>
+	<link type="text/rcss" href="../style/base.rcss"/>
+	<link type="text/rcss" href="../style/ingame.rcss"/>
+</head>
+<body>
+<div class="root" data-model="fr" data-class-world="app.world">
+	<div class="world-standin game-still" data-if="app.preview"></div>
+	<div data-attr-class="'class-dim team-' + classsel.team"></div>
+	<div class="class-head in0">
+		<div data-attr-class="'team-tag team-' + classsel.team">{{ classsel.team == 'blu' ? 'BLU' : 'RED' }}</div>
+		<h1 class="shadow">#fui_pick_class</h1>
+	</div>
+
+	<div id="class-hero">
+		<div class="hero-floor"></div>
+		<div class="hero-model" fui-model-anim="enter" data-attr-fui-model="'class:' + ui.class_hover">
+			<img class="stand-in" data-if="app.preview" data-attr-src="'tex:console/characters/' + ui.class_hover"/>
+		</div>
+	</div>
+	<div id="class-info" class="inl">
+		<div class="dimmer upper small">{{ ('fui_role_' + ui.class_hover) | t }}</div>
+		<h1 class="shadow class-name">{{ ('fui_class_' + ui.class_hover) | t }}</h1>
+		<div class="dim class-desc">{{ ('fui_classdesc_' + ui.class_hover) | t }}</div>
+	</div>
+
+	<div id="class-row" class="in1">
+		<div data-for="c, i : locker.classes"
+			data-attr-class="'class-card team-' + classsel.team + (c.id == ui.class_hover ? ' hover' : '') + (c.id == classsel.current ? ' current' : '') + (i == 3 || i == 6 ? ' gap' : '')"
+			sfx="class" data-event-mouseover="set('ui.class_hover', c.id)" data-event-click="cmd('pick_class', c.id)">
+			<img class="card-face" data-attr-src="'tex:vgui/class_portraits/' + c.id + (classsel.team == 'blu' ? '_blue' : '')"/>
+			<div class="card-key">{{ i + 1 }}</div>
+			<div class="card-name">{{ c.name }}</div>
+		</div>
+	</div>
+	<div id="class-actions" class="row in2">
+		<div class="button ghost" sfx="" data-event-click="cmd('pick_class', 'random')">#fui_random_class</div>
+		<div class="button primary" sfx="play" data-event-click="cmd('pick_class', ui.class_hover)">#fui_pick <span class="kbd">{{ ('fui_class_' + ui.class_hover) | t }}</span></div>
+		<div class="button ghost" sfx="" data-event-click="cmd('close_classes')"><span class="kbd">Esc</span></div>
+	</div>
+</div>
+</body>
+</rml>

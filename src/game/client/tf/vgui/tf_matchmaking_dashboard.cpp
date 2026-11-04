@@ -7,7 +7,7 @@
 
 #include "cbase.h"
 
-#include "frontress/tf_mm_backend.h"
+#include "frontress/tf_gc_status.h"
 #include "tf_shareddefs.h"
 #include "tf_matchmaking_dashboard.h"
 #include "tf_gamerules.h"
@@ -35,7 +35,7 @@ using namespace vgui;
 using namespace GCSDK;
 
 extern ConVar tf_mm_next_map_vote_time;
-extern ConVar tf_main_menu_html;
+#include "frontress/fui_host.h"
 ConVar tf_mm_dashboard_slide_panel_step( "tf_mm_dashboard_slide_panel_step", "20", FCVAR_ARCHIVE );
 ConVar tf_casual_welcome_hide( "tf_casual_welcome_hide", "0", FCVAR_ARCHIVE | FCVAR_HIDDEN );
 ConVar tf_comp_welcome_hide( "tf_comp_welcome_hide", "0", FCVAR_ARCHIVE | FCVAR_HIDDEN );
@@ -392,16 +392,16 @@ void CTFMatchmakingDashboard::OnCommand( const char *command )
 	{
 		// Under SOURCESDK this used to go straight to quickplay, because there
 		// was no game coordinator to run a queue against. There is one now --
-		// ours -- so when the matchmaking backend is up, "find a game" opens
-		// the stock playlist and queues like retail. Quickplay stays as the
-		// fallback for when it is not.
-		if ( TFMMBackend()->BActive() )
+		// ours -- so while it is connected, "find a game" opens the stock
+		// playlist and queues like retail. Quickplay stays as the fallback
+		// for when it is not.
+		if ( TFGCStatus()->BActive() )
 		{
 			// The button is disabled from the coordinator's status below, but
 			// commands can also arrive through keyboard/controller navigation.
 			// Do not open a playlist that can only submit a request to a service
 			// we already know is unavailable.
-			if ( !TFMMBackend()->GetStatus().bValid )
+			if ( !TFGCStatus()->GetStatus().bValid )
 				return;
 
 			PopStack( 100, k_eSideRight ); // All y'all
@@ -587,8 +587,22 @@ void CTFMatchmakingDashboard::OnOpenSettings()
 //-----------------------------------------------------------------------------
 // Purpose: Figure out if we should be visible and require mouse input
 //-----------------------------------------------------------------------------
+// The engine's VGUI shutdown still ticks panels after the client has shut
+// down, when asking for the root panel is no longer safe on every engine.
+static bool s_bClientShutDown = false;
+class CMMDashboardShutdownWatch : public CAutoGameSystem
+{
+public:
+	CMMDashboardShutdownWatch() : CAutoGameSystem( "CMMDashboardShutdownWatch" ) {}
+	virtual void Shutdown() OVERRIDE { s_bClientShutDown = true; }
+};
+static CMMDashboardShutdownWatch s_MMDashboardShutdownWatch;
+
 void CTFMatchmakingDashboard::OnTick()
 {
+	if ( s_bClientShutDown )
+		return;
+
 	// if the root panel has gone away just remove ourselves
 	if ( !enginevgui->GetPanel( PANEL_CLIENTDLL ) )
 	{
@@ -664,32 +678,24 @@ void CTFMatchmakingDashboard::OnTick()
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: Put the top bar back on the screen.
-//
-//			The pak ships a MatchMakingDashboard.res that hides this panel and
-//			its top bar, from when the HTML menu -- which draws its own row of
-//			buttons -- was the only menu there was. The VGUI menu is the default
-//			now and has nothing else to find a game, manage the party, resume or
-//			quit with, so the bar only goes away while the web page is actually
-//			up. When the pak is next rebuilt the .res agrees; until then this is
-//			what makes the bar appear on a stock install.
+// Purpose: The dashboard's top bar is the pause screen's way to find a game
+//			and manage the party. At the main menu the Frontress menu does that
+//			itself (resource/fui), so the bar steps aside while it is up.
 //-----------------------------------------------------------------------------
 void CTFMatchmakingDashboard::UpdateTopBarVisibility()
 {
-	// In game this panel is the pause screen's top bar, which the web menu
-	// never replaces.
-	const bool bWebMenu = ( tf_main_menu_html.GetBool() && !engine->IsInGame() );
+	const bool bFrontressMenu = FrontressUIOwnsMenu();
 
 	// Only when it changes: this runs every tick, and telling a panel it is
 	// already visible still walks its children.
-	if ( IsVisible() == bWebMenu )
+	if ( IsVisible() == bFrontressMenu )
 	{
-		SetVisible( !bWebMenu );
+		SetVisible( !bFrontressMenu );
 	}
 
-	if ( m_pTopBar && m_pTopBar->IsVisible() == bWebMenu )
+	if ( m_pTopBar && m_pTopBar->IsVisible() == bFrontressMenu )
 	{
-		m_pTopBar->SetVisible( !bWebMenu );
+		m_pTopBar->SetVisible( !bFrontressMenu );
 	}
 }
 
@@ -1353,15 +1359,14 @@ void CTFMatchmakingDashboard::UpdateFindAGameButton()
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: The stock FIND GAME button used to be gated by Valve GC
-//          connectivity.  Frontress owns matchmaking now, so its public
-//          status response is the authority instead.  Waiting for a successful
-//          response, and disabling again after a failed poll, prevents the
-//          player from opening a queue UI that cannot submit its request.
+// Purpose: While the game coordinator is connected, FIND GAME opens the queue;
+//          wait until its status has answered once, so the playlist is not
+//          opened before anybody knows which modes it runs. Without a GC the
+//          button is quickplay and always enabled.
 //-----------------------------------------------------------------------------
 void CTFMatchmakingDashboard::UpdateFindAGameAvailability()
 {
-	const CTFMMBackend *pBackend = TFMMBackend();
+	const CTFGCStatus *pBackend = TFGCStatus();
 	const bool bEnabled = !pBackend->BActive() || pBackend->GetStatus().bValid;
 
 	if ( m_pPlayButton->IsEnabled() != bEnabled )

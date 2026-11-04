@@ -1,0 +1,148 @@
+<rml>
+<!-- Support the developers: one-off donations and a monthly subscription,
+     paid in Steam's overlay (services/gc/internal/support). Nothing here
+     buys an advantage: a badge, a name on the wall, our thanks. -->
+<head>
+	<title>Support</title>
+	<link type="text/rcss" href="../style/base.rcss"/>
+	<link type="text/rcss" href="../style/support.rcss"/>
+</head>
+<body>
+<div class="root" data-model="fr" data-class-world="app.world">
+	<div class="world-standin" data-if="app.preview"></div>
+	<div class="dim-all"></div>
+	<div class="glow"></div>
+	<div class="screen">
+		<div class="row hero in0">
+			<div class="col hero-text">
+				<h1 class="shadow">#fui_support_title</h1>
+				<div class="lead">#fui_support_lead</div>
+				<div class="row fair">
+					<div class="fair-shield"><div class="tick"></div></div>
+					<div class="dim">#fui_support_fair</div>
+				</div>
+			</div>
+			<div class="spacer"></div>
+			<div class="col status-card">
+				<div class="dimmer tiny upper">#fui_support_status</div>
+				<div class="row status-line" data-if="support.me.supporter">
+					<div class="sup-gem big"></div>
+					<div class="title status-text" data-if="!support.me.monthly">#fui_support_you</div>
+					<div class="title status-text" data-if="support.me.monthly">#fui_support_you_monthly</div>
+				</div>
+				<div class="title status-text dimmer" data-if="!support.me.supporter">#fui_support_none</div>
+				<div class="row totals">
+					<div class="total"><span class="title">{{ support.count | thousands }}</span><div class="dim tiny upper">#fui_support_count</div></div>
+					<div class="total"><span class="title pink">{{ support.subscribers | thousands }}</span><div class="dim tiny upper">#fui_support_subs</div></div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Not connected to Steam's store yet -->
+		<div class="panel unavailable in1" data-if="!support.offered && !support.loading">
+			<div class="title">#fui_support_unavailable</div>
+			<div class="dim">#fui_support_unavailable_d</div>
+		</div>
+		<div class="loading dim in1" data-if="support.loading"><span class="pulse-dot"></span> …</div>
+
+		<div class="row support-body" data-if="support.offered && !support.loading">
+			<!-- One-off -->
+			<div class="col once panel in1">
+				<div class="row">
+					<div class="panel-title grow">#fui_support_once <span class="sub">#fui_support_once_d</span></div>
+				</div>
+				<div class="tiers">
+					<div data-for="t : support.once" data-attr-class="'tier t' + t.tier" sfx="" data-class-busy="support.busy" data-event-click="cmd('support_buy', 'once', t.tier)">
+						<div class="tier-art">
+							<img data-attr-src="t.tier == 0 ? 'tex:backpack/weapons/c_models/c_sandwich/c_sandwich' : (t.tier == 1 ? 'tex:backpack/player/items/mvm_loot/all_class/mvm_flask_ammo' : (t.tier == 2 ? 'tex:backpack/weapons/c_models/c_wrench/gold_wrench' : 'tex:backpack/weapons/c_models/c_medigun/c_medigun'))"/>
+						</div>
+						<div class="tier-name title">{{ ('fui_support_once_' + t.tier) | t }}</div>
+						<div class="tier-desc dim">{{ ('fui_support_once_d' + t.tier) | t }}</div>
+						<div class="spacer"></div>
+						<div class="tier-price title">{{ t.price }}</div>
+						<div class="tier-go">#fui_support_give</div>
+					</div>
+				</div>
+				<div data-attr-class="'check-row' + (support.anon ? ' on' : '')" sfx="" data-event-click="toggle('support.anon')">
+					<div class="box"><div class="tick" data-if="support.anon"></div></div>
+					<span>#fui_support_anon</span>
+				</div>
+			</div>
+
+			<!-- Monthly -->
+			<div class="col monthly panel in2">
+				<div class="panel-title">#fui_support_monthly <span class="sub">#fui_support_monthly_d</span></div>
+				<div class="sub-active" data-if="support.me.monthly">
+					<div class="row">
+						<div class="sup-gem big"></div>
+						<div class="title grow">#fui_support_active</div>
+					</div>
+					<div class="button ghost small-button cancel" sfx="" data-event-click="set('ui.modal', 'support_cancel')">#fui_support_cancel</div>
+				</div>
+				<div data-for="t : support.monthly" data-attr-class="'plan p' + t.tier" sfx="" data-if="!support.me.monthly" data-class-busy="support.busy" data-event-click="cmd('support_buy', 'monthly', t.tier)">
+					<div class="plan-art">
+						<img data-attr-src="t.tier == 0 ? 'tex:backpack/player/items/mvm_loot/engineer/fob_e_wrench_gold' : 'tex:backpack/player/items/mvm_loot/medic/fob_h_medigun_diamond'"/>
+					</div>
+					<div class="col grow">
+						<div class="plan-name title">{{ ('fui_support_monthly_' + t.tier) | t }}</div>
+						<div class="dim small">{{ ('fui_support_monthly_d' + t.tier) | t }}</div>
+					</div>
+					<div class="col plan-price">
+						<div class="title">{{ t.price }}</div>
+						<div class="dimmer tiny">#fui_support_per_month</div>
+					</div>
+					<div class="plan-go">#fui_support_subscribe</div>
+				</div>
+
+				<div class="perks">
+					<div class="dimmer tiny upper perks-title">#fui_support_perks</div>
+					<div class="row perk-line"><div class="sup-gem"></div><span>#fui_support_perk_badge</span></div>
+					<div class="row perk-line"><div class="sup-gem"></div><span>#fui_support_perk_wall</span></div>
+					<div class="row perk-line"><div class="sup-gem"></div><span>#fui_support_perk_sub</span></div>
+				</div>
+			</div>
+
+			<!-- The wall -->
+			<div class="col wall panel in3">
+				<div class="panel-title">#fui_support_wall</div>
+				<div class="wall-list">
+					<div data-for="w : support.wall" data-attr-class="'thanks k-' + w.kind">
+						<div class="sup-gem" data-class-small="w.kind == 'once'"></div>
+						<div class="thanks-name grow">{{ w.name }}</div>
+						<div class="thanks-ago dimmer tiny">{{ w.ago | duration }}</div>
+					</div>
+					<div class="dim small empty" data-if="support.wall.size == 0">#fui_support_wall_empty</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- How it went -->
+		<div data-attr-class="'result r-' + support.result" data-if="support.result != ''">
+			<span class="pulse-dot" data-if="support.result == 'opening' || support.result == 'pending'"></span>
+			<span data-if="support.result == 'opening'">#fui_support_opening</span>
+			<span data-if="support.result == 'pending'">#fui_support_pending</span>
+			<span data-if="support.result == 'thanks'">#fui_support_thanks</span>
+			<span data-if="support.result == 'cancelled'">#fui_support_cancelled</span>
+			<span data-if="support.result == 'error'">#fui_support_error: {{ ('fui_support_err_' + support.error) | t }}</span>
+		</div>
+
+		<div class="row footer">
+			<div class="sandbox" data-if="support.sandbox">#fui_support_sandbox</div>
+			<div class="dimmer tiny legal">#fui_support_legal</div>
+		</div>
+	</div>
+
+	<!-- Cancel -->
+	<div class="modal-dim" data-if="ui.modal == 'support_cancel'">
+		<div class="modal support-modal panel">
+			<h2 class="shadow">#fui_support_cancel_q</h2>
+			<p class="dim">#fui_support_cancel_body</p>
+			<div class="row mf-buttons">
+				<div class="button danger" sfx="" data-event-click="cmd('support_cancel')">#fui_support_cancel</div>
+				<div class="button primary" sfx="" data-event-click="set('ui.modal', '')">#fui_support_keep</div>
+			</div>
+		</div>
+	</div>
+</div>
+</body>
+</rml>

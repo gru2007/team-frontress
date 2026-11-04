@@ -1,0 +1,182 @@
+<rml>
+<!-- Home: the party lobby. Everybody in the party stands in the middle as
+     their own 3D character (fui-model; see fui_stage.h), you in front. The
+     day's quests on the left; the war, the chat and who is online on the
+     right; the play button in the corner (the shell draws it). -->
+<head>
+	<title>Home</title>
+	<link type="text/rcss" href="../style/base.rcss"/>
+	<link type="text/rcss" href="../style/home.rcss"/>
+</head>
+<body>
+<div class="root" data-model="fr" data-class-world="app.world">
+	<div class="world-standin" data-if="app.preview"></div>
+	<div class="grade"></div>
+	<div class="grade-side"></div>
+	<div class="embers">
+		<div class="ember e1"></div><div class="ember e2"></div><div class="ember e3"></div>
+		<div class="ember e4"></div><div class="ember e5"></div><div class="ember e6"></div>
+		<div class="ember e7"></div><div class="ember e8"></div><div class="ember e9"></div>
+	</div>
+
+	<!-- The party, standing. Positions are pos0 (you) .. pos4. -->
+	<div id="stage">
+		<div data-for="m : party.members" data-attr-class="'member pos' + m.slot + (m.me ? ' me' : '')">
+			<div class="spot"></div>
+			<div class="floor"></div>
+			<div class="model" data-if="m.has_look" data-attr-fui-model="m.key">
+				<img class="stand-in" data-if="app.preview" data-attr-src="'tex:console/characters/' + m.class"/>
+			</div>
+			<div class="nameplate">
+				<div class="row plate-top">
+					<img class="plate-class" data-if="m.class != ''" data-attr-src="'tex:vgui/class_icons/class_icon_orange_' + (m.class == 'demoman' ? 'demo' : m.class)"/>
+					<span class="plate-tag" data-if="m.tag != ''" data-class-gold="m.gold">{{ m.tag }}</span>
+					<div class="plate-name">{{ m.name }}</div>
+					<div class="sup-gem" data-if="m.sup"></div>
+				</div>
+				<div class="row plate-bottom">
+					<span class="plate-level" data-if="m.level > 0">{{ m.level }}</span>
+					<span class="plate-leader" data-if="m.leader">#fui_party_leader</span>
+					<span class="plate-you" data-if="m.me">#fui_you</span>
+				</div>
+			</div>
+		</div>
+		<div data-for="e : party.empty" data-attr-class="'invite-slot pos' + e" sfx="" data-event-click="cmd('invite')">
+			<div class="ghost-ring"></div>
+			<div class="ghost-plus">+</div>
+			<div class="ghost-label">#fui_invite</div>
+		</div>
+	</div>
+
+	<!-- Today's quests -->
+	<div id="quests" class="panel in1" sfx="" data-event-click="nav('quests')">
+		<div class="row quests-head">
+			<div class="panel-title grow">#fui_quests_today</div>
+			<div class="timer"><span class="dimmer tiny">#fui_quests_reset&nbsp;</span><span class="small">{{ quests.daily_left | duration }}</span></div>
+		</div>
+		<div class="quest" data-for="q : quests.daily" data-class-done="q.done">
+			<div class="quest-photo" data-style-decorator="'image(tex:' + q.photo + ' cover)'"></div>
+			<div class="col grow">
+				<div class="quest-text">{{ ('fui_q_' + q.kind) | t(q.target, '#fui_class_' + q.class) }}</div>
+				<div class="row">
+					<div class="bar grow"><div class="fill" data-style-width="(q.frac * 100) + '%'"></div></div>
+					<div class="quest-count">{{ q.progress | thousands }}/{{ q.target | thousands }}</div>
+				</div>
+			</div>
+			<div class="quest-xp" data-if="!q.done">+{{ q.xp }}</div>
+			<div class="quest-check" data-if="q.done"><div class="tick"></div></div>
+		</div>
+		<div class="dim small empty" data-if="quests.total == 0">#fui_quests_none</div>
+	</div>
+
+	<!-- You -->
+	<div id="me-card" class="panel in2">
+		<div class="row">
+			<div class="level-ring">
+				<div class="level-num title">{{ player.level }}</div>
+			</div>
+			<div class="col grow">
+				<div class="title me-name">{{ player.name }}</div>
+				<div class="bar"><div class="fill" data-style-width="(player.xp_frac * 100) + '%'"></div></div>
+				<div class="dimmer tiny xp-text">{{ player.xp | thousands }} / {{ player.xp_next | thousands }} XP</div>
+			</div>
+		</div>
+		<div class="classes-row">
+			<div data-for="c : locker.classes" data-attr-class="'class-pick' + (c.id == ui.class ? ' on' : '')" sfx="class" data-event-click="cmd('lobby_class', c.id)">
+				<img data-attr-src="'tex:vgui/class_icons/class_icon_orange_' + (c.id == 'demoman' ? 'demo' : c.id)"/>
+			</div>
+		</div>
+	</div>
+
+	<!-- The right column: the war, then the chat -->
+	<div id="right-col">
+	<div id="war-card" class="inr" sfx="" data-if="war.fronts.size > 0" data-event-click="nav('war')">
+		<div class="row">
+			<div class="title war-title">#fui_tab_war</div>
+			<div class="spacer"></div>
+			<div class="chip red nowrap" data-if="war.battles > 0"><span class="pulse-small"></span>{{ war.battles }} #fui_war_battles</div>
+		</div>
+		<div class="dim small">{{ war.name }} · #fui_war_day {{ war.day }}<span data-if="war.days > 0"> #fui_war_of {{ war.days }}</span></div>
+		<div class="tug">
+			<div class="tug-red" data-style-width="(war.red * 100) + '%'"><span>RED {{ war.red | percent }}</span></div>
+			<div class="tug-blu"><span>{{ (1 - war.red) | percent }} BLU</span></div>
+		</div>
+		<div class="row tiny dim">
+			<span>{{ war.red_fronts }} #fui_war_fronts</span>
+			<div class="spacer"></div>
+			<span>{{ war.soldiers | thousands }} #fui_war_soldiers</span>
+			<div class="spacer"></div>
+			<span>{{ war.blu_fronts }} #fui_war_fronts</span>
+		</div>
+	</div>
+
+	<!-- The chat and who is online: a small community should feel like one. -->
+	<div id="social" class="inr">
+		<div class="row soc-head">
+			<span class="soc-dot"></span>
+			<span class="soc-count">{{ social.online.total | thousands }}</span>
+			<span class="dim small">&nbsp;#fui_soc_online</span>
+			<div class="spacer"></div>
+			<span class="soc-stat" data-if="social.online.match > 0"><span class="soc-pip fight"></span>{{ social.online.match }} #fui_soc_in_match</span>
+			<span class="soc-stat" data-if="social.online.queue > 0"><span class="soc-pip queue"></span>{{ social.online.queue }} #fui_soc_in_queue</span>
+		</div>
+		<div class="row soc-tabs">
+			<div class="soc-tab" sfx="tab" data-class-on="social.tab == 'global'" data-event-click="set('social.tab', 'global')">#fui_soc_tab_global</div>
+			<div class="soc-tab" sfx="tab" data-if="social.has_clan" data-class-on="social.tab == 'clan'" data-event-click="set('social.tab', 'clan')">#fui_soc_tab_clan<span class="soc-unread" data-if="social.unread_clan > 0">{{ social.unread_clan }}</span></div>
+			<div class="soc-tab" sfx="tab" data-if="social.has_party" data-class-on="social.tab == 'party'" data-event-click="set('social.tab', 'party')">#fui_soc_tab_party<span class="soc-unread" data-if="social.unread_party > 0">{{ social.unread_party }}</span></div>
+			<div class="spacer"></div>
+			<div class="soc-tab people" sfx="tab" data-class-on="social.tab == 'online'" data-event-click="set('social.tab', 'online')">#fui_soc_tab_online<span class="soc-unread lfg" data-if="social.online.lfg > 0">{{ social.online.lfg }}</span></div>
+		</div>
+
+		<!-- The chat -->
+		<div id="chat-log" data-if="social.tab != 'online'">
+			<div data-for="l : social.view" data-attr-class="'line' + (l.sys ? ' sys k-' + l.kind : '') + (l.me ? ' mine' : '')">
+				<span class="l-time">{{ l.time }}</span>
+				<span class="l-tag" data-if="l.tag != ''" data-class-gold="l.gold">{{ l.tag }}</span>
+				<span class="l-name" data-if="!l.sys" data-class-sup="l.sup">{{ l.name }}</span>
+				<span class="l-text" data-if="!l.sys">{{ l.text }}</span>
+				<span class="l-sys" data-if="l.sys">{{ l.key | t(l.a1, l.a2, l.a3, l.a4) }}</span>
+			</div>
+			<div class="chat-empty dimmer small" data-if="social.view.size == 0">{{ ('#fui_soc_empty_' + social.tab) | t }}</div>
+		</div>
+		<div class="row chat-input" data-if="social.tab != 'online'">
+			<input type="text" class="text grow" maxlength="200" data-value="ui.chat_draft"
+				data-event-change="cmd('chat_input', ev.linebreak, ev.value)"/>
+			<div class="chat-hint dimmer small" data-if="ui.chat_draft == ''">{{ ('#fui_soc_hint_' + social.tab) | t }}</div>
+			<div class="chat-send" sfx="" data-event-click="cmd('chat_send')"><div class="arrow"></div></div>
+		</div>
+
+		<!-- Who is online, squad-seekers first -->
+		<div id="who" data-if="social.tab == 'online'">
+			<div data-for="p : social.online.players" data-attr-class="'who' + (p.lfg ? ' lfg' : '') + (p.me ? ' me' : '')">
+				<div data-attr-class="'who-dot ' + p.status"></div>
+				<div class="col grow">
+					<div class="row">
+						<span class="l-tag" data-if="p.tag != ''" data-class-gold="p.gold">{{ p.tag }}</span>
+						<span class="who-name">{{ p.name }}</span>
+						<div class="sup-gem small" data-if="p.sup"></div>
+						<span class="who-level">{{ p.level }}</span>
+					</div>
+					<div class="who-status" data-if="p.lfg && p.note != ''">«{{ p.note }}»</div>
+					<div class="who-status" data-if="!(p.lfg && p.note != '')">{{ ('#fui_soc_st_' + (p.lfg ? 'lfg' : p.status)) | t(('#fui_mode_' + p.mode), p.map) }}<span data-if="p.party > 1"> · #fui_soc_party {{ p.party }}</span></div>
+				</div>
+				<div class="who-act" sfx="" data-if="!p.me && p.status != 'match'" data-event-click="cmd('invite_player', p.id)">#fui_soc_invite</div>
+				<div class="who-act ghost" sfx="" data-if="!p.me && p.lfg == false && p.party > 1 && p.status == 'menu'" data-event-click="cmd('join_player', p.id)">#fui_soc_join</div>
+				<div class="who-act ghost" sfx="" data-if="!p.me && clan.officer && p.tag == ''" data-event-click="cmd('clan_invite', p.id)">#fui_soc_to_clan</div>
+			</div>
+			<div class="chat-empty dimmer small" data-if="social.online.players.size == 0">#fui_soc_nobody</div>
+		</div>
+
+		<div class="row lfg-row">
+			<div data-attr-class="'lfg-toggle' + (social.lfg ? ' on' : '')" sfx="" data-event-click="cmd('lfg_toggle')">
+				<div class="lfg-box"><div class="tick" data-if="social.lfg"></div></div>
+				<span>#fui_soc_lfg</span>
+			</div>
+			<div class="spacer"></div>
+			<span class="dimmer tiny" data-if="social.online.lfg > 0">{{ 'fui_soc_lfg_count' | t(social.online.lfg) }}</span>
+		</div>
+	</div>
+	</div>
+</div>
+</body>
+</rml>

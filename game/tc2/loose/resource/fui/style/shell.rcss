@@ -1,0 +1,321 @@
+/* The shell: top bar, play button, queue strip, modals. */
+
+body#shell { pointer-events: none; }
+.hit { pointer-events: auto; }
+
+/* ---------------------------------------------------------------- top bar */
+#topbar {
+	position: absolute;
+	left: 0; top: 0; right: 0;
+	height: 88dp;
+	padding: 0 40dp 0 48dp;
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	decorator: linear-gradient(to bottom, #0d0907f0, #0d0907b0 70%, #0d090700);
+}
+
+#logo {
+	margin-right: 18dp;
+	cursor: pointer;
+	transform: rotate(-3deg);
+}
+.logo-small {
+	font-family: "TF2 Build";
+	font-size: 17dp;
+	line-height: 16dp;
+	color: #ffc93c;
+	text-transform: uppercase;
+	letter-spacing: 6dp;
+	font-effect: shadow(2dp 2dp #000000);
+}
+.logo-big {
+	font-family: "TF2 Build";
+	font-size: 38dp;
+	line-height: 36dp;
+	color: #ece3cb;
+	text-transform: uppercase;
+	font-effect: shadow(3dp 3dp #8e2a26);
+}
+
+#tabs { display: flex; flex-direction: row; align-items: stretch; height: 88dp; }
+.tab {
+	font-family: "TF2 Build";
+	font-size: 22dp;
+	text-transform: uppercase;
+	color: #b8ab92;
+	padding: 32dp 11dp 0 11dp;
+	white-space: nowrap;
+	cursor: pointer;
+	border-bottom: 5dp #00000000;
+	transition: color border-color 0.15s cubic-out;
+}
+.tab:hover { color: #ece3cb; }
+.tab.active {
+	color: #ffc93c;
+	border-bottom-color: #ffc93c;
+	font-effect: shadow(0 2dp #000000);
+	decorator: linear-gradient(to top, #ffc93c26 0%, #ffc93c00 70%);
+}
+.count-badge {
+	display: inline-block;
+	font-family: "TF2 Build";
+	font-size: 12dp;
+	min-width: 18dp;
+	height: 18dp;
+	line-height: 18dp;
+	text-align: center;
+	border-radius: 9dp;
+	background-color: #ef5a4c;
+	color: #fff4e8;
+	margin-left: 6dp;
+	vertical-align: top;
+}
+.live-dot {
+	display: inline-block;
+	width: 9dp;
+	height: 9dp;
+	border-radius: 5dp;
+	background-color: #ef5a4c;
+	margin-left: 7dp;
+	vertical-align: top;
+	animation: 0.7s quadratic-in-out infinite alternate pulse;
+}
+
+#status {
+	margin-right: 18dp;
+	text-align: right;
+	white-space: nowrap;
+}
+.gc-dot {
+	display: inline-block;
+	width: 10dp;
+	height: 10dp;
+	border-radius: 5dp;
+	margin-right: 8dp;
+	background-color: #ef5a4c;
+}
+.gc-dot.online { background-color: #8fd16a; }
+.gc-dot.connecting { background-color: #ffc93c; animation: 0.6s quadratic-in-out infinite alternate pulse; }
+.online-count { font-family: "TF2 Build"; font-size: 20dp; }
+
+#player-chip {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	padding: 6dp 16dp 6dp 6dp;
+	border-radius: 14dp;
+	background-color: #ffffff0d;
+	border: 1dp #ffffff14;
+	cursor: pointer;
+	margin-right: 14dp;
+	transition: background-color 0.15s cubic-out;
+}
+#player-chip:hover { background-color: #ffffff1c; }
+#player-chip .who { margin-left: 12dp; }
+#player-chip .name { font-family: "TF2 Build"; font-size: 19dp; margin-bottom: 6dp; }
+#player-chip .bar.xp { width: 130dp; height: 7dp; }
+.chip-avatar { position: relative; width: 52dp; height: 52dp; }
+.chip-avatar .avatar { width: 48dp; height: 48dp; }
+.chip-level {
+	position: absolute;
+	right: -6dp; bottom: -4dp;
+	min-width: 22dp;
+	padding: 1dp 5dp;
+	border-radius: 6dp;
+	background-color: #ffc93c;
+	color: #2a1a05;
+	font-family: "TF2 Build";
+	font-size: 12dp;
+	text-align: center;
+	border: 2dp #1a1310;
+}
+
+.icon-button.quit:hover { background-color: #a8352f; color: #fff4e8; }
+
+/* ---------------------------------------------------------------- queue */
+#queue-strip {
+	position: absolute;
+	left: 0; right: 0; top: 96dp;
+	display: flex;
+	flex-direction: row;
+	justify-content: center;
+}
+.queue-pill {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 16dp;
+	padding: 10dp 12dp 10dp 20dp;
+	border-radius: 30dp;
+	background-color: #1a1310ee;
+	border: 2dp #ffc93c88;
+}
+.pulse {
+	display: inline-block;
+	width: 14dp;
+	height: 14dp;
+	border-radius: 7dp;
+	background-color: #ffc93c;
+	animation: 0.6s quadratic-in-out infinite alternate pulse;
+}
+.queue-time { font-family: "TF2 Build"; font-size: 30dp; color: #ffc93c; min-width: 70dp; text-align: center; }
+.radar { position: relative; width: 30dp; height: 30dp; }
+.radar-ring {
+	position: absolute;
+	left: 0; top: 0; width: 26dp; height: 26dp;
+	border-radius: 15dp;
+	border: 2dp #ffc93c;
+	animation: 1.4s cubic-out infinite ping;
+}
+.radar-dot { position: absolute; left: 10dp; top: 10dp; width: 10dp; height: 10dp; border-radius: 5dp; background-color: #ffc93c; }
+@keyframes ping { from { transform: scale(0.4); opacity: 1; } to { transform: scale(1.5); opacity: 0; } }
+
+/* ---------------------------------------------------------------- toasts */
+/* Under the top bar, in the middle: the part of every screen that is
+   least likely to hold something you are reading. */
+#toasts {
+	position: absolute;
+	left: 50%; top: 96dp;
+	margin-left: -190dp;
+	width: 380dp;
+	pointer-events: none;
+}
+.toast {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 14dp;
+	margin-bottom: 10dp;
+	padding: 10dp 16dp 10dp 10dp;
+	border-radius: 14dp;
+	decorator: linear-gradient(to right, #2a1f19f5, #17110ef5);
+	border: 1dp #4a3a2e;
+	border-left: 5dp #ffc93c;
+	animation: 0.4s back-out 1 inr;
+}
+.toast.k-quest { border-left-color: #8fd16a; }
+.toast.k-party { border-left-color: #7fb2e5; }
+.toast.k-clan { border-left-color: #ffc93c; }
+.toast.k-support { border-left-color: #ff9ec4; }
+.toast.k-error { border-left-color: #ef5a4c; }
+.clan-tab-tag {
+	display: inline-block;
+	font-size: 12dp;
+	padding: 1dp 5dp;
+	margin-left: 6dp;
+	border-radius: 4dp;
+	vertical-align: top;
+	color: #2a1a05;
+	background-color: #b8ab92;
+}
+.tab.active .clan-tab-tag { background-color: #ffc93c; }
+.chip-tag { font-size: 11dp; margin-right: 6dp; }
+.support-button { display: flex; flex-direction: row; align-items: center; white-space: nowrap; color: #ffb3d1; }
+.support-button .sup-gem { margin: 0 8dp 0 0; }
+.support-button:hover, .support-button.active { background-color: #ff6fa833; color: #ffd1e3; }
+.toast-icon { width: 48dp; height: 48dp; border-radius: 8dp; }
+.toast-title { font-family: "TF2 Build"; font-size: 18dp; }
+.toast-body { font-size: 15dp; color: #b8ab92; }
+
+/* ---------------------------------------------------------------- play */
+#play-cluster {
+	position: absolute;
+	right: 56dp;
+	bottom: 44dp;
+	width: 430dp;
+}
+#mode-card {
+	margin-bottom: 14dp;
+	border-radius: 14dp;
+	background-color: #1a1310e6;
+	border: 2dp #3d3027;
+	cursor: pointer;
+	transition: border-color 0.15s cubic-out;
+}
+#mode-card:hover { border-color: #ffc93c88; }
+.mode-inner { display: flex; flex-direction: row; align-items: center; padding: 10dp; }
+.mode-thumb { width: 116dp; height: 66dp; border-radius: 8dp; margin-right: 14dp; }
+.mode-name { font-size: 26dp; line-height: 28dp; color: #ece3cb; }
+.change {
+	font-family: "TF2 Build";
+	font-size: 15dp;
+	text-transform: uppercase;
+	color: #ffc93c;
+	padding: 6dp 10dp;
+}
+
+.play-glow {
+	position: absolute;
+	left: -40dp; right: -40dp; bottom: -40dp; height: 220dp;
+	decorator: radial-gradient(ellipse closest-side, #ffc93c55 0%, #ffc93c00 100%);
+	animation: 2.2s sine-in-out infinite alternate glow;
+	pointer-events: none;
+}
+@keyframes glow { from { opacity: 0.45; transform: scale(0.92); } to { opacity: 1; transform: scale(1.05); } }
+
+.play-button {
+	position: relative;
+	height: 124dp;
+	border-radius: 16dp;
+	decorator: linear-gradient(to bottom, #fff07a 0%, #ffc12b 52%, #f29a0c 100%);
+	border-bottom: 8dp #a85f04;
+	text-align: center;
+	cursor: pointer;
+	transform: skewX(-6deg);
+	transition: transform 0.12s cubic-out;
+}
+.play-button:hover { transform: skewX(-6deg) scale(1.035); decorator: linear-gradient(to bottom, #fff8b0 0%, #ffd043 52%, #ffab1f 100%); }
+.play-button:active { transform: skewX(-6deg) scale(0.98); }
+.play-button .label {
+	font-family: "TF2 Build";
+	font-size: 66dp;
+	line-height: 92dp;
+	padding-top: 4dp;
+	color: #2a1a05;
+	text-transform: uppercase;
+	font-effect: shadow(0 3dp #ffffff70);
+}
+.play-hint {
+	font-family: "TF2 Build";
+	font-size: 15dp;
+	text-transform: uppercase;
+	color: #5a3a08;
+	letter-spacing: 1dp;
+}
+.play-button.searching {
+	decorator: linear-gradient(to bottom, #e05a50 0%, #b23a33 100%);
+	border-bottom-color: #6e1f1b;
+}
+.play-button.searching .label { font-size: 44dp; line-height: 64dp; padding-top: 12dp; color: #fff4e8; font-effect: shadow(0 3dp #00000066); }
+.play-button.searching .sub { font-family: "TF2 Build"; font-size: 26dp; color: #ffd9d2; }
+
+/* ---------------------------------------------------------------- modals */
+.match-found { width: 760dp; }
+.mf-image { height: 300dp; border-radius: 15dp 15dp 0 0; }
+.mf-body { padding: 24dp 34dp 30dp 34dp; text-align: center; }
+.mf-title { font-size: 46dp; line-height: 50dp; }
+.button.big { font-size: 34dp; padding: 16dp 54dp; }
+.mf-joining { margin-top: 20dp; }
+
+.quit-modal { width: 560dp; padding: 34dp; text-align: center; border-color: #c8413b; }
+.quit-modal p { margin: 12dp 0 6dp 0; }
+
+/* ---------------------------------------------------------------- settings */
+.settings-modal { width: 900dp; padding: 28dp 30dp; }
+.set-grid { display: flex; flex-direction: row; flex-wrap: wrap; gap: 12dp; margin: 18dp 0 22dp 0; }
+.set-tile, .hud-style {
+	box-sizing: border-box;
+	width: 202dp;
+	padding: 14dp 16dp;
+	border-radius: 12dp;
+	background-color: #ffffff0c;
+	border: 1dp #ffffff14;
+	cursor: pointer;
+	transition: background-color 0.12s;
+}
+.set-tile:hover, .hud-style:hover { background-color: #ffc93c1c; border-color: #ffc93c88; }
+.set-title { font-family: "TF2 Build"; font-size: 18dp; color: #fff4e8; margin-bottom: 4dp; }
+.hud-styles { gap: 12dp; flex-wrap: wrap; }
+.hud-style.active { background-color: #ffc93c26; border-color: #ffc93c; }
+.hud-style.active .set-title { color: #ffc93c; }

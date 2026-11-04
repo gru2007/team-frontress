@@ -1,0 +1,405 @@
+/* Home: the party lobby */
+
+/* ------------------------------------------------------------ the stage */
+#stage { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
+
+/* Where each party member stands: you in front, the others either side and
+   further back, like Fortnite's lobby. The box is the 3D character's frame. */
+.member, .invite-slot { position: absolute; }
+.pos0 { left: 700dp;  bottom: 92dp;  width: 520dp; height: 790dp; z-index: 5; }
+.pos1 { left: 520dp;  bottom: 162dp; width: 420dp; height: 610dp; z-index: 4; }
+.pos2 { left: 980dp;  bottom: 162dp; width: 420dp; height: 610dp; z-index: 4; }
+.pos3 { left: 470dp;  bottom: 222dp; width: 340dp; height: 500dp; z-index: 3; }
+.pos4 { left: 1110dp; bottom: 222dp; width: 340dp; height: 500dp; z-index: 3; }
+.pos5 { display: none; }
+
+.member { animation: 0.6s back-out 1 arrive; }
+@keyframes arrive { from { opacity: 0; transform: translateY(60dp) scale(0.9); } to { opacity: 1; transform: translateY(0dp) scale(1); } }
+
+.model { position: absolute; left: 0; top: 0; right: 0; bottom: 70dp; }
+.stand-in { position: absolute; left: 0; top: 0; width: 100%; height: 100%; animation: 2.6s sine-in-out infinite alternate sway; }
+
+/* Light from above and a shadow on the floor. */
+.spot {
+	position: absolute;
+	left: -20%; right: -20%; top: -6%; bottom: 40dp;
+	decorator: radial-gradient(ellipse closest-side at 50% 55%, #ffd9a024 0%, #ffd9a00c 60%, #00000000 100%);
+}
+.member.me .spot { decorator: radial-gradient(ellipse closest-side at 50% 55%, #ffd9a03a 0%, #ffd9a012 60%, #00000000 100%); }
+.floor {
+	position: absolute;
+	left: 8%; right: 8%; bottom: 52dp; height: 54dp;
+	decorator: radial-gradient(ellipse closest-side, #000000c0 0%, #00000000 100%);
+}
+.member.me .floor { decorator: radial-gradient(ellipse closest-side, #ffc93c40 0%, #ffc93c18 50%, #00000000 100%); }
+
+.nameplate {
+	position: absolute;
+	left: 50%; bottom: 0;
+	width: 210dp;
+	margin-left: -105dp;
+	padding: 6dp 10dp;
+	border-radius: 12dp;
+	decorator: linear-gradient(to bottom, #2a1f19e8, #17110ef0);
+	border: 1dp #4a3a2e;
+	border-top-color: #6a5442;
+	text-align: center;
+}
+.member.me .nameplate { border-color: #ffc93caa; width: 250dp; margin-left: -125dp; padding: 8dp 12dp; }
+.pos3 .nameplate, .pos4 .nameplate { width: 180dp; margin-left: -90dp; }
+.pos3 .plate-name, .pos4 .plate-name { font-size: 17dp; }
+.plate-top { justify-content: center; gap: 8dp; }
+.plate-class { width: 26dp; height: 26dp; }
+.plate-name { font-family: "TF2 Build"; font-size: 21dp; white-space: nowrap; }
+.plate-bottom { justify-content: center; gap: 6dp; margin-top: 4dp; }
+.plate-level, .plate-leader, .plate-you {
+	font-family: "TF2 Build";
+	font-size: 12dp;
+	text-transform: uppercase;
+	padding: 2dp 7dp;
+	border-radius: 5dp;
+}
+.plate-level { background-color: #ffc93c; color: #2a1a05; }
+.plate-leader { color: #ffc93c; border: 1dp #ffc93c99; }
+.plate-you { color: #fff4e8; background-color: #c8413b; }
+.plate-tag { font-size: 14dp; }
+
+/* An empty place in the party. */
+.invite-slot { cursor: pointer; }
+.ghost-ring {
+	position: absolute;
+	left: 50%; bottom: 170dp;
+	width: 110dp; height: 110dp;
+	margin-left: -55dp;
+	border-radius: 55dp;
+	border: 3dp #ece3cb44;
+	background-color: #00000040;
+	animation: 2.4s sine-in-out infinite alternate breathe;
+	transition: border-color background-color 0.15s cubic-out;
+}
+@keyframes breathe { from { transform: scale(0.94); opacity: 0.6; } to { transform: scale(1.04); opacity: 1; } }
+.ghost-plus {
+	position: absolute;
+	left: 50%; bottom: 196dp;
+	width: 110dp;
+	margin-left: -55dp;
+	text-align: center;
+	font-family: "TF2 Build";
+	font-size: 60dp;
+	line-height: 60dp;
+	color: #ece3cb88;
+}
+.ghost-label {
+	position: absolute;
+	left: 50%; bottom: 128dp;
+	width: 200dp;
+	margin-left: -100dp;
+	text-align: center;
+	font-family: "TF2 Build";
+	font-size: 16dp;
+	text-transform: uppercase;
+	color: #ece3cb88;
+}
+.invite-slot:hover .ghost-ring { border-color: #ffc93c; background-color: #ffc93c22; }
+.invite-slot:hover .ghost-plus, .invite-slot:hover .ghost-label { color: #ffc93c; }
+
+/* ------------------------------------------------------------ quests */
+#quests {
+	position: absolute;
+	left: 48dp; top: 112dp;
+	width: 400dp;
+	padding: 16dp 16dp 8dp 16dp;
+	cursor: pointer;
+	transition: border-color 0.15s cubic-out;
+}
+#quests:hover { border-color: #ffc93c88; }
+.quests-head { margin-bottom: 4dp; }
+.quests-head .panel-title { margin-bottom: 0; }
+.timer { text-align: right; color: #ece3cb; }
+.quest {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 12dp;
+	padding: 10dp 0;
+	border-top: 1dp #ffffff10;
+}
+.quest-photo { width: 58dp; height: 58dp; border-radius: 8dp; border: 2dp #ece3cb30; }
+.quest-text { font-size: 16dp; line-height: 19dp; margin-bottom: 6dp; }
+.quest-count { font-size: 13dp; color: #b8ab92; margin-left: 8dp; min-width: 70dp; text-align: right; }
+.quest-xp {
+	font-family: "TF2 Build";
+	font-size: 15dp;
+	color: #ffc93c;
+	padding: 4dp 8dp;
+	border-radius: 6dp;
+	background-color: #ffc93c1a;
+}
+.quest-check { width: 26dp; height: 26dp; border-radius: 13dp; background-color: #8fd16a; }
+.quest.done .quest-text { color: #8fd16a; }
+.quest.done .bar .fill { decorator: linear-gradient(to right, #4d7a33, #8fd16a); }
+
+/* ------------------------------------------------------------ you */
+#me-card {
+	position: absolute;
+	left: 48dp; bottom: 44dp;
+	width: 400dp;
+	padding: 16dp;
+}
+.level-ring {
+	width: 70dp; height: 70dp;
+	border-radius: 35dp;
+	border: 4dp #ffc93c;
+	decorator: radial-gradient(circle closest-side, #3a2a14 0%, #1a1310 100%);
+	margin-right: 14dp;
+	text-align: center;
+}
+.level-num { font-size: 32dp; line-height: 62dp; color: #ffc93c; }
+.me-name { font-size: 24dp; margin-bottom: 6dp; }
+.xp-text { margin-top: 5dp; }
+.classes-row { display: flex; flex-direction: row; justify-content: space-between; margin-top: 14dp; }
+.class-pick {
+	width: 38dp; height: 38dp;
+	border-radius: 8dp;
+	padding: 3dp;
+	cursor: pointer;
+	opacity: 0.45;
+	transition: opacity background-color transform 0.12s cubic-out;
+}
+.class-pick img { width: 32dp; height: 32dp; }
+.class-pick:hover { opacity: 1; transform: translateY(-3dp); background-color: #ffffff12; }
+.class-pick.on { opacity: 1; background-color: #ffc93c33; }
+
+/* ------------------------------------------------------------ right column */
+#right-col {
+	position: absolute;
+	right: 48dp; top: 112dp; bottom: 300dp;
+	width: 430dp;
+	display: flex;
+	flex-direction: column;
+}
+
+/* ------------------------------------------------------------ the war */
+#war-card {
+	flex: 0 0 auto;
+	margin-bottom: 14dp;
+	padding: 16dp 18dp;
+	border-radius: 16dp;
+	decorator: linear-gradient(to bottom, #2a1f19ee 0%, #17110ef2 100%);
+	border: 1dp #4a3a2e;
+	border-top-color: #6a5442;
+	cursor: pointer;
+	transition: border-color 0.15s cubic-out;
+}
+#war-card:hover { border-color: #ffc93c88; }
+.war-title { font-size: 26dp; color: #ffc93c; }
+.pulse-small {
+	display: inline-block;
+	width: 8dp; height: 8dp;
+	border-radius: 4dp;
+	background-color: #fff4e8;
+	margin-right: 6dp;
+	animation: 0.6s quadratic-in-out infinite alternate pulse;
+}
+.tug {
+	display: flex;
+	flex-direction: row;
+	height: 30dp;
+	margin: 12dp 0 8dp 0;
+	border-radius: 8dp;
+	decorator: linear-gradient(to right, #2f5679, #5b8fbf);
+}
+.tug-red {
+	height: 30dp;
+	border-radius: 8dp 0 0 8dp;
+	decorator: linear-gradient(to right, #8e2a26, #d6463d);
+	border-right: 3dp #fff4e8;
+}
+.tug span { font-family: "TF2 Build"; font-size: 16dp; line-height: 30dp; padding: 0 10dp; color: #fff4e8; }
+.tug-blu { flex: 1 1 0; text-align: right; }
+
+/* ------------------------------------------------------------ chat and who is online */
+#social {
+	flex: 1 1 0;
+	display: flex;
+	flex-direction: column;
+	min-height: 200dp;
+	padding: 12dp 14dp 10dp 14dp;
+	border-radius: 16dp;
+	decorator: linear-gradient(to bottom, #221914f0 0%, #140f0cf4 100%);
+	border: 1dp #4a3a2e;
+	border-top-color: #6a5442;
+}
+.soc-head { flex: 0 0 auto; gap: 4dp; margin-bottom: 8dp; }
+.soc-dot {
+	display: inline-block;
+	width: 10dp; height: 10dp;
+	border-radius: 5dp;
+	background-color: #8fd16a;
+	margin-right: 6dp;
+	animation: 1.2s sine-in-out infinite alternate pulse;
+}
+.soc-count { font-family: "TF2 Build"; font-size: 22dp; color: #ece3cb; }
+.soc-stat { font-size: 13dp; color: #b8ab92; margin-left: 10dp; white-space: nowrap; }
+.soc-pip { display: inline-block; width: 7dp; height: 7dp; border-radius: 4dp; margin-right: 5dp; }
+.soc-pip.fight { background-color: #ef5a4c; }
+.soc-pip.queue { background-color: #ffc93c; }
+
+.soc-tabs { flex: 0 0 auto; gap: 4dp; border-bottom: 1dp #ffffff14; margin-bottom: 6dp; }
+.soc-tab {
+	font-family: "TF2 Build";
+	font-size: 15dp;
+	text-transform: uppercase;
+	color: #8a7d68;
+	padding: 4dp 10dp 7dp 10dp;
+	border-bottom: 3dp #00000000;
+	cursor: pointer;
+	transition: color border-color 0.12s cubic-out;
+}
+.soc-tab:hover { color: #ece3cb; }
+.soc-tab.on { color: #ffc93c; border-bottom-color: #ffc93c; }
+.soc-unread {
+	display: inline-block;
+	font-size: 11dp;
+	line-height: 15dp;
+	min-width: 15dp;
+	padding: 0 4dp;
+	margin-left: 5dp;
+	border-radius: 8dp;
+	text-align: center;
+	background-color: #c8413b;
+	color: #fff4e8;
+}
+.soc-unread.lfg { background-color: #8fd16a; color: #14200c; }
+
+/* Lines stand at the bottom, newest last; older ones fall off the top. */
+#chat-log {
+	flex: 1 1 0;
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-end;
+	overflow: hidden;
+	padding: 2dp 2dp 6dp 2dp;
+}
+.line {
+	flex: 0 0 auto;
+	font-size: 15dp;
+	line-height: 19dp;
+	padding: 2dp 6dp;
+	border-radius: 6dp;
+	color: #ece3cb;
+}
+.line.mine { background-color: #ffc93c0d; }
+.l-time { font-size: 11dp; color: #6a5f50; margin-right: 6dp; }
+.l-tag {
+	font-family: "TF2 Build";
+	font-size: 11dp;
+	padding: 1dp 5dp;
+	margin-right: 5dp;
+	border-radius: 4dp;
+	color: #d8cdb4;
+	background-color: #ffffff14;
+	border: 1dp #ffffff26;
+}
+.l-tag.gold { color: #2a1a05; background-color: #ffc93c; border-color: #ffe066; }
+.l-name { font-weight: bold; color: #e6b36b; margin-right: 6dp; }
+.l-name.sup { color: #ff9ec4; }
+.line.mine .l-name { color: #ffc93c; }
+.l-text { color: #ece3cb; }
+.line.sys {
+	color: #b8ab92;
+	font-size: 14dp;
+	margin: 3dp 0;
+	padding: 4dp 8dp;
+	border-left: 3dp #7d705e;
+	background-color: #ffffff08;
+}
+.line.k-war { border-left-color: #ef5a4c; }
+.line.k-clan { border-left-color: #8fd16a; }
+.line.k-support { border-left-color: #ff9ec4; }
+.l-sys { color: #d8cdb4; }
+.chat-empty { text-align: center; padding: 20dp 10dp; }
+
+.chat-input { flex: 0 0 auto; position: relative; gap: 6dp; margin-top: 4dp; }
+.chat-input input.text { font-size: 16dp; padding: 7dp 12dp; height: 20dp; }
+.chat-hint { position: absolute; left: 16dp; top: 9dp; pointer-events: none; }
+.chat-send {
+	width: 36dp; height: 36dp;
+	border-radius: 10dp;
+	decorator: linear-gradient(to bottom, #ffe066, #ffb623);
+	cursor: pointer;
+	transition: transform 0.1s cubic-out;
+}
+.chat-send:hover { transform: scale(1.07); }
+.chat-send .arrow {
+	width: 10dp; height: 10dp;
+	margin: 12dp 0 0 10dp;
+	border-top: 3dp #2a1a05;
+	border-right: 3dp #2a1a05;
+	transform: rotate(45deg);
+}
+
+#who { flex: 1 1 0; overflow-y: auto; padding-right: 2dp; }
+.who {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 8dp;
+	padding: 6dp 6dp;
+	border-radius: 10dp;
+	border-bottom: 1dp #ffffff0c;
+}
+.who:hover { background-color: #ffffff08; }
+.who.lfg { background-color: #8fd16a12; border: 1dp #8fd16a40; margin: 2dp 0; }
+.who-dot { width: 9dp; height: 9dp; border-radius: 5dp; background-color: #8fd16a; }
+.who-dot.queue { background-color: #ffc93c; }
+.who-dot.match { background-color: #ef5a4c; }
+.who-name { font-size: 16dp; color: #ece3cb; white-space: nowrap; }
+.who.me .who-name { color: #ffc93c; }
+.who-level {
+	font-family: "TF2 Build";
+	font-size: 11dp;
+	margin-left: 6dp;
+	padding: 1dp 5dp;
+	border-radius: 4dp;
+	background-color: #ffc93c22;
+	color: #ffc93c;
+}
+.who-status { font-size: 12dp; color: #8a7d68; white-space: nowrap; }
+.who.lfg .who-status { color: #a9d98c; }
+.who-act {
+	font-family: "TF2 Build";
+	font-size: 12dp;
+	text-transform: uppercase;
+	padding: 5dp 9dp;
+	border-radius: 7dp;
+	color: #2a1a05;
+	background-color: #ffc93c;
+	cursor: pointer;
+	white-space: nowrap;
+	transition: transform background-color 0.1s cubic-out;
+}
+.who-act:hover { transform: scale(1.05); background-color: #ffe066; }
+.who-act.ghost { color: #ece3cb; background-color: #ffffff14; }
+.who-act.ghost:hover { background-color: #ffffff26; }
+
+.lfg-row { flex: 0 0 auto; margin-top: 8dp; padding-top: 8dp; border-top: 1dp #ffffff10; }
+.lfg-toggle {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 8dp;
+	font-family: "TF2 Build";
+	font-size: 14dp;
+	text-transform: uppercase;
+	color: #b8ab92;
+	cursor: pointer;
+	padding: 4dp 10dp 4dp 4dp;
+	border-radius: 8dp;
+	transition: background-color color 0.12s cubic-out;
+}
+.lfg-toggle:hover { background-color: #ffffff0c; color: #ece3cb; }
+.lfg-toggle.on { color: #a9d98c; background-color: #8fd16a1a; }
+.lfg-box { width: 22dp; height: 22dp; border-radius: 6dp; border: 2dp #ffffff40; }
+.lfg-toggle.on .lfg-box { background-color: #8fd16a; border-color: #8fd16a; }
+.lfg-box .tick { margin-top: 2dp; width: 5dp; height: 10dp; }
