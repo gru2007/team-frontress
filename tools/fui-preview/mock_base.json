@@ -1,0 +1,2061 @@
+{
+ "app": {
+  "gc": "online",
+  "online": 1284,
+  "version": "playtest 0.4",
+  "matches_live": 37,
+  "preview": true,
+  "world": false
+ },
+ "player": {
+  "name": "Gru",
+  "avatar": "avatar:76561198000000001",
+  "level": 37,
+  "xp": 8420,
+  "xp_next": 12000,
+  "xp_frac": 0.7,
+  "side": "red",
+  "rank": "Капрал",
+  "title": "Ветеран фронта",
+  "tag": "РК",
+  "sup": true,
+  "sup_monthly": false
+ },
+ "party": {
+  "max": 6,
+  "count": 4,
+  "empty": [
+   4,
+   5
+  ],
+  "members": [
+   {
+    "key": "me",
+    "name": "Gru",
+    "avatar": "avatar:76561198000000001",
+    "level": 37,
+    "leader": true,
+    "me": true,
+    "ready": true,
+    "class": "soldier",
+    "slot": 0,
+    "has_look": true,
+    "tag": "РК",
+    "gold": false,
+    "sup": true
+   },
+   {
+    "key": "member:2",
+    "name": "ficool2",
+    "avatar": "avatar:76561198000000002",
+    "level": 112,
+    "leader": false,
+    "me": false,
+    "ready": true,
+    "class": "medic",
+    "slot": 1,
+    "has_look": true,
+    "tag": "РК",
+    "gold": false,
+    "sup": false
+   },
+   {
+    "key": "member:3",
+    "name": "Медведь",
+    "avatar": "avatar:76561198000000003",
+    "level": 9,
+    "leader": false,
+    "me": false,
+    "ready": true,
+    "class": "heavy",
+    "slot": 2,
+    "has_look": true,
+    "tag": "",
+    "gold": false,
+    "sup": false
+   },
+   {
+    "key": "member:4",
+    "name": "Spycrab",
+    "avatar": "avatar:76561198000000004",
+    "level": 54,
+    "leader": false,
+    "me": false,
+    "ready": true,
+    "class": "engineer",
+    "slot": 3,
+    "has_look": true,
+    "tag": "TFC",
+    "gold": true,
+    "sup": true
+   }
+  ]
+ },
+ "queue": {
+  "state": "idle",
+  "mode": "casual",
+  "seconds": 0,
+  "players": 9,
+  "needed": 24,
+  "map": "",
+  "map_image": ""
+ },
+ "modes": [
+  {
+   "id": "war",
+   "name": "#fui_mode_war",
+   "desc": "#fui_mode_war_desc",
+   "image": "vgui/main_menu/war_newspaper",
+   "players": 612,
+   "tag": "#fui_tag_featured",
+   "size": "12 × 12",
+   "enabled": true
+  },
+  {
+   "id": "casual",
+   "name": "#fui_mode_casual",
+   "desc": "#fui_mode_casual_desc",
+   "image": "vgui/main_menu/main_menu_button_casual",
+   "players": 433,
+   "tag": "",
+   "size": "12 × 12",
+   "enabled": true
+  },
+  {
+   "id": "ranked",
+   "name": "#fui_mode_ranked",
+   "desc": "#fui_mode_ranked_desc",
+   "image": "vgui/main_menu/main_menu_button_competitive",
+   "players": 151,
+   "tag": "#fui_tag_ranked",
+   "size": "6 × 6",
+   "enabled": true
+  },
+  {
+   "id": "mvm",
+   "name": "#fui_mode_mvm",
+   "desc": "#fui_mode_mvm_desc",
+   "image": "vgui/main_menu/main_menu_button_mvm",
+   "players": 0,
+   "tag": "#fui_tag_soon",
+   "size": "6",
+   "enabled": false
+  },
+  {
+   "id": "community",
+   "name": "#fui_mode_community",
+   "desc": "#fui_mode_community_desc",
+   "image": "vgui/main_menu/main_menu_button_community_server",
+   "players": 88,
+   "tag": "",
+   "size": "",
+   "enabled": true
+  },
+  {
+   "id": "training",
+   "name": "#fui_mode_training",
+   "desc": "#fui_mode_training_desc",
+   "image": "vgui/main_menu/main_menu_button_training",
+   "players": 0,
+   "tag": "",
+   "size": "1",
+   "enabled": true
+  }
+ ],
+ "maps": [
+  {
+   "id": "cp_process_final",
+   "name": "Process",
+   "image": "vgui/maps/menu_thumb_cp_process_final",
+   "on": true
+  },
+  {
+   "id": "cp_gullywash_final1",
+   "name": "Gullywash",
+   "image": "vgui/maps/menu_thumb_cp_gullywash_final1",
+   "on": true
+  },
+  {
+   "id": "cp_snakewater_final1",
+   "name": "Snakewater",
+   "image": "vgui/maps/menu_thumb_cp_snakewater_final1",
+   "on": true
+  },
+  {
+   "id": "cp_granary",
+   "name": "Granary",
+   "image": "vgui/maps/menu_thumb_cp_granary",
+   "on": false
+  },
+  {
+   "id": "pl_badwater",
+   "name": "Badwater",
+   "image": "vgui/maps/menu_thumb_pl_badwater",
+   "on": true
+  },
+  {
+   "id": "pl_upward",
+   "name": "Upward",
+   "image": "vgui/maps/menu_thumb_pl_upward",
+   "on": true
+  },
+  {
+   "id": "pl_borneo",
+   "name": "Borneo",
+   "image": "vgui/maps/menu_thumb_pl_borneo",
+   "on": false
+  },
+  {
+   "id": "koth_viaduct",
+   "name": "Viaduct",
+   "image": "vgui/maps/menu_thumb_koth_viaduct",
+   "on": true
+  },
+  {
+   "id": "koth_lakeside_final",
+   "name": "Lakeside",
+   "image": "vgui/maps/menu_thumb_koth_lakeside_final",
+   "on": true
+  },
+  {
+   "id": "koth_harvest_final",
+   "name": "Harvest",
+   "image": "vgui/maps/menu_thumb_koth_harvest_final",
+   "on": true
+  },
+  {
+   "id": "ctf_2fort",
+   "name": "2Fort",
+   "image": "vgui/maps/menu_thumb_ctf_2fort",
+   "on": false
+  },
+  {
+   "id": "cp_dustbowl",
+   "name": "Dustbowl",
+   "image": "vgui/maps/menu_thumb_cp_dustbowl",
+   "on": true
+  }
+ ],
+ "war": {
+  "name": "Ржавая долина",
+  "campaign": "rustvalley-1",
+  "day": 4,
+  "days": 0,
+  "red": 0.597,
+  "red_fronts": 7,
+  "blu_fronts": 5,
+  "battles": 11,
+  "soldiers": 350,
+  "fronts": [
+   {
+    "id": "red_hq",
+    "name": "Штаб RED",
+    "icon": "hq",
+    "hq": true,
+    "x": 107,
+    "y": 324,
+    "owner": "red",
+    "control": 1.0,
+    "front": "",
+    "attacker": "",
+    "from": "",
+    "stage": 0,
+    "stages": 0,
+    "stage_kind": "skirmish",
+    "mode": "arena",
+    "map": "arena_lumberyard",
+    "image": "vgui/maps/menu_thumb_arena_lumberyard",
+    "battles": 0,
+    "soldiers": 0,
+    "bonus": "hq",
+    "frontline": false,
+    "banner": {
+     "tag": "",
+     "name": "",
+     "emblem": "",
+     "color": ""
+    }
+   },
+   {
+    "id": "farms",
+    "name": "Фермы",
+    "icon": "farm",
+    "hq": false,
+    "x": 228,
+    "y": 153,
+    "owner": "red",
+    "control": 1.0,
+    "front": "",
+    "attacker": "",
+    "from": "",
+    "stage": 0,
+    "stages": 0,
+    "stage_kind": "skirmish",
+    "mode": "koth",
+    "map": "koth_sharkbay",
+    "image": "vgui/maps/menu_thumb_koth_sharkbay",
+    "battles": 0,
+    "soldiers": 0,
+    "bonus": "",
+    "frontline": false,
+    "banner": {
+     "tag": "",
+     "name": "",
+     "emblem": "",
+     "color": ""
+    }
+   },
+   {
+    "id": "coaltown",
+    "name": "Угольный посёлок",
+    "icon": "mine",
+    "hq": false,
+    "x": 217,
+    "y": 498,
+    "owner": "red",
+    "control": 1.0,
+    "front": "",
+    "attacker": "",
+    "from": "",
+    "stage": 0,
+    "stages": 0,
+    "stage_kind": "skirmish",
+    "mode": "arena",
+    "map": "arena_sawmill",
+    "image": "vgui/maps/menu_thumb_arena_sawmill",
+    "battles": 0,
+    "soldiers": 0,
+    "bonus": "",
+    "frontline": false,
+    "banner": {
+     "tag": "",
+     "name": "",
+     "emblem": "",
+     "color": ""
+    }
+   },
+   {
+    "id": "yard",
+    "name": "Депо",
+    "icon": "rail",
+    "hq": false,
+    "x": 335,
+    "y": 327,
+    "owner": "red",
+    "control": 1.0,
+    "front": "",
+    "attacker": "",
+    "from": "",
+    "stage": 0,
+    "stages": 0,
+    "stage_kind": "skirmish",
+    "mode": "koth",
+    "map": "koth_probed",
+    "image": "vgui/maps/menu_thumb_koth_probed",
+    "battles": 0,
+    "soldiers": 0,
+    "bonus": "",
+    "frontline": true,
+    "banner": {
+     "tag": "",
+     "name": "",
+     "emblem": "",
+     "color": ""
+    }
+   },
+   {
+    "id": "foundry",
+    "name": "Литейный завод",
+    "icon": "factory",
+    "hq": false,
+    "x": 445,
+    "y": 178,
+    "owner": "red",
+    "control": 1.0,
+    "front": "",
+    "attacker": "",
+    "from": "",
+    "stage": 0,
+    "stages": 0,
+    "stage_kind": "skirmish",
+    "mode": "koth",
+    "map": "koth_lakeside_final",
+    "image": "vgui/maps/menu_thumb_koth_lakeside_final",
+    "battles": 0,
+    "soldiers": 0,
+    "bonus": "",
+    "frontline": true,
+    "banner": {
+     "tag": "РК",
+     "name": "Ржавые Ключи",
+     "emblem": "engineer",
+     "color": "gold"
+    }
+   },
+   {
+    "id": "sawmill",
+    "name": "Лесопилка",
+    "icon": "lumber",
+    "hq": false,
+    "x": 435,
+    "y": 491,
+    "owner": "red",
+    "control": 0.83,
+    "front": "front-3",
+    "attacker": "blu",
+    "from": "reservoir",
+    "stage": 2,
+    "stages": 3,
+    "stage_kind": "breakthrough",
+    "mode": "cp",
+    "map": "cp_process_final",
+    "image": "vgui/maps/menu_thumb_cp_process_final",
+    "battles": 3,
+    "soldiers": 96,
+    "bonus": "",
+    "frontline": true,
+    "banner": {
+     "tag": "",
+     "name": "",
+     "emblem": "",
+     "color": ""
+    }
+   },
+   {
+    "id": "quarry",
+    "name": "Гравийный карьер",
+    "icon": "mine",
+    "hq": false,
+    "x": 591,
+    "y": 121,
+    "owner": "red",
+    "control": 1.0,
+    "front": "",
+    "attacker": "",
+    "from": "",
+    "stage": 0,
+    "stages": 0,
+    "stage_kind": "skirmish",
+    "mode": "koth",
+    "map": "koth_sharkbay",
+    "image": "vgui/maps/menu_thumb_koth_sharkbay",
+    "battles": 0,
+    "soldiers": 0,
+    "bonus": "",
+    "frontline": true,
+    "banner": {
+     "tag": "MED",
+     "name": "Медицинский корпус",
+     "emblem": "medic",
+     "color": "red"
+    }
+   },
+   {
+    "id": "junction",
+    "name": "Развязка",
+    "icon": "rail",
+    "hq": false,
+    "x": 598,
+    "y": 324,
+    "owner": "blu",
+    "control": 0.33,
+    "front": "front-4",
+    "attacker": "red",
+    "from": "yard",
+    "stage": 3,
+    "stages": 3,
+    "stage_kind": "advance",
+    "mode": "attack_defend",
+    "map": "cp_gorge",
+    "image": "vgui/maps/menu_thumb_cp_gorge",
+    "battles": 6,
+    "soldiers": 214,
+    "bonus": "",
+    "frontline": true,
+    "banner": {
+     "tag": "TFC",
+     "name": "Team Fortress Classic",
+     "emblem": "scout",
+     "color": "blu"
+    }
+   },
+   {
+    "id": "reservoir",
+    "name": "Водохранилище",
+    "icon": "dam",
+    "hq": false,
+    "x": 591,
+    "y": 526,
+    "owner": "blu",
+    "control": 0.0,
+    "front": "",
+    "attacker": "",
+    "from": "",
+    "stage": 0,
+    "stages": 0,
+    "stage_kind": "skirmish",
+    "mode": "koth",
+    "map": "koth_brazil",
+    "image": "vgui/maps/menu_thumb_koth_brazil",
+    "battles": 0,
+    "soldiers": 0,
+    "bonus": "",
+    "frontline": true,
+    "banner": {
+     "tag": "",
+     "name": "",
+     "emblem": "",
+     "color": ""
+    }
+   },
+   {
+    "id": "hydro",
+    "name": "ГЭС",
+    "icon": "power",
+    "hq": false,
+    "x": 798,
+    "y": 199,
+    "owner": "blu",
+    "control": 0.0,
+    "front": "front-5",
+    "attacker": "red",
+    "from": "quarry",
+    "stage": 1,
+    "stages": 3,
+    "stage_kind": "skirmish",
+    "mode": "koth",
+    "map": "koth_lakeside_final",
+    "image": "vgui/maps/menu_thumb_koth_lakeside_final",
+    "battles": 2,
+    "soldiers": 40,
+    "bonus": "",
+    "frontline": true,
+    "banner": {
+     "tag": "",
+     "name": "",
+     "emblem": "",
+     "color": ""
+    }
+   },
+   {
+    "id": "badwater",
+    "name": "Бэдвотер",
+    "icon": "factory",
+    "hq": false,
+    "x": 802,
+    "y": 455,
+    "owner": "blu",
+    "control": 0.0,
+    "front": "",
+    "attacker": "",
+    "from": "",
+    "stage": 0,
+    "stages": 0,
+    "stage_kind": "skirmish",
+    "mode": "arena",
+    "map": "arena_nucleus",
+    "image": "vgui/maps/menu_thumb_arena_nucleus",
+    "battles": 0,
+    "soldiers": 0,
+    "bonus": "",
+    "frontline": false,
+    "banner": {
+     "tag": "",
+     "name": "",
+     "emblem": "",
+     "color": ""
+    }
+   },
+   {
+    "id": "blu_hq",
+    "name": "Штаб BLU",
+    "icon": "hq",
+    "hq": true,
+    "x": 1012,
+    "y": 324,
+    "owner": "blu",
+    "control": 0.0,
+    "front": "",
+    "attacker": "",
+    "from": "",
+    "stage": 0,
+    "stages": 0,
+    "stage_kind": "skirmish",
+    "mode": "arena",
+    "map": "arena_lumberyard",
+    "image": "vgui/maps/menu_thumb_arena_lumberyard",
+    "battles": 0,
+    "soldiers": 0,
+    "bonus": "hq",
+    "frontline": false,
+    "banner": {
+     "tag": "",
+     "name": "",
+     "emblem": "",
+     "color": ""
+    }
+   }
+  ],
+  "links": [
+   {
+    "a": "red_hq",
+    "b": "farms",
+    "side": "red"
+   },
+   {
+    "a": "red_hq",
+    "b": "coaltown",
+    "side": "red"
+   },
+   {
+    "a": "red_hq",
+    "b": "yard",
+    "side": "red"
+   },
+   {
+    "a": "farms",
+    "b": "yard",
+    "side": "red"
+   },
+   {
+    "a": "coaltown",
+    "b": "yard",
+    "side": "red"
+   },
+   {
+    "a": "farms",
+    "b": "foundry",
+    "side": "red"
+   },
+   {
+    "a": "coaltown",
+    "b": "sawmill",
+    "side": "red"
+   },
+   {
+    "a": "yard",
+    "b": "foundry",
+    "side": "red"
+   },
+   {
+    "a": "yard",
+    "b": "sawmill",
+    "side": "red"
+   },
+   {
+    "a": "yard",
+    "b": "junction",
+    "side": "front"
+   },
+   {
+    "a": "foundry",
+    "b": "quarry",
+    "side": "red"
+   },
+   {
+    "a": "foundry",
+    "b": "junction",
+    "side": "front"
+   },
+   {
+    "a": "sawmill",
+    "b": "junction",
+    "side": "front"
+   },
+   {
+    "a": "sawmill",
+    "b": "reservoir",
+    "side": "front"
+   },
+   {
+    "a": "quarry",
+    "b": "hydro",
+    "side": "front"
+   },
+   {
+    "a": "junction",
+    "b": "hydro",
+    "side": "blu"
+   },
+   {
+    "a": "junction",
+    "b": "badwater",
+    "side": "blu"
+   },
+   {
+    "a": "reservoir",
+    "b": "badwater",
+    "side": "blu"
+   },
+   {
+    "a": "hydro",
+    "b": "badwater",
+    "side": "blu"
+   },
+   {
+    "a": "hydro",
+    "b": "blu_hq",
+    "side": "blu"
+   },
+   {
+    "a": "badwater",
+    "b": "blu_hq",
+    "side": "blu"
+   }
+  ],
+  "ops": [
+   {
+    "front": "front-4",
+    "node": "junction",
+    "name": "Развязка",
+    "attacker": "red",
+    "defender": "blu",
+    "from": "yard",
+    "from_name": "Депо",
+    "stage": 3,
+    "stages": 3,
+    "plan": [
+     "skirmish",
+     "breakthrough",
+     "advance"
+    ],
+    "mode": "attack_defend",
+    "map": "cp_gorge",
+    "image": "vgui/maps/menu_thumb_cp_gorge",
+    "battles": 6,
+    "soldiers": 214,
+    "want": 31,
+    "hq": false,
+    "kind": "advance",
+    "next": "",
+    "prev": "breakthrough",
+    "momentum": 3,
+    "momentum_max": 3,
+    "conditions": [
+     "quickwaves"
+    ],
+    "order": true
+   },
+   {
+    "front": "front-3",
+    "node": "sawmill",
+    "name": "Лесопилка",
+    "attacker": "blu",
+    "defender": "red",
+    "from": "reservoir",
+    "from_name": "Водохранилище",
+    "stage": 2,
+    "stages": 3,
+    "plan": [
+     "skirmish",
+     "breakthrough",
+     "advance"
+    ],
+    "mode": "cp",
+    "map": "cp_process_final",
+    "image": "vgui/maps/menu_thumb_cp_process_final",
+    "battles": 3,
+    "soldiers": 96,
+    "want": 8,
+    "hq": false,
+    "kind": "breakthrough",
+    "next": "advance",
+    "prev": "skirmish",
+    "momentum": 1,
+    "momentum_max": 3,
+    "conditions": [
+     "grapples",
+     "longwaves"
+    ],
+    "order": false
+   },
+   {
+    "front": "front-5",
+    "node": "hydro",
+    "name": "ГЭС",
+    "attacker": "red",
+    "defender": "blu",
+    "from": "quarry",
+    "from_name": "Гравийный карьер",
+    "stage": 1,
+    "stages": 3,
+    "plan": [
+     "skirmish",
+     "breakthrough",
+     "assault"
+    ],
+    "mode": "koth",
+    "map": "koth_lakeside_final",
+    "image": "vgui/maps/menu_thumb_koth_lakeside_final",
+    "battles": 2,
+    "soldiers": 40,
+    "want": 3,
+    "hq": false,
+    "kind": "skirmish",
+    "next": "breakthrough",
+    "prev": "",
+    "momentum": 2,
+    "momentum_max": 3,
+    "conditions": [
+     "nocrits",
+     "quickwaves"
+    ],
+    "order": false
+   }
+  ],
+  "top": "junction",
+  "events": [
+   {
+    "kind": "stage_won",
+    "side": "red",
+    "node": "junction",
+    "name": "Развязка",
+    "stage": 2,
+    "stage_kind": "breakthrough",
+    "ago": 180
+   },
+   {
+    "kind": "stage_won",
+    "side": "blu",
+    "node": "sawmill",
+    "name": "Лесопилка",
+    "stage": 1,
+    "stage_kind": "skirmish",
+    "ago": 420
+   },
+   {
+    "kind": "front_opened",
+    "side": "red",
+    "node": "hydro",
+    "name": "ГЭС",
+    "stage": 0,
+    "stage_kind": "",
+    "ago": 900
+   },
+   {
+    "kind": "node_captured",
+    "side": "red",
+    "node": "quarry",
+    "name": "Гравийный карьер",
+    "stage": 0,
+    "stage_kind": "",
+    "ago": 1500
+   },
+   {
+    "kind": "stage_won",
+    "side": "red",
+    "node": "quarry",
+    "name": "Гравийный карьер",
+    "stage": 2,
+    "stage_kind": "breakthrough",
+    "ago": 2900
+   },
+   {
+    "kind": "stage_lost",
+    "side": "blu",
+    "node": "junction",
+    "name": "Развязка",
+    "stage": 1,
+    "stage_kind": "skirmish",
+    "ago": 3700
+   },
+   {
+    "kind": "offensive_broken",
+    "side": "blu",
+    "node": "foundry",
+    "name": "Литейный завод",
+    "stage": 0,
+    "stage_kind": "",
+    "ago": 5200
+   },
+   {
+    "kind": "front_opened",
+    "side": "blu",
+    "node": "sawmill",
+    "name": "Лесопилка",
+    "stage": 0,
+    "stage_kind": "",
+    "ago": 6100
+   },
+   {
+    "kind": "front_opened",
+    "side": "red",
+    "node": "junction",
+    "name": "Развязка",
+    "stage": 0,
+    "stage_kind": "",
+    "ago": 9000
+   },
+   {
+    "kind": "campaign_started",
+    "side": "",
+    "node": "",
+    "name": "",
+    "stage": 0,
+    "stage_kind": "",
+    "ago": 266400
+   }
+  ],
+  "servers": 14,
+  "servers_free": 3,
+  "hot": "junction",
+  "order_xp": 100,
+  "live": [
+   {
+    "front": "front-3",
+    "node": "junction",
+    "name": "Развязка",
+    "map": "cp_gorge",
+    "image": "vgui/maps/menu_thumb_cp_gorge",
+    "mode": "attack_defend",
+    "stage": 3,
+    "stage_kind": "advance",
+    "attacker": "red",
+    "players": 24,
+    "max": 24,
+    "seconds": 842,
+    "conditions": [
+     "quickwaves"
+    ],
+    "order": true
+   },
+   {
+    "front": "front-3",
+    "node": "junction",
+    "name": "Развязка",
+    "map": "cp_dustbowl",
+    "image": "vgui/maps/menu_thumb_cp_dustbowl",
+    "mode": "attack_defend",
+    "stage": 3,
+    "stage_kind": "advance",
+    "attacker": "red",
+    "players": 22,
+    "max": 24,
+    "seconds": 305,
+    "conditions": [
+     "quickwaves"
+    ],
+    "order": true
+   },
+   {
+    "front": "front-4",
+    "node": "sawmill",
+    "name": "Лесопилка",
+    "map": "cp_process_final",
+    "image": "vgui/maps/menu_thumb_cp_process_final",
+    "mode": "cp",
+    "stage": 2,
+    "stage_kind": "breakthrough",
+    "attacker": "blu",
+    "players": 18,
+    "max": 24,
+    "seconds": 1290,
+    "conditions": [
+     "grapples",
+     "longwaves"
+    ],
+    "order": false
+   },
+   {
+    "front": "front-5",
+    "node": "hydro",
+    "name": "ГЭС",
+    "map": "koth_lakeside_final",
+    "image": "vgui/maps/menu_thumb_koth_lakeside_final",
+    "mode": "koth",
+    "stage": 1,
+    "stage_kind": "skirmish",
+    "attacker": "red",
+    "players": 12,
+    "max": 12,
+    "seconds": 96,
+    "conditions": [
+     "nocrits",
+     "quickwaves"
+    ],
+    "order": false
+   }
+  ]
+ },
+ "career": {
+  "hours": 412,
+  "matches": 1288,
+  "wins": 0.54,
+  "mvp": 96,
+  "ratings": [
+   {
+    "mode": "#fui_mode_ranked",
+    "rating": 1642,
+    "delta": 18,
+    "rank": "Серебро II",
+    "frac": 0.62
+   },
+   {
+    "mode": "#fui_mode_war",
+    "rating": 1518,
+    "delta": -6,
+    "rank": "Капрал",
+    "frac": 0.35
+   },
+   {
+    "mode": "#fui_mode_casual",
+    "rating": 37,
+    "delta": 1,
+    "rank": "Уровень 37",
+    "frac": 0.7
+   }
+  ],
+  "classes": [
+   {
+    "id": "soldier",
+    "hours": 168,
+    "frac": 1.0
+   },
+   {
+    "id": "medic",
+    "hours": 91,
+    "frac": 0.54
+   },
+   {
+    "id": "demoman",
+    "hours": 52,
+    "frac": 0.31
+   },
+   {
+    "id": "scout",
+    "hours": 38,
+    "frac": 0.23
+   },
+   {
+    "id": "engineer",
+    "hours": 27,
+    "frac": 0.16
+   },
+   {
+    "id": "heavy",
+    "hours": 19,
+    "frac": 0.11
+   },
+   {
+    "id": "sniper",
+    "hours": 9,
+    "frac": 0.05
+   },
+   {
+    "id": "pyro",
+    "hours": 6,
+    "frac": 0.04
+   },
+   {
+    "id": "spy",
+    "hours": 2,
+    "frac": 0.01
+   }
+  ],
+  "history": [
+   {
+    "map": "Процесс",
+    "image": "vgui/maps/menu_thumb_cp_process_final",
+    "mode": "#fui_mode_war",
+    "result": "win",
+    "score": "3 : 2",
+    "xp": 640,
+    "delta": 12,
+    "when": "сегодня, 21:04",
+    "class": "soldier"
+   },
+   {
+    "map": "Апворд",
+    "image": "vgui/maps/menu_thumb_pl_upward",
+    "mode": "#fui_mode_war",
+    "result": "win",
+    "score": "9:41",
+    "xp": 710,
+    "delta": 14,
+    "when": "сегодня, 20:31",
+    "class": "soldier"
+   },
+   {
+    "map": "Виадук",
+    "image": "vgui/maps/menu_thumb_koth_viaduct",
+    "mode": "#fui_mode_ranked",
+    "result": "loss",
+    "score": "2 : 3",
+    "xp": 380,
+    "delta": -9,
+    "when": "сегодня, 19:52",
+    "class": "medic"
+   },
+   {
+    "map": "Галливош",
+    "image": "vgui/maps/menu_thumb_cp_gullywash_final1",
+    "mode": "#fui_mode_casual",
+    "result": "win",
+    "score": "5 : 1",
+    "xp": 520,
+    "delta": 0,
+    "when": "вчера, 23:10",
+    "class": "demoman"
+   },
+   {
+    "map": "Бэдвотер",
+    "image": "vgui/maps/menu_thumb_pl_badwater",
+    "mode": "#fui_mode_casual",
+    "result": "loss",
+    "score": "—",
+    "xp": 300,
+    "delta": 0,
+    "when": "вчера, 22:37",
+    "class": "soldier"
+   }
+  ]
+ },
+ "results": {
+  "result": "win",
+  "map": "Процесс",
+  "image": "vgui/maps/menu_thumb_cp_process_final",
+  "mode": "#fui_mode_war",
+  "score_red": 3,
+  "score_blu": 2,
+  "duration": 1460,
+  "front": "Процесс",
+  "front_before": 0.49,
+  "front_after": 0.52,
+  "xp_total": 640,
+  "level_before": 37,
+  "frac_before": 0.65,
+  "frac_after": 0.7,
+  "rating": 1530,
+  "delta": 12,
+  "xp": [
+   {
+    "what": "Победа",
+    "xp": 300
+   },
+   {
+    "what": "Захваты точек ×3",
+    "xp": 150
+   },
+   {
+    "what": "Бой на ключевом фронте",
+    "xp": 110
+   },
+   {
+    "what": "Отряд из 3 человек",
+    "xp": 80
+   }
+  ],
+  "mvps": [
+   {
+    "name": "ficool2",
+    "class": "medic",
+    "avatar": "avatar:76561198000000002",
+    "stat": "Убер ×7",
+    "team": "red"
+   },
+   {
+    "name": "Gru",
+    "class": "soldier",
+    "avatar": "avatar:76561198000000001",
+    "stat": "31 убийство",
+    "team": "red"
+   },
+   {
+    "name": "Pootis",
+    "class": "heavy",
+    "avatar": "avatar:76561198000000009",
+    "stat": "8 912 урона",
+    "team": "blu"
+   }
+  ]
+ },
+ "quests": {
+  "daily_left": 26100,
+  "weekly_left": 401000,
+  "done": 1,
+  "total": 4,
+  "daily": [
+   {
+    "key": "d:kills_25",
+    "kind": "kills",
+    "class": "",
+    "target": 25,
+    "progress": 18,
+    "frac": 0.72,
+    "xp": 150,
+    "done": false,
+    "weekly": false,
+    "photo": "vgui/contracts/photo_headhunter"
+   },
+   {
+    "key": "d:medic_win",
+    "kind": "class_wins",
+    "class": "medic",
+    "target": 1,
+    "progress": 1,
+    "frac": 1,
+    "xp": 200,
+    "done": true,
+    "weekly": false,
+    "photo": "vgui/contracts/photo_medic1"
+   },
+   {
+    "key": "d:damage_6000",
+    "kind": "damage",
+    "class": "",
+    "target": 6000,
+    "progress": 2380,
+    "frac": 0.4,
+    "xp": 180,
+    "done": false,
+    "weekly": false,
+    "photo": "vgui/contracts/photo_powerhouse1"
+   }
+  ],
+  "weekly": [
+   {
+    "key": "w:war_wins_5",
+    "kind": "war_wins",
+    "class": "",
+    "target": 5,
+    "progress": 3,
+    "frac": 0.6,
+    "xp": 900,
+    "done": false,
+    "weekly": true,
+    "photo": "vgui/contracts/photo_any_cp"
+   }
+  ]
+ },
+ "toasts": [
+  {
+   "kind": "party",
+   "title": "Spycrab",
+   "body": "присоединился к отряду",
+   "icon": "avatar:76561198000000004"
+  }
+ ],
+ "match": {
+  "active": true,
+  "map": "Процесс",
+  "map_id": "cp_process_final",
+  "image": "vgui/maps/menu_thumb_cp_process_final",
+  "red": 2,
+  "blu": 1,
+  "team": "red",
+  "class": "soldier",
+  "official": true
+ },
+ "classsel": {
+  "team": "red",
+  "current": "soldier"
+ },
+ "ui": {
+  "front": "junction",
+  "chat_draft": ""
+ },
+ "hud": {
+  "visible": true,
+  "alive": true,
+  "class": "soldier",
+  "team": "red",
+  "health": 184,
+  "max": 200,
+  "frac": 0.92,
+  "overheal": 0,
+  "low": false,
+  "weapon": "Прямое попадание",
+  "weapon_icon": "tex:backpack/weapons/c_models/c_directhit/c_directhit_large",
+  "clip": 3,
+  "reserve": 16,
+  "clip_max": 4,
+  "clip_low": false,
+  "charge": -1,
+  "charge_ready": false,
+  "respawn": -1,
+  "killed_by": "",
+  "mode": "cp",
+  "timer": 287,
+  "setup": false,
+  "overtime": false,
+  "waiting": false,
+  "score_red": 1,
+  "score_blu": 0,
+  "koth_red": -1,
+  "koth_blu": -1,
+  "points": [
+   {
+    "owner": "red",
+    "capping": "",
+    "frac": 0,
+    "cappers": 0,
+    "locked": false,
+    "blocked": false
+   },
+   {
+    "owner": "red",
+    "capping": "",
+    "frac": 0,
+    "cappers": 0,
+    "locked": false,
+    "blocked": false
+   },
+   {
+    "owner": "neutral",
+    "capping": "red",
+    "frac": 0.62,
+    "cappers": 3,
+    "locked": false,
+    "blocked": false
+   },
+   {
+    "owner": "blu",
+    "capping": "",
+    "frac": 0,
+    "cappers": 0,
+    "locked": true,
+    "blocked": false
+   },
+   {
+    "owner": "blu",
+    "capping": "",
+    "frac": 0,
+    "cappers": 0,
+    "locked": true,
+    "blocked": false
+   }
+  ],
+  "cart": {
+   "progress": -1,
+   "speed": 0,
+   "team": "blu"
+  },
+  "flags": [],
+  "kills": [
+   {
+    "killer": "Gru",
+    "killer_team": "red",
+    "assist": "",
+    "victim": "Spycrab",
+    "victim_team": "blu",
+    "icon": "hudicon:dneg_rocketlauncher_directhit",
+    "crit": false,
+    "me": true
+   },
+   {
+    "killer": "Медик Олег",
+    "killer_team": "blu",
+    "assist": "",
+    "victim": "Pyro Pete",
+    "victim_team": "red",
+    "icon": "hudicon:d_syringegun_medic",
+    "crit": false,
+    "me": false
+   },
+   {
+    "killer": "Sniperman",
+    "killer_team": "blu",
+    "assist": "",
+    "victim": "Heavy Hank",
+    "victim_team": "red",
+    "icon": "hudicon:d_headshot",
+    "crit": true,
+    "me": false
+   },
+   {
+    "killer": "Demo Dan",
+    "killer_team": "red",
+    "assist": "Gru",
+    "victim": "Sentry Sam",
+    "victim_team": "blu",
+    "icon": "hudicon:dneg_tf_projectile_pipe_remote",
+    "crit": false,
+    "me": true
+   }
+  ],
+  "war": {
+   "active": true,
+   "sector": "Развязка",
+   "stage": 3,
+   "stages": 3,
+   "kind": "advance",
+   "attacker": "red",
+   "attacking": true,
+   "order": true,
+   "conditions": [
+    "quickwaves",
+    "nocrits"
+   ]
+  }
+ },
+ "settings": {
+  "hud_style": "auto",
+  "huds": [
+   "auto",
+   "frontress",
+   "minimal"
+  ]
+ },
+ "social": {
+  "tab": "global",
+  "view": [
+   {
+    "id": 1,
+    "ch": "global",
+    "name": "",
+    "tag": "",
+    "gold": false,
+    "sup": false,
+    "text": "",
+    "sys": true,
+    "key": "fui_feed_captured",
+    "a1": "Лесопилка",
+    "a2": "#fui_side_red",
+    "a3": "",
+    "a4": "",
+    "kind": "war",
+    "time": "20:51",
+    "me": false,
+    "from": ""
+   },
+   {
+    "id": 2,
+    "ch": "global",
+    "name": "Spycrab",
+    "tag": "",
+    "gold": false,
+    "sup": false,
+    "text": "кто на войну? джанкшен почти наш",
+    "sys": false,
+    "key": "",
+    "a1": "",
+    "a2": "",
+    "a3": "",
+    "a4": "",
+    "kind": "",
+    "time": "20:52",
+    "me": false,
+    "from": "2"
+   },
+   {
+    "id": 3,
+    "ch": "global",
+    "name": "ficool2",
+    "tag": "РК",
+    "gold": false,
+    "sup": false,
+    "text": "иду, медик есть",
+    "sys": false,
+    "key": "",
+    "a1": "",
+    "a2": "",
+    "a3": "",
+    "a4": "",
+    "kind": "",
+    "time": "20:52",
+    "me": false,
+    "from": "3"
+   },
+   {
+    "id": 4,
+    "ch": "global",
+    "name": "",
+    "tag": "",
+    "gold": false,
+    "sup": false,
+    "text": "",
+    "sys": true,
+    "key": "fui_feed_clan_level",
+    "a1": "TFC",
+    "a2": "4",
+    "a3": "",
+    "a4": "",
+    "kind": "clan",
+    "time": "20:54",
+    "me": false,
+    "from": ""
+   },
+   {
+    "id": 5,
+    "ch": "global",
+    "name": "Медведь",
+    "tag": "",
+    "gold": false,
+    "sup": false,
+    "text": "нужен ещё один в отряд на Литейную",
+    "sys": false,
+    "key": "",
+    "a1": "",
+    "a2": "",
+    "a3": "",
+    "a4": "",
+    "kind": "",
+    "time": "20:55",
+    "me": false,
+    "from": "5"
+   },
+   {
+    "id": 6,
+    "ch": "global",
+    "name": "",
+    "tag": "",
+    "gold": false,
+    "sup": false,
+    "text": "",
+    "sys": true,
+    "key": "fui_feed_support",
+    "a1": "Mumbles",
+    "a2": "",
+    "a3": "",
+    "a4": "",
+    "kind": "support",
+    "time": "20:57",
+    "me": false,
+    "from": ""
+   },
+   {
+    "id": 7,
+    "ch": "global",
+    "name": "Dispenser",
+    "tag": "TFC",
+    "gold": true,
+    "sup": true,
+    "text": "вот это пинг на новом сервере, огонь",
+    "sys": false,
+    "key": "",
+    "a1": "",
+    "a2": "",
+    "a3": "",
+    "a4": "",
+    "kind": "",
+    "time": "20:58",
+    "me": false,
+    "from": "7"
+   },
+   {
+    "id": 8,
+    "ch": "global",
+    "name": "Gru",
+    "tag": "РК",
+    "gold": false,
+    "sup": true,
+    "text": "собираю отряд на войну, кидаю инвайты",
+    "sys": false,
+    "key": "",
+    "a1": "",
+    "a2": "",
+    "a3": "",
+    "a4": "",
+    "kind": "",
+    "time": "20:59",
+    "me": true,
+    "from": "8"
+   },
+   {
+    "id": 9,
+    "ch": "global",
+    "name": "",
+    "tag": "",
+    "gold": false,
+    "sup": false,
+    "text": "",
+    "sys": true,
+    "key": "fui_feed_battle",
+    "a1": "Развилка",
+    "a2": "#fui_side_blu",
+    "a3": "2",
+    "a4": "3",
+    "kind": "war",
+    "time": "21:01",
+    "me": false,
+    "from": ""
+   }
+  ],
+  "unread_clan": 2,
+  "unread_party": 0,
+  "has_clan": true,
+  "has_party": true,
+  "lfg": false,
+  "lfg_note": "",
+  "online": {
+   "total": 128,
+   "menu": 61,
+   "queue": 19,
+   "match": 48,
+   "lfg": 5,
+   "clans": 12,
+   "players": [
+    {
+     "id": "76561198000000011",
+     "name": "Медведь",
+     "tag": "",
+     "gold": false,
+     "sup": false,
+     "level": 9,
+     "status": "menu",
+     "mode": "casual",
+     "map": "",
+     "lfg": true,
+     "note": "хил ищет отряд на войну",
+     "party": 1,
+     "me": false
+    },
+    {
+     "id": "76561198000000012",
+     "name": "Pootis",
+     "tag": "TFC",
+     "gold": true,
+     "sup": true,
+     "level": 54,
+     "status": "menu",
+     "mode": "casual",
+     "map": "",
+     "lfg": true,
+     "note": "",
+     "party": 2,
+     "me": false
+    },
+    {
+     "id": "76561198000000001",
+     "name": "Gru",
+     "tag": "РК",
+     "gold": false,
+     "sup": true,
+     "level": 37,
+     "status": "menu",
+     "mode": "casual",
+     "map": "",
+     "lfg": false,
+     "note": "",
+     "party": 4,
+     "me": true
+    },
+    {
+     "id": "76561198000000013",
+     "name": "Spycrab",
+     "tag": "",
+     "gold": false,
+     "sup": false,
+     "level": 21,
+     "status": "queue",
+     "mode": "casual",
+     "map": "",
+     "lfg": false,
+     "note": "",
+     "party": 1,
+     "me": false
+    },
+    {
+     "id": "76561198000000014",
+     "name": "Doktor",
+     "tag": "РК",
+     "gold": false,
+     "sup": false,
+     "level": 77,
+     "status": "match",
+     "mode": "casual",
+     "map": "cp_granary",
+     "lfg": false,
+     "note": "",
+     "party": 3,
+     "me": false
+    },
+    {
+     "id": "76561198000000015",
+     "name": "Saxton",
+     "tag": "",
+     "gold": false,
+     "sup": false,
+     "level": 3,
+     "status": "match",
+     "mode": "ranked",
+     "map": "koth_viaduct",
+     "lfg": false,
+     "note": "",
+     "party": 1,
+     "me": false
+    }
+   ]
+  }
+ },
+ "clan": {
+  "loaded": true,
+  "has": true,
+  "officer": true,
+  "leader": true,
+  "c": {
+   "id": "rk7q2m",
+   "name": "Ржавые Ключи",
+   "tag": "РК",
+   "motto": "Где ключ — там и раздатчик",
+   "emblem": "engineer",
+   "color": "gold",
+   "open": true,
+   "level": 5,
+   "xp": 7420,
+   "xp_from": 6000,
+   "xp_to": 9500,
+   "frac": 0.405,
+   "count": 6,
+   "cap": 20,
+   "online": 4,
+   "wins": 61,
+   "battles": 104,
+   "banner": "Литейный завод",
+   "gold": false,
+   "role": "leader",
+   "members": [
+    {
+     "id": "76561198000000001",
+     "name": "Gru",
+     "role": "leader",
+     "status": "menu",
+     "online": true,
+     "xp": 4210,
+     "week_xp": 380,
+     "level": 37,
+     "me": true
+    },
+    {
+     "id": "76561198000000002",
+     "name": "ficool2",
+     "role": "officer",
+     "status": "match",
+     "online": true,
+     "xp": 3890,
+     "week_xp": 510,
+     "level": 112,
+     "me": false
+    },
+    {
+     "id": "76561198000000014",
+     "name": "Doktor",
+     "role": "officer",
+     "status": "match",
+     "online": true,
+     "xp": 1650,
+     "week_xp": 220,
+     "level": 77,
+     "me": false
+    },
+    {
+     "id": "76561198000000021",
+     "name": "Ржавый",
+     "role": "member",
+     "status": "queue",
+     "online": true,
+     "xp": 980,
+     "week_xp": 140,
+     "level": 18,
+     "me": false
+    },
+    {
+     "id": "76561198000000022",
+     "name": "Snipes",
+     "role": "member",
+     "status": "offline",
+     "online": false,
+     "xp": 620,
+     "week_xp": 0,
+     "level": 44,
+     "me": false
+    },
+    {
+     "id": "76561198000000023",
+     "name": "Engie Joe",
+     "role": "member",
+     "status": "offline",
+     "online": false,
+     "xp": 310,
+     "week_xp": 60,
+     "level": 12,
+     "me": false
+    }
+   ],
+   "perks": [
+    {
+     "id": "tag",
+     "level": 1,
+     "on": true
+    },
+    {
+     "id": "brothers",
+     "level": 2,
+     "on": true
+    },
+    {
+     "id": "banner",
+     "level": 3,
+     "on": true
+    },
+    {
+     "id": "contract",
+     "level": 4,
+     "on": true
+    },
+    {
+     "id": "order",
+     "level": 5,
+     "on": true
+    },
+    {
+     "id": "roster",
+     "level": 6,
+     "on": false
+    },
+    {
+     "id": "veterans",
+     "level": 7,
+     "on": false
+    },
+    {
+     "id": "gold",
+     "level": 8,
+     "on": false
+    },
+    {
+     "id": "legend",
+     "level": 10,
+     "on": false
+    }
+   ],
+   "contract": {
+    "kind": "war",
+    "target": 15,
+    "progress": 11,
+    "frac": 0.733,
+    "paid": false,
+    "left": 186000,
+    "on": true,
+    "clan_xp": 1500,
+    "member_xp": 300
+   },
+   "order": "front-4",
+   "order_name": "Развязка",
+   "order_xp": 50,
+   "bonus": 10
+  },
+  "invites": [
+   {
+    "id": "mdc010",
+    "name": "Медицинский корпус",
+    "tag": "MED",
+    "motto": "Убер готов",
+    "emblem": "medic",
+    "color": "red",
+    "open": false,
+    "level": 4,
+    "xp": 4100,
+    "count": 14,
+    "cap": 20,
+    "online": 3,
+    "wins": 40,
+    "battles": 77,
+    "banner": "",
+    "gold": false
+   }
+  ],
+  "top": [
+   {
+    "id": "tfc001",
+    "name": "Team Fortress Classic",
+    "tag": "TFC",
+    "motto": "Старая школа",
+    "emblem": "scout",
+    "color": "blu",
+    "open": true,
+    "level": 8,
+    "xp": 29000,
+    "count": 31,
+    "cap": 40,
+    "online": 9,
+    "wins": 214,
+    "battles": 380,
+    "banner": "Развилка",
+    "gold": true
+   },
+   {
+    "id": "rk7q2m",
+    "name": "Ржавые Ключи",
+    "tag": "РК",
+    "motto": "Где ключ — там и раздатчик",
+    "emblem": "engineer",
+    "color": "gold",
+    "open": true,
+    "level": 5,
+    "xp": 7420,
+    "count": 6,
+    "cap": 20,
+    "online": 4,
+    "wins": 61,
+    "battles": 104,
+    "banner": "Литейный завод",
+    "gold": false
+   },
+   {
+    "id": "mdc010",
+    "name": "Медицинский корпус",
+    "tag": "MED",
+    "motto": "Убер готов",
+    "emblem": "medic",
+    "color": "red",
+    "open": false,
+    "level": 4,
+    "xp": 4100,
+    "count": 14,
+    "cap": 20,
+    "online": 3,
+    "wins": 40,
+    "battles": 77,
+    "banner": "",
+    "gold": false
+   },
+   {
+    "id": "spy777",
+    "name": "Spycrab Society",
+    "tag": "CRAB",
+    "motto": "",
+    "emblem": "spy",
+    "color": "purple",
+    "open": true,
+    "level": 2,
+    "xp": 900,
+    "count": 5,
+    "cap": 20,
+    "online": 1,
+    "wins": 7,
+    "battles": 19,
+    "banner": "",
+    "gold": false
+   },
+   {
+    "id": "hvy001",
+    "name": "Сэндвичи",
+    "tag": "SNDV",
+    "motto": "Пушка не стреляет сама",
+    "emblem": "heavy",
+    "color": "green",
+    "open": true,
+    "level": 1,
+    "xp": 120,
+    "count": 2,
+    "cap": 20,
+    "online": 0,
+    "wins": 0,
+    "battles": 3,
+    "banner": "",
+    "gold": false
+   }
+  ]
+ },
+ "clanform": {
+  "name": "",
+  "tag": "",
+  "motto": "",
+  "emblem": "engineer",
+  "color": "gold",
+  "open": true
+ },
+ "support": {
+  "offered": true,
+  "available": true,
+  "loading": false,
+  "busy": false,
+  "sandbox": true,
+  "currency": "RUB",
+  "once": [
+   {
+    "tier": 0,
+    "kind": "once",
+    "amount": 14900,
+    "price": "149 ₽"
+   },
+   {
+    "tier": 1,
+    "kind": "once",
+    "amount": 39900,
+    "price": "399 ₽"
+   },
+   {
+    "tier": 2,
+    "kind": "once",
+    "amount": 79900,
+    "price": "799 ₽"
+   },
+   {
+    "tier": 3,
+    "kind": "once",
+    "amount": 199000,
+    "price": "1 990 ₽"
+   }
+  ],
+  "monthly": [
+   {
+    "tier": 0,
+    "kind": "monthly",
+    "amount": 24900,
+    "price": "249 ₽"
+   },
+   {
+    "tier": 1,
+    "kind": "monthly",
+    "amount": 79900,
+    "price": "799 ₽"
+   }
+  ],
+  "me": {
+   "supporter": true,
+   "monthly": false,
+   "donations": 2,
+   "since": 1790000000
+  },
+  "wall": [
+   {
+    "name": "Mumbles",
+    "kind": "once",
+    "ago": 240
+   },
+   {
+    "name": "Pootis",
+    "kind": "monthly",
+    "ago": 3600
+   },
+   {
+    "name": "ficool2",
+    "kind": "once",
+    "ago": 7200
+   },
+   {
+    "name": "Doktor",
+    "kind": "monthly",
+    "ago": 86400
+   },
+   {
+    "name": "Saxton",
+    "kind": "once",
+    "ago": 90000
+   },
+   {
+    "name": "Медведь",
+    "kind": "once",
+    "ago": 172000
+   },
+   {
+    "name": "Engie Joe",
+    "kind": "once",
+    "ago": 260000
+   },
+   {
+    "name": "Spycrab",
+    "kind": "monthly",
+    "ago": 400000
+   }
+  ],
+  "count": 148,
+  "subscribers": 23,
+  "anon": false,
+  "result": "",
+  "error": "",
+  "problem": ""
+ }
+}

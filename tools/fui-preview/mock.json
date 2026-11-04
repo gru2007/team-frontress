@@ -1,0 +1,7220 @@
+{
+ "app": {
+  "gc": "online",
+  "online": 1284,
+  "version": "playtest 0.4",
+  "matches_live": 37,
+  "preview": true,
+  "world": false
+ },
+ "player": {
+  "name": "Gru",
+  "avatar": "avatar:76561198000000001",
+  "level": 37,
+  "xp": 8420,
+  "xp_next": 12000,
+  "xp_frac": 0.7,
+  "side": "red",
+  "rank": "Капрал",
+  "title": "Ветеран фронта",
+  "tag": "РК",
+  "sup": true,
+  "sup_monthly": false
+ },
+ "party": {
+  "max": 6,
+  "count": 4,
+  "empty": [
+   4,
+   5
+  ],
+  "members": [
+   {
+    "key": "me",
+    "name": "Gru",
+    "avatar": "avatar:76561198000000001",
+    "level": 37,
+    "leader": true,
+    "me": true,
+    "ready": true,
+    "class": "soldier",
+    "slot": 0,
+    "has_look": true,
+    "tag": "РК",
+    "gold": false,
+    "sup": true
+   },
+   {
+    "key": "member:2",
+    "name": "ficool2",
+    "avatar": "avatar:76561198000000002",
+    "level": 112,
+    "leader": false,
+    "me": false,
+    "ready": true,
+    "class": "medic",
+    "slot": 1,
+    "has_look": true,
+    "tag": "РК",
+    "gold": false,
+    "sup": false
+   },
+   {
+    "key": "member:3",
+    "name": "Медведь",
+    "avatar": "avatar:76561198000000003",
+    "level": 9,
+    "leader": false,
+    "me": false,
+    "ready": true,
+    "class": "heavy",
+    "slot": 2,
+    "has_look": true,
+    "tag": "",
+    "gold": false,
+    "sup": false
+   },
+   {
+    "key": "member:4",
+    "name": "Spycrab",
+    "avatar": "avatar:76561198000000004",
+    "level": 54,
+    "leader": false,
+    "me": false,
+    "ready": true,
+    "class": "engineer",
+    "slot": 3,
+    "has_look": true,
+    "tag": "TFC",
+    "gold": true,
+    "sup": true
+   }
+  ]
+ },
+ "queue": {
+  "state": "idle",
+  "mode": "casual",
+  "seconds": 0,
+  "players": 9,
+  "needed": 24,
+  "map": "",
+  "map_image": ""
+ },
+ "modes": [
+  {
+   "id": "war",
+   "name": "#fui_mode_war",
+   "desc": "#fui_mode_war_desc",
+   "image": "vgui/main_menu/war_newspaper",
+   "players": 612,
+   "tag": "#fui_tag_featured",
+   "size": "12 × 12",
+   "enabled": true
+  },
+  {
+   "id": "casual",
+   "name": "#fui_mode_casual",
+   "desc": "#fui_mode_casual_desc",
+   "image": "vgui/main_menu/main_menu_button_casual",
+   "players": 433,
+   "tag": "",
+   "size": "12 × 12",
+   "enabled": true
+  },
+  {
+   "id": "ranked",
+   "name": "#fui_mode_ranked",
+   "desc": "#fui_mode_ranked_desc",
+   "image": "vgui/main_menu/main_menu_button_competitive",
+   "players": 151,
+   "tag": "#fui_tag_ranked",
+   "size": "6 × 6",
+   "enabled": true
+  },
+  {
+   "id": "mvm",
+   "name": "#fui_mode_mvm",
+   "desc": "#fui_mode_mvm_desc",
+   "image": "vgui/main_menu/main_menu_button_mvm",
+   "players": 0,
+   "tag": "#fui_tag_soon",
+   "size": "6",
+   "enabled": false
+  },
+  {
+   "id": "community",
+   "name": "#fui_mode_community",
+   "desc": "#fui_mode_community_desc",
+   "image": "vgui/main_menu/main_menu_button_community_server",
+   "players": 88,
+   "tag": "",
+   "size": "",
+   "enabled": true
+  },
+  {
+   "id": "training",
+   "name": "#fui_mode_training",
+   "desc": "#fui_mode_training_desc",
+   "image": "vgui/main_menu/main_menu_button_training",
+   "players": 0,
+   "tag": "",
+   "size": "1",
+   "enabled": true
+  }
+ ],
+ "maps": [
+  {
+   "id": "cp_process_final",
+   "name": "Process",
+   "image": "vgui/maps/menu_thumb_cp_process_final",
+   "on": true
+  },
+  {
+   "id": "cp_gullywash_final1",
+   "name": "Gullywash",
+   "image": "vgui/maps/menu_thumb_cp_gullywash_final1",
+   "on": true
+  },
+  {
+   "id": "cp_snakewater_final1",
+   "name": "Snakewater",
+   "image": "vgui/maps/menu_thumb_cp_snakewater_final1",
+   "on": true
+  },
+  {
+   "id": "cp_granary",
+   "name": "Granary",
+   "image": "vgui/maps/menu_thumb_cp_granary",
+   "on": false
+  },
+  {
+   "id": "pl_badwater",
+   "name": "Badwater",
+   "image": "vgui/maps/menu_thumb_pl_badwater",
+   "on": true
+  },
+  {
+   "id": "pl_upward",
+   "name": "Upward",
+   "image": "vgui/maps/menu_thumb_pl_upward",
+   "on": true
+  },
+  {
+   "id": "pl_borneo",
+   "name": "Borneo",
+   "image": "vgui/maps/menu_thumb_pl_borneo",
+   "on": false
+  },
+  {
+   "id": "koth_viaduct",
+   "name": "Viaduct",
+   "image": "vgui/maps/menu_thumb_koth_viaduct",
+   "on": true
+  },
+  {
+   "id": "koth_lakeside_final",
+   "name": "Lakeside",
+   "image": "vgui/maps/menu_thumb_koth_lakeside_final",
+   "on": true
+  },
+  {
+   "id": "koth_harvest_final",
+   "name": "Harvest",
+   "image": "vgui/maps/menu_thumb_koth_harvest_final",
+   "on": true
+  },
+  {
+   "id": "ctf_2fort",
+   "name": "2Fort",
+   "image": "vgui/maps/menu_thumb_ctf_2fort",
+   "on": false
+  },
+  {
+   "id": "cp_dustbowl",
+   "name": "Dustbowl",
+   "image": "vgui/maps/menu_thumb_cp_dustbowl",
+   "on": true
+  }
+ ],
+ "war": {
+  "name": "Ржавая долина",
+  "campaign": "rustvalley-1",
+  "day": 4,
+  "days": 0,
+  "red": 0.597,
+  "red_fronts": 7,
+  "blu_fronts": 5,
+  "battles": 11,
+  "soldiers": 350,
+  "fronts": [
+   {
+    "id": "red_hq",
+    "name": "Штаб RED",
+    "icon": "hq",
+    "hq": true,
+    "x": 107,
+    "y": 324,
+    "owner": "red",
+    "control": 1.0,
+    "front": "",
+    "attacker": "",
+    "from": "",
+    "stage": 0,
+    "stages": 0,
+    "stage_kind": "skirmish",
+    "mode": "arena",
+    "map": "arena_lumberyard",
+    "image": "vgui/maps/menu_thumb_arena_lumberyard",
+    "battles": 0,
+    "soldiers": 0,
+    "bonus": "hq",
+    "frontline": false,
+    "banner": {
+     "tag": "",
+     "name": "",
+     "emblem": "",
+     "color": ""
+    }
+   },
+   {
+    "id": "farms",
+    "name": "Фермы",
+    "icon": "farm",
+    "hq": false,
+    "x": 228,
+    "y": 153,
+    "owner": "red",
+    "control": 1.0,
+    "front": "",
+    "attacker": "",
+    "from": "",
+    "stage": 0,
+    "stages": 0,
+    "stage_kind": "skirmish",
+    "mode": "koth",
+    "map": "koth_sharkbay",
+    "image": "vgui/maps/menu_thumb_koth_sharkbay",
+    "battles": 0,
+    "soldiers": 0,
+    "bonus": "",
+    "frontline": false,
+    "banner": {
+     "tag": "",
+     "name": "",
+     "emblem": "",
+     "color": ""
+    }
+   },
+   {
+    "id": "coaltown",
+    "name": "Угольный посёлок",
+    "icon": "mine",
+    "hq": false,
+    "x": 217,
+    "y": 498,
+    "owner": "red",
+    "control": 1.0,
+    "front": "",
+    "attacker": "",
+    "from": "",
+    "stage": 0,
+    "stages": 0,
+    "stage_kind": "skirmish",
+    "mode": "arena",
+    "map": "arena_sawmill",
+    "image": "vgui/maps/menu_thumb_arena_sawmill",
+    "battles": 0,
+    "soldiers": 0,
+    "bonus": "",
+    "frontline": false,
+    "banner": {
+     "tag": "",
+     "name": "",
+     "emblem": "",
+     "color": ""
+    }
+   },
+   {
+    "id": "yard",
+    "name": "Депо",
+    "icon": "rail",
+    "hq": false,
+    "x": 335,
+    "y": 327,
+    "owner": "red",
+    "control": 1.0,
+    "front": "",
+    "attacker": "",
+    "from": "",
+    "stage": 0,
+    "stages": 0,
+    "stage_kind": "skirmish",
+    "mode": "koth",
+    "map": "koth_probed",
+    "image": "vgui/maps/menu_thumb_koth_probed",
+    "battles": 0,
+    "soldiers": 0,
+    "bonus": "",
+    "frontline": true,
+    "banner": {
+     "tag": "",
+     "name": "",
+     "emblem": "",
+     "color": ""
+    }
+   },
+   {
+    "id": "foundry",
+    "name": "Литейный завод",
+    "icon": "factory",
+    "hq": false,
+    "x": 445,
+    "y": 178,
+    "owner": "red",
+    "control": 1.0,
+    "front": "",
+    "attacker": "",
+    "from": "",
+    "stage": 0,
+    "stages": 0,
+    "stage_kind": "skirmish",
+    "mode": "koth",
+    "map": "koth_lakeside_final",
+    "image": "vgui/maps/menu_thumb_koth_lakeside_final",
+    "battles": 0,
+    "soldiers": 0,
+    "bonus": "",
+    "frontline": true,
+    "banner": {
+     "tag": "РК",
+     "name": "Ржавые Ключи",
+     "emblem": "engineer",
+     "color": "gold"
+    }
+   },
+   {
+    "id": "sawmill",
+    "name": "Лесопилка",
+    "icon": "lumber",
+    "hq": false,
+    "x": 435,
+    "y": 491,
+    "owner": "red",
+    "control": 0.83,
+    "front": "front-3",
+    "attacker": "blu",
+    "from": "reservoir",
+    "stage": 2,
+    "stages": 3,
+    "stage_kind": "breakthrough",
+    "mode": "cp",
+    "map": "cp_process_final",
+    "image": "vgui/maps/menu_thumb_cp_process_final",
+    "battles": 3,
+    "soldiers": 96,
+    "bonus": "",
+    "frontline": true,
+    "banner": {
+     "tag": "",
+     "name": "",
+     "emblem": "",
+     "color": ""
+    }
+   },
+   {
+    "id": "quarry",
+    "name": "Гравийный карьер",
+    "icon": "mine",
+    "hq": false,
+    "x": 591,
+    "y": 121,
+    "owner": "red",
+    "control": 1.0,
+    "front": "",
+    "attacker": "",
+    "from": "",
+    "stage": 0,
+    "stages": 0,
+    "stage_kind": "skirmish",
+    "mode": "koth",
+    "map": "koth_sharkbay",
+    "image": "vgui/maps/menu_thumb_koth_sharkbay",
+    "battles": 0,
+    "soldiers": 0,
+    "bonus": "",
+    "frontline": true,
+    "banner": {
+     "tag": "MED",
+     "name": "Медицинский корпус",
+     "emblem": "medic",
+     "color": "red"
+    }
+   },
+   {
+    "id": "junction",
+    "name": "Развязка",
+    "icon": "rail",
+    "hq": false,
+    "x": 598,
+    "y": 324,
+    "owner": "blu",
+    "control": 0.33,
+    "front": "front-4",
+    "attacker": "red",
+    "from": "yard",
+    "stage": 3,
+    "stages": 3,
+    "stage_kind": "advance",
+    "mode": "attack_defend",
+    "map": "cp_gorge",
+    "image": "vgui/maps/menu_thumb_cp_gorge",
+    "battles": 6,
+    "soldiers": 214,
+    "bonus": "",
+    "frontline": true,
+    "banner": {
+     "tag": "TFC",
+     "name": "Team Fortress Classic",
+     "emblem": "scout",
+     "color": "blu"
+    }
+   },
+   {
+    "id": "reservoir",
+    "name": "Водохранилище",
+    "icon": "dam",
+    "hq": false,
+    "x": 591,
+    "y": 526,
+    "owner": "blu",
+    "control": 0.0,
+    "front": "",
+    "attacker": "",
+    "from": "",
+    "stage": 0,
+    "stages": 0,
+    "stage_kind": "skirmish",
+    "mode": "koth",
+    "map": "koth_brazil",
+    "image": "vgui/maps/menu_thumb_koth_brazil",
+    "battles": 0,
+    "soldiers": 0,
+    "bonus": "",
+    "frontline": true,
+    "banner": {
+     "tag": "",
+     "name": "",
+     "emblem": "",
+     "color": ""
+    }
+   },
+   {
+    "id": "hydro",
+    "name": "ГЭС",
+    "icon": "power",
+    "hq": false,
+    "x": 798,
+    "y": 199,
+    "owner": "blu",
+    "control": 0.0,
+    "front": "front-5",
+    "attacker": "red",
+    "from": "quarry",
+    "stage": 1,
+    "stages": 3,
+    "stage_kind": "skirmish",
+    "mode": "koth",
+    "map": "koth_lakeside_final",
+    "image": "vgui/maps/menu_thumb_koth_lakeside_final",
+    "battles": 2,
+    "soldiers": 40,
+    "bonus": "",
+    "frontline": true,
+    "banner": {
+     "tag": "",
+     "name": "",
+     "emblem": "",
+     "color": ""
+    }
+   },
+   {
+    "id": "badwater",
+    "name": "Бэдвотер",
+    "icon": "factory",
+    "hq": false,
+    "x": 802,
+    "y": 455,
+    "owner": "blu",
+    "control": 0.0,
+    "front": "",
+    "attacker": "",
+    "from": "",
+    "stage": 0,
+    "stages": 0,
+    "stage_kind": "skirmish",
+    "mode": "arena",
+    "map": "arena_nucleus",
+    "image": "vgui/maps/menu_thumb_arena_nucleus",
+    "battles": 0,
+    "soldiers": 0,
+    "bonus": "",
+    "frontline": false,
+    "banner": {
+     "tag": "",
+     "name": "",
+     "emblem": "",
+     "color": ""
+    }
+   },
+   {
+    "id": "blu_hq",
+    "name": "Штаб BLU",
+    "icon": "hq",
+    "hq": true,
+    "x": 1012,
+    "y": 324,
+    "owner": "blu",
+    "control": 0.0,
+    "front": "",
+    "attacker": "",
+    "from": "",
+    "stage": 0,
+    "stages": 0,
+    "stage_kind": "skirmish",
+    "mode": "arena",
+    "map": "arena_lumberyard",
+    "image": "vgui/maps/menu_thumb_arena_lumberyard",
+    "battles": 0,
+    "soldiers": 0,
+    "bonus": "hq",
+    "frontline": false,
+    "banner": {
+     "tag": "",
+     "name": "",
+     "emblem": "",
+     "color": ""
+    }
+   }
+  ],
+  "links": [
+   {
+    "a": "red_hq",
+    "b": "farms",
+    "side": "red"
+   },
+   {
+    "a": "red_hq",
+    "b": "coaltown",
+    "side": "red"
+   },
+   {
+    "a": "red_hq",
+    "b": "yard",
+    "side": "red"
+   },
+   {
+    "a": "farms",
+    "b": "yard",
+    "side": "red"
+   },
+   {
+    "a": "coaltown",
+    "b": "yard",
+    "side": "red"
+   },
+   {
+    "a": "farms",
+    "b": "foundry",
+    "side": "red"
+   },
+   {
+    "a": "coaltown",
+    "b": "sawmill",
+    "side": "red"
+   },
+   {
+    "a": "yard",
+    "b": "foundry",
+    "side": "red"
+   },
+   {
+    "a": "yard",
+    "b": "sawmill",
+    "side": "red"
+   },
+   {
+    "a": "yard",
+    "b": "junction",
+    "side": "front"
+   },
+   {
+    "a": "foundry",
+    "b": "quarry",
+    "side": "red"
+   },
+   {
+    "a": "foundry",
+    "b": "junction",
+    "side": "front"
+   },
+   {
+    "a": "sawmill",
+    "b": "junction",
+    "side": "front"
+   },
+   {
+    "a": "sawmill",
+    "b": "reservoir",
+    "side": "front"
+   },
+   {
+    "a": "quarry",
+    "b": "hydro",
+    "side": "front"
+   },
+   {
+    "a": "junction",
+    "b": "hydro",
+    "side": "blu"
+   },
+   {
+    "a": "junction",
+    "b": "badwater",
+    "side": "blu"
+   },
+   {
+    "a": "reservoir",
+    "b": "badwater",
+    "side": "blu"
+   },
+   {
+    "a": "hydro",
+    "b": "badwater",
+    "side": "blu"
+   },
+   {
+    "a": "hydro",
+    "b": "blu_hq",
+    "side": "blu"
+   },
+   {
+    "a": "badwater",
+    "b": "blu_hq",
+    "side": "blu"
+   }
+  ],
+  "ops": [
+   {
+    "front": "front-4",
+    "node": "junction",
+    "name": "Развязка",
+    "attacker": "red",
+    "defender": "blu",
+    "from": "yard",
+    "from_name": "Депо",
+    "stage": 3,
+    "stages": 3,
+    "plan": [
+     "skirmish",
+     "breakthrough",
+     "advance"
+    ],
+    "mode": "attack_defend",
+    "map": "cp_gorge",
+    "image": "vgui/maps/menu_thumb_cp_gorge",
+    "battles": 6,
+    "soldiers": 214,
+    "want": 31,
+    "hq": false,
+    "kind": "advance",
+    "next": "",
+    "prev": "breakthrough",
+    "momentum": 3,
+    "momentum_max": 3,
+    "conditions": [
+     "quickwaves"
+    ],
+    "order": true
+   },
+   {
+    "front": "front-3",
+    "node": "sawmill",
+    "name": "Лесопилка",
+    "attacker": "blu",
+    "defender": "red",
+    "from": "reservoir",
+    "from_name": "Водохранилище",
+    "stage": 2,
+    "stages": 3,
+    "plan": [
+     "skirmish",
+     "breakthrough",
+     "advance"
+    ],
+    "mode": "cp",
+    "map": "cp_process_final",
+    "image": "vgui/maps/menu_thumb_cp_process_final",
+    "battles": 3,
+    "soldiers": 96,
+    "want": 8,
+    "hq": false,
+    "kind": "breakthrough",
+    "next": "advance",
+    "prev": "skirmish",
+    "momentum": 1,
+    "momentum_max": 3,
+    "conditions": [
+     "grapples",
+     "longwaves"
+    ],
+    "order": false
+   },
+   {
+    "front": "front-5",
+    "node": "hydro",
+    "name": "ГЭС",
+    "attacker": "red",
+    "defender": "blu",
+    "from": "quarry",
+    "from_name": "Гравийный карьер",
+    "stage": 1,
+    "stages": 3,
+    "plan": [
+     "skirmish",
+     "breakthrough",
+     "assault"
+    ],
+    "mode": "koth",
+    "map": "koth_lakeside_final",
+    "image": "vgui/maps/menu_thumb_koth_lakeside_final",
+    "battles": 2,
+    "soldiers": 40,
+    "want": 3,
+    "hq": false,
+    "kind": "skirmish",
+    "next": "breakthrough",
+    "prev": "",
+    "momentum": 2,
+    "momentum_max": 3,
+    "conditions": [
+     "nocrits",
+     "quickwaves"
+    ],
+    "order": false
+   }
+  ],
+  "top": "junction",
+  "events": [
+   {
+    "kind": "stage_won",
+    "side": "red",
+    "node": "junction",
+    "name": "Развязка",
+    "stage": 2,
+    "stage_kind": "breakthrough",
+    "ago": 180
+   },
+   {
+    "kind": "stage_won",
+    "side": "blu",
+    "node": "sawmill",
+    "name": "Лесопилка",
+    "stage": 1,
+    "stage_kind": "skirmish",
+    "ago": 420
+   },
+   {
+    "kind": "front_opened",
+    "side": "red",
+    "node": "hydro",
+    "name": "ГЭС",
+    "stage": 0,
+    "stage_kind": "",
+    "ago": 900
+   },
+   {
+    "kind": "node_captured",
+    "side": "red",
+    "node": "quarry",
+    "name": "Гравийный карьер",
+    "stage": 0,
+    "stage_kind": "",
+    "ago": 1500
+   },
+   {
+    "kind": "stage_won",
+    "side": "red",
+    "node": "quarry",
+    "name": "Гравийный карьер",
+    "stage": 2,
+    "stage_kind": "breakthrough",
+    "ago": 2900
+   },
+   {
+    "kind": "stage_lost",
+    "side": "blu",
+    "node": "junction",
+    "name": "Развязка",
+    "stage": 1,
+    "stage_kind": "skirmish",
+    "ago": 3700
+   },
+   {
+    "kind": "offensive_broken",
+    "side": "blu",
+    "node": "foundry",
+    "name": "Литейный завод",
+    "stage": 0,
+    "stage_kind": "",
+    "ago": 5200
+   },
+   {
+    "kind": "front_opened",
+    "side": "blu",
+    "node": "sawmill",
+    "name": "Лесопилка",
+    "stage": 0,
+    "stage_kind": "",
+    "ago": 6100
+   },
+   {
+    "kind": "front_opened",
+    "side": "red",
+    "node": "junction",
+    "name": "Развязка",
+    "stage": 0,
+    "stage_kind": "",
+    "ago": 9000
+   },
+   {
+    "kind": "campaign_started",
+    "side": "",
+    "node": "",
+    "name": "",
+    "stage": 0,
+    "stage_kind": "",
+    "ago": 266400
+   }
+  ],
+  "servers": 14,
+  "servers_free": 3,
+  "hot": "junction",
+  "order_xp": 100,
+  "live": [
+   {
+    "front": "front-3",
+    "node": "junction",
+    "name": "Развязка",
+    "map": "cp_gorge",
+    "image": "vgui/maps/menu_thumb_cp_gorge",
+    "mode": "attack_defend",
+    "stage": 3,
+    "stage_kind": "advance",
+    "attacker": "red",
+    "players": 24,
+    "max": 24,
+    "seconds": 842,
+    "conditions": [
+     "quickwaves"
+    ],
+    "order": true
+   },
+   {
+    "front": "front-3",
+    "node": "junction",
+    "name": "Развязка",
+    "map": "cp_dustbowl",
+    "image": "vgui/maps/menu_thumb_cp_dustbowl",
+    "mode": "attack_defend",
+    "stage": 3,
+    "stage_kind": "advance",
+    "attacker": "red",
+    "players": 22,
+    "max": 24,
+    "seconds": 305,
+    "conditions": [
+     "quickwaves"
+    ],
+    "order": true
+   },
+   {
+    "front": "front-4",
+    "node": "sawmill",
+    "name": "Лесопилка",
+    "map": "cp_process_final",
+    "image": "vgui/maps/menu_thumb_cp_process_final",
+    "mode": "cp",
+    "stage": 2,
+    "stage_kind": "breakthrough",
+    "attacker": "blu",
+    "players": 18,
+    "max": 24,
+    "seconds": 1290,
+    "conditions": [
+     "grapples",
+     "longwaves"
+    ],
+    "order": false
+   },
+   {
+    "front": "front-5",
+    "node": "hydro",
+    "name": "ГЭС",
+    "map": "koth_lakeside_final",
+    "image": "vgui/maps/menu_thumb_koth_lakeside_final",
+    "mode": "koth",
+    "stage": 1,
+    "stage_kind": "skirmish",
+    "attacker": "red",
+    "players": 12,
+    "max": 12,
+    "seconds": 96,
+    "conditions": [
+     "nocrits",
+     "quickwaves"
+    ],
+    "order": false
+   }
+  ]
+ },
+ "career": {
+  "hours": 412,
+  "matches": 1288,
+  "wins": 0.54,
+  "mvp": 96,
+  "ratings": [
+   {
+    "mode": "#fui_mode_ranked",
+    "rating": 1642,
+    "delta": 18,
+    "rank": "Серебро II",
+    "frac": 0.62
+   },
+   {
+    "mode": "#fui_mode_war",
+    "rating": 1518,
+    "delta": -6,
+    "rank": "Капрал",
+    "frac": 0.35
+   },
+   {
+    "mode": "#fui_mode_casual",
+    "rating": 37,
+    "delta": 1,
+    "rank": "Уровень 37",
+    "frac": 0.7
+   }
+  ],
+  "classes": [
+   {
+    "id": "soldier",
+    "hours": 168,
+    "frac": 1.0
+   },
+   {
+    "id": "medic",
+    "hours": 91,
+    "frac": 0.54
+   },
+   {
+    "id": "demoman",
+    "hours": 52,
+    "frac": 0.31
+   },
+   {
+    "id": "scout",
+    "hours": 38,
+    "frac": 0.23
+   },
+   {
+    "id": "engineer",
+    "hours": 27,
+    "frac": 0.16
+   },
+   {
+    "id": "heavy",
+    "hours": 19,
+    "frac": 0.11
+   },
+   {
+    "id": "sniper",
+    "hours": 9,
+    "frac": 0.05
+   },
+   {
+    "id": "pyro",
+    "hours": 6,
+    "frac": 0.04
+   },
+   {
+    "id": "spy",
+    "hours": 2,
+    "frac": 0.01
+   }
+  ],
+  "history": [
+   {
+    "map": "Процесс",
+    "image": "vgui/maps/menu_thumb_cp_process_final",
+    "mode": "#fui_mode_war",
+    "result": "win",
+    "score": "3 : 2",
+    "xp": 640,
+    "delta": 12,
+    "when": "сегодня, 21:04",
+    "class": "soldier"
+   },
+   {
+    "map": "Апворд",
+    "image": "vgui/maps/menu_thumb_pl_upward",
+    "mode": "#fui_mode_war",
+    "result": "win",
+    "score": "9:41",
+    "xp": 710,
+    "delta": 14,
+    "when": "сегодня, 20:31",
+    "class": "soldier"
+   },
+   {
+    "map": "Виадук",
+    "image": "vgui/maps/menu_thumb_koth_viaduct",
+    "mode": "#fui_mode_ranked",
+    "result": "loss",
+    "score": "2 : 3",
+    "xp": 380,
+    "delta": -9,
+    "when": "сегодня, 19:52",
+    "class": "medic"
+   },
+   {
+    "map": "Галливош",
+    "image": "vgui/maps/menu_thumb_cp_gullywash_final1",
+    "mode": "#fui_mode_casual",
+    "result": "win",
+    "score": "5 : 1",
+    "xp": 520,
+    "delta": 0,
+    "when": "вчера, 23:10",
+    "class": "demoman"
+   },
+   {
+    "map": "Бэдвотер",
+    "image": "vgui/maps/menu_thumb_pl_badwater",
+    "mode": "#fui_mode_casual",
+    "result": "loss",
+    "score": "—",
+    "xp": 300,
+    "delta": 0,
+    "when": "вчера, 22:37",
+    "class": "soldier"
+   }
+  ]
+ },
+ "results": {
+  "result": "win",
+  "map": "Процесс",
+  "image": "vgui/maps/menu_thumb_cp_process_final",
+  "mode": "#fui_mode_war",
+  "score_red": 3,
+  "score_blu": 2,
+  "duration": 1460,
+  "front": "Процесс",
+  "front_before": 0.49,
+  "front_after": 0.52,
+  "xp_total": 640,
+  "level_before": 37,
+  "frac_before": 0.65,
+  "frac_after": 0.7,
+  "rating": 1530,
+  "delta": 12,
+  "xp": [
+   {
+    "what": "Победа",
+    "xp": 300
+   },
+   {
+    "what": "Захваты точек ×3",
+    "xp": 150
+   },
+   {
+    "what": "Бой на ключевом фронте",
+    "xp": 110
+   },
+   {
+    "what": "Отряд из 3 человек",
+    "xp": 80
+   }
+  ],
+  "mvps": [
+   {
+    "name": "ficool2",
+    "class": "medic",
+    "avatar": "avatar:76561198000000002",
+    "stat": "Убер ×7",
+    "team": "red"
+   },
+   {
+    "name": "Gru",
+    "class": "soldier",
+    "avatar": "avatar:76561198000000001",
+    "stat": "31 убийство",
+    "team": "red"
+   },
+   {
+    "name": "Pootis",
+    "class": "heavy",
+    "avatar": "avatar:76561198000000009",
+    "stat": "8 912 урона",
+    "team": "blu"
+   }
+  ]
+ },
+ "quests": {
+  "daily_left": 26100,
+  "weekly_left": 401000,
+  "done": 1,
+  "total": 4,
+  "daily": [
+   {
+    "key": "d:kills_25",
+    "kind": "kills",
+    "class": "",
+    "target": 25,
+    "progress": 18,
+    "frac": 0.72,
+    "xp": 150,
+    "done": false,
+    "weekly": false,
+    "photo": "vgui/contracts/photo_headhunter"
+   },
+   {
+    "key": "d:medic_win",
+    "kind": "class_wins",
+    "class": "medic",
+    "target": 1,
+    "progress": 1,
+    "frac": 1,
+    "xp": 200,
+    "done": true,
+    "weekly": false,
+    "photo": "vgui/contracts/photo_medic1"
+   },
+   {
+    "key": "d:damage_6000",
+    "kind": "damage",
+    "class": "",
+    "target": 6000,
+    "progress": 2380,
+    "frac": 0.4,
+    "xp": 180,
+    "done": false,
+    "weekly": false,
+    "photo": "vgui/contracts/photo_powerhouse1"
+   }
+  ],
+  "weekly": [
+   {
+    "key": "w:war_wins_5",
+    "kind": "war_wins",
+    "class": "",
+    "target": 5,
+    "progress": 3,
+    "frac": 0.6,
+    "xp": 900,
+    "done": false,
+    "weekly": true,
+    "photo": "vgui/contracts/photo_any_cp"
+   }
+  ]
+ },
+ "toasts": [
+  {
+   "kind": "party",
+   "title": "Spycrab",
+   "body": "присоединился к отряду",
+   "icon": "avatar:76561198000000004"
+  }
+ ],
+ "match": {
+  "active": true,
+  "map": "Процесс",
+  "map_id": "cp_process_final",
+  "image": "vgui/maps/menu_thumb_cp_process_final",
+  "red": 2,
+  "blu": 1,
+  "team": "red",
+  "class": "soldier",
+  "official": true
+ },
+ "classsel": {
+  "team": "red",
+  "current": "soldier"
+ },
+ "ui": {
+  "front": "junction",
+  "chat_draft": ""
+ },
+ "hud": {
+  "visible": true,
+  "alive": true,
+  "class": "soldier",
+  "team": "red",
+  "health": 184,
+  "max": 200,
+  "frac": 0.92,
+  "overheal": 0,
+  "low": false,
+  "weapon": "Прямое попадание",
+  "weapon_icon": "tex:backpack/weapons/c_models/c_directhit/c_directhit_large",
+  "clip": 3,
+  "reserve": 16,
+  "clip_max": 4,
+  "clip_low": false,
+  "charge": -1,
+  "charge_ready": false,
+  "respawn": -1,
+  "killed_by": "",
+  "mode": "cp",
+  "timer": 287,
+  "setup": false,
+  "overtime": false,
+  "waiting": false,
+  "score_red": 1,
+  "score_blu": 0,
+  "koth_red": -1,
+  "koth_blu": -1,
+  "points": [
+   {
+    "owner": "red",
+    "capping": "",
+    "frac": 0,
+    "cappers": 0,
+    "locked": false,
+    "blocked": false
+   },
+   {
+    "owner": "red",
+    "capping": "",
+    "frac": 0,
+    "cappers": 0,
+    "locked": false,
+    "blocked": false
+   },
+   {
+    "owner": "neutral",
+    "capping": "red",
+    "frac": 0.62,
+    "cappers": 3,
+    "locked": false,
+    "blocked": false
+   },
+   {
+    "owner": "blu",
+    "capping": "",
+    "frac": 0,
+    "cappers": 0,
+    "locked": true,
+    "blocked": false
+   },
+   {
+    "owner": "blu",
+    "capping": "",
+    "frac": 0,
+    "cappers": 0,
+    "locked": true,
+    "blocked": false
+   }
+  ],
+  "cart": {
+   "progress": -1,
+   "speed": 0,
+   "team": "blu"
+  },
+  "flags": [],
+  "kills": [
+   {
+    "killer": "Gru",
+    "killer_team": "red",
+    "assist": "",
+    "victim": "Spycrab",
+    "victim_team": "blu",
+    "icon": "hudicon:dneg_rocketlauncher_directhit",
+    "crit": false,
+    "me": true
+   },
+   {
+    "killer": "Медик Олег",
+    "killer_team": "blu",
+    "assist": "",
+    "victim": "Pyro Pete",
+    "victim_team": "red",
+    "icon": "hudicon:d_syringegun_medic",
+    "crit": false,
+    "me": false
+   },
+   {
+    "killer": "Sniperman",
+    "killer_team": "blu",
+    "assist": "",
+    "victim": "Heavy Hank",
+    "victim_team": "red",
+    "icon": "hudicon:d_headshot",
+    "crit": true,
+    "me": false
+   },
+   {
+    "killer": "Demo Dan",
+    "killer_team": "red",
+    "assist": "Gru",
+    "victim": "Sentry Sam",
+    "victim_team": "blu",
+    "icon": "hudicon:dneg_tf_projectile_pipe_remote",
+    "crit": false,
+    "me": true
+   }
+  ],
+  "war": {
+   "active": true,
+   "sector": "Развязка",
+   "stage": 3,
+   "stages": 3,
+   "kind": "advance",
+   "attacker": "red",
+   "attacking": true,
+   "order": true,
+   "conditions": [
+    "quickwaves",
+    "nocrits"
+   ]
+  }
+ },
+ "settings": {
+  "hud_style": "auto",
+  "huds": [
+   "auto",
+   "frontress",
+   "minimal"
+  ]
+ },
+ "social": {
+  "tab": "global",
+  "view": [
+   {
+    "id": 1,
+    "ch": "global",
+    "name": "",
+    "tag": "",
+    "gold": false,
+    "sup": false,
+    "text": "",
+    "sys": true,
+    "key": "fui_feed_captured",
+    "a1": "Лесопилка",
+    "a2": "#fui_side_red",
+    "a3": "",
+    "a4": "",
+    "kind": "war",
+    "time": "20:51",
+    "me": false,
+    "from": ""
+   },
+   {
+    "id": 2,
+    "ch": "global",
+    "name": "Spycrab",
+    "tag": "",
+    "gold": false,
+    "sup": false,
+    "text": "кто на войну? джанкшен почти наш",
+    "sys": false,
+    "key": "",
+    "a1": "",
+    "a2": "",
+    "a3": "",
+    "a4": "",
+    "kind": "",
+    "time": "20:52",
+    "me": false,
+    "from": "2"
+   },
+   {
+    "id": 3,
+    "ch": "global",
+    "name": "ficool2",
+    "tag": "РК",
+    "gold": false,
+    "sup": false,
+    "text": "иду, медик есть",
+    "sys": false,
+    "key": "",
+    "a1": "",
+    "a2": "",
+    "a3": "",
+    "a4": "",
+    "kind": "",
+    "time": "20:52",
+    "me": false,
+    "from": "3"
+   },
+   {
+    "id": 4,
+    "ch": "global",
+    "name": "",
+    "tag": "",
+    "gold": false,
+    "sup": false,
+    "text": "",
+    "sys": true,
+    "key": "fui_feed_clan_level",
+    "a1": "TFC",
+    "a2": "4",
+    "a3": "",
+    "a4": "",
+    "kind": "clan",
+    "time": "20:54",
+    "me": false,
+    "from": ""
+   },
+   {
+    "id": 5,
+    "ch": "global",
+    "name": "Медведь",
+    "tag": "",
+    "gold": false,
+    "sup": false,
+    "text": "нужен ещё один в отряд на Литейную",
+    "sys": false,
+    "key": "",
+    "a1": "",
+    "a2": "",
+    "a3": "",
+    "a4": "",
+    "kind": "",
+    "time": "20:55",
+    "me": false,
+    "from": "5"
+   },
+   {
+    "id": 6,
+    "ch": "global",
+    "name": "",
+    "tag": "",
+    "gold": false,
+    "sup": false,
+    "text": "",
+    "sys": true,
+    "key": "fui_feed_support",
+    "a1": "Mumbles",
+    "a2": "",
+    "a3": "",
+    "a4": "",
+    "kind": "support",
+    "time": "20:57",
+    "me": false,
+    "from": ""
+   },
+   {
+    "id": 7,
+    "ch": "global",
+    "name": "Dispenser",
+    "tag": "TFC",
+    "gold": true,
+    "sup": true,
+    "text": "вот это пинг на новом сервере, огонь",
+    "sys": false,
+    "key": "",
+    "a1": "",
+    "a2": "",
+    "a3": "",
+    "a4": "",
+    "kind": "",
+    "time": "20:58",
+    "me": false,
+    "from": "7"
+   },
+   {
+    "id": 8,
+    "ch": "global",
+    "name": "Gru",
+    "tag": "РК",
+    "gold": false,
+    "sup": true,
+    "text": "собираю отряд на войну, кидаю инвайты",
+    "sys": false,
+    "key": "",
+    "a1": "",
+    "a2": "",
+    "a3": "",
+    "a4": "",
+    "kind": "",
+    "time": "20:59",
+    "me": true,
+    "from": "8"
+   },
+   {
+    "id": 9,
+    "ch": "global",
+    "name": "",
+    "tag": "",
+    "gold": false,
+    "sup": false,
+    "text": "",
+    "sys": true,
+    "key": "fui_feed_battle",
+    "a1": "Развилка",
+    "a2": "#fui_side_blu",
+    "a3": "2",
+    "a4": "3",
+    "kind": "war",
+    "time": "21:01",
+    "me": false,
+    "from": ""
+   }
+  ],
+  "unread_clan": 2,
+  "unread_party": 0,
+  "has_clan": true,
+  "has_party": true,
+  "lfg": false,
+  "lfg_note": "",
+  "online": {
+   "total": 128,
+   "menu": 61,
+   "queue": 19,
+   "match": 48,
+   "lfg": 5,
+   "clans": 12,
+   "players": [
+    {
+     "id": "76561198000000011",
+     "name": "Медведь",
+     "tag": "",
+     "gold": false,
+     "sup": false,
+     "level": 9,
+     "status": "menu",
+     "mode": "casual",
+     "map": "",
+     "lfg": true,
+     "note": "хил ищет отряд на войну",
+     "party": 1,
+     "me": false
+    },
+    {
+     "id": "76561198000000012",
+     "name": "Pootis",
+     "tag": "TFC",
+     "gold": true,
+     "sup": true,
+     "level": 54,
+     "status": "menu",
+     "mode": "casual",
+     "map": "",
+     "lfg": true,
+     "note": "",
+     "party": 2,
+     "me": false
+    },
+    {
+     "id": "76561198000000001",
+     "name": "Gru",
+     "tag": "РК",
+     "gold": false,
+     "sup": true,
+     "level": 37,
+     "status": "menu",
+     "mode": "casual",
+     "map": "",
+     "lfg": false,
+     "note": "",
+     "party": 4,
+     "me": true
+    },
+    {
+     "id": "76561198000000013",
+     "name": "Spycrab",
+     "tag": "",
+     "gold": false,
+     "sup": false,
+     "level": 21,
+     "status": "queue",
+     "mode": "casual",
+     "map": "",
+     "lfg": false,
+     "note": "",
+     "party": 1,
+     "me": false
+    },
+    {
+     "id": "76561198000000014",
+     "name": "Doktor",
+     "tag": "РК",
+     "gold": false,
+     "sup": false,
+     "level": 77,
+     "status": "match",
+     "mode": "casual",
+     "map": "cp_granary",
+     "lfg": false,
+     "note": "",
+     "party": 3,
+     "me": false
+    },
+    {
+     "id": "76561198000000015",
+     "name": "Saxton",
+     "tag": "",
+     "gold": false,
+     "sup": false,
+     "level": 3,
+     "status": "match",
+     "mode": "ranked",
+     "map": "koth_viaduct",
+     "lfg": false,
+     "note": "",
+     "party": 1,
+     "me": false
+    }
+   ]
+  }
+ },
+ "clan": {
+  "loaded": true,
+  "has": true,
+  "officer": true,
+  "leader": true,
+  "c": {
+   "id": "rk7q2m",
+   "name": "Ржавые Ключи",
+   "tag": "РК",
+   "motto": "Где ключ — там и раздатчик",
+   "emblem": "engineer",
+   "color": "gold",
+   "open": true,
+   "level": 5,
+   "xp": 7420,
+   "xp_from": 6000,
+   "xp_to": 9500,
+   "frac": 0.405,
+   "count": 6,
+   "cap": 20,
+   "online": 4,
+   "wins": 61,
+   "battles": 104,
+   "banner": "Литейный завод",
+   "gold": false,
+   "role": "leader",
+   "members": [
+    {
+     "id": "76561198000000001",
+     "name": "Gru",
+     "role": "leader",
+     "status": "menu",
+     "online": true,
+     "xp": 4210,
+     "week_xp": 380,
+     "level": 37,
+     "me": true
+    },
+    {
+     "id": "76561198000000002",
+     "name": "ficool2",
+     "role": "officer",
+     "status": "match",
+     "online": true,
+     "xp": 3890,
+     "week_xp": 510,
+     "level": 112,
+     "me": false
+    },
+    {
+     "id": "76561198000000014",
+     "name": "Doktor",
+     "role": "officer",
+     "status": "match",
+     "online": true,
+     "xp": 1650,
+     "week_xp": 220,
+     "level": 77,
+     "me": false
+    },
+    {
+     "id": "76561198000000021",
+     "name": "Ржавый",
+     "role": "member",
+     "status": "queue",
+     "online": true,
+     "xp": 980,
+     "week_xp": 140,
+     "level": 18,
+     "me": false
+    },
+    {
+     "id": "76561198000000022",
+     "name": "Snipes",
+     "role": "member",
+     "status": "offline",
+     "online": false,
+     "xp": 620,
+     "week_xp": 0,
+     "level": 44,
+     "me": false
+    },
+    {
+     "id": "76561198000000023",
+     "name": "Engie Joe",
+     "role": "member",
+     "status": "offline",
+     "online": false,
+     "xp": 310,
+     "week_xp": 60,
+     "level": 12,
+     "me": false
+    }
+   ],
+   "perks": [
+    {
+     "id": "tag",
+     "level": 1,
+     "on": true
+    },
+    {
+     "id": "brothers",
+     "level": 2,
+     "on": true
+    },
+    {
+     "id": "banner",
+     "level": 3,
+     "on": true
+    },
+    {
+     "id": "contract",
+     "level": 4,
+     "on": true
+    },
+    {
+     "id": "order",
+     "level": 5,
+     "on": true
+    },
+    {
+     "id": "roster",
+     "level": 6,
+     "on": false
+    },
+    {
+     "id": "veterans",
+     "level": 7,
+     "on": false
+    },
+    {
+     "id": "gold",
+     "level": 8,
+     "on": false
+    },
+    {
+     "id": "legend",
+     "level": 10,
+     "on": false
+    }
+   ],
+   "contract": {
+    "kind": "war",
+    "target": 15,
+    "progress": 11,
+    "frac": 0.733,
+    "paid": false,
+    "left": 186000,
+    "on": true,
+    "clan_xp": 1500,
+    "member_xp": 300
+   },
+   "order": "front-4",
+   "order_name": "Развязка",
+   "order_xp": 50,
+   "bonus": 10
+  },
+  "invites": [
+   {
+    "id": "mdc010",
+    "name": "Медицинский корпус",
+    "tag": "MED",
+    "motto": "Убер готов",
+    "emblem": "medic",
+    "color": "red",
+    "open": false,
+    "level": 4,
+    "xp": 4100,
+    "count": 14,
+    "cap": 20,
+    "online": 3,
+    "wins": 40,
+    "battles": 77,
+    "banner": "",
+    "gold": false
+   }
+  ],
+  "top": [
+   {
+    "id": "tfc001",
+    "name": "Team Fortress Classic",
+    "tag": "TFC",
+    "motto": "Старая школа",
+    "emblem": "scout",
+    "color": "blu",
+    "open": true,
+    "level": 8,
+    "xp": 29000,
+    "count": 31,
+    "cap": 40,
+    "online": 9,
+    "wins": 214,
+    "battles": 380,
+    "banner": "Развилка",
+    "gold": true
+   },
+   {
+    "id": "rk7q2m",
+    "name": "Ржавые Ключи",
+    "tag": "РК",
+    "motto": "Где ключ — там и раздатчик",
+    "emblem": "engineer",
+    "color": "gold",
+    "open": true,
+    "level": 5,
+    "xp": 7420,
+    "count": 6,
+    "cap": 20,
+    "online": 4,
+    "wins": 61,
+    "battles": 104,
+    "banner": "Литейный завод",
+    "gold": false
+   },
+   {
+    "id": "mdc010",
+    "name": "Медицинский корпус",
+    "tag": "MED",
+    "motto": "Убер готов",
+    "emblem": "medic",
+    "color": "red",
+    "open": false,
+    "level": 4,
+    "xp": 4100,
+    "count": 14,
+    "cap": 20,
+    "online": 3,
+    "wins": 40,
+    "battles": 77,
+    "banner": "",
+    "gold": false
+   },
+   {
+    "id": "spy777",
+    "name": "Spycrab Society",
+    "tag": "CRAB",
+    "motto": "",
+    "emblem": "spy",
+    "color": "purple",
+    "open": true,
+    "level": 2,
+    "xp": 900,
+    "count": 5,
+    "cap": 20,
+    "online": 1,
+    "wins": 7,
+    "battles": 19,
+    "banner": "",
+    "gold": false
+   },
+   {
+    "id": "hvy001",
+    "name": "Сэндвичи",
+    "tag": "SNDV",
+    "motto": "Пушка не стреляет сама",
+    "emblem": "heavy",
+    "color": "green",
+    "open": true,
+    "level": 1,
+    "xp": 120,
+    "count": 2,
+    "cap": 20,
+    "online": 0,
+    "wins": 0,
+    "battles": 3,
+    "banner": "",
+    "gold": false
+   }
+  ]
+ },
+ "clanform": {
+  "name": "",
+  "tag": "",
+  "motto": "",
+  "emblem": "engineer",
+  "color": "gold",
+  "open": true
+ },
+ "support": {
+  "offered": true,
+  "available": true,
+  "loading": false,
+  "busy": false,
+  "sandbox": true,
+  "currency": "RUB",
+  "once": [
+   {
+    "tier": 0,
+    "kind": "once",
+    "amount": 14900,
+    "price": "149 ₽"
+   },
+   {
+    "tier": 1,
+    "kind": "once",
+    "amount": 39900,
+    "price": "399 ₽"
+   },
+   {
+    "tier": 2,
+    "kind": "once",
+    "amount": 79900,
+    "price": "799 ₽"
+   },
+   {
+    "tier": 3,
+    "kind": "once",
+    "amount": 199000,
+    "price": "1 990 ₽"
+   }
+  ],
+  "monthly": [
+   {
+    "tier": 0,
+    "kind": "monthly",
+    "amount": 24900,
+    "price": "249 ₽"
+   },
+   {
+    "tier": 1,
+    "kind": "monthly",
+    "amount": 79900,
+    "price": "799 ₽"
+   }
+  ],
+  "me": {
+   "supporter": true,
+   "monthly": false,
+   "donations": 2,
+   "since": 1790000000
+  },
+  "wall": [
+   {
+    "name": "Mumbles",
+    "kind": "once",
+    "ago": 240
+   },
+   {
+    "name": "Pootis",
+    "kind": "monthly",
+    "ago": 3600
+   },
+   {
+    "name": "ficool2",
+    "kind": "once",
+    "ago": 7200
+   },
+   {
+    "name": "Doktor",
+    "kind": "monthly",
+    "ago": 86400
+   },
+   {
+    "name": "Saxton",
+    "kind": "once",
+    "ago": 90000
+   },
+   {
+    "name": "Медведь",
+    "kind": "once",
+    "ago": 172000
+   },
+   {
+    "name": "Engie Joe",
+    "kind": "once",
+    "ago": 260000
+   },
+   {
+    "name": "Spycrab",
+    "kind": "monthly",
+    "ago": 400000
+   }
+  ],
+  "count": 148,
+  "subscribers": 23,
+  "anon": false,
+  "result": "",
+  "error": "",
+  "problem": ""
+ },
+ "locker": {
+  "items": [
+   {
+    "def": 13,
+    "name": "Обрез",
+    "type": "Обрез",
+    "icon": "backpack/weapons/c_models/c_scattergun_large",
+    "slot": "primary",
+    "classes": [
+     "scout"
+    ],
+    "quality": "unique",
+    "stock": true,
+    "level": 1,
+    "desc": "",
+    "index": 0
+   },
+   {
+    "def": 448,
+    "name": "Газировщик",
+    "type": "Обрез",
+    "icon": "backpack/workshop/weapons/c_models/c_soda_popper/c_soda_popper_large",
+    "slot": "primary",
+    "classes": [
+     "scout"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 36,
+    "desc": "Доп. атака: активация заряда, позволяющего совершать\nдополнительные прыжки в воздухе.\nОбойма этого оружия перезаряжается целиком.",
+    "index": 1
+   },
+   {
+    "def": 45,
+    "name": "Неумолимая сила",
+    "type": "Обрез",
+    "icon": "backpack/weapons/c_models/c_double_barrel_large",
+    "slot": "primary",
+    "classes": [
+     "scout"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 71,
+    "desc": "Обойма этого оружия перезаряжается целиком.",
+    "index": 2
+   },
+   {
+    "def": 772,
+    "name": "Обрез Малыша",
+    "type": "Обрез",
+    "icon": "backpack/workshop/weapons/c_models/c_pep_scattergun/c_pep_scattergun_large",
+    "slot": "primary",
+    "classes": [
+     "scout"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 34,
+    "desc": "#TF_Weapon_PEP_Scattergun_Desc",
+    "index": 3
+   },
+   {
+    "def": 220,
+    "name": "Прерыватель",
+    "type": "Пепербокс",
+    "icon": "backpack/workshop/weapons/c_models/c_shortstop/c_shortstop_large",
+    "slot": "primary",
+    "classes": [
+     "scout"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 44,
+    "desc": "Обойма на 4 патрона перезаряжается целиком.\nДоп. атака: Отбросить неуклюжего врага!\n\nНовейшая разработка Манн Ко в области\nоткидных стволов, самозащиты и самомнения.",
+    "index": 4
+   },
+   {
+    "def": 1103,
+    "name": "Спинобрез",
+    "type": "Обрез",
+    "icon": "backpack/workshop/weapons/c_models/c_scatterdrum/c_scatterdrum_large",
+    "slot": "primary",
+    "classes": [
+     "scout"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 65,
+    "desc": "#TF_Weapon_BackScatter_Desc",
+    "index": 5
+   },
+   {
+    "def": 160,
+    "name": "Люгерморф",
+    "type": "Пистолет",
+    "icon": "backpack/workshop/weapons/c_models/c_ttg_max_gun/c_ttg_max_gun_large",
+    "slot": "secondary",
+    "classes": [
+     "scout",
+     "engineer"
+    ],
+    "quality": "haunted",
+    "stock": false,
+    "level": 71,
+    "desc": "Шедевр полускрытного вооружения. Вопрос не в том, нужен ли вам этот пистолет. Вопрос в том, где вы будете его держать.",
+    "index": 6
+   },
+   {
+    "def": 812,
+    "name": "Летающая гильотина",
+    "type": "Тесак",
+    "icon": "backpack/workshop_partner/weapons/c_models/c_sd_cleaver/c_sd_cleaver_large",
+    "slot": "secondary",
+    "classes": [
+     "scout"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 5,
+    "desc": "",
+    "index": 7
+   },
+   {
+    "def": 46,
+    "name": "Бонк! Атомный залп",
+    "type": "Лакомство",
+    "icon": "backpack/weapons/c_models/c_energy_drink/c_energy_drink_large",
+    "slot": "secondary",
+    "classes": [
+     "scout"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 8,
+    "desc": "Напиток даёт неуязвимость на 8 секунд, но лишает возможности атаковать.\nПосле окончания действия вы замедлитесь в зависимости от полученного урона.",
+    "index": 8
+   },
+   {
+    "def": 163,
+    "name": "Критокола",
+    "type": "Лакомство",
+    "icon": "backpack/weapons/c_models/c_energy_drink/c_critcola_large",
+    "slot": "secondary",
+    "classes": [
+     "scout"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 49,
+    "desc": "Каждая атака под действием напитка\nнаносит мини-криты, но накладывает\nна владельца метку смерти.",
+    "index": 9
+   },
+   {
+    "def": 773,
+    "name": "Дамский пистолет Красавчика",
+    "type": "Пистолет",
+    "icon": "backpack/workshop/weapons/c_models/c_pep_pistol/c_pep_pistol_large",
+    "slot": "secondary",
+    "classes": [
+     "scout"
+    ],
+    "quality": "collectors",
+    "stock": false,
+    "level": 73,
+    "desc": "#TF_Weapon_PEP_Pistol_Desc",
+    "index": 10
+   },
+   {
+    "def": 449,
+    "name": "Окрыленный",
+    "type": "Пистолет",
+    "icon": "backpack/workshop/weapons/c_models/c_winger_pistol/c_winger_pistol_large",
+    "slot": "secondary",
+    "classes": [
+     "scout"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 89,
+    "desc": "",
+    "index": 11
+   },
+   {
+    "def": 1121,
+    "name": "Мутировавшее молоко",
+    "type": "Немолочное вещество",
+    "icon": "backpack/weapons/c_models/c_breadmonster/c_breadmonster_milk_large",
+    "slot": "secondary",
+    "classes": [
+     "scout"
+    ],
+    "quality": "collectors",
+    "stock": false,
+    "level": 86,
+    "desc": "60% урона, нанесённого облитому врагу, переводится в здоровье.\n\nПо мотивам фильма о TF2 \"Expiration Date\"",
+    "index": 12
+   },
+   {
+    "def": 1202,
+    "name": "Переизданный \"Люгерморф\"",
+    "type": "Пистолет",
+    "icon": "backpack/workshop/weapons/c_models/c_ttg_max_gun/c_ttg_max_gun_large",
+    "slot": "secondary",
+    "classes": [
+     "scout",
+     "engineer"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 12,
+    "desc": "Шедевр полускрытного вооружения. Вопрос не в том, нужен ли вам этот пистолет. Вопрос в том, где вы будете его держать.",
+    "index": 13
+   },
+   {
+    "def": 30666,
+    "name": "З.А.Х.В.А.Т.Ч.И.К.",
+    "type": "Пистолет",
+    "icon": "backpack/workshop/weapons/c_models/c_invasion_pistol/c_invasion_pistol_large",
+    "slot": "secondary",
+    "classes": [
+     "engineer",
+     "scout"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 7,
+    "desc": "Испепелите врагов!",
+    "index": 14
+   },
+   {
+    "def": 0,
+    "name": "Бита",
+    "type": "Бита",
+    "icon": "backpack/weapons/c_models/c_bat_large",
+    "slot": "melee",
+    "classes": [
+     "scout"
+    ],
+    "quality": "unique",
+    "stock": true,
+    "level": 1,
+    "desc": "",
+    "index": 15
+   },
+   {
+    "def": 317,
+    "name": "Карамельная трость",
+    "type": "Бита",
+    "icon": "backpack/workshop/weapons/c_models/c_candy_cane/c_candy_cane_large",
+    "slot": "melee",
+    "classes": [
+     "scout"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 79,
+    "desc": "",
+    "index": 16
+   },
+   {
+    "def": 30667,
+    "name": "Световая бита",
+    "type": "Бита",
+    "icon": "backpack/workshop/weapons/c_models/c_invasion_bat/c_invasion_bat_large",
+    "slot": "melee",
+    "classes": [
+     "scout"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 100,
+    "desc": "Вас переполняет сила!\nРазнесите врагов на мелкие кусочки!",
+    "index": 17
+   },
+   {
+    "def": 450,
+    "name": "Расщепитель",
+    "type": "Бита",
+    "icon": "backpack/workshop/weapons/c_models/c_bonk_bat/c_bonk_bat_large",
+    "slot": "melee",
+    "classes": [
+     "scout"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 55,
+    "desc": "",
+    "index": 18
+   },
+   {
+    "def": 452,
+    "name": "Трехрунный меч",
+    "type": "Меч",
+    "icon": "backpack/workshop/weapons/c_models/c_scout_sword/c_scout_sword_large",
+    "slot": "melee",
+    "classes": [
+     "scout"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 82,
+    "desc": "#TF_ScoutSword_Desc",
+    "index": 19
+   },
+   {
+    "def": 44,
+    "name": "Дрёма",
+    "type": "Бита",
+    "icon": "backpack/weapons/c_models/c_wooden_bat/c_wooden_bat_large",
+    "slot": "melee",
+    "classes": [
+     "scout"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 31,
+    "desc": "",
+    "index": 20
+   },
+   {
+    "def": 325,
+    "name": "Бостонский раздолбай",
+    "type": "Бита",
+    "icon": "backpack/workshop/weapons/c_models/c_boston_basher/c_boston_basher_large",
+    "slot": "melee",
+    "classes": [
+     "scout"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 14,
+    "desc": "",
+    "index": 21
+   },
+   {
+    "def": 349,
+    "name": "Солнце на палочке",
+    "type": "Огненная булава из RIFT",
+    "icon": "backpack/workshop/weapons/c_models/c_rift_fire_mace/c_rift_fire_mace_large",
+    "slot": "melee",
+    "classes": [
+     "scout"
+    ],
+    "quality": "vintage",
+    "stock": false,
+    "level": 1,
+    "desc": "Она должна вонзиться в тело.",
+    "index": 22
+   },
+   {
+    "def": 221,
+    "name": "Поддай леща",
+    "type": "Рыба",
+    "icon": "backpack/workshop/weapons/c_models/c_holymackerel/c_holymackerel_large",
+    "slot": "melee",
+    "classes": [
+     "scout"
+    ],
+    "quality": "vintage",
+    "stock": false,
+    "level": 7,
+    "desc": "Убийство рыбой — самое унизительное наказание для вашего врага.",
+    "index": 23
+   },
+   {
+    "def": 572,
+    "name": "Голая рука",
+    "type": "Отрубленная рука",
+    "icon": "backpack/workshop/weapons/c_models/c_unarmed_combat/c_unarmed_combat_large",
+    "slot": "melee",
+    "classes": [
+     "scout"
+    ],
+    "quality": "haunted",
+    "stock": false,
+    "level": 92,
+    "desc": "Шпион был так любезен, что протянул руку помощи...",
+    "index": 24
+   },
+   {
+    "def": 30737,
+    "name": "Перчатки плута",
+    "type": "Перчатки",
+    "icon": "backpack/workshop/player/items/scout/bak_crook_combatant/bak_crook_combatant_large",
+    "slot": "cosmetic",
+    "classes": [
+     "scout"
+    ],
+    "quality": "vintage",
+    "stock": false,
+    "level": 40,
+    "desc": "#TF_bak_crook_combatant_Desc",
+    "index": 25
+   },
+   {
+    "def": 219,
+    "name": "Молочник",
+    "type": "Головной убор",
+    "icon": "backpack/player/items/scout/milkhat_large",
+    "slot": "cosmetic",
+    "classes": [
+     "scout"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 21,
+    "desc": "#TF_TheMilkman_Desc",
+    "index": 26
+   },
+   {
+    "def": 31460,
+    "name": "Куртка танкиста",
+    "type": "Куртка",
+    "icon": "backpack/workshop/player/items/scout/sum24_tankers_top/sum24_tankers_top_large",
+    "slot": "cosmetic",
+    "classes": [
+     "scout"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 63,
+    "desc": "#TF_sum24_tankers_top_Desc",
+    "index": 27
+   },
+   {
+    "def": 30178,
+    "name": "Толстовка толстяка",
+    "type": "Одежда",
+    "icon": "backpack/workshop/player/items/all_class/fall2013_weight_room_warmer/fall2013_weight_room_warmer_large",
+    "slot": "cosmetic",
+    "classes": [
+     "scout",
+     "demoman",
+     "heavy"
+    ],
+    "quality": "unusual",
+    "stock": false,
+    "level": 69,
+    "desc": "#TF_fall2013_weight_room_warmer_Desc",
+    "index": 28
+   },
+   {
+    "def": 780,
+    "name": "Фетровая шляпа федералоборца",
+    "type": "Головной убор",
+    "icon": "backpack/player/items/scout/pep_hat_large",
+    "slot": "cosmetic",
+    "classes": [
+     "scout"
+    ],
+    "quality": "collectors",
+    "stock": false,
+    "level": 8,
+    "desc": "Эта шляпа напоминает о тех временах, когда вы напялили ее на веник и обхитрили федералов, заставив их битый час палить по ней, пока сами бежали с места преступления с полными мешками денег. Отлично смотрится с пулевыми р",
+    "index": 29
+   },
+   {
+    "def": 30869,
+    "name": "Почтовый посыльный",
+    "type": "Почтовая сумка",
+    "icon": "backpack/workshop/player/items/scout/spr17_messengers_mail_bag/spr17_messengers_mail_bag_large",
+    "slot": "cosmetic",
+    "classes": [
+     "scout"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 19,
+    "desc": "#TF_spr17_messengers_mail_bag_Desc",
+    "index": 30
+   },
+   {
+    "def": 30888,
+    "name": "Жакет для джунглей",
+    "type": "Одежда",
+    "icon": "backpack/workshop/player/items/scout/fall17_jungle_jersey/fall17_jungle_jersey_large",
+    "slot": "cosmetic",
+    "classes": [
+     "scout"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 80,
+    "desc": "#TF_fall17_jungle_jersey_Desc",
+    "index": 31
+   },
+   {
+    "def": 30491,
+    "name": "Цыплячья голова",
+    "type": "Часть костюма",
+    "icon": "backpack/workshop/player/items/scout/sf14_nugget_noggin/sf14_nugget_noggin_large",
+    "slot": "cosmetic",
+    "classes": [
+     "scout"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 20,
+    "desc": "#TF_sf14_nugget_noggin_Desc",
+    "index": 32
+   },
+   {
+    "def": 31505,
+    "name": "Кепка для каникул",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/scout/dec24_crimbo_cap/dec24_crimbo_cap_large",
+    "slot": "cosmetic",
+    "classes": [
+     "scout"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 48,
+    "desc": "#TF_dec24_crimbo_cap_Desc",
+    "index": 33
+   },
+   {
+    "def": 30470,
+    "name": "Биомеханический ранец",
+    "type": "Часть костюма",
+    "icon": "backpack/workshop_partner/player/items/scout/ai_body/ai_body_large",
+    "slot": "cosmetic",
+    "classes": [
+     "scout"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 86,
+    "desc": "#TF_BiomechBackpack_Desc",
+    "index": 34
+   },
+   {
+    "def": 30358,
+    "name": "Спасители ступней",
+    "type": "Ботинки",
+    "icon": "backpack/workshop/player/items/all_class/sbox2014_armor_shoes/sbox2014_armor_shoes_large",
+    "slot": "cosmetic",
+    "classes": [
+     "scout",
+     "demoman"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 95,
+    "desc": "#TF_sbox2014_armor_shoes_Desc",
+    "index": 35
+   },
+   {
+    "def": 31459,
+    "name": "Стрелок Содружества",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/scout/sum24_commonwealth/sum24_commonwealth_large",
+    "slot": "cosmetic",
+    "classes": [
+     "scout"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 2,
+    "desc": "#TF_sum24_commonwealth_Desc",
+    "index": 36
+   },
+   {
+    "def": 31302,
+    "name": "Чёртовы начертания",
+    "type": "Куртка",
+    "icon": "backpack/workshop/player/items/scout/hwn2022_imps_imprint/hwn2022_imps_imprint_large",
+    "slot": "cosmetic",
+    "classes": [
+     "scout"
+    ],
+    "quality": "haunted",
+    "stock": false,
+    "level": 50,
+    "desc": "#TF_hwn2022_imps_imprint_Desc",
+    "index": 37
+   },
+   {
+    "def": 707,
+    "name": "Бостонский бумбила",
+    "type": "Футуристическое устройство для воспроизведения звука",
+    "icon": "backpack/player/items/scout/boombox_large",
+    "slot": "cosmetic",
+    "classes": [
+     "scout"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 47,
+    "desc": "Шагаем широко под ритм Манн Ко, басов добавим — ушатаем всех легко.",
+    "index": 38
+   },
+   {
+    "def": 30572,
+    "name": "Насмешка: Бостонский брейк",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/scout/taunt_the_boston_breakdance/taunt_the_boston_breakdance_large",
+    "slot": "taunt",
+    "classes": [
+     "scout"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 35,
+    "desc": "Насмешка для разведчика от сообщества",
+    "index": 39
+   },
+   {
+    "def": 1119,
+    "name": "Насмешка: Хорошо прожаренная страсть",
+    "type": "Особая насмешка",
+    "icon": "backpack/player/items/all_class/taunt_deep_fried_large",
+    "slot": "taunt",
+    "classes": [
+     "scout"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 78,
+    "desc": "Насмешка для разведчика.",
+    "index": 40
+   },
+   {
+    "def": 31414,
+    "name": "Насмешка: Нечестная игра",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/scout/taunt_foul_play/taunt_foul_play_large",
+    "slot": "taunt",
+    "classes": [
+     "scout"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 57,
+    "desc": "Насмешка для разведчика от сообщества",
+    "index": 41
+   },
+   {
+    "def": 1117,
+    "name": "Насмешка: Один против тысячи",
+    "type": "Особая насмешка",
+    "icon": "backpack/player/items/all_class/taunt_battin_thousand_large",
+    "slot": "taunt",
+    "classes": [
+     "scout"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 66,
+    "desc": "Насмешка для разведчика.",
+    "index": 42
+   },
+   {
+    "def": 18,
+    "name": "Ракетомёт",
+    "type": "Ракетомёт",
+    "icon": "backpack/weapons/w_models/w_rocketlauncher_large",
+    "slot": "primary",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "unique",
+    "stock": true,
+    "level": 1,
+    "desc": "",
+    "index": 43
+   },
+   {
+    "def": 228,
+    "name": "Чёрный ящик",
+    "type": "Ракетомёт",
+    "icon": "backpack/workshop/weapons/c_models/c_blackbox/c_blackbox_large",
+    "slot": "primary",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "vintage",
+    "stock": false,
+    "level": 49,
+    "desc": "",
+    "index": 44
+   },
+   {
+    "def": 237,
+    "name": "Тренировочный ракетомёт",
+    "type": "Ракетомёт",
+    "icon": "backpack/weapons/c_models/c_rocketjumper/c_rocketjumper_large",
+    "slot": "primary",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 63,
+    "desc": "Специальный ракетомёт для обучения прыжкам на ракете.\nЭто оружие НЕ наносит урона.",
+    "index": 45
+   },
+   {
+    "def": 414,
+    "name": "Освободитель",
+    "type": "Ракетомёт",
+    "icon": "backpack/workshop/weapons/c_models/c_liberty_launcher/c_liberty_launcher_large",
+    "slot": "primary",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 91,
+    "desc": "",
+    "index": 46
+   },
+   {
+    "def": 441,
+    "name": "Линчеватель скота 5000",
+    "type": "Излучатель направленных волн",
+    "icon": "backpack/workshop/weapons/c_models/c_drg_cowmangler/c_drg_cowmangler_large",
+    "slot": "primary",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "haunted",
+    "stock": false,
+    "level": 55,
+    "desc": "",
+    "index": 47
+   },
+   {
+    "def": 1104,
+    "name": "Авиаудар",
+    "type": "Ракетомёт",
+    "icon": "backpack/workshop/weapons/c_models/c_atom_launcher/c_atom_launcher_large",
+    "slot": "primary",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 30,
+    "desc": "",
+    "index": 48
+   },
+   {
+    "def": 730,
+    "name": "Базука бродяги",
+    "type": "Ракетомёт",
+    "icon": "backpack/workshop/weapons/c_models/c_dumpster_device/c_dumpster_device_large",
+    "slot": "primary",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 71,
+    "desc": "#TF_DS_DumpsterDevice_Desc",
+    "index": 49
+   },
+   {
+    "def": 127,
+    "name": "Прямое попадание",
+    "type": "Ракетомёт",
+    "icon": "backpack/weapons/c_models/c_directhit/c_directhit_large",
+    "slot": "primary",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 10,
+    "desc": "",
+    "index": 50
+   },
+   {
+    "def": 513,
+    "name": "Прародитель",
+    "type": "Ракетомёт",
+    "icon": "backpack/workshop_partner/weapons/c_models/c_bet_rocketlauncher/c_bet_rocketlauncher_large",
+    "slot": "primary",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 85,
+    "desc": "",
+    "index": 51
+   },
+   {
+    "def": 1101,
+    "name": "Парашютист",
+    "type": "Парашют",
+    "icon": "backpack/workshop/weapons/c_models/c_paratrooper_pack/c_paratrooper_pack_large",
+    "slot": "secondary",
+    "classes": [
+     "soldier",
+     "demoman"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 33,
+    "desc": "Чтобы раскрыть парашют, замедляющий падение, нажмите в воздухе клавишу прыжка.",
+    "index": 52
+   },
+   {
+    "def": 133,
+    "name": "Штурмботинки",
+    "type": "Ботинки",
+    "icon": "backpack/weapons/c_models/c_rocketboots_soldier_large",
+    "slot": "secondary",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "collectors",
+    "stock": false,
+    "level": 59,
+    "desc": "",
+    "index": 53
+   },
+   {
+    "def": 354,
+    "name": "Завоеватель",
+    "type": "Сасимоно",
+    "icon": "backpack/workshop_partner/weapons/c_models/c_shogun_warpack/c_shogun_warpack_large",
+    "slot": "secondary",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 19,
+    "desc": "Всех союзников ускорит вокруг,\nИ урон их лечением станет.\nУрон наносимый ярость дает.",
+    "index": 54
+   },
+   {
+    "def": 129,
+    "name": "Вдохновляющее знамя",
+    "type": "Боевое знамя",
+    "icon": "backpack/weapons/c_models/c_buffpack/c_buffpack_large",
+    "slot": "secondary",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "vintage",
+    "stock": false,
+    "level": 41,
+    "desc": "Нанесение урона заполняет шкалу ярости.\nПри активации позволяет союзникам\nвокруг вас наносить мини-криты.",
+    "index": 55
+   },
+   {
+    "def": 444,
+    "name": "Людодавы",
+    "type": "Ботинки",
+    "icon": "backpack/workshop/player/items/soldier/mantreads/mantreads_large",
+    "slot": "secondary",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 20,
+    "desc": "",
+    "index": 56
+   },
+   {
+    "def": 226,
+    "name": "Поддержка батальона",
+    "type": "Боевое знамя",
+    "icon": "backpack/workshop/weapons/c_models/c_battalion_buffpack/c_battalion_buffpack_large",
+    "slot": "secondary",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 10,
+    "desc": "Нанесение урона заполняет шкалу ярости.\nПри активации защищает союзников поблизости\nот критов, а также снижает получаемый ими урон\nот турелей на 50% и от всех других источников на 35%.",
+    "index": 57
+   },
+   {
+    "def": 442,
+    "name": "Благочестивый бизон",
+    "type": "Расщепитель неделимых частиц",
+    "icon": "backpack/workshop/weapons/c_models/c_drg_righteousbison/c_drg_righteousbison_large",
+    "slot": "secondary",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "haunted",
+    "stock": false,
+    "level": 87,
+    "desc": "#TF_RighteousBison_Desc",
+    "index": 58
+   },
+   {
+    "def": 415,
+    "name": "Офицер запаса",
+    "type": "Дробовик",
+    "icon": "backpack/workshop/weapons/c_models/c_reserve_shooter/c_reserve_shooter_large",
+    "slot": "secondary",
+    "classes": [
+     "soldier",
+     "pyro"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 66,
+    "desc": "",
+    "index": 59
+   },
+   {
+    "def": 6,
+    "name": "Лопата",
+    "type": "Лопата",
+    "icon": "backpack/weapons/w_models/w_shovel_large",
+    "slot": "melee",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "unique",
+    "stock": true,
+    "level": 1,
+    "desc": "",
+    "index": 60
+   },
+   {
+    "def": 775,
+    "name": "План эвакуации",
+    "type": "Кирка",
+    "icon": "backpack/weapons/c_models/c_pickaxe/c_pickaxe_large",
+    "slot": "melee",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "unusual",
+    "stock": false,
+    "level": 53,
+    "desc": "",
+    "index": 61
+   },
+   {
+    "def": 154,
+    "name": "Костыль",
+    "type": "Самодельная дубина",
+    "icon": "backpack/workshop/weapons/c_models/c_paintrain/c_paintrain_large",
+    "slot": "melee",
+    "classes": [
+     "demoman",
+     "soldier"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 22,
+    "desc": "",
+    "index": 62
+   },
+   {
+    "def": 416,
+    "name": "Землекоп",
+    "type": "Лопата",
+    "icon": "backpack/workshop/weapons/c_models/c_market_gardener/c_market_gardener_large",
+    "slot": "melee",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 44,
+    "desc": "",
+    "index": 63
+   },
+   {
+    "def": 128,
+    "name": "Уравнитель",
+    "type": "Кирка",
+    "icon": "backpack/weapons/c_models/c_pickaxe/c_pickaxe_s2_large",
+    "slot": "melee",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "collectors",
+    "stock": false,
+    "level": 72,
+    "desc": "",
+    "index": 64
+   },
+   {
+    "def": 357,
+    "name": "Полудзатоити",
+    "type": "Катана",
+    "icon": "backpack/workshop_partner/weapons/c_models/c_shogun_katana/c_shogun_katana_large",
+    "slot": "melee",
+    "classes": [
+     "soldier",
+     "demoman"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 8,
+    "desc": "Солдаты с подрывниками\nСошлись в поединке\nБез права на ошибку",
+    "index": 65
+   },
+   {
+    "def": 447,
+    "name": "Дисциплинарное взыскание",
+    "type": "Хлыст",
+    "icon": "backpack/workshop/weapons/c_models/c_riding_crop/c_riding_crop_large",
+    "slot": "melee",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "unusual",
+    "stock": false,
+    "level": 42,
+    "desc": "",
+    "index": 66
+   },
+   {
+    "def": 30131,
+    "name": "Буканьер-буян",
+    "type": "Пальто",
+    "icon": "backpack/workshop/player/items/soldier/jul13_gangplank_garment/jul13_gangplank_garment_large",
+    "slot": "cosmetic",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 7,
+    "desc": "\"В этой армии пиратов мы не грабим, сопляк! На этом корабле ты будешь охранять моря от либералов и коммунистов, и ложиться спать в назначенный час!\"",
+    "index": 67
+   },
+   {
+    "def": 1073,
+    "name": "Капюшон Шмождественской битвы",
+    "type": "Капюшон",
+    "icon": "backpack/player/items/soldier/soldier_hood_large",
+    "slot": "cosmetic",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 30,
+    "desc": "Награда за создание значка праздничной распродажи Steam 2013.",
+    "index": 68
+   },
+   {
+    "def": 30818,
+    "name": "Вооружен и украшен",
+    "type": "Носок",
+    "icon": "backpack/workshop/player/items/all_class/dec16_stocking/dec16_stocking_large",
+    "slot": "cosmetic",
+    "classes": [
+     "soldier",
+     "demoman",
+     "pyro"
+    ],
+    "quality": "vintage",
+    "stock": false,
+    "level": 28,
+    "desc": "#TF_dec16_stocking_Desc",
+    "index": 69
+   },
+   {
+    "def": 31419,
+    "name": "Шапка скитальца",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/soldier/dec23_wanderers_wool/dec23_wanderers_wool_large",
+    "slot": "cosmetic",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 7,
+    "desc": "#TF_dec23_wanderers_wool_Desc",
+    "index": 70
+   },
+   {
+    "def": 30885,
+    "name": "Ядерный герцог",
+    "type": "Прическа",
+    "icon": "backpack/workshop/player/items/all_class/fall17_nuke/fall17_nuke_large",
+    "slot": "cosmetic",
+    "classes": [
+     "soldier",
+     "heavy"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 92,
+    "desc": "#TF_fall17_nuke_Desc",
+    "index": 71
+   },
+   {
+    "def": 30853,
+    "name": "Зенитный защитник",
+    "type": "Жилет",
+    "icon": "backpack/workshop/player/items/soldier/spr17_flakcatcher/spr17_flakcatcher_large",
+    "slot": "cosmetic",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 31,
+    "desc": "#TF_spr17_flakcatcher_Desc",
+    "index": 72
+   },
+   {
+    "def": 30033,
+    "name": "Солдатская свеча",
+    "type": "Сигара",
+    "icon": "backpack/workshop/player/items/soldier/robo_soldier_sparkplug/robo_soldier_sparkplug_large",
+    "slot": "cosmetic",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "unusual",
+    "stock": false,
+    "level": 25,
+    "desc": "Иногда сигара — это просто сигара. Иногда это свеча зажигания. А иногда — ботинок. Главное то, что у тебя во рту есть что-то, что горит.",
+    "index": 73
+   },
+   {
+    "def": 183,
+    "name": "Компанейская шляпа",
+    "type": "Головной убор",
+    "icon": "backpack/player/items/soldier/soldier_sargehat_large",
+    "slot": "cosmetic",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "haunted",
+    "stock": false,
+    "level": 88,
+    "desc": "Эта шляпа послужит отличной заменой нецензурной брани, когда не хочется охрипнуть.",
+    "index": 74
+   },
+   {
+    "def": 557,
+    "name": "Бюджетная обувка",
+    "type": "Часть костюма",
+    "icon": "backpack/player/items/soldier/hwn_soldier_misc2_large",
+    "slot": "cosmetic",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 52,
+    "desc": "#TF_Hwn_SoldierMisc2_Desc",
+    "index": 75
+   },
+   {
+    "def": 926,
+    "name": "Молниеликий",
+    "type": "Головной убор",
+    "icon": "backpack/player/items/soldier/soldier_zipperhead_large",
+    "slot": "cosmetic",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 79,
+    "desc": "\"Папочка, а как выглядит твой череп?\" \"Похоже, мы никогда не узнаем из-за этого глупого лица\". Абракадабра! Встречайте, Молниеликий! Больше вы никогда не будете выглядеть дураком в глазах своих детей.",
+    "index": 76
+   },
+   {
+    "def": 31625,
+    "name": "Бесславный патриот",
+    "type": "Пальто",
+    "icon": "backpack/workshop/player/items/soldier/sum26_inglorious_patriot/sum26_inglorious_patriot_large",
+    "slot": "cosmetic",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 93,
+    "desc": "#TF_sum26_inglorious_patriot_Desc",
+    "index": 77
+   },
+   {
+    "def": 30578,
+    "name": "Берет с черепом",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/soldier/dec2014_skullcap/dec2014_skullcap_large",
+    "slot": "cosmetic",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 25,
+    "desc": "Аксессуар зимы 2014 от сообщества ограниченной серии",
+    "index": 78
+   },
+   {
+    "def": 31387,
+    "name": "Удушитель",
+    "type": "Маска",
+    "icon": "backpack/workshop/player/items/soldier/hwn2023_shortness_breath/hwn2023_shortness_breath_large",
+    "slot": "cosmetic",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 95,
+    "desc": "#TF_hwn2023_shortness_breath_Desc",
+    "index": 79
+   },
+   {
+    "def": 30242,
+    "name": "Свеченосец",
+    "type": "Часть костюма",
+    "icon": "backpack/workshop/player/items/all_class/hw2013_kindlin_candles/hw2013_kindlin_candles_large",
+    "slot": "cosmetic",
+    "classes": [
+     "soldier",
+     "demoman",
+     "pyro"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 32,
+    "desc": "#TF_hw2013_kindlin_candles_Desc",
+    "index": 80
+   },
+   {
+    "def": 30673,
+    "name": "Насмешка: Солдатская скорбь",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/soldier/taunt_maggots_condolence/taunt_maggots_condolence_large",
+    "slot": "taunt",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "unusual",
+    "stock": false,
+    "level": 64,
+    "desc": "Насмешка для солдата от сообщества\nПускай эти ничтожества знают своё место!",
+    "index": 81
+   },
+   {
+    "def": 31347,
+    "name": "Насмешка: Звёздно-полосатый план",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/soldier/tauntstarspangled_strategy/tauntstarspangled_strategy_large",
+    "slot": "taunt",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 50,
+    "desc": "Насмешка для солдата от сообщества",
+    "index": 82
+   },
+   {
+    "def": 31155,
+    "name": "Насмешка: Ракетные скачки",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/soldier/taunt_rocket_jockey/taunt_rocket_jockey_large",
+    "slot": "taunt",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "haunted",
+    "stock": false,
+    "level": 80,
+    "desc": "Насмешка для солдата от сообщества\n\nВключается и выключается кнопкой насмешки\nКнопка атаки отвечает за особое движение\nЧтобы поворачивать, используйте клавиши движения вбок.",
+    "index": 83
+   },
+   {
+    "def": 31438,
+    "name": "Насмешка: На помойку!",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/soldier/tauntcan_it/tauntcan_it_large",
+    "slot": "taunt",
+    "classes": [
+     "soldier"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 88,
+    "desc": "Насмешка для солдата от сообщества",
+    "index": 84
+   },
+   {
+    "def": 21,
+    "name": "Огнемёт",
+    "type": "Огнемёт",
+    "icon": "backpack/weapons/c_models/c_flamethrower/c_flamethrower_large",
+    "slot": "primary",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "unique",
+    "stock": true,
+    "level": 1,
+    "desc": "Догорание уменьшает лечение и сопротивление урону от лечебной пушки.\nДоп. атака: выпускает сжатый воздух, который отталкивает противников и снаряды, а также тушит горящих союзников.",
+    "index": 85
+   },
+   {
+    "def": 30474,
+    "name": "Ностромский пламемет",
+    "type": "Огнемёт",
+    "icon": "backpack/workshop_partner/weapons/c_models/c_ai_flamethrower/c_ai_flamethrower_large",
+    "slot": "primary",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 17,
+    "desc": "#TF_NostromoNapalmer_Desc",
+    "index": 86
+   },
+   {
+    "def": 1178,
+    "name": "Ярость дракона",
+    "type": "Метатель огня",
+    "icon": "backpack/weapons/c_models/c_flameball/c_flameball_large",
+    "slot": "primary",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 71,
+    "desc": "Мощный огнемёт с одиночными выстрелами. Его урон и скорость перезарядки увеличиваются при повторных попаданиях.",
+    "index": 87
+   },
+   {
+    "def": 215,
+    "name": "Чистильщик",
+    "type": "Огнемёт",
+    "icon": "backpack/workshop/weapons/c_models/c_degreaser/c_degreaser_large",
+    "slot": "primary",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 25,
+    "desc": "",
+    "index": 88
+   },
+   {
+    "def": 741,
+    "name": "Радужигатель",
+    "type": "Огнемёт",
+    "icon": "backpack/weapons/c_models/c_rainblower/c_rainblower_large",
+    "slot": "primary",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 17,
+    "desc": "Ваши друзья (враги) заверещат от восторга (сгорят дотла), когда вы обдадите их сияющей радугой (всепоглощающим пламенем). (Включает Пирозрение.)",
+    "index": 89
+   },
+   {
+    "def": 594,
+    "name": "Флогистонатор",
+    "type": "Огнемёт",
+    "icon": "backpack/workshop/weapons/c_models/c_drg_phlogistinator/c_drg_phlogistinator_large",
+    "slot": "primary",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 34,
+    "desc": "Данное революционное приспособление способно активизировать огненную субстанцию, флогистон, наличествующую во всех воспламеняемых существах, то есть, по сути, в каждом из них.",
+    "index": 90
+   },
+   {
+    "def": 40,
+    "name": "Дожигатель",
+    "type": "Огнемёт",
+    "icon": "backpack/weapons/c_models/c_backburner/c_backburner_large",
+    "slot": "primary",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "vintage",
+    "stock": false,
+    "level": 8,
+    "desc": "",
+    "index": 91
+   },
+   {
+    "def": 740,
+    "name": "Обжигающий выстрел",
+    "type": "Ракетница",
+    "icon": "backpack/workshop/weapons/c_models/c_scorch_shot/c_scorch_shot_large",
+    "slot": "secondary",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 7,
+    "desc": "Если убрать это оружие, оно перезарядится.",
+    "index": 92
+   },
+   {
+    "def": 1180,
+    "name": "Запасной бак",
+    "type": "Почти что бензин",
+    "icon": "backpack/weapons/c_models/c_gascan/c_gascan_large",
+    "slot": "secondary",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 12,
+    "desc": "Выпускает ужасающее видимое облако горючей жидкости. Враги (даже поджигатели!), вступившие в него, загораются от любого урона.",
+    "index": 93
+   },
+   {
+    "def": 1179,
+    "name": "Термическая тяга",
+    "type": "Реактивный ранец",
+    "icon": "backpack/weapons/c_models/c_rocketpack/c_rocketpack_large",
+    "slot": "secondary",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 82,
+    "desc": "Смерть с небес! Ненадолго запускает двигатели, несущие поджигателя в направлении его взгляда. При приземлении на врага наносит ему тройной урон от падения!",
+    "index": 94
+   },
+   {
+    "def": 39,
+    "name": "Ракетница",
+    "type": "Ракетница",
+    "icon": "backpack/weapons/c_models/c_flaregun_pyro/c_flaregun_pyro_large",
+    "slot": "secondary",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 47,
+    "desc": "Если убрать это оружие, оно перезарядится.",
+    "index": 95
+   },
+   {
+    "def": 595,
+    "name": "Людоплав",
+    "type": "Расщепитель неделимых частиц",
+    "icon": "backpack/workshop/weapons/c_models/c_drg_manmelter/c_drg_manmelter_large",
+    "slot": "secondary",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 59,
+    "desc": "Если убрать это оружие, оно перезарядится.\nДанное устройство опровергает общепринятое научное положение о том, что молекулы человеческого тела должны быть расположены определенным образом, а не разбросаны, скажем, по обл",
+    "index": 96
+   },
+   {
+    "def": 351,
+    "name": "Детонатор",
+    "type": "Ракетница",
+    "icon": "backpack/workshop/weapons/c_models/c_detonator/c_detonator_large",
+    "slot": "secondary",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "collectors",
+    "stock": false,
+    "level": 20,
+    "desc": "Дополнительная атака взрывает снаряд.\nЕсли убрать это оружие, оно перезарядится.",
+    "index": 97
+   },
+   {
+    "def": 2,
+    "name": "Пожарный топор",
+    "type": "Пожарный топор",
+    "icon": "backpack/weapons/c_models/c_fireaxe_pyro/c_fireaxe_pyro_large",
+    "slot": "melee",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "unique",
+    "stock": true,
+    "level": 1,
+    "desc": "",
+    "index": 98
+   },
+   {
+    "def": 457,
+    "name": "Почтовый дебошир",
+    "type": "Почтовый ящик",
+    "icon": "backpack/workshop/weapons/c_models/c_mailbox/c_mailbox_large",
+    "slot": "melee",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "haunted",
+    "stock": false,
+    "level": 29,
+    "desc": "",
+    "index": 99
+   },
+   {
+    "def": 813,
+    "name": "Неоновый аннигилятор",
+    "type": "Табличка",
+    "icon": "backpack/workshop_partner/weapons/c_models/c_sd_neonsign/c_sd_neonsign_large",
+    "slot": "melee",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 91,
+    "desc": "",
+    "index": 100
+   },
+   {
+    "def": 38,
+    "name": "Огнетопор",
+    "type": "Пожарный топор",
+    "icon": "backpack/weapons/c_models/c_axtinguisher/c_axtinguisher_pyro_large",
+    "slot": "melee",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "haunted",
+    "stock": false,
+    "level": 69,
+    "desc": "",
+    "index": 101
+   },
+   {
+    "def": 348,
+    "name": "Заостренный осколок вулкана",
+    "type": "Огненный топор из RIFT",
+    "icon": "backpack/workshop/weapons/c_models/c_rift_fire_axe/c_rift_fire_axe_large",
+    "slot": "melee",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "collectors",
+    "stock": false,
+    "level": 24,
+    "desc": "Улучшение дизайна матери Природы для повышения мобильности вулканов. Современная наука не готова ответить, откуда в этой штуке берется лава.",
+    "index": 102
+   },
+   {
+    "def": 326,
+    "name": "Спиночёс",
+    "type": "Садовые грабли",
+    "icon": "backpack/workshop/weapons/c_models/c_back_scratcher/c_back_scratcher_large",
+    "slot": "melee",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 96,
+    "desc": "",
+    "index": 103
+   },
+   {
+    "def": 153,
+    "name": "Крушитель",
+    "type": "Кувалда",
+    "icon": "backpack/workshop/weapons/c_models/c_sledgehammer/c_sledgehammer_large",
+    "slot": "melee",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 64,
+    "desc": "",
+    "index": 104
+   },
+   {
+    "def": 214,
+    "name": "Разъединитель",
+    "type": "Кувалда",
+    "icon": "backpack/workshop/weapons/c_models/c_powerjack/c_powerjack_large",
+    "slot": "melee",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 52,
+    "desc": "",
+    "index": 105
+   },
+   {
+    "def": 593,
+    "name": "Третья степень",
+    "type": "Пожарный топор",
+    "icon": "backpack/workshop/weapons/c_models/c_drg_thirddegree/c_drg_thirddegree_large",
+    "slot": "melee",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 32,
+    "desc": "Мечта лесорубов, провинциалов и расщепителей атомов по всему миру, это чудесное рубящее устройство сжигает каждую расщепляемую им молекулу.",
+    "index": 106
+   },
+   {
+    "def": 739,
+    "name": "Кледенец",
+    "type": "Пожарный топор",
+    "icon": "backpack/weapons/c_models/c_lollichop/c_lollichop_large",
+    "slot": "melee",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 37,
+    "desc": "Наполните (расколите) животики (черепа) ваших друзей вкуснейшим лакомством (острейшей сталью), используя эту огромную конфетку. (Включает Пирозрение.)",
+    "index": 107
+   },
+   {
+    "def": 923,
+    "name": "Плутониевый котелок",
+    "type": "Маска",
+    "icon": "backpack/player/items/pyro/pyro_brainhead_large",
+    "slot": "cosmetic",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 34,
+    "desc": "Общеизвестный факт: мы используем лишь 10% потенциала своего мозга. А это, в свою очередь, означает 90% вероятность того, что человек станет умнее, если что-нибудь сделать с его мозгом. Например, погрузить его в колбу с ",
+    "index": 108
+   },
+   {
+    "def": 30795,
+    "name": "Бреющий воспалитель",
+    "type": "Часть костюма",
+    "icon": "backpack/workshop/player/items/pyro/hwn2016_hovering_hotshot/hwn2016_hovering_hotshot_large",
+    "slot": "cosmetic",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 25,
+    "desc": "#TF_hwn2016_hovering_hotshot_Desc",
+    "index": 109
+   },
+   {
+    "def": 30303,
+    "name": "Мерзкие причиндалы",
+    "type": "Часть костюма",
+    "icon": "backpack/workshop/player/items/pyro/hw2013_the_abhorrent_appendages/hw2013_the_abhorrent_appendages_large",
+    "slot": "cosmetic",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 83,
+    "desc": "#TF_hw2013_the_abhorrent_appendages_Desc",
+    "index": 110
+   },
+   {
+    "def": 31094,
+    "name": "Обёртка по уши",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/all_class/dec19_winter_wrap_up/dec19_winter_wrap_up_large",
+    "slot": "cosmetic",
+    "classes": [
+     "sniper",
+     "pyro",
+     "engineer"
+    ],
+    "quality": "vintage",
+    "stock": false,
+    "level": 69,
+    "desc": "#TF_dec19_winter_wrap_up_Desc",
+    "index": 111
+   },
+   {
+    "def": 5624,
+    "name": "Проклятая душа поджигателя",
+    "type": "Проклятая душа",
+    "icon": "backpack/player/items/pyro/pyro_zombie_large",
+    "slot": "cosmetic",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "unusual",
+    "stock": false,
+    "level": 25,
+    "desc": "#TF_Item_ZombiePyro_Desc",
+    "index": 112
+   },
+   {
+    "def": 31572,
+    "name": "Плюмаж пироманта",
+    "type": "Голова птицы",
+    "icon": "backpack/workshop/player/items/pyro/hwn2025_pyromantic_plumage/hwn2025_pyromantic_plumage_large",
+    "slot": "cosmetic",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 34,
+    "desc": "#TF_hwn2025_pyromantic_plumage_Desc",
+    "index": 113
+   },
+   {
+    "def": 551,
+    "name": "Хвостик из склепа",
+    "type": "Часть костюма",
+    "icon": "backpack/player/items/pyro/hwn_pyro_misc2_large",
+    "slot": "cosmetic",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 36,
+    "desc": "#TF_Hwn_PyroMisc2_Desc",
+    "index": 114
+   },
+   {
+    "def": 102,
+    "name": "Наглая резиновая перчатка",
+    "type": "Головной убор",
+    "icon": "backpack/player/items/pyro/pyro_chicken_large",
+    "slot": "cosmetic",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 69,
+    "desc": "Если люди горят, то вам уже все равно, как они к вам относятся.",
+    "index": 115
+   },
+   {
+    "def": 30038,
+    "name": "Шлем-брандмауэр",
+    "type": "Шлем",
+    "icon": "backpack/workshop/player/items/pyro/robo_pyro_firewall_helmet/robo_pyro_firewall_helmet_large",
+    "slot": "cosmetic",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 50,
+    "desc": "Познайте тайну, которую ревностно хранят пожарные: нет лучше шляпы, в которой можно было бы находиться в горящем здании, чем шляпа из металла. Почему? Металл поглотит 100% тепла, оставив вашу голую кожу прохладной и осве",
+    "index": 116
+   },
+   {
+    "def": 31065,
+    "name": "Лик мёртвых",
+    "type": "Маска",
+    "icon": "backpack/workshop/player/items/pyro/hwn2019_head_of_the_dead/hwn2019_head_of_the_dead_large",
+    "slot": "cosmetic",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 55,
+    "desc": "#TF_hwn2019_head_of_the_dead_Desc",
+    "index": 117
+   },
+   {
+    "def": 30053,
+    "name": "Взгляд гугол-глаз",
+    "type": "Глаза",
+    "icon": "backpack/workshop/player/items/pyro/robo_pyro_site_for_sore_eyes/robo_pyro_site_for_sore_eyes_large",
+    "slot": "cosmetic",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "collectors",
+    "stock": false,
+    "level": 59,
+    "desc": "Эти цифровые глазные импланты позволят вам проверять погоду, следить за рынком ценных бумаг, а также искать лекарство от инфекции, вызванной засовыванием грязных кусков металла в ваши глазницы.",
+    "index": 118
+   },
+   {
+    "def": 30418,
+    "name": "Кабуто внутреннего сгорания",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/pyro/short2014_honnoji_helm/short2014_honnoji_helm_large",
+    "slot": "cosmetic",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 54,
+    "desc": "#TF_short2014_honnoji_helm_Desc",
+    "index": 119
+   },
+   {
+    "def": 30936,
+    "name": "Пламенная шапка",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/pyro/dec17_burning_beanie/dec17_burning_beanie_large",
+    "slot": "cosmetic",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 93,
+    "desc": "#TF_dec17_burning_beanie_Desc",
+    "index": 120
+   },
+   {
+    "def": 745,
+    "name": "Адская Оркестрина",
+    "type": "Рюкзак",
+    "icon": "backpack/player/items/pyro/mtp_backpack_large",
+    "slot": "cosmetic",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 44,
+    "desc": "Ваши лучшие друзья (заклятые враги) поднимут себе настроение (осознают свою смертность), отплясывая веселую джигу (разбегаясь в ужасе) под эти зажигательные трели (душераздирающие похоронные марши). (Включает Пирозрение.",
+    "index": 121
+   },
+   {
+    "def": 31634,
+    "name": "Насмешка: Пламенный привет",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/pyro/taunt_sear_you_later/taunt_sear_you_later_large",
+    "slot": "taunt",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 89,
+    "desc": "Насмешка для поджигателя от сообщества",
+    "index": 122
+   },
+   {
+    "def": 30919,
+    "name": "Насмешка: Фигурное сжигание",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/pyro/taunt_the_skating_scorcher/taunt_the_skating_scorcher_large",
+    "slot": "taunt",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 37,
+    "desc": "Насмешка для поджигателя от сообщества\n\nЧтобы поворачивать, используйте клавиши движения вбок\nДве кнопки атаки отвечают за особые движения.",
+    "index": 123
+   },
+   {
+    "def": 31322,
+    "name": "Насмешка: Полная прожарка",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/pyro/taunt_roasty_toasty/taunt_roasty_toasty_large",
+    "slot": "taunt",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 28,
+    "desc": "Насмешка для поджигателя от сообщества\n\nВключается и выключается кнопкой насмешки.",
+    "index": 124
+   },
+   {
+    "def": 30763,
+    "name": "Насмешка: Надувнокачалка",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/pyro/spring_rider/spring_rider_large",
+    "slot": "taunt",
+    "classes": [
+     "pyro"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 97,
+    "desc": "Насмешка для поджигателя от сообщества\nГори всё синим пламенем этой пружинистой качалки из стекловолокна!",
+    "index": 125
+   },
+   {
+    "def": 19,
+    "name": "Гранатомёт",
+    "type": "Гранатомёт",
+    "icon": "backpack/weapons/w_models/w_grenadelauncher_large",
+    "slot": "primary",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "unique",
+    "stock": true,
+    "level": 1,
+    "desc": "",
+    "index": 126
+   },
+   {
+    "def": 308,
+    "name": "Подкидыш",
+    "type": "Гранатомёт",
+    "icon": "backpack/workshop/weapons/c_models/c_lochnload/c_lochnload_large",
+    "slot": "primary",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 12,
+    "desc": "",
+    "index": 127
+   },
+   {
+    "def": 405,
+    "name": "Ботиночки Али-Бабы",
+    "type": "Ботинки",
+    "icon": "backpack/workshop/player/items/demo/demo_booties/demo_booties_large",
+    "slot": "primary",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "unusual",
+    "stock": false,
+    "level": 83,
+    "desc": "",
+    "index": 128
+   },
+   {
+    "def": 608,
+    "name": "Бутлегер",
+    "type": "Ботинки",
+    "icon": "backpack/workshop/player/items/demo/pegleg/pegleg_large",
+    "slot": "primary",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 59,
+    "desc": "Удиви друзей! Впечатли женщин! Хромай всю жизнь! Ведь это так гротескно!",
+    "index": 129
+   },
+   {
+    "def": 1151,
+    "name": "Железный бомбардир",
+    "type": "Гранатомёт",
+    "icon": "backpack/workshop/weapons/c_models/c_quadball/c_quadball_large",
+    "slot": "primary",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 19,
+    "desc": "",
+    "index": 130
+   },
+   {
+    "def": 996,
+    "name": "Пушка без лафета",
+    "type": "Гранатомёт",
+    "icon": "backpack/workshop/weapons/c_models/c_demo_cannon/c_demo_cannon_large",
+    "slot": "primary",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 34,
+    "desc": "Противник получит мини-критический урон от взрыва, если ядро попало по нему (это называется \"двойной дуплет\").",
+    "index": 131
+   },
+   {
+    "def": 20,
+    "name": "Липучкомёт",
+    "type": "Липучкомёт",
+    "icon": "backpack/weapons/w_models/w_stickybomb_launcher_large",
+    "slot": "secondary",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "unique",
+    "stock": true,
+    "level": 1,
+    "desc": "Дополнительная атака: взрывает все бомбы-липучки",
+    "index": 132
+   },
+   {
+    "def": 130,
+    "name": "Шотландское сопротивление",
+    "type": "Липучкомёт",
+    "icon": "backpack/weapons/w_models/w_stickybomb_defender_large",
+    "slot": "secondary",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 89,
+    "desc": "",
+    "index": 133
+   },
+   {
+    "def": 1099,
+    "name": "Верный штурвал",
+    "type": "Щит",
+    "icon": "backpack/workshop/weapons/c_models/c_wheel_shield/c_wheel_shield_large",
+    "slot": "secondary",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "vintage",
+    "stock": false,
+    "level": 25,
+    "desc": "Доп. атака: рывок вперёд.\nРывок снимает с вас отрицательные эффекты.\nБольшая дальность рывка гарантирует\nмини-крит оружием ближнего боя.",
+    "index": 134
+   },
+   {
+    "def": 265,
+    "name": "Тренировочный липучкомёт",
+    "type": "Липучкомёт",
+    "icon": "backpack/weapons/c_models/c_sticky_jumper/c_sticky_jumper_large",
+    "slot": "secondary",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 79,
+    "desc": "Специальный липучкомёт для обучения прыжкам на липучках.\nНе наносит урона.",
+    "index": 135
+   },
+   {
+    "def": 1150,
+    "name": "Быстромёт",
+    "type": "Липучкомёт",
+    "icon": "backpack/workshop/weapons/c_models/c_kingmaker_sticky/c_kingmaker_sticky_large",
+    "slot": "secondary",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 48,
+    "desc": "",
+    "index": 136
+   },
+   {
+    "def": 406,
+    "name": "Роскошное прикрытие",
+    "type": "Щит",
+    "icon": "backpack/workshop/weapons/c_models/c_persian_shield/c_persian_shield_large",
+    "slot": "secondary",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 47,
+    "desc": "Доп. атака: рывок вперёд.\nРывок снимает с вас отрицательные эффекты.\nБольшая дальность рывка гарантирует\nкрит оружием ближнего боя.",
+    "index": 137
+   },
+   {
+    "def": 131,
+    "name": "Штурмовой щит",
+    "type": "Щит",
+    "icon": "backpack/weapons/c_models/c_targe/c_targe_large",
+    "slot": "secondary",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 77,
+    "desc": "Доп. атака: рывок вперёд.\nРывок снимает с вас отрицательные эффекты.\nБольшая дальность рывка гарантирует\nкрит оружием ближнего боя.",
+    "index": 138
+   },
+   {
+    "def": 1,
+    "name": "Бутылка",
+    "type": "Бутылка",
+    "icon": "backpack/weapons/w_models/w_bottle_large",
+    "slot": "melee",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "unique",
+    "stock": true,
+    "level": 1,
+    "desc": "",
+    "index": 139
+   },
+   {
+    "def": 307,
+    "name": "Аллапульское бревно",
+    "type": "Ручная бомба",
+    "icon": "backpack/workshop/weapons/c_models/c_caber/c_caber_large",
+    "slot": "melee",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 82,
+    "desc": "Высокоэффективное орудие для нанесения увечий.\nТрезвые люди их бросают...\n\nПервый удар взорвет гранату",
+    "index": 140
+   },
+   {
+    "def": 172,
+    "name": "Шотландский головорез",
+    "type": "Топор",
+    "icon": "backpack/workshop/weapons/c_models/c_battleaxe/c_battleaxe_large",
+    "slot": "melee",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 1,
+    "desc": "#TF_Unique_BattleAxe_desc",
+    "index": 141
+   },
+   {
+    "def": 404,
+    "name": "Персидский заклинатель",
+    "type": "Меч",
+    "icon": "backpack/workshop/weapons/c_models/c_demo_sultan_sword/c_demo_sultan_sword_large",
+    "slot": "melee",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "collectors",
+    "stock": false,
+    "level": 20,
+    "desc": "#TF_PersianPersuader_Desc",
+    "index": 142
+   },
+   {
+    "def": 482,
+    "name": "Железная девятка Несси",
+    "type": "Клюшка для гольфа",
+    "icon": "backpack/workshop/weapons/c_models/c_golfclub/c_golfclub_large",
+    "slot": "melee",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 5,
+    "desc": "Увеличивает скорость и запас здоровья\nс каждой срубленной головой.",
+    "index": 143
+   },
+   {
+    "def": 609,
+    "name": "Шотландское рукобитие",
+    "type": "Бутылка",
+    "icon": "backpack/workshop/weapons/c_models/c_scotland_shard/c_scotland_shard_large",
+    "slot": "melee",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 49,
+    "desc": "Ваши враги решат, что вы собрались заключить мир — ровно до того ужасающего момента, когда их рука начнет истекать кровью! Еще бы — ведь в ней разбитое стекло!",
+    "index": 144
+   },
+   {
+    "def": 327,
+    "name": "Клеймор",
+    "type": "Меч",
+    "icon": "backpack/workshop/weapons/c_models/c_claidheamohmor/c_claidheamohmor_large",
+    "slot": "melee",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 56,
+    "desc": "#TF_Claidheamohmor_Desc",
+    "index": 145
+   },
+   {
+    "def": 266,
+    "name": "Секира Пешего всадника без головы",
+    "type": "Топор",
+    "icon": "backpack/weapons/c_models/c_headtaker/c_headtaker_large",
+    "slot": "melee",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "collectors",
+    "stock": false,
+    "level": 98,
+    "desc": "Проклят тёмными духами, подобными тем,\nчто обитают в Одноглазом горце.",
+    "index": 146
+   },
+   {
+    "def": 31057,
+    "name": "Страж порядка",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/all_class/sum19_bobby_bonnet/sum19_bobby_bonnet_large",
+    "slot": "cosmetic",
+    "classes": [
+     "soldier",
+     "demoman"
+    ],
+    "quality": "unusual",
+    "stock": false,
+    "level": 56,
+    "desc": "#TF_sum19_bobby_bonnet_Desc",
+    "index": 147
+   },
+   {
+    "def": 514,
+    "name": "Маска шамана",
+    "type": "Маска",
+    "icon": "backpack/player/items/demo/dust_mask_large",
+    "slot": "cosmetic",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 70,
+    "desc": "Эта маска всемогущества была создана Древними. Она перестала работать давным-давно.",
+    "index": 148
+   },
+   {
+    "def": 216,
+    "name": "Пиратская треуголка",
+    "type": "Головной убор",
+    "icon": "backpack/player/items/demo/drinking_hat_large",
+    "slot": "cosmetic",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 27,
+    "desc": "Потому что в мире нет ничего более выразительного, чем слово \"АРР!\"",
+    "index": 149
+   },
+   {
+    "def": 31558,
+    "name": "Фитильные латы",
+    "type": "Бутафорская броня",
+    "icon": "backpack/workshop/player/items/demo/hwn2025_fused_plates/hwn2025_fused_plates_large",
+    "slot": "cosmetic",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 85,
+    "desc": "#TF_hwn2025_fused_plates_Desc",
+    "index": 150
+   },
+   {
+    "def": 30124,
+    "name": "Гэльское одеяние",
+    "type": "Одежда",
+    "icon": "backpack/workshop/player/items/demo/jul13_gaelic_garb/jul13_gaelic_garb_large",
+    "slot": "cosmetic",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 79,
+    "desc": "\"И мы скажем нашим врагам, что они могут забрать наши жизни, но они никогда не заберут нашу СВОБОДУ! Носить эти ПЫШНЫЕ РУБАШКИ! Что, Хавиш? А. И ЭТИ ЛЕНТЫ!\"",
+    "index": 151
+   },
+   {
+    "def": 1016,
+    "name": "Конверсы Бака Тёрнера",
+    "type": "Обувь",
+    "icon": "backpack/player/items/demo/bit_trippers_demo_large",
+    "slot": "cosmetic",
+    "classes": [
+     "scout",
+     "demoman"
+    ],
+    "quality": "collectors",
+    "stock": false,
+    "level": 50,
+    "desc": "Они названы в честь знаменитого спринтера из Badlands, поставившего мировой рекорд по количеству ночей с чужими женами. Тёрнер создал эту обувь, чтобы удирать от разъярённых мужей, но, к сожалению, ему не удалось удрать ",
+    "index": 152
+   },
+   {
+    "def": 31512,
+    "name": "Внушительный вид",
+    "type": "Пальто",
+    "icon": "backpack/workshop/player/items/demo/dec24_commanding_style1/dec24_commanding_style1_large",
+    "slot": "cosmetic",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 64,
+    "desc": "#TF_dec24_commanding_Desc",
+    "index": 153
+   },
+   {
+    "def": 306,
+    "name": "Шотландский чепец",
+    "type": "Головной убор",
+    "icon": "backpack/player/items/demo/demo_scotchbonnet_large",
+    "slot": "cosmetic",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 23,
+    "desc": "Не дай этим придуркам забрать у тебя последний глаз!",
+    "index": 154
+   },
+   {
+    "def": 31225,
+    "name": "Убийственный взгляд",
+    "type": "Маска",
+    "icon": "backpack/workshop/player/items/demo/hwn2021_death_stare/hwn2021_death_stare_large",
+    "slot": "cosmetic",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 73,
+    "desc": "#TF_hwn2021_death_stare_Desc",
+    "index": 155
+   },
+   {
+    "def": 31273,
+    "name": "Взрыв мозга",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/demo/sum22_head_banger/sum22_head_banger_large",
+    "slot": "cosmetic",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 7,
+    "desc": "#TF_sum22_head_banger_Desc",
+    "index": 156
+   },
+   {
+    "def": 30180,
+    "name": "Пиратская бандана",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/demo/fall2013_pirate_bandana/fall2013_pirate_bandana_large",
+    "slot": "cosmetic",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "haunted",
+    "stock": false,
+    "level": 56,
+    "desc": "#TF_fall2013_pirate_bandana_Desc",
+    "index": 157
+   },
+   {
+    "def": 30547,
+    "name": "Панама подрывника",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/demo/eotl_summerhat/eotl_summerhat_large",
+    "slot": "cosmetic",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 95,
+    "desc": "#TF_eotl_summerhat_Desc",
+    "index": 158
+   },
+   {
+    "def": 703,
+    "name": "Болган",
+    "type": "Шлем",
+    "icon": "backpack/player/items/all_class/all_reckoning_bolgan_demo_large",
+    "slot": "cosmetic",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 51,
+    "desc": "Защитите самую важную часть лица — пустую глазницу, — предоставив противнику более заманчивую мишень: ненужные органы вроде рта, носа и все прочие не прилегающие к глазнице части лица.",
+    "index": 159
+   },
+   {
+    "def": 31422,
+    "name": "Снотворное средство",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/demo/dec23_nightcap/dec23_nightcap_large",
+    "slot": "cosmetic",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 66,
+    "desc": "#TF_dec23_nightcap_Desc",
+    "index": 160
+   },
+   {
+    "def": 30671,
+    "name": "Насмешка: Плохолынка",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/demo/true_scotsmans_call/true_scotsmans_call_large",
+    "slot": "taunt",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 38,
+    "desc": "Насмешка для подрывника от сообщества",
+    "index": 161
+   },
+   {
+    "def": 31292,
+    "name": "Насмешка: Непутёвый сухопут",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/demo/taunt_shanty_shipmate/taunt_shanty_shipmate_large",
+    "slot": "taunt",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 52,
+    "desc": "Насмешка для подрывника от сообщества\n\nВключается и выключается кнопкой насмешки\nЧтобы поворачивать, используйте клавиши движения вбок.",
+    "index": 162
+   },
+   {
+    "def": 31380,
+    "name": "Насмешка: Вой войны",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/demo/taunt_roar_owar/taunt_roar_owar_large",
+    "slot": "taunt",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "unusual",
+    "stock": false,
+    "level": 29,
+    "desc": "Насмешка для подрывника от сообщества",
+    "index": 163
+   },
+   {
+    "def": 31153,
+    "name": "Насмешка: Уютный ют",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/demo/taunt_the_pooped_deck/taunt_the_pooped_deck_large",
+    "slot": "taunt",
+    "classes": [
+     "demoman"
+    ],
+    "quality": "vintage",
+    "stock": false,
+    "level": 20,
+    "desc": "Насмешка для подрывника из сообщества\n\nДве кнопки атаки отвечают за особые движения",
+    "index": 164
+   },
+   {
+    "def": 15,
+    "name": "Пулемёт",
+    "type": "Пулемёт",
+    "icon": "backpack/weapons/w_models/w_minigun_large",
+    "slot": "primary",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unique",
+    "stock": true,
+    "level": 1,
+    "desc": "",
+    "index": 165
+   },
+   {
+    "def": 850,
+    "name": "Отражатель",
+    "type": "Пулемёт",
+    "icon": "backpack/weapons/w_models/w_minigun_large",
+    "slot": "primary",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 39,
+    "desc": "",
+    "index": 166
+   },
+   {
+    "def": 298,
+    "name": "Железный занавес",
+    "type": "Пулемёт",
+    "icon": "backpack/workshop/weapons/c_models/c_iron_curtain/c_iron_curtain_large",
+    "slot": "primary",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 84,
+    "desc": "",
+    "index": 167
+   },
+   {
+    "def": 41,
+    "name": "Наташа",
+    "type": "Пулемёт",
+    "icon": "backpack/weapons/c_models/c_w_ludmila/c_w_ludmila_large",
+    "slot": "primary",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 28,
+    "desc": "",
+    "index": 168
+   },
+   {
+    "def": 312,
+    "name": "Латунный монстр",
+    "type": "Пулемёт",
+    "icon": "backpack/workshop/weapons/c_models/c_gatling_gun/c_gatling_gun_large",
+    "slot": "primary",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 93,
+    "desc": "",
+    "index": 169
+   },
+   {
+    "def": 1206,
+    "name": "Переизданный \"Железный занавес\"",
+    "type": "Пулемёт",
+    "icon": "backpack/workshop/weapons/c_models/c_iron_curtain/c_iron_curtain_large",
+    "slot": "primary",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "collectors",
+    "stock": false,
+    "level": 21,
+    "desc": "",
+    "index": 170
+   },
+   {
+    "def": 424,
+    "name": "Томислав",
+    "type": "Пулемёт",
+    "icon": "backpack/workshop/weapons/c_models/c_tomislav/c_tomislav_large",
+    "slot": "primary",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 71,
+    "desc": "",
+    "index": 171
+   },
+   {
+    "def": 811,
+    "name": "Огненный дракон",
+    "type": "Пулемёт",
+    "icon": "backpack/workshop_partner/weapons/c_models/c_canton/c_canton_large",
+    "slot": "primary",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 3,
+    "desc": "",
+    "index": 172
+   },
+   {
+    "def": 433,
+    "name": "Рыбный батончик",
+    "type": "Рыбный батончик",
+    "icon": "backpack/workshop/weapons/c_models/c_fishcake/c_fishcake_large",
+    "slot": "secondary",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 66,
+    "desc": "При поедании: дает до 100 очков здоровья.\nДоп. атака: поделиться с товарищем\n(действует как маленькая аптечка).\n\nПолностью натуральный, сделанный из искусственных компонентов рыбный продукт от Vossler Industries",
+    "index": 173
+   },
+   {
+    "def": 1190,
+    "name": "Утешительный банан",
+    "type": "Лакомство",
+    "icon": "backpack/weapons/c_models/c_banana/c_banana_large",
+    "slot": "secondary",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 3,
+    "desc": "Восстанавливает здоровье.\nДоп. атака: поделиться с другом (маленькая аптечка)",
+    "index": 174
+   },
+   {
+    "def": 159,
+    "name": "Плитка \"Далокош\"",
+    "type": "Лакомство",
+    "icon": "backpack/workshop/weapons/c_models/c_chocolate/c_chocolate_large",
+    "slot": "secondary",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 56,
+    "desc": "При поедании: дает до 100 очков здоровья.\nДоп. атака: поделиться шоколадкой с товарищем\n(действует как маленькая аптечка).",
+    "index": 175
+   },
+   {
+    "def": 42,
+    "name": "Бутерброд",
+    "type": "Лакомство",
+    "icon": "backpack/weapons/c_models/c_sandwich/c_sandwich_large",
+    "slot": "secondary",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 12,
+    "desc": "При поедании: восстанавливает до 300 очков здоровья.\nДоп. атака: поделиться с товарищем\n(действует как средняя аптечка).",
+    "index": 176
+   },
+   {
+    "def": 425,
+    "name": "Семейное дело",
+    "type": "Дробовик",
+    "icon": "backpack/workshop/weapons/c_models/c_russian_riot/c_russian_riot_large",
+    "slot": "secondary",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 57,
+    "desc": "",
+    "index": 177
+   },
+   {
+    "def": 311,
+    "name": "Бутерброд из мяса буйвола",
+    "type": "Лакомство",
+    "icon": "backpack/workshop/weapons/c_models/c_buffalo_steak/c_buffalo_steak_large",
+    "slot": "secondary",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 96,
+    "desc": "На 16 секунд повышает скорость передвижения,\nделает атаки мини-критами, но позволяет использовать\nтолько оружие ближнего боя.\nДоп. атака: поделиться с товарищем\n(действует как средняя аптечка).\n\nКому нужен хлеб?",
+    "index": 178
+   },
+   {
+    "def": 863,
+    "name": "Робо-бутерброд",
+    "type": "Лакомство",
+    "icon": "backpack/weapons/c_models/c_sandwich/c_robo_sandwich_large",
+    "slot": "secondary",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 68,
+    "desc": "Роботы работают не только на бензине — их еще нужно заправлять железными штуковинами, напоминающими человеческую еду. Зачем? Затем, чтобы ты спросил, умник! Не знаю, что там у тебя в голове, но поедание железных бутербро",
+    "index": 179
+   },
+   {
+    "def": 5,
+    "name": "Кулаки",
+    "type": "Кулаки",
+    "icon": "backpack/weapons/v_models/v_fist_heavy_large",
+    "slot": "melee",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unique",
+    "stock": true,
+    "level": 1,
+    "desc": "",
+    "index": 180
+   },
+   {
+    "def": 426,
+    "name": "Уведомление о выселении",
+    "type": "Боксёрские перчатки",
+    "icon": "backpack/workshop/weapons/c_models/c_eviction_notice/c_eviction_notice_large",
+    "slot": "melee",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unusual",
+    "stock": false,
+    "level": 3,
+    "desc": "",
+    "index": 181
+   },
+   {
+    "def": 310,
+    "name": "Воинский дух",
+    "type": "Боксёрские перчатки",
+    "icon": "backpack/workshop/weapons/c_models/c_bear_claw/c_bear_claw_large",
+    "slot": "melee",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 60,
+    "desc": "",
+    "index": 182
+   },
+   {
+    "def": 1100,
+    "name": "Кусай-хлеб",
+    "type": "Боксёрские перчатки",
+    "icon": "backpack/weapons/c_models/c_breadmonster_gloves/c_breadmonster_gloves_large",
+    "slot": "melee",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 9,
+    "desc": "По мотивам фильма о TF2 \"Expiration Date\"",
+    "index": 183
+   },
+   {
+    "def": 587,
+    "name": "Кулакопокалипсис",
+    "type": "Кулаки",
+    "icon": "backpack/workshop/weapons/c_models/c_sr3_punch/c_sr3_punch_large",
+    "slot": "melee",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 47,
+    "desc": "Превратите каждый свой палец в Четырех всадников Апокалипсиса! А это более девятнадцати всадников Апокалипсиса на перчатку! Никогда ранее мы не смели вложить столько Апокалипсиса в одну руку!",
+    "index": 184
+   },
+   {
+    "def": 656,
+    "name": "Праздничный удар",
+    "type": "Кулаки",
+    "icon": "backpack/workshop/weapons/c_models/c_xms_gloves/c_xms_gloves_large",
+    "slot": "melee",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 49,
+    "desc": "Стань душой компании в бою, используя направо и налево эти вызывающие смех варежки.",
+    "index": 185
+   },
+   {
+    "def": 43,
+    "name": "Кулаки грозного боксёра",
+    "type": "Боксёрские перчатки",
+    "icon": "backpack/weapons/c_models/c_boxing_gloves/c_boxing_gloves_large",
+    "slot": "melee",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 54,
+    "desc": "",
+    "index": 186
+   },
+   {
+    "def": 331,
+    "name": "Стальные кулаки",
+    "type": "Боксёрские перчатки",
+    "icon": "backpack/workshop/weapons/c_models/c_fists_of_steel/c_fists_of_steel_large",
+    "slot": "melee",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 33,
+    "desc": "",
+    "index": 187
+   },
+   {
+    "def": 239,
+    "name": "Горящие рукавицы ускорения",
+    "type": "Боксёрские перчатки",
+    "icon": "backpack/weapons/c_models/c_boxing_gloves_urgency/c_boxing_gloves_urgency_large",
+    "slot": "melee",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 62,
+    "desc": "",
+    "index": 188
+   },
+   {
+    "def": 990,
+    "name": "Аква-шлепки",
+    "type": "Шлепанцы",
+    "icon": "backpack/workshop_partner/player/items/heavy/heavy_carl_flops/heavy_carl_flops_large",
+    "slot": "cosmetic",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 8,
+    "desc": "Раз уж все остальное тело воюет, почему бы не дать ступням маленькое ощущение каникул в тропиках?",
+    "index": 189
+   },
+   {
+    "def": 1097,
+    "name": "Маленький медвежонок",
+    "type": "Карманный дружок",
+    "icon": "backpack/player/items/heavy/heavy_pocket_bot_large",
+    "slot": "cosmetic",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 31,
+    "desc": "Благодаря этой новейшей коммунистической технологии улучшения карманов, вы можете быть уверены в том, что в каждом кармане будет равное количество содержимого.",
+    "index": 190
+   },
+   {
+    "def": 30217,
+    "name": "Иван Несъедобный",
+    "type": "Жутковатый соратник",
+    "icon": "backpack/workshop/player/items/heavy/hw2013_ivan_the_inedible/hw2013_ivan_the_inedible_large",
+    "slot": "cosmetic",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unusual",
+    "stock": false,
+    "level": 1,
+    "desc": "#TF_hw2013_ivan_the_inedible_Desc",
+    "index": 191
+   },
+   {
+    "def": 643,
+    "name": "Сейф для бутерброда",
+    "type": "Коробка для завтраков",
+    "icon": "backpack/player/items/heavy/xms_heavy_sandvichsafe_large",
+    "slot": "cosmetic",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 17,
+    "desc": "Клади бутерброд в сейф, а не в рот. Всё, сойдет, хватит описаний. Покупай уже.",
+    "index": 192
+   },
+   {
+    "def": 561,
+    "name": "Открывалка",
+    "type": "Часть костюма",
+    "icon": "backpack/player/items/heavy/hwn_heavy_hat_large",
+    "slot": "cosmetic",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 30,
+    "desc": "#TF_Hwn_HeavyHat_Desc",
+    "index": 193
+   },
+   {
+    "def": 1189,
+    "name": "Гималайский покров",
+    "type": "Часть костюма",
+    "icon": "backpack/player/items/heavy/yeti_arms_large",
+    "slot": "cosmetic",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 54,
+    "desc": "Все любят бороды, так зачем останавливаться на одном лишь лице? Этот мохнатый костюм будет вашей бородой для тела и для рук.",
+    "index": 194
+   },
+   {
+    "def": 30531,
+    "name": "Костяной наплечник",
+    "type": "Часть костюма",
+    "icon": "backpack/workshop/player/items/heavy/sf14_halloween_bone_cut_belt/sf14_halloween_bone_cut_belt_large",
+    "slot": "cosmetic",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "haunted",
+    "stock": false,
+    "level": 95,
+    "desc": "#TF_sf14_halloween_bone_cut_belt_Desc",
+    "index": 195
+   },
+   {
+    "def": 30914,
+    "name": "Ацтекский агрессор",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/heavy/fall17_aztec_aggressor/fall17_aztec_aggressor_large",
+    "slot": "cosmetic",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 62,
+    "desc": "#TF_fall17_aztec_aggressor_Desc",
+    "index": 196
+   },
+   {
+    "def": 31435,
+    "name": "Статусный студент",
+    "type": "Куртка",
+    "icon": "backpack/workshop/player/items/heavy/dec23_bigger_mann/dec23_bigger_mann_large",
+    "slot": "cosmetic",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 12,
+    "desc": "#TF_dec23_bigger_mann_Desc",
+    "index": 197
+   },
+   {
+    "def": 30094,
+    "name": "Катюша",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/heavy/jul13_katyusha/jul13_katyusha_large",
+    "slot": "cosmetic",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 87,
+    "desc": "\"Чтобы раздавить тебя, пулемётчику не нужен самолёт. Ему хватит кулаков и шляпы\".",
+    "index": 198
+   },
+   {
+    "def": 31482,
+    "name": "Взгляд вампира",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/heavy/hwn2024_strigoi_stare_style1/hwn2024_strigoi_stare_style1_large",
+    "slot": "cosmetic",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 12,
+    "desc": "#TF_hwn2024_strigoi_stare_Desc",
+    "index": 199
+   },
+   {
+    "def": 30372,
+    "name": "Боевые брюки",
+    "type": "Одежда",
+    "icon": "backpack/workshop/player/items/heavy/sbox2014_war_pants/sbox2014_war_pants_large",
+    "slot": "cosmetic",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 34,
+    "desc": "#TF_sbox2014_war_pants_Desc",
+    "index": 200
+   },
+   {
+    "def": 30866,
+    "name": "Бандитский долг",
+    "type": "Капюшон",
+    "icon": "backpack/workshop/player/items/heavy/spr17_warhood/spr17_warhood_large",
+    "slot": "cosmetic",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unusual",
+    "stock": false,
+    "level": 95,
+    "desc": "#TF_spr17_warhood_Desc",
+    "index": 201
+   },
+   {
+    "def": 517,
+    "name": "Шлем драконорожденного",
+    "type": "Шлем",
+    "icon": "backpack/workshop_partner/player/items/heavy/skyrim_helmet/skyrim_helmet_large",
+    "slot": "cosmetic",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unusual",
+    "stock": false,
+    "level": 28,
+    "desc": "Был создан для того, чтобы вселять ужас. Драконы же, по образу и подобию которых он был создан, отнеслись к нему с безразличием.",
+    "index": 202
+   },
+   {
+    "def": 30844,
+    "name": "Насмешка: Сила советов",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/heavy/taunt_soviet_strongarm/taunt_soviet_strongarm_large",
+    "slot": "taunt",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 83,
+    "desc": "Насмешка для пулемётчика от сообщества\nКачай бицепсы каждый день, а ноги приложатся.",
+    "index": 203
+   },
+   {
+    "def": 31602,
+    "name": "Насмешка: Выключатель",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/heavy/taunt_the_circuit_breaker/taunt_the_circuit_breaker_large",
+    "slot": "taunt",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "collectors",
+    "stock": false,
+    "level": 12,
+    "desc": "Насмешка для пулемётчика от сообщества.",
+    "index": 204
+   },
+   {
+    "def": 1175,
+    "name": "Насмешка: Точка кипения",
+    "type": "Особая насмешка",
+    "icon": "backpack/player/items/all_class/taunt_table_flip_joule_large",
+    "slot": "taunt",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 53,
+    "desc": "Переведите свою ярость в готовку, чтобы достичь нового уровня — пола.",
+    "index": 205
+   },
+   {
+    "def": 31519,
+    "name": "Насмешка: Медвежьи объятья",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/all_class/taunt_bear_hug/taunt_bear_hug_large",
+    "slot": "taunt",
+    "classes": [
+     "heavy"
+    ],
+    "quality": "unusual",
+    "stock": false,
+    "level": 30,
+    "desc": "Насмешка для пулемётчика от сообщества\n\nЭто совместная насмешка. Включается и выключается кнопкой насмешки.",
+    "index": 206
+   },
+   {
+    "def": 9,
+    "name": "Дробовик",
+    "type": "Дробовик",
+    "icon": "backpack/weapons/w_models/w_shotgun_large",
+    "slot": "primary",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "unique",
+    "stock": true,
+    "level": 1,
+    "desc": "",
+    "index": 207
+   },
+   {
+    "def": 141,
+    "name": "Самосуд",
+    "type": "Дробовик",
+    "icon": "backpack/weapons/c_models/c_frontierjustice/c_frontierjustice_large",
+    "slot": "primary",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "haunted",
+    "stock": false,
+    "level": 58,
+    "desc": "",
+    "index": 208
+   },
+   {
+    "def": 588,
+    "name": "Помсон 6000",
+    "type": "Расщепитель неделимых частиц",
+    "icon": "backpack/workshop/weapons/c_models/c_drg_pomson/c_drg_pomson_large",
+    "slot": "primary",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 49,
+    "desc": "Данный инновационный ручной излучатель способен испускать частые импульсы высокомощного излучения в количестве достаточном, чтобы испепелить, покалечить и другими способами травмировать любого, кто слишком ирланден.",
+    "index": 209
+   },
+   {
+    "def": 997,
+    "name": "Спасатель",
+    "type": "Дробовик",
+    "icon": "backpack/workshop/weapons/c_models/c_tele_shotgun/c_tele_shotgun_large",
+    "slot": "primary",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "unusual",
+    "stock": false,
+    "level": 92,
+    "desc": "",
+    "index": 210
+   },
+   {
+    "def": 527,
+    "name": "Овдовитель",
+    "type": "Дробовик",
+    "icon": "backpack/workshop_partner/weapons/c_models/c_dex_shotgun/c_dex_shotgun_large",
+    "slot": "primary",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 8,
+    "desc": "#TF_DEX_Shotgun_Desc",
+    "index": 211
+   },
+   {
+    "def": 22,
+    "name": "Пистолет",
+    "type": "Пистолет",
+    "icon": "backpack/weapons/c_models/c_pistol_large",
+    "slot": "secondary",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "unique",
+    "stock": true,
+    "level": 1,
+    "desc": "",
+    "index": 212
+   },
+   {
+    "def": 140,
+    "name": "Поводырь",
+    "type": "Лазерный указатель",
+    "icon": "backpack/weapons/c_models/c_wrangler_large",
+    "slot": "secondary",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "vintage",
+    "stock": false,
+    "level": 88,
+    "desc": "Позволяет управлять турелью вручную.\nУправляемая турель защищена щитом, уменьшающим\nполучаемый ей урон и ремонт на 66%.\nПосле потери управления турель\nбудет неактивна 3 секунды.",
+    "index": 213
+   },
+   {
+    "def": 30668,
+    "name": "Счётчик Гигера",
+    "type": "Лазерный указатель",
+    "icon": "backpack/workshop/weapons/c_models/c_invasion_wrangler/c_invasion_wrangler_large",
+    "slot": "secondary",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "unusual",
+    "stock": false,
+    "level": 92,
+    "desc": "#TF_invasion_wrangler_Desc",
+    "index": 214
+   },
+   {
+    "def": 528,
+    "name": "Короткое замыкание",
+    "type": "Механическая рука",
+    "icon": "backpack/workshop_partner/weapons/c_models/c_dex_arm/c_dex_arm_large",
+    "slot": "secondary",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 86,
+    "desc": "#TF_DEX_Pistol_Desc",
+    "index": 215
+   },
+   {
+    "def": 7,
+    "name": "Гаечный ключ",
+    "type": "Гаечный ключ",
+    "icon": "backpack/weapons/w_models/w_wrench_large",
+    "slot": "melee",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "unique",
+    "stock": true,
+    "level": 1,
+    "desc": "При ударе улучшает и чинит союзную постройку, а также ускоряет процесс ее возведения.",
+    "index": 216
+   },
+   {
+    "def": 155,
+    "name": "Южное гостеприимство",
+    "type": "Гаечный ключ",
+    "icon": "backpack/workshop/weapons/c_models/c_spikewrench/c_spikewrench_large",
+    "slot": "melee",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 52,
+    "desc": "",
+    "index": 217
+   },
+   {
+    "def": 142,
+    "name": "Оружейник",
+    "type": "Механическая рука",
+    "icon": "backpack/weapons/gunslinger_large",
+    "slot": "melee",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 92,
+    "desc": "",
+    "index": 218
+   },
+   {
+    "def": 589,
+    "name": "Озарение",
+    "type": "Гаечный ключ",
+    "icon": "backpack/workshop/weapons/c_models/c_drg_wrenchmotron/c_drg_wrenchmotron_large",
+    "slot": "melee",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "haunted",
+    "stock": false,
+    "level": 58,
+    "desc": "Данный инструмент облегчает труд, используя энергию грозовых электрических разрядов, чтобы решительно ставить на место болты, гайки, трубы и им подобное. Кроме того, им можно кого-нибудь отдубасить.",
+    "index": 219
+   },
+   {
+    "def": 329,
+    "name": "Острозуб",
+    "type": "Гаечный ключ",
+    "icon": "backpack/workshop/weapons/c_models/c_jag/c_jag_large",
+    "slot": "melee",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "haunted",
+    "stock": false,
+    "level": 25,
+    "desc": "",
+    "index": 220
+   },
+   {
+    "def": 169,
+    "name": "Золотой гаечный ключ",
+    "type": "Гаечный ключ",
+    "icon": "backpack/weapons/c_models/c_wrench/gold_wrench_large",
+    "slot": "melee",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 63,
+    "desc": "",
+    "index": 221
+   },
+   {
+    "def": 533,
+    "name": "Шлем Часовщика",
+    "type": "Головной убор",
+    "icon": "backpack/player/items/engineer/clockwerk_hat_large",
+    "slot": "cosmetic",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "haunted",
+    "stock": false,
+    "level": 49,
+    "desc": "Международный турнир по DOTA 2\nGamescom 2011",
+    "index": 222
+   },
+   {
+    "def": 48,
+    "name": "Шахтёрский фонарь",
+    "type": "Аксессуар",
+    "icon": "backpack/player/items/engineer/mining_hat_large",
+    "slot": "cosmetic",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 29,
+    "desc": "Для инженеров со светлым разумом.",
+    "index": 223
+   },
+   {
+    "def": 118,
+    "name": "Техасская блестящая лысина",
+    "type": "Аксессуар",
+    "icon": "backpack/player/items/engineer/engineer_nohat_large",
+    "slot": "cosmetic",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 66,
+    "desc": "Иногда хочется надеть что-нибудь поскромнее.",
+    "index": 224
+   },
+   {
+    "def": 30707,
+    "name": "Живой или мертвый",
+    "type": "Фальшивое улучшение",
+    "icon": "backpack/workshop/player/items/engineer/hwn2015_mechanical_engineer/hwn2015_mechanical_engineer_large",
+    "slot": "cosmetic",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 61,
+    "desc": "#TF_hwn2015_mechanical_engineer_Desc",
+    "index": 225
+   },
+   {
+    "def": 755,
+    "name": "Техасские чапсы",
+    "type": "Штаны",
+    "icon": "backpack/player/items/engineer/engineer_chaps_large",
+    "slot": "cosmetic",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 62,
+    "desc": "Это штаны... в техасском стиле! Эти кожаные чапсы без промежности идеально подойдут вам, если у вас уже есть штаны. Примечание: использовать только в качестве дополнительных штанов. Убедительная просьба не применять в ка",
+    "index": 226
+   },
+   {
+    "def": 30408,
+    "name": "Комбинезон яйцеголового",
+    "type": "Рубашка",
+    "icon": "backpack/workshop/player/items/engineer/short2014_engineer_nerd_shirt/short2014_engineer_nerd_shirt_large",
+    "slot": "cosmetic",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 27,
+    "desc": "#TF_short2014_engineer_nerd_shirt_Desc",
+    "index": 227
+   },
+   {
+    "def": 30871,
+    "name": "Вспышка вдохновения",
+    "type": "Прическа",
+    "icon": "backpack/workshop/player/items/engineer/spr17_flash_of_inspiration/spr17_flash_of_inspiration_large",
+    "slot": "cosmetic",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 97,
+    "desc": "#TF_spr17_flash_of_inspiration_Desc",
+    "index": 228
+   },
+   {
+    "def": 30846,
+    "name": "Водопроводная фуражка",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/engineer/spr17_plumbers_cap/spr17_plumbers_cap_large",
+    "slot": "cosmetic",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 51,
+    "desc": "#TF_spr17_plumbers_cap_Desc",
+    "index": 229
+   },
+   {
+    "def": 30543,
+    "name": "Снегоступы",
+    "type": "Ботинки",
+    "icon": "backpack/workshop/player/items/engineer/eotl_winter_pants/eotl_winter_pants_large",
+    "slot": "cosmetic",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 47,
+    "desc": "#TF_eotl_winter_pants_Desc",
+    "index": 230
+   },
+   {
+    "def": 31611,
+    "name": "Портки предпринимателя",
+    "type": "Штаны",
+    "icon": "backpack/workshop/player/items/engineer/sum26_standing_offer/sum26_standing_offer_large",
+    "slot": "cosmetic",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 91,
+    "desc": "#TF_sum26_standing_offer_Desc",
+    "index": 231
+   },
+   {
+    "def": 30593,
+    "name": "Тюлень Дубинушка",
+    "type": "Талисман",
+    "icon": "backpack/workshop/player/items/engineer/dec2014_engineer_seal/dec2014_engineer_seal_large",
+    "slot": "cosmetic",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 8,
+    "desc": "Аксессуар зимы 2014 от сообщества ограниченной серии",
+    "index": 232
+   },
+   {
+    "def": 30031,
+    "name": "Устаревший робот",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/engineer/robo_engineer_greaser/robo_engineer_greaser_large",
+    "slot": "cosmetic",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 16,
+    "desc": "История робо-будущего нашла свое воплощение! Представь, что ты седой и сварливый робот-старатель, потягивающий соточку нановиски на Ржавом Киберзападе в годы Великой батарейной лихорадки 3047 года.",
+    "index": 233
+   },
+   {
+    "def": 30930,
+    "name": "Кепка дальнобойщика",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/all_class/dec17_truckers_topper/dec17_truckers_topper_large",
+    "slot": "cosmetic",
+    "classes": [
+     "scout",
+     "engineer"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 21,
+    "desc": "#TF_dec17_truckers_topper_Desc",
+    "index": 234
+   },
+   {
+    "def": 31487,
+    "name": "Делльдозер",
+    "type": "Фальшивое улучшение",
+    "icon": "backpack/workshop/player/items/engineer/hwn2024_delldozer/hwn2024_delldozer_large",
+    "slot": "cosmetic",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 32,
+    "desc": "#TF_hwn2024_delldozer_Desc",
+    "index": 235
+   },
+   {
+    "def": 30845,
+    "name": "Насмешка: Отбойные скачки",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/engineer/taunt_jackhammer_rodeo/taunt_jackhammer_rodeo_large",
+    "slot": "taunt",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 86,
+    "desc": "Насмешка для инженера от сообщества\nЭта насмешка порвёт в клочки как почву, так и вашу способность к размножению\n\nЧтобы идти вперёд, назад или поворачивать,\nиспользуйте клавиши передвижения.",
+    "index": 236
+   },
+   {
+    "def": 31520,
+    "name": "Насмешка: Техасский трюк",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/engineer/taunt_texan_trickshot/taunt_texan_trickshot_large",
+    "slot": "taunt",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 18,
+    "desc": "Насмешка для инженера от сообщества\n\nНаносит урон врагам перед вами!",
+    "index": 237
+   },
+   {
+    "def": 30618,
+    "name": "Насмешка: Необузданный бычок",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/engineer/bucking_bronco/bucking_bronco_large",
+    "slot": "taunt",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "collectors",
+    "stock": false,
+    "level": 40,
+    "desc": "Насмешка для инженера от сообщества",
+    "index": 238
+   },
+   {
+    "def": 30842,
+    "name": "Насмешка: Дуэльное банджо",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/engineer/taunt_bumpkins_banjo/taunt_bumpkins_banjo_large",
+    "slot": "taunt",
+    "classes": [
+     "engineer"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 33,
+    "desc": "Насмешка для инженера от сообщества\nЕдинственная сохранившаяся в памяти сцена из классики Бёрта Рейнольдса - фильма \"Избавление\" 1972 года.",
+    "index": 239
+   },
+   {
+    "def": 17,
+    "name": "Шприцемёт",
+    "type": "Шприцемёт",
+    "icon": "backpack/weapons/w_models/w_syringegun_large",
+    "slot": "primary",
+    "classes": [
+     "medic"
+    ],
+    "quality": "unique",
+    "stock": true,
+    "level": 1,
+    "desc": "",
+    "index": 240
+   },
+   {
+    "def": 36,
+    "name": "Кровопийца",
+    "type": "Шприцемёт",
+    "icon": "backpack/weapons/c_models/c_leechgun/c_leechgun_large",
+    "slot": "primary",
+    "classes": [
+     "medic"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 84,
+    "desc": "",
+    "index": 241
+   },
+   {
+    "def": 305,
+    "name": "Арбалет крестоносца",
+    "type": "Арбалет",
+    "icon": "backpack/workshop/weapons/c_models/c_crusaders_crossbow/c_crusaders_crossbow_large",
+    "slot": "primary",
+    "classes": [
+     "medic"
+    ],
+    "quality": "collectors",
+    "stock": false,
+    "level": 26,
+    "desc": "Стреляет особыми снарядами, которые лечат союзников\nи наносят урон в зависимости от дальности полета.\nЕсли убрать это оружие, оно перезарядится.",
+    "index": 242
+   },
+   {
+    "def": 412,
+    "name": "Передоз",
+    "type": "Прототип шприцемета",
+    "icon": "backpack/weapons/c_models/c_proto_syringegun/c_proto_syringegun_large",
+    "slot": "primary",
+    "classes": [
+     "medic"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 21,
+    "desc": "Если это оружие в руках, скорость увеличена в зависимости от уровня убер-заряда (не более чем на 20%)",
+    "index": 243
+   },
+   {
+    "def": 29,
+    "name": "Лечебная пушка",
+    "type": "Лечебная пушка",
+    "icon": "backpack/weapons/c_models/c_medigun/c_medigun_large",
+    "slot": "secondary",
+    "classes": [
+     "medic"
+    ],
+    "quality": "unique",
+    "stock": true,
+    "level": 1,
+    "desc": "",
+    "index": 244
+   },
+   {
+    "def": 411,
+    "name": "Быстроправ",
+    "type": "Прототип лечебной пушки",
+    "icon": "backpack/weapons/c_models/c_proto_medigun/c_proto_medigun_large",
+    "slot": "secondary",
+    "classes": [
+     "medic"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 51,
+    "desc": "Носитель повторяет прыжки пациента на взрывчатке.",
+    "index": 245
+   },
+   {
+    "def": 998,
+    "name": "Вакцинатор",
+    "type": "Вакцинатор",
+    "icon": "backpack/workshop/weapons/c_models/c_medigun_defense/c_medigun_defense_large",
+    "slot": "secondary",
+    "classes": [
+     "medic"
+    ],
+    "quality": "unusual",
+    "stock": false,
+    "level": 41,
+    "desc": "Убер-заряд на 2,5 секунды создает пузырь, защищающий от 75% обычного урона и 100% критического урона выбранного типа.",
+    "index": 246
+   },
+   {
+    "def": 35,
+    "name": "Крицкриг",
+    "type": "Лечебная пушка",
+    "icon": "backpack/weapons/c_models/c_overhealer/c_overhealer_large",
+    "slot": "secondary",
+    "classes": [
+     "medic"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 20,
+    "desc": "",
+    "index": 247
+   },
+   {
+    "def": 8,
+    "name": "Медицинская пила",
+    "type": "Медицинская пила",
+    "icon": "backpack/weapons/c_models/c_bonesaw/c_bonesaw_large",
+    "slot": "melee",
+    "classes": [
+     "medic"
+    ],
+    "quality": "unique",
+    "stock": true,
+    "level": 1,
+    "desc": "",
+    "index": 248
+   },
+   {
+    "def": 37,
+    "name": "Убер-пила",
+    "type": "Медицинская пила",
+    "icon": "backpack/weapons/c_models/c_ubersaw/c_ubersaw_large",
+    "slot": "melee",
+    "classes": [
+     "medic"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 10,
+    "desc": "",
+    "index": 249
+   },
+   {
+    "def": 173,
+    "name": "Вита-пила",
+    "type": "Медицинская пила",
+    "icon": "backpack/workshop/weapons/c_models/c_uberneedle/c_uberneedle_large",
+    "slot": "melee",
+    "classes": [
+     "medic"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 54,
+    "desc": "Часть вашего убер-заряда сохраняется после смерти, исходя из числа собранных органов (15% за каждый). Таким образом можно сохранить до 60% убер-заряда.",
+    "index": 250
+   },
+   {
+    "def": 304,
+    "name": "Ампутатор",
+    "type": "Медицинская пила",
+    "icon": "backpack/workshop/weapons/c_models/c_amputator/c_amputator_large",
+    "slot": "melee",
+    "classes": [
+     "medic"
+    ],
+    "quality": "collectors",
+    "stock": false,
+    "level": 92,
+    "desc": "",
+    "index": 251
+   },
+   {
+    "def": 413,
+    "name": "Священная клятва",
+    "type": "Бюст Гиппократа",
+    "icon": "backpack/weapons/c_models/c_hippocrates_bust/c_hippocrates_bust_large",
+    "slot": "melee",
+    "classes": [
+     "medic"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 29,
+    "desc": "\"Не навреди\".",
+    "index": 252
+   },
+   {
+    "def": 30356,
+    "name": "Зимнее тепло",
+    "type": "Пальто",
+    "icon": "backpack/workshop/player/items/medic/sbxo2014_medic_wintergarb_coat/sbxo2014_medic_wintergarb_coat_large",
+    "slot": "cosmetic",
+    "classes": [
+     "medic"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 78,
+    "desc": "#TF_sbxo2014_medic_wintergarb_coat_Desc",
+    "index": 253
+   },
+   {
+    "def": 31472,
+    "name": "Маннтия двойственности",
+    "type": "Капюшон",
+    "icon": "backpack/workshop/player/items/all_class/hwn2024_duality_mantle/hwn2024_duality_mantle_large",
+    "slot": "cosmetic",
+    "classes": [
+     "medic",
+     "pyro"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 60,
+    "desc": "#TF_hwn2024_duality_mantle_Desc",
+    "index": 254
+   },
+   {
+    "def": 30046,
+    "name": "Механическая маска",
+    "type": "Маска",
+    "icon": "backpack/workshop/player/items/medic/robo_medic_physician_mask/robo_medic_physician_mask_large",
+    "slot": "cosmetic",
+    "classes": [
+     "medic"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 58,
+    "desc": "Факт: 70% воздуха, которым вы дышите, недавно были в чьей-то заднице. Это удобное изобретение пропускает напуканный воздух, в котором вы живете, сквозь мыльную воду и ароматическую смесь перед тем, как он войдет в ваше т",
+    "index": 255
+   },
+   {
+    "def": 30625,
+    "name": "Защитный шлем целителя",
+    "type": "Шлем",
+    "icon": "backpack/workshop/player/items/medic/cc_summer2015_the_physicians_protector/cc_summer2015_the_physicians_protector_large",
+    "slot": "cosmetic",
+    "classes": [
+     "medic"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 54,
+    "desc": "#TF_cc_summer2015_the_physicians_protector_Desc",
+    "index": 256
+   },
+   {
+    "def": 31401,
+    "name": "Шок-шевелюра",
+    "type": "Прическа",
+    "icon": "backpack/workshop/player/items/medic/hwn2023_power_spike/hwn2023_power_spike_large",
+    "slot": "cosmetic",
+    "classes": [
+     "medic"
+    ],
+    "quality": "haunted",
+    "stock": false,
+    "level": 75,
+    "desc": "#TF_hwn2023_power_spike_Desc",
+    "index": 257
+   },
+   {
+    "def": 31343,
+    "name": "Пульсовый пуловер",
+    "type": "Свитер",
+    "icon": "backpack/workshop/player/items/medic/dec22_wooly_pulli_style1/dec22_wooly_pulli_style1_large",
+    "slot": "cosmetic",
+    "classes": [
+     "medic"
+    ],
+    "quality": "collectors",
+    "stock": false,
+    "level": 50,
+    "desc": "#TF_dec22_wooly_pulli_Desc",
+    "index": 258
+   },
+   {
+    "def": 378,
+    "name": "Капитан команды",
+    "type": "Головной убор",
+    "icon": "backpack/player/items/soldier/soldier_officer_large",
+    "slot": "cosmetic",
+    "classes": [
+     "heavy",
+     "soldier",
+     "medic"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 36,
+    "desc": "Наши юристы говорят: \"ДА! ДА!\"",
+    "index": 259
+   },
+   {
+    "def": 30626,
+    "name": "Кровеносный костюм",
+    "type": "Жилет",
+    "icon": "backpack/workshop/player/items/medic/cc_summer2015_the_vascular_vestment/cc_summer2015_the_vascular_vestment_large",
+    "slot": "cosmetic",
+    "classes": [
+     "medic"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 41,
+    "desc": "#TF_cc_summer2015_the_vascular_vestment_Desc",
+    "index": 260
+   },
+   {
+    "def": 31034,
+    "name": "Могучая митра",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/medic/dec18_mighty_mitre/dec18_mighty_mitre_large",
+    "slot": "cosmetic",
+    "classes": [
+     "medic"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 13,
+    "desc": "#TF_dec18_mighty_mitre_Desc",
+    "index": 261
+   },
+   {
+    "def": 30149,
+    "name": "Колесница робота-медика",
+    "type": "Бутафорская броня",
+    "icon": "backpack/workshop/player/items/medic/tw_medibot_chariot/tw_medibot_chariot_large",
+    "slot": "cosmetic",
+    "classes": [
+     "medic"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 8,
+    "desc": "#TF_tw_medibot_chariot_Desc",
+    "index": 262
+   },
+   {
+    "def": 31601,
+    "name": "Докторские давители",
+    "type": "Штаны",
+    "icon": "backpack/workshop/player/items/medic/dec25_scrub_stompers/dec25_scrub_stompers_large",
+    "slot": "cosmetic",
+    "classes": [
+     "medic"
+    ],
+    "quality": "vintage",
+    "stock": false,
+    "level": 61,
+    "desc": "#TF_dec25_scrub_stompers_Desc",
+    "index": 263
+   },
+   {
+    "def": 31543,
+    "name": "Тень сомнения",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/medic/sum25_shadow_doubt/sum25_shadow_doubt_large",
+    "slot": "cosmetic",
+    "classes": [
+     "medic"
+    ],
+    "quality": "vintage",
+    "stock": false,
+    "level": 26,
+    "desc": "#TF_sum25_shadow_doubt_Desc",
+    "index": 264
+   },
+   {
+    "def": 620,
+    "name": "Сложенный платок",
+    "type": "Карманный платок",
+    "icon": "backpack/player/items/medic/fwk_medic_pocketsquare_large",
+    "slot": "cosmetic",
+    "classes": [
+     "medic"
+    ],
+    "quality": "vintage",
+    "stock": false,
+    "level": 18,
+    "desc": "Иногда мы шутим в таких описаниях. Но без шуток — он выглядит хорошо. И очень модно.",
+    "index": 265
+   },
+   {
+    "def": 31344,
+    "name": "Октоберфестер",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/medic/dec22_oktoberfester_style1/dec22_oktoberfester_style1_large",
+    "slot": "cosmetic",
+    "classes": [
+     "medic"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 85,
+    "desc": "#TF_dec22_oktoberfester_Desc",
+    "index": 266
+   },
+   {
+    "def": 31154,
+    "name": "Насмешка: Целебный перерыв",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/medic/taunt_time_out_therapy/taunt_time_out_therapy_large",
+    "slot": "taunt",
+    "classes": [
+     "medic"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 36,
+    "desc": "Насмешка для медика от сообщества",
+    "index": 267
+   },
+   {
+    "def": 477,
+    "name": "Насмешка: Знакомьтесь, Медик",
+    "type": "Особая насмешка",
+    "icon": "backpack/player/items/medic/medic_heroic_taunt_large",
+    "slot": "taunt",
+    "classes": [
+     "medic"
+    ],
+    "quality": "collectors",
+    "stock": false,
+    "level": 27,
+    "desc": "Насмешка для медика.\nПокажите этим неблагодарным сволочам, как важны умения медика, встав в героическую позу под пение ангелов и божественные огни, из которых вылетает стая голубей.",
+    "index": 268
+   },
+   {
+    "def": 31203,
+    "name": "Насмешка: Маннитар!",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/medic/taunt_the_mannbulance/taunt_the_mannbulance_large",
+    "slot": "taunt",
+    "classes": [
+     "medic"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 63,
+    "desc": "Насмешка для медика от сообщества\n\nВключается и выключается кнопкой насмешки\nЧтобы поворачивать, используйте клавиши движения вбок.",
+    "index": 269
+   },
+   {
+    "def": 31236,
+    "name": "Насмешка: Дефибриллятор доктора",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/medic/tauntdoctors_defibrillators/tauntdoctors_defibrillators_large",
+    "slot": "taunt",
+    "classes": [
+     "medic"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 39,
+    "desc": "Насмешка для медика от сообщества",
+    "index": 270
+   },
+   {
+    "def": 14,
+    "name": "Снайперская винтовка",
+    "type": "Снайперская винтовка",
+    "icon": "backpack/weapons/w_models/w_sniperrifle_large",
+    "slot": "primary",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "unique",
+    "stock": true,
+    "level": 1,
+    "desc": "",
+    "index": 271
+   },
+   {
+    "def": 30665,
+    "name": "Падающая звезда",
+    "type": "Снайперская винтовка",
+    "icon": "backpack/workshop/weapons/c_models/c_invasion_sniperrifle/c_invasion_sniperrifle_large",
+    "slot": "primary",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "unusual",
+    "stock": false,
+    "level": 96,
+    "desc": "Испепелите врагов!",
+    "index": 272
+   },
+   {
+    "def": 752,
+    "name": "Разжигатель разбойника",
+    "type": "Снайперская винтовка",
+    "icon": "backpack/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle_large",
+    "slot": "primary",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "unusual",
+    "stock": false,
+    "level": 84,
+    "desc": "\nПолетят головы.",
+    "index": 273
+   },
+   {
+    "def": 56,
+    "name": "Охотник",
+    "type": "Лук",
+    "icon": "backpack/weapons/c_models/c_bow/c_bow_large",
+    "slot": "primary",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 70,
+    "desc": "",
+    "index": 274
+   },
+   {
+    "def": 402,
+    "name": "Базарная безделушка",
+    "type": "Снайперская винтовка",
+    "icon": "backpack/workshop/weapons/c_models/c_bazaar_sniper/c_bazaar_sniper_large",
+    "slot": "primary",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 39,
+    "desc": "Каждое прицельное убийство попаданием в голову увеличивает скорость накопления заряда на 25% (максимум - 200%).",
+    "index": 275
+   },
+   {
+    "def": 230,
+    "name": "Сиднейский соня",
+    "type": "Снайперская винтовка",
+    "icon": "backpack/workshop/weapons/c_models/c_sydney_sleeper/c_sydney_sleeper_large",
+    "slot": "primary",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 45,
+    "desc": "",
+    "index": 276
+   },
+   {
+    "def": 526,
+    "name": "Махина",
+    "type": "Снайперская винтовка",
+    "icon": "backpack/workshop_partner/weapons/c_models/c_dex_sniperrifle/c_dex_sniperrifle_large",
+    "slot": "primary",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 56,
+    "desc": "#TF_DEX_Rifle_Desc",
+    "index": 277
+   },
+   {
+    "def": 1092,
+    "name": "Укрепленный составной лук",
+    "type": "Лук",
+    "icon": "backpack/workshop_partner/weapons/c_models/c_bow_thief/c_bow_thief_large",
+    "slot": "primary",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "vintage",
+    "stock": false,
+    "level": 35,
+    "desc": "#TF_FortifiedCompound_Desc",
+    "index": 278
+   },
+   {
+    "def": 851,
+    "name": "Слонобой",
+    "type": "Снайперская винтовка",
+    "icon": "backpack/weapons/c_models/c_csgo_awp/c_csgo_awp_large",
+    "slot": "primary",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 75,
+    "desc": "Эта сомнительная полуавтоматическая красавица со скользящим затвором запрещена в тысячах стран, и недаром: ей действительно можно поранить кого-нибудь.",
+    "index": 279
+   },
+   {
+    "def": 1098,
+    "name": "Классика",
+    "type": "Снайперская винтовка",
+    "icon": "backpack/weapons/c_models/c_tfc_sniperrifle/c_tfc_sniperrifle_large",
+    "slot": "primary",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 37,
+    "desc": "#TF_ClassicSniperRifle_Desc",
+    "index": 280
+   },
+   {
+    "def": 16,
+    "name": "Пистолет-пулемёт",
+    "type": "Пистолет-пулемёт",
+    "icon": "backpack/weapons/w_models/w_smg_large",
+    "slot": "secondary",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "unique",
+    "stock": true,
+    "level": 1,
+    "desc": "",
+    "index": 281
+   },
+   {
+    "def": 1105,
+    "name": "Родинка с самосознанием",
+    "type": "Баночное карате",
+    "icon": "backpack/weapons/c_models/c_breadmonster/c_breadmonster_large",
+    "slot": "secondary",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 13,
+    "desc": "\nПо мотивам фильма о TF2 \"Expiration Date\"",
+    "index": 282
+   },
+   {
+    "def": 57,
+    "name": "Бронепанцирь",
+    "type": "Щит",
+    "icon": "backpack/player/items/sniper/knife_shield_large",
+    "slot": "secondary",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 74,
+    "desc": "",
+    "index": 283
+   },
+   {
+    "def": 231,
+    "name": "Дарвинистский щит",
+    "type": "Щит",
+    "icon": "backpack/workshop/player/items/sniper/croc_shield/croc_shield_large",
+    "slot": "secondary",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "vintage",
+    "stock": false,
+    "level": 47,
+    "desc": "",
+    "index": 284
+   },
+   {
+    "def": 751,
+    "name": "Карабин Чистильщика",
+    "type": "Пистолет-пулемёт",
+    "icon": "backpack/workshop/weapons/c_models/c_pro_smg/c_pro_smg_large",
+    "slot": "secondary",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 95,
+    "desc": "#TF_Pro_SMG_Desc",
+    "index": 285
+   },
+   {
+    "def": 58,
+    "name": "Банкате",
+    "type": "Баночное карате",
+    "icon": "backpack/weapons/c_models/urinejar_large",
+    "slot": "secondary",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 72,
+    "desc": "",
+    "index": 286
+   },
+   {
+    "def": 642,
+    "name": "Набор для кемпинга",
+    "type": "Рюкзак",
+    "icon": "backpack/workshop/player/items/sniper/xms_sniper_commandobackpack/xms_sniper_commandobackpack_large",
+    "slot": "secondary",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 34,
+    "desc": "#TF_CozyCamper_Desc",
+    "index": 287
+   },
+   {
+    "def": 3,
+    "name": "Кукри",
+    "type": "Кукри",
+    "icon": "backpack/weapons/w_models/w_machete_large",
+    "slot": "melee",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "unique",
+    "stock": true,
+    "level": 1,
+    "desc": "",
+    "index": 288
+   },
+   {
+    "def": 171,
+    "name": "Заточка дикаря",
+    "type": "Кукри",
+    "icon": "backpack/workshop/weapons/c_models/c_wood_machete/c_wood_machete_large",
+    "slot": "melee",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 34,
+    "desc": "",
+    "index": 289
+   },
+   {
+    "def": 232,
+    "name": "Кустолом",
+    "type": "Кукри",
+    "icon": "backpack/workshop/weapons/c_models/c_croc_knife/c_croc_knife_large",
+    "slot": "melee",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 16,
+    "desc": "",
+    "index": 290
+   },
+   {
+    "def": 401,
+    "name": "Шаханшах",
+    "type": "Кукри",
+    "icon": "backpack/workshop/weapons/c_models/c_scimitar/c_scimitar_large",
+    "slot": "melee",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 28,
+    "desc": "",
+    "index": 291
+   },
+   {
+    "def": 31010,
+    "name": "Звезда дорог",
+    "type": "Бандана",
+    "icon": "backpack/workshop/player/items/sniper/hwn2018_highway_star/hwn2018_highway_star_large",
+    "slot": "cosmetic",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "collectors",
+    "stock": false,
+    "level": 92,
+    "desc": "#TF_hwn2018_highway_star_Desc",
+    "index": 292
+   },
+   {
+    "def": 1095,
+    "name": "Одеяние обманщика",
+    "type": "Капюшон",
+    "icon": "backpack/workshop_partner/player/items/sniper/thief_sniper_hood/thief_sniper_hood_large",
+    "slot": "cosmetic",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 57,
+    "desc": "#TF_DreadHidingHood_Desc",
+    "index": 293
+   },
+   {
+    "def": 30170,
+    "name": "Хрономант",
+    "type": "Одежда",
+    "icon": "backpack/workshop/player/items/sniper/fall2013_kyoto_rider/fall2013_kyoto_rider_large",
+    "slot": "cosmetic",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 54,
+    "desc": "#TF_fall2013_kyoto_rider_Desc",
+    "index": 294
+   },
+   {
+    "def": 31619,
+    "name": "Красавчик в законе",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/sniper/sum26_handsome/sum26_handsome_large",
+    "slot": "cosmetic",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "collectors",
+    "stock": false,
+    "level": 98,
+    "desc": "#TF_sum26_handsome_Desc",
+    "index": 295
+   },
+   {
+    "def": 31181,
+    "name": "Древо убийств",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/sniper/dec20_killing_tree/dec20_killing_tree_large",
+    "slot": "cosmetic",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 27,
+    "desc": "#TF_dec20_killing_tree_Desc",
+    "index": 296
+   },
+   {
+    "def": 645,
+    "name": "Интеллигент из пустыни",
+    "type": "Одежда",
+    "icon": "backpack/player/items/sniper/xms_sniper_sweater_vest_large",
+    "slot": "cosmetic",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 36,
+    "desc": "Свитер в клетку. Трубка в зубах. По отдельности они придают глупый вид. Вместе — делают из тебя стильного умника, вроде Умберто Эко.",
+    "index": 297
+   },
+   {
+    "def": 31647,
+    "name": "Вуаль вольника",
+    "type": "Шаль",
+    "icon": "backpack/workshop/player/items/sniper/hwn2026_wayward_wrap/hwn2026_wayward_wrap_large",
+    "slot": "cosmetic",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 89,
+    "desc": "#TF_hwn2026_wayward_wrap_Desc",
+    "index": 298
+   },
+   {
+    "def": 877,
+    "name": "Высокий кивер снайпера",
+    "type": "Головной убор",
+    "icon": "backpack/workshop_partner/player/items/sniper/tw_shako/tw_shako_large",
+    "slot": "cosmetic",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "unusual",
+    "stock": false,
+    "level": 54,
+    "desc": "Эта шляпа отлично подойдет снайперу, который любит прятаться в тени, а потом неожиданно выскочить и возглавить парад.",
+    "index": 299
+   },
+   {
+    "def": 824,
+    "name": "Карманный коала",
+    "type": "Сумка",
+    "icon": "backpack/player/items/sniper/sniper_pocketkoala_large",
+    "slot": "cosmetic",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 14,
+    "desc": "Посмотрите, как враги дрожат от страха при виде этого маленького коалы! Послушайте, какой вопль вызывает его ужасающе миниатюрная шляпа! Почувствуйте запах их панического бегства от этого дьявольски крохотного существа! ",
+    "index": 300
+   },
+   {
+    "def": 30894,
+    "name": "Небрит и опасен",
+    "type": "Растительность на лице",
+    "icon": "backpack/workshop/player/items/sniper/fall17_most_dangerous_mane/fall17_most_dangerous_mane_large",
+    "slot": "cosmetic",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "haunted",
+    "stock": false,
+    "level": 3,
+    "desc": "#TF_fall17_most_dangerous_mane_Desc",
+    "index": 301
+   },
+   {
+    "def": 31534,
+    "name": "Косой козырёк",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/sniper/sum25_blindin/sum25_blindin_large",
+    "slot": "cosmetic",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 57,
+    "desc": "#TF_sum25_blindin_Desc",
+    "index": 302
+   },
+   {
+    "def": 30502,
+    "name": "Брыкалки кенгуру",
+    "type": "Часть костюма",
+    "icon": "backpack/workshop/player/items/sniper/sf14_kanga_kickers/sf14_kanga_kickers_large",
+    "slot": "cosmetic",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "vintage",
+    "stock": false,
+    "level": 13,
+    "desc": "#TF_sf14_kanga_kickers_Desc",
+    "index": 303
+   },
+   {
+    "def": 31270,
+    "name": "Тропический камуфляж",
+    "type": "Рубашка",
+    "icon": "backpack/workshop/player/items/sniper/sum22_tropical_camo/sum22_tropical_camo_large",
+    "slot": "cosmetic",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 45,
+    "desc": "#TF_sum22_tropical_camo_Desc",
+    "index": 304
+   },
+   {
+    "def": 30598,
+    "name": "Ушанка убийцы",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/sniper/dec2014_hunter_ushanka/dec2014_hunter_ushanka_large",
+    "slot": "cosmetic",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 81,
+    "desc": "Аксессуар зимы 2014 от сообщества ограниченной серии",
+    "index": 305
+   },
+   {
+    "def": 30839,
+    "name": "Насмешка: Диджеридурень",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/sniper/taunt_didgeridrongo/taunt_didgeridrongo_large",
+    "slot": "taunt",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 51,
+    "desc": "Насмешка для снайпера от сообщества\nСыграйте им мелодию, которую они никогда не забудут!",
+    "index": 306
+   },
+   {
+    "def": 1116,
+    "name": "Насмешка: Я тебя вижу",
+    "type": "Особая насмешка",
+    "icon": "backpack/player/items/all_class/taunt_i_see_you_large",
+    "slot": "taunt",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 10,
+    "desc": "Насмешка для снайпера.",
+    "index": 307
+   },
+   {
+    "def": 31237,
+    "name": "Насмешка: Кемпинг киллера",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/sniper/tauntshooters_stakeout/tauntshooters_stakeout_large",
+    "slot": "taunt",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 13,
+    "desc": "Насмешка для снайпера от сообщества",
+    "index": 308
+   },
+   {
+    "def": 30609,
+    "name": "Насмешка: Убийственное соло",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/sniper/taunt_killer_solo/taunt_killer_solo_large",
+    "slot": "taunt",
+    "classes": [
+     "sniper"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 100,
+    "desc": "Насмешка для снайпера от сообщества",
+    "index": 309
+   },
+   {
+    "def": 24,
+    "name": "Револьвер",
+    "type": "Револьвер",
+    "icon": "backpack/weapons/w_models/w_revolver_large",
+    "slot": "secondary",
+    "classes": [
+     "spy"
+    ],
+    "quality": "unique",
+    "stock": true,
+    "level": 1,
+    "desc": "",
+    "index": 310
+   },
+   {
+    "def": 460,
+    "name": "Принудитель",
+    "type": "Револьвер",
+    "icon": "backpack/workshop/weapons/c_models/c_snub_nose/c_snub_nose_large",
+    "slot": "secondary",
+    "classes": [
+     "spy"
+    ],
+    "quality": "haunted",
+    "stock": false,
+    "level": 16,
+    "desc": "",
+    "index": 311
+   },
+   {
+    "def": 525,
+    "name": "Алмазный змей",
+    "type": "Револьвер",
+    "icon": "backpack/workshop_partner/weapons/c_models/c_dex_revolver/c_dex_revolver_large",
+    "slot": "secondary",
+    "classes": [
+     "spy"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 95,
+    "desc": "#TF_DEX_Revolver_Desc",
+    "index": 312
+   },
+   {
+    "def": 161,
+    "name": "Грандиозный убийца",
+    "type": "Револьвер",
+    "icon": "backpack/workshop/weapons/c_models/c_ttg_sam_gun/c_ttg_sam_gun_large",
+    "slot": "secondary",
+    "classes": [
+     "spy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 91,
+    "desc": "Сочетает в себе стиль и убойную силу. С давних пор использовался исключительно вольной полицией, но теперь он доступен и для других кровожадных наёмников.",
+    "index": 313
+   },
+   {
+    "def": 61,
+    "name": "Амбассадор",
+    "type": "Револьвер",
+    "icon": "backpack/weapons/c_models/c_ambassador/parts/c_ambassador_opt_large",
+    "slot": "secondary",
+    "classes": [
+     "spy"
+    ],
+    "quality": "haunted",
+    "stock": false,
+    "level": 88,
+    "desc": "",
+    "index": 314
+   },
+   {
+    "def": 224,
+    "name": "Незнакомец",
+    "type": "Револьвер",
+    "icon": "backpack/workshop/weapons/c_models/c_letranger/c_letranger_large",
+    "slot": "secondary",
+    "classes": [
+     "spy"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 13,
+    "desc": "",
+    "index": 315
+   },
+   {
+    "def": 4,
+    "name": "Нож",
+    "type": "Нож",
+    "icon": "backpack/weapons/w_models/w_knife_large",
+    "slot": "melee",
+    "classes": [
+     "spy"
+    ],
+    "quality": "unique",
+    "stock": true,
+    "level": 1,
+    "desc": "Удар в спину мгновенно убивает противника.",
+    "index": 316
+   },
+   {
+    "def": 649,
+    "name": "Сосулька",
+    "type": "Нож",
+    "icon": "backpack/workshop/weapons/c_models/c_xms_cold_shoulder/c_xms_cold_shoulder_large",
+    "slot": "melee",
+    "classes": [
+     "spy"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 4,
+    "desc": "Отличный подарок для того, у кого есть всё — сосулька в спину. Даже богач нигде такого не купит.",
+    "index": 317
+   },
+   {
+    "def": 574,
+    "name": "Иголка вуду",
+    "type": "Нож",
+    "icon": "backpack/workshop/weapons/c_models/c_voodoo_pin/c_voodoo_pin_large",
+    "slot": "melee",
+    "classes": [
+     "spy"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 81,
+    "desc": "",
+    "index": 318
+   },
+   {
+    "def": 727,
+    "name": "Чёрная роза",
+    "type": "Нож",
+    "icon": "backpack/workshop/weapons/c_models/c_ava_roseknife/c_ava_roseknife_v_large",
+    "slot": "melee",
+    "classes": [
+     "spy"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 52,
+    "desc": "Порази его цветами.",
+    "index": 319
+   },
+   {
+    "def": 461,
+    "name": "Главный делец",
+    "type": "Нож",
+    "icon": "backpack/workshop/weapons/c_models/c_switchblade/c_switchblade_large",
+    "slot": "melee",
+    "classes": [
+     "spy"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 2,
+    "desc": "",
+    "index": 320
+   },
+   {
+    "def": 356,
+    "name": "Кунай заговорщика",
+    "type": "Нож",
+    "icon": "backpack/workshop_partner/weapons/c_models/c_shogun_kunai/c_shogun_kunai_large",
+    "slot": "melee",
+    "classes": [
+     "spy"
+    ],
+    "quality": "unusual",
+    "stock": false,
+    "level": 16,
+    "desc": "С малым здоровьем\nНожом врага одолей\nЖизнь его укради",
+    "index": 321
+   },
+   {
+    "def": 225,
+    "name": "Вечный покой",
+    "type": "Нож",
+    "icon": "backpack/workshop/weapons/c_models/c_eternal_reward/c_eternal_reward_large",
+    "slot": "melee",
+    "classes": [
+     "spy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 79,
+    "desc": "",
+    "index": 322
+   },
+   {
+    "def": 638,
+    "name": "Одетый с иголочки",
+    "type": "Нож",
+    "icon": "backpack/workshop/weapons/c_models/c_acr_hookblade/c_acr_hookblade_large",
+    "slot": "melee",
+    "classes": [
+     "spy"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 27,
+    "desc": "Каждый наемник сходит с ума от модно одетого человека. Со старинными потайными ножами в его запонках.",
+    "index": 323
+   },
+   {
+    "def": 55,
+    "name": "Фетровая шляпа",
+    "type": "Головной убор",
+    "icon": "backpack/player/items/spy/spy_hat_large",
+    "slot": "cosmetic",
+    "classes": [
+     "spy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 54,
+    "desc": "Эта элегантная мягкая шёлковая прелесть сделает ваши любительские удары в спину такими, словно орудовал ловкий бандит.",
+    "index": 324
+   },
+   {
+    "def": 31337,
+    "name": "Утепляющий убор",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/spy/dec22_frostbite_bonnet/dec22_frostbite_bonnet_large",
+    "slot": "cosmetic",
+    "classes": [
+     "spy"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 28,
+    "desc": "#TF_dec22_frostbite_bonnet_Desc",
+    "index": 325
+   },
+   {
+    "def": 31428,
+    "name": "Скрытное прикрытие",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/spy/dec23_covert_covers/dec23_covert_covers_large",
+    "slot": "cosmetic",
+    "classes": [
+     "spy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 23,
+    "desc": "#TF_dec23_covert_covers_Desc",
+    "index": 326
+   },
+   {
+    "def": 30072,
+    "name": "Провокатор с помпоном",
+    "type": "Маска",
+    "icon": "backpack/workshop/player/items/spy/facestabber/facestabber_large",
+    "slot": "cosmetic",
+    "classes": [
+     "spy"
+    ],
+    "quality": "vintage",
+    "stock": false,
+    "level": 94,
+    "desc": "Плотный шерстяной помпон, пришитый к макушке этой лыжной маски, пропитан ядом на случай, если вас захватят в заложники люди, интересующиеся причиной столь странного облачения.",
+    "index": 327
+   },
+   {
+    "def": 30848,
+    "name": "Прогресс",
+    "type": "Фальшивое улучшение",
+    "icon": "backpack/workshop/player/items/spy/spr17_the_upgrade/spr17_the_upgrade_large",
+    "slot": "cosmetic",
+    "classes": [
+     "spy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 58,
+    "desc": "#TF_spr17_the_upgrade_Desc",
+    "index": 328
+   },
+   {
+    "def": 766,
+    "name": "Doublecross-Comm",
+    "type": "Маска",
+    "icon": "backpack/player/items/sniper/grfs_sniper_large",
+    "slot": "cosmetic",
+    "classes": [
+     "sniper",
+     "spy"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 18,
+    "desc": "Эта бандана с анализатором поля боя прошита нановолокном, которое скачивает планы битвы из Википедии прямо вам на лицо, чтобы вы никогда не были в неведении.",
+    "index": 329
+   },
+   {
+    "def": 31626,
+    "name": "Мегаломанн",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/spy/sum26_delusions/sum26_delusions_large",
+    "slot": "cosmetic",
+    "classes": [
+     "spy"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 6,
+    "desc": "#TF_sum26_delusions_Desc",
+    "index": 330
+   },
+   {
+    "def": 30506,
+    "name": "Охотник за кошмарами",
+    "type": "Головной убор",
+    "icon": "backpack/workshop/player/items/spy/sf14_nightmare_fedora/sf14_nightmare_fedora_large",
+    "slot": "cosmetic",
+    "classes": [
+     "spy"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 45,
+    "desc": "#TF_sf14_nightmare_fedora_Desc",
+    "index": 331
+   },
+   {
+    "def": 30603,
+    "name": "Скрытный шарф",
+    "type": "Шарф",
+    "icon": "backpack/workshop/player/items/spy/dec2014_stealthy_scarf/dec2014_stealthy_scarf_large",
+    "slot": "cosmetic",
+    "classes": [
+     "spy"
+    ],
+    "quality": "genuine",
+    "stock": false,
+    "level": 82,
+    "desc": "Аксессуар зимы 2014 от сообщества ограниченной серии",
+    "index": 332
+   },
+   {
+    "def": 1029,
+    "name": "Ищейка",
+    "type": "Головной убор",
+    "icon": "backpack/player/items/spy/pn2_samhat_spy_large",
+    "slot": "cosmetic",
+    "classes": [
+     "sniper",
+     "spy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 66,
+    "desc": "Ощутите весь трепет жизни грубоватого сыщика-сердцееда, почитав собрание сочинений Рэймонда Чандлера. Затем плюньте на всё это и примерьте эту невообразимо большую шляпу мультяшного пса.",
+    "index": 333
+   },
+   {
+    "def": 30476,
+    "name": "Жак Потрошитель",
+    "type": "Пальто",
+    "icon": "backpack/workshop/player/items/spy/sept2014_lady_killer/sept2014_lady_killer_large",
+    "slot": "cosmetic",
+    "classes": [
+     "spy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 30,
+    "desc": "Аксессуар запоздалого лета 2014 от сообщества ограниченной серии",
+    "index": 334
+   },
+   {
+    "def": 30133,
+    "name": "Послемрак",
+    "type": "Одежда",
+    "icon": "backpack/workshop/player/items/spy/jul13_classy_royale/jul13_classy_royale_large",
+    "slot": "cosmetic",
+    "classes": [
+     "spy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 39,
+    "desc": "\"Бармен, стопку скотча без льда. Это был долгий день. О, это пианино?\" [звучит 4-я импровизация Шопена до-диез минор, дамы падают в обморок]",
+    "index": 335
+   },
+   {
+    "def": 30631,
+    "name": "Пальто проныры",
+    "type": "Пальто",
+    "icon": "backpack/workshop/player/items/spy/cc_summer2015_lurkers_leathers/cc_summer2015_lurkers_leathers_large",
+    "slot": "cosmetic",
+    "classes": [
+     "spy"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 73,
+    "desc": "#TF_cc_summer2015_lurkers_leathers_Desc",
+    "index": 336
+   },
+   {
+    "def": 1030,
+    "name": "Стильная маскировка",
+    "type": "Маска",
+    "icon": "backpack/player/items/spy/pn2_mask_large",
+    "slot": "cosmetic",
+    "classes": [
+     "spy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 51,
+    "desc": "Останьтесь неузнанным красавчиком и насладитесь тайными выгодами невероятной привлекательности. Высокооплачиваемая работа! Горячие девушки! Бесплатные хлебные палочки в ресторанах \"Оливковая роща\"! Ешьте сколько влезет, ",
+    "index": 337
+   },
+   {
+    "def": 31491,
+    "name": "Насмешка: Выход на поклон",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/spy/taunt_curtain_call/taunt_curtain_call_large",
+    "slot": "taunt",
+    "classes": [
+     "spy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 100,
+    "desc": "Насмешка для шпиона от сообщества",
+    "index": 338
+   },
+   {
+    "def": 31604,
+    "name": "Насмешка: Ложный лепет",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/spy/taunt_fauxcalization/taunt_fauxcalization_large",
+    "slot": "taunt",
+    "classes": [
+     "spy"
+    ],
+    "quality": "collectors",
+    "stock": false,
+    "level": 80,
+    "desc": "Насмешка для шпиона от сообщества",
+    "index": 339
+   },
+   {
+    "def": 31289,
+    "name": "Насмешка: Могильный мошенник",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/spy/taunt_the_crypt_creeper/taunt_the_crypt_creeper_large",
+    "slot": "taunt",
+    "classes": [
+     "spy"
+    ],
+    "quality": "strange",
+    "stock": false,
+    "level": 87,
+    "desc": "Насмешка для шпиона от сообщества\n\nВключается и выключается кнопкой насмешки\nДве кнопки атаки отвечают за особые движения.",
+    "index": 340
+   },
+   {
+    "def": 30615,
+    "name": "Насмешка: Короботрот",
+    "type": "Особая насмешка",
+    "icon": "backpack/workshop/player/items/spy/taunt_spy_boxtrot/taunt_spy_boxtrot_large",
+    "slot": "taunt",
+    "classes": [
+     "spy"
+    ],
+    "quality": "unique",
+    "stock": false,
+    "level": 48,
+    "desc": "Насмешка для шпиона от сообщества\nСкройтесь от чужих глаз благодаря прародителю всех маскировочных устройств\n\nЧтобы идти вперёд, назад или поворачивать,\nиспользуйте клавиши передвижения.",
+    "index": 341
+   }
+  ]
+ }
+}

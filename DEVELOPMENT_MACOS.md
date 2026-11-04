@@ -38,7 +38,9 @@ An explicit `-insert_search_path a,b` replaces this list.
 
 ## Useful commands
 
-- HTML main menu: `+tf_main_menu_html 1`; classic VGUI menu: `+tf_main_menu_html 0`.
+- Main menu: the Frontress menu (`resource/fui`) is on by default; `fui_menu 0` shows TF2's own.
+  `fui_hot_reload 1` reloads it when its files change; `fui_screen war` jumps to a screen.
+- Menu work without the game: `tools/fui-preview` (see its README).
 - Map test: `./tc2_osx -novid -windowed -condebug +sv_lan 1 +map ctf_2fort`,
   then `jointeam red`, `joinclass scout`, `tf_bot_add 2`, `status`.
 - Debugger: `/usr/bin/lldb -- ./tc2_osx -novid -windowed`.
