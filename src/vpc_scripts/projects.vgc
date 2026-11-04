@@ -43,6 +43,12 @@ $Project "game_shader_generic_std"
 	"materialsystem\stdshaders\game_shader_generic_std_tf.vpc" [$TF]
 }
 
+// The Frontress menu's runtime and RmlUi; linked into the TF client.
+$Project "frontress_ui"
+{
+	"frontress_ui\frontress_ui.vpc" [$TF]
+}
+
 $Project "glview"
 {
 	"utils\glview\glview.vpc" [$WINDOWS]
