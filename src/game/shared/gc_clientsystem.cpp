@@ -124,7 +124,11 @@ ISteamHTTP* CGCClientSystem::GetSteamHTTP() const
 //-----------------------------------------------------------------------------
 bool CGCClientSystem::BSendMessage( uint32 unMsgType, const uint8 *pubData, uint32 cubData )
 {
+#if defined( TF_CLIENT_DLL ) || defined( TF_DLL )
+	return FrontressGC()->SendGCMessage( unMsgType, pubData, cubData ) == k_EGCResultOK;
+#else
 	return m_GCClient.BSendMessage( unMsgType, pubData, cubData );
+#endif
 }
 
 
@@ -133,16 +137,34 @@ bool CGCClientSystem::BSendMessage( uint32 unMsgType, const uint8 *pubData, uint
 //-----------------------------------------------------------------------------
 bool CGCClientSystem::BSendMessage( const GCSDK::CGCMsgBase& msg )									
 { 
+#if defined( TF_CLIENT_DLL ) || defined( TF_DLL )
+	return BSendMessage( msg.Hdr().m_eMsg, msg.PubPkt() + sizeof( GCMsgHdr_t ), msg.CubPkt() - sizeof( GCMsgHdr_t ) );
+#else
 	return m_GCClient.BSendMessage( msg ); 
+#endif
 }
 
 
 //-----------------------------------------------------------------------------
 // Purpose:
 //-----------------------------------------------------------------------------
-bool CGCClientSystem::BSendMessage( const GCSDK::CProtoBufMsgBase& msg )									
-{ 
+bool CGCClientSystem::BSendMessage( const GCSDK::CProtoBufMsgBase& msg )
+{
+#if defined( TF_CLIENT_DLL ) || defined( TF_DLL )
+	// The stock SDK's CGCClient send methods are stubs on some platforms.
+	// Keep its protobuf framing and send the bytes over our HTTP session.
+	class CFrontressSender : public CProtoBufMsgBase::IProtoBufSendHandler
+	{
+	public:
+		bool BAsyncSend( MsgType_t eMsg, const uint8 *pubData, uint32 cubData ) OVERRIDE
+		{
+			return FrontressGC()->SendGCMessage( eMsg | k_EMsgProtoBufFlag, pubData, cubData ) == k_EGCResultOK;
+		}
+	} sender;
+	return msg.BAsyncSend( sender );
+#else
 	return m_GCClient.BSendMessage( msg );
+#endif
 }
 
 #ifdef GAME_DLL
@@ -460,8 +482,7 @@ void CGCClientSystem::InitGC()
 		return;
 
 #if defined( TF_CLIENT_DLL ) || defined( TF_DLL )
-	// Our own game coordinator. Everything gcsdk sends goes through it, and
-	// everything the GC sends comes back into gcsdk through it.
+	// SDK builds with a working GC client can also send SDK-owned jobs.
 	m_GCClient.BInit( FrontressGC() );
 #else
 	m_GCClient.BInit( nullptr );
@@ -469,6 +490,21 @@ void CGCClientSystem::InitGC()
 	m_bInittedGC = true;
 }
 
+static void RunGCJobs( CGCClient &client, float frametime )
+{
+#if defined( TF_CLIENT_DLL ) || defined( TF_DLL )
+	// Stock SDK builds also stub BMainLoop. Pump the job manager so requests
+	// that yield (including reliable server messages) can resume and time out.
+	CLimitTimer limitTimer;
+	limitTimer.SetLimit( k_nThousand );
+	const int nFrameUS = (int)( frametime * k_nMillion );
+	CJobTime::UpdateJobTime( nFrameUS ? nFrameUS : 50 * k_nThousand );
+	client.GetJobMgr().BFrameFuncRunSleepingJobs( limitTimer );
+	client.GetJobMgr().BFrameFuncRunYieldingJobs( limitTimer );
+#else
+	client.BMainLoop( k_nThousand, (uint64)( frametime * k_nMillion ) );
+#endif
+}
 
 //-----------------------------------------------------------------------------
 #ifdef CLIENT_DLL
@@ -476,18 +512,14 @@ void CGCClientSystem::Update( float frametime )
 {
 	ThinkConnection();
 	if ( m_bInittedGC )
-	{
-		m_GCClient.BMainLoop( k_nThousand, (uint64)( frametime * 1000000.0f ) );
-	}
+		RunGCJobs( m_GCClient, frametime );
 }
 #else
 void CGCClientSystem::PreClientUpdate()	
 { 
 	ThinkConnection();
 	if ( m_bInittedGC )
-	{
-		m_GCClient.BMainLoop( k_nThousand, ( uint64 )( gpGlobals->frametime * 1000000.0f ) ); 	
-	}
+		RunGCJobs( m_GCClient, gpGlobals->frametime );
 }
 #endif
 

@@ -99,6 +99,7 @@
 	"fui_empty_slot": "Empty",
 	"fui_locker_hint": "Pick a slot on the left, then an item",
 	"fui_locker_inventory_loading": "Waiting for the TF2 inventory from Steam…",
+	"fui_locker_inventory_retrying": "Couldn't load the TF2 inventory from Steam. Retrying…",
 	"fui_locker_inventory_empty": "Steam returned an empty TF2 inventory for this account.",
 	"fui_locker_no_items": "No items match this slot and filter.",
 	"fui_locker_equip_failed": "This item could not be equipped in the selected slot.",

@@ -253,6 +253,7 @@ public:
 	// True only after ISDK/GetInventory supplied a genuine inventory subscription.
 	// A matchmaking-only SO cache must never make the backpack appear ready.
 	bool BValveInventoryReady() const { return m_WebapiInventory.m_bValveInventoryReady; }
+	bool BValveInventoryRetrying() const { return !BValveInventoryReady() && m_WebapiInventory.IsBackingOff(); }
 	// Where loading the TF2 inventory has got to (tf_inventory_status).
 	void PrintInventoryStatus() const;
 
@@ -352,6 +353,7 @@ private:
 		// Inventory request
 		HTTPRequestHandle m_hInventoryRequest = INVALID_HTTPREQUEST_HANDLE;
 		bool m_bValveInventoryReady = false; // not equivalent to BIsSubscribed()
+		double m_flRequestDeadline = 0.0;
 		CCallResult<CTFGCClientSystem, HTTPRequestCompleted_t> m_InventoryRequestCompleted;
 
 		// Server inventory -- they get a subset of our items that we allow
@@ -373,7 +375,7 @@ private:
 		int m_nBackoffSec = 0;
 		void Backoff();
 		void RequestSucceeded();	// resets backoff timers
-		bool IsBackingOff();
+		bool IsBackingOff() const;
 	};
 	WebapiInventoryState_t m_WebapiInventory;
 

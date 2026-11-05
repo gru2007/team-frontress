@@ -2,6 +2,52 @@
 
 #include "cbase.h"
 #include "tf_gc_shared.h"
+#include "gcsdk/webapi_response.h"
+
+bool DecodeTFInventoryCache( const CWebAPIValues &msg, CUtlBuffer &buffer )
+{
+	// Valve sends the serialized SO cache as a base64 JSON string.
+	if ( msg.GetType() == k_EWebAPIValueType_String )
+	{
+		CUtlString encoded;
+		msg.GetStringValue( encoded );
+		const uint32 cchEncoded = encoded.Length();
+		if ( !cchEncoded )
+			return false;
+
+		buffer.EnsureCapacity( cchEncoded );
+		uint32 cubDecoded = cchEncoded;
+		if ( !Base64Decode( encoded.Get(), cchEncoded, (uint8 *)buffer.Base(), &cubDecoded, false ) )
+			return false;
+
+		buffer.SeekPut( CUtlBuffer::SEEK_HEAD, cubDecoded );
+	}
+	else if ( msg.GetType() == k_EWebAPIValueType_BinaryBlob )
+	{
+		msg.GetBinaryValue( buffer );
+	}
+	else
+	{
+		return false;
+	}
+	return buffer.TellPut() > 0;
+}
+
+IJobReliableMessage::BYldSendMessageAndGetReply_t IJobReliableMessage::SendAndWaitForReply(
+	CProtoBufMsgBase &msg, CProtoBufMsgBase &reply, MsgType_t eReply )
+{
+	msg.ExpectingReply( GetJobID() );
+	if ( !GCClientSystem()->BSendMessage( msg ) )
+		return BYLDREPLY_SEND_FAILED;
+
+	SetJobTimeout( k_ReliableMsg_unReplyTimeoutSecs );
+	IMsgNetPacket *pPacket = nullptr;
+	if ( !BYieldingWaitForMsg( &pPacket ) )
+		return BYLDREPLY_TIMEOUT;
+
+	reply.InitFromPacket( pPacket );
+	return reply.GetEMsg() == eReply ? BYLDREPLY_SUCCESS : BYLDREPLY_MSG_TYPE_MISMATCH;
+}
 
 //-----------------------------------------------------------------------------
 void CReliableMessageQueue::Enqueue( IJobReliableMessage *pReliable )

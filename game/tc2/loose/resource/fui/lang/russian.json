@@ -99,6 +99,7 @@
 	"fui_empty_slot": "Пусто",
 	"fui_locker_hint": "Выберите ячейку слева, потом предмет",
 	"fui_locker_inventory_loading": "Ждём инвентарь TF2 от Steam…",
+	"fui_locker_inventory_retrying": "Не удалось загрузить инвентарь TF2. Повторяем запрос к Steam…",
 	"fui_locker_inventory_empty": "Steam вернул пустой инвентарь TF2 для этого аккаунта.",
 	"fui_locker_no_items": "Для этой ячейки и фильтра нет предметов.",
 	"fui_locker_equip_failed": "Не удалось экипировать предмет в выбранную ячейку.",

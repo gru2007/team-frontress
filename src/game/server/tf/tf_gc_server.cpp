@@ -40,6 +40,7 @@
 #include "team.h"
 #include "util_shared.h"
 #include "workshop/maps_workshop.h"
+#include <memory>
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -4679,7 +4680,7 @@ void CTFGCServerSystem::OnWebapiEquipmentReceived( CSteamID steamID, HTTPRequest
 	SteamGameServerHTTP()->ReleaseHTTPRequest( pInfo->m_hRequest );
 
 	// Parse it to json and extract the data
-	GCSDK::CWebAPIValues* pValues = GCSDK::CWebAPIValues::ParseJSON( bufInventory );
+	std::unique_ptr<GCSDK::CWebAPIValues> pValues( GCSDK::CWebAPIValues::ParseJSON( bufInventory ) );
 	if ( !pValues )
 	{
 		Warning( "Received invalid response to inventory request\n" );
@@ -4731,10 +4732,10 @@ void CTFGCServerSystem::OnWebapiEquipmentReceived( CSteamID steamID, HTTPRequest
 		return;
 	}
 
-	if ( pValues->FindChild( "msg" ) )
+	if ( const CWebAPIValues *pMsg = pValues->FindChild( "msg" ) )
 	{
 		CUtlBuffer bufMsgSubscription;
-		if ( !pValues->BGetChildBinaryValue( bufMsgSubscription, "msg" ) )
+		if ( !DecodeTFInventoryCache( *pMsg, bufMsgSubscription ) )
 		{
 			Warning( "Equipment response failed to extract inventory msg\n" );
 			return;
@@ -4756,6 +4757,7 @@ void CTFGCServerSystem::OnWebapiEquipmentReceived( CSteamID steamID, HTTPRequest
 	{
 		// this is a weird response, the server doesn't currently send socache versions and yet we didn't get the result
 		Warning( "Inventory response missing inventory msg\n" );
+		return;
 	}
 
 	// We were successful, clear backoff timers

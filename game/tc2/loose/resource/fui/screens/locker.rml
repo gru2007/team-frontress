@@ -57,7 +57,8 @@
 
 			<div id="grid">
 				<div class="dim small" data-if="locker.count == 0">
-					<span data-if="!locker.inventory_ready">#fui_locker_inventory_loading</span>
+					<span data-if="!locker.inventory_ready && !locker.inventory_retrying">#fui_locker_inventory_loading</span>
+					<span data-if="locker.inventory_retrying">#fui_locker_inventory_retrying</span>
 					<span data-if="locker.inventory_ready && locker.inventory_count == 0">#fui_locker_inventory_empty</span>
 					<span data-if="locker.inventory_ready && locker.inventory_count > 0">#fui_locker_no_items</span>
 				</div>

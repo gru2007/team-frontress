@@ -14,6 +14,9 @@
 
 using namespace GCSDK;
 
+namespace GCSDK { class CWebAPIValues; }
+bool DecodeTFInventoryCache( const GCSDK::CWebAPIValues &msg, CUtlBuffer &buffer );
+
 class IJobReliableMessage; // Defined below
 
 #define MMLog(...) do { ::Msg( __VA_ARGS__ ); } while(false)
@@ -73,6 +76,7 @@ protected:
 	void SetStalled() { Queue().OnReliableMessageStalled( this ); }
 
 	CReliableMessageQueue &Queue() { return *m_pQueue; }
+	BYldSendMessageAndGetReply_t SendAndWaitForReply( CProtoBufMsgBase &msg, CProtoBufMsgBase &reply, MsgType_t eReply );
 
 private:
 	// Should only be called by the queue in question
@@ -128,9 +132,7 @@ public:
 			double flTimeStart = Plat_FloatTime();
 			if ( GCClientSystem()->BConnectedtoGC() )
 			{
-				BYldSendMessageAndGetReply_t result = BYldSendMessageAndGetReplyEx( m_msg,
-				                                                                    k_ReliableMsg_unReplyTimeoutSecs,
-				                                                                    &m_msgReply, E_REPLY_TYPE );
+				BYldSendMessageAndGetReply_t result = SendAndWaitForReply( m_msg, m_msgReply, E_REPLY_TYPE );
 
 				switch ( result )
 				{

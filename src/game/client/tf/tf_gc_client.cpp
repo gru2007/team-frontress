@@ -45,6 +45,7 @@
 #include "filesystem.h"
 #include "steam/isteamuser.h"
 #include "mini_sha256.h"
+#include <memory>
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -61,6 +62,7 @@ ConVar tf_mm_debug_level( "tf_mm_debug_level", "4" );
 
 
 static ConVar mod_inventory_request_timeout( "mod_inventory_request_timeout", "300", FCVAR_NONE, "Seconds to wait for TF inventory before assuming failure" );
+static constexpr double k_flInventoryTicketTimeout = 15.0;
 
 
 using namespace GCSDK;
@@ -369,7 +371,7 @@ void CTFGCClientSystem::WebapiInventoryState_t::RequestSucceeded()
 	m_nBackoffSec = 0;
 }
 
-bool CTFGCClientSystem::WebapiInventoryState_t::IsBackingOff()
+bool CTFGCClientSystem::WebapiInventoryState_t::IsBackingOff() const
 {
 	return m_rtNextRequest != 0 && CRTime::RTime32TimeCur() <= m_rtNextRequest;
 }
@@ -407,10 +409,16 @@ void CTFGCClientSystem::WebapiInventoryThink()
 		}
 
 		state.m_eState = kWebapiInventoryState_WaitingForAuthToken;
+		state.m_flRequestDeadline = Plat_FloatTime() + k_flInventoryTicketTimeout;
 		break;
 
 	case kWebapiInventoryState_WaitingForAuthToken:
-		// Nothing to do until we get the steam callback; that will advance us to AuthTokenReceived
+		if ( Plat_FloatTime() >= state.m_flRequestDeadline )
+		{
+			Warning( "[inventory] Steam did not answer the web API ticket request; retrying.\n" );
+			state.m_eState = kWebapiInventoryState_RequestAuthToken;
+			state.Backoff();
+		}
 		break;
 
 	case kWebapiInventoryState_AuthTokenReceived:
@@ -429,7 +437,7 @@ void CTFGCClientSystem::WebapiInventoryThink()
 		state.m_hInventoryRequest = SteamHTTP()->CreateHTTPRequest( k_EHTTPMethodGET, strUrl.Get() );
 		if ( state.m_hInventoryRequest == INVALID_HTTPREQUEST_HANDLE )
 		{
-			// try again next frame
+			state.Backoff();
 			return;
 		}
 
@@ -458,10 +466,9 @@ void CTFGCClientSystem::WebapiInventoryThink()
 		}
 
 		// Wait a long time for this, api might be slow / inventories are large
-		if ( mod_inventory_request_timeout.GetInt() > 0 )
-		{
-			SteamHTTP()->SetHTTPRequestNetworkActivityTimeout( state.m_hInventoryRequest, mod_inventory_request_timeout.GetInt() );
-		}
+		const int nTimeoutSec = mod_inventory_request_timeout.GetInt();
+		if ( nTimeoutSec > 0 )
+			SteamHTTP()->SetHTTPRequestNetworkActivityTimeout( state.m_hInventoryRequest, nTimeoutSec );
 
 		SteamAPICall_t callResult;
 		if ( !SteamHTTP()->SendHTTPRequest( state.m_hInventoryRequest, &callResult ) )
@@ -475,10 +482,20 @@ void CTFGCClientSystem::WebapiInventoryThink()
 
 		state.m_InventoryRequestCompleted.Set( callResult, this, &CTFGCClientSystem::OnWebapiInventoryReceived );
 		state.m_eState = kWebapiInventoryState_WaitingForInventory;
+		state.m_flRequestDeadline = nTimeoutSec > 0 ? Plat_FloatTime() + nTimeoutSec : 0.0;
 		break;
 	}
 	case kWebapiInventoryState_WaitingForInventory:
-		// nothing to do while we wait for http request.  that will advance us to the next state
+		if ( state.m_flRequestDeadline > 0.0 && Plat_FloatTime() >= state.m_flRequestDeadline )
+		{
+			Warning( "[inventory] Steam did not complete the inventory HTTP request; retrying.\n" );
+			state.m_InventoryRequestCompleted.Cancel();
+			if ( SteamHTTP() )
+				SteamHTTP()->ReleaseHTTPRequest( state.m_hInventoryRequest );
+			state.m_hInventoryRequest = INVALID_HTTPREQUEST_HANDLE;
+			state.m_eState = kWebapiInventoryState_RequestAuthToken;
+			state.Backoff();
+		}
 		break;
 
 	case kWebapiInventoryState_InventoryReceived:
@@ -576,8 +593,17 @@ void CTFGCClientSystem::WebapiInventoryThink()
 		V_binarytohex( digest + V_ARRAYSIZE( digest ) - knHashBytesToUse, knHashBytesToUse, strDigest, V_ARRAYSIZE( strDigest ) );
 
 		// Request the auth ticket from steam and wait for it to arrive.
+		if ( state.m_hServerAuthTicket != k_HAuthTicketInvalid )
+			SteamUser()->CancelAuthTicket( state.m_hServerAuthTicket );
 		state.m_hServerAuthTicket = SteamUser()->GetAuthTicketForWebApi( strDigest );
+		if ( state.m_hServerAuthTicket == k_HAuthTicketInvalid )
+		{
+			Warning( "[inventory] Steam would not issue a server equipment ticket; retrying.\n" );
+			state.Backoff();
+			return;
+		}
 		state.m_eState = kWebapiInventoryState_WaitingForServerAuthToken;
+		state.m_flRequestDeadline = Plat_FloatTime() + k_flInventoryTicketTimeout;
 		break;
 	}
 
@@ -589,7 +615,12 @@ void CTFGCClientSystem::WebapiInventoryThink()
 			return;
 		}
 
-		// Nothing else to do until we get the steam callback; that will advance us to ServerAuthTokenReceived
+		if ( Plat_FloatTime() >= state.m_flRequestDeadline )
+		{
+			Warning( "[inventory] Steam did not answer the server equipment ticket request; retrying.\n" );
+			state.m_eState = kWebapiInventoryState_RequestServerAuthToken;
+			state.Backoff();
+		}
 		break;
 
 	case kWebapiInventoryState_ServerAuthTokenReceived:
@@ -719,7 +750,7 @@ void CTFGCClientSystem::OnWebapiAuthTicketReceived( GetTicketForWebApiResponse_t
 	}
 
 	// Validate the token makes sense
-	if ( pInfo->m_cubTicket < 0 || pInfo->m_cubTicket > pInfo->k_nCubTicketMaxLength )
+	if ( pInfo->m_cubTicket <= 0 || pInfo->m_cubTicket > pInfo->k_nCubTicketMaxLength )
 	{
 		Warning( "[inventory] Steam's web API ticket is malformed; retrying.\n" );
 		return;
@@ -829,7 +860,7 @@ void CTFGCClientSystem::OnWebapiInventoryReceived( HTTPRequestCompleted_t* pInfo
 	SteamHTTP()->ReleaseHTTPRequest( pInfo->m_hRequest );
 
 	// Parse it to json and extract the data
-	GCSDK::CWebAPIValues* pValues = GCSDK::CWebAPIValues::ParseJSON( bufInventory );
+	std::unique_ptr<GCSDK::CWebAPIValues> pValues( GCSDK::CWebAPIValues::ParseJSON( bufInventory ) );
 	if ( !pValues )
 	{
 		Warning( "Received invalid response to inventory request\n" );
@@ -874,12 +905,12 @@ void CTFGCClientSystem::OnWebapiInventoryReceived( HTTPRequestCompleted_t* pInfo
 		return;
 	}
 
-	if ( pValues->FindChild( "msg" ) )
+	if ( const CWebAPIValues *pMsg = pValues->FindChild( "msg" ) )
 	{
 		CUtlBuffer bufMsgSubscription;
-		if ( !pValues->BGetChildBinaryValue( bufMsgSubscription, "msg" ) )
+		if ( !DecodeTFInventoryCache( *pMsg, bufMsgSubscription ) )
 		{
-			Warning( "Inventory response missing inventory\n" );
+			Warning( "[inventory] Invalid SO cache in Valve response; retrying.\n" );
 			return;
 		}
 
@@ -1001,10 +1032,10 @@ void CTFGCClientSystem::PrintInventoryStatus() const
 		"waiting for server auth token", "server auth token received", "sent to server" };
 	const WebapiInventoryState_t &state = m_WebapiInventory;
 	const int iState = (int)state.m_eState;
-	Msg( "[inventory] %s; Valve inventory %s; backing off: %s\n",
+	Msg( "[inventory] app %u, %s; Valve inventory %s; backing off: %s\n", engine->GetAppID(),
 		iState >= 0 && iState < (int)ARRAYSIZE( s_States ) ? s_States[ iState ] : "?",
 		state.m_bValveInventoryReady ? "loaded" : "not loaded",
-		const_cast< WebapiInventoryState_t & >( state ).IsBackingOff() ? "yes" : "no" );
+		state.IsBackingOff() ? "yes" : "no" );
 	CTFPlayerInventory *pInv = TFInventoryManager() ? TFInventoryManager()->GetLocalTFInventory() : NULL;
 	int nPainted = 0, nUnusual = 0;
 	for ( int i = 0; pInv && i < pInv->GetItemCount(); ++i )

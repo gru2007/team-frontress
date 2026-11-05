@@ -752,6 +752,7 @@ void CFuiTF::Impl::RefreshLocker()
 	pRuntime->Set( "ui.pick", Node( iNewPick ) );
 	pRuntime->Set( "locker.slot_label", Node( pRuntime->Translate( std::string( "fui_slot_" ) + current.pszKind ) ) );
 	pRuntime->Set( "locker.inventory_ready", Node( GTFGCClientSystem()->BValveInventoryReady() ) );
+	pRuntime->Set( "locker.inventory_retrying", Node( GTFGCClientSystem()->BValveInventoryRetrying() ) );
 	pRuntime->Set( "locker.inventory_count", Node( pInventory->GetItemCount() ) );
 	pRuntime->Set( "locker.equipped", std::move( equipped ) );
 	pRuntime->Set( "locker.count", Node( (int)view.Size() ) );

@@ -59,7 +59,7 @@
 	// The settings window: the HUDs installed (resource/fui/huds) and the one in use.
 	"settings": { "menu_3d": true, "hud_style": "auto", "huds": [ "auto" ] },
 	"locker": {
-		"slot_label": "", "inventory_ready": false, "inventory_count": 0,
+		"slot_label": "", "inventory_ready": false, "inventory_retrying": false, "inventory_count": 0,
 		"classes": [
 			{ "id": "scout", "name": "#fui_class_scout" }, { "id": "soldier", "name": "#fui_class_soldier" },
 			{ "id": "pyro", "name": "#fui_class_pyro" }, { "id": "demoman", "name": "#fui_class_demoman" },
