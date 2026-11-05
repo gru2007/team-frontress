@@ -56,7 +56,7 @@ var DefaultPrices = map[string]Prices{
 	"USD": {Once: []int64{199, 499, 999, 2499}, Monthly: []int64{299, 999}},
 	"EUR": {Once: []int64{199, 499, 999, 2499}, Monthly: []int64{299, 999}},
 	"GBP": {Once: []int64{179, 449, 899, 1999}, Monthly: []int64{249, 899}},
-	"RUB": {Once: []int64{14900, 39900, 79900, 199000}, Monthly: []int64{24900, 79900}},
+	"RUB": {Once: []int64{2000, 39900, 79900, 199000}, Monthly: []int64{2000, 79900}},
 	"UAH": {Once: []int64{8000, 20000, 40000, 100000}, Monthly: []int64{10000, 40000}},
 	"KZT": {Once: []int64{100000, 250000, 500000, 1200000}, Monthly: []int64{150000, 500000}},
 	"PLN": {Once: []int64{799, 1999, 3999, 9999}, Monthly: []int64{1199, 3999}},
