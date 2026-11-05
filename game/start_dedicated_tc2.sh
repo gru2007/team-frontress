@@ -34,7 +34,16 @@ case " $* " in
   *" +sv_pure "*) PURE_DEFAULT=() ;;
 esac
 
-./tc2.sh -console -dedicated -nosteamclient -gatherdedi "$@" "${PURE_DEFAULT[@]}"
+# Submit the Steam account token before the first map, not from the map config.
+STEAM_ACCOUNT=()
+if [ -n "${GSLT:-}" ]; then
+    case " $* " in
+        *" +sv_setsteamaccount "*) ;;
+        *) STEAM_ACCOUNT=(+sv_setsteamaccount "$GSLT") ;;
+    esac
+fi
+
+./tc2.sh -console -dedicated -nosteamclient -gatherdedi "${STEAM_ACCOUNT[@]}" "$@" "${PURE_DEFAULT[@]}"
 
 mv tc2/gameinfo_client.txt tc2/gameinfo.txt
 

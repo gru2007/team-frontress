@@ -55,7 +55,7 @@ class CMatchInfo
 {
 	friend class CTFGCServerSystem;
 public:
-	CMatchInfo( const CTFGSLobby *pLobby );
+	CMatchInfo( const CTFGSLobby *pLobby, bool bAssignedByFrontressGC );
 	~CMatchInfo();
 
 	uint64 m_nMatchID;
@@ -281,6 +281,7 @@ public:
 	// just roll into the next one, since "ended" matches indicate that we've terminated our relationship with the
 	// players/GC.
 	bool BMatchTerminated() const { return m_bMatchEnded; }
+	bool BAssignedByFrontressGC() const { return m_bAssignedByFrontressGC; }
 
 	// Indicates we've sent a result for this match. The match may still be active if we're intending to use it to start
 	// a rolling match or other post-game activities.
@@ -315,6 +316,8 @@ protected:
 	float NormalDistributionCDF( float flValue, float flMu, float flSigma );
 
 private:
+	const bool m_bAssignedByFrontressGC = false;
+
 	CMatchInfo();
 	CMatchInfo( const CMatchInfo &otherinfo );
 

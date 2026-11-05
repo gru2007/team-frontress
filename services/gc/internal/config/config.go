@@ -156,7 +156,8 @@ type MatchGroupConfig struct {
 	// Modes pulls in every stock map of those modes; Maps adds more.
 	Modes []string `json:"modes,omitempty"`
 	Maps  []string `json:"maps"`
-	// ServerConfig is exec'd by on-demand servers for this group.
+	// ServerConfig is retained for existing configs. Pooled game servers
+	// choose their own cfg based on MatchGroup and map.
 	ServerConfig string `json:"server_config"`
 	// Region, if set, only uses servers of that region.
 	Region string `json:"region,omitempty"`

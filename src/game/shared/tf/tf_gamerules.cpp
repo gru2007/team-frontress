@@ -2812,7 +2812,7 @@ void CTFGameRules::ManageCompetitiveMode( void )
 	if ( IsEmulatingMatch() )
 		return;
 	
-	if ( !IsCompetitiveMode() )
+	if ( !IsCompetitiveMode() || IsManagedMatchEnded() )
 		return;
 
 	// Bring this back when we ship?
@@ -2824,8 +2824,10 @@ void CTFGameRules::ManageCompetitiveMode( void )
 // 							  !HaveCheatsBeenEnabledDuringLevel();
 // 	}
 
-	// We lost trusted status
-	if ( !tf_mm_trusted.GetBool() )
+	// An authenticated Frontress assignment stays valid across map changes
+	// and coordinator reconnects. Valve's flag applies to its own matches.
+	const CMatchInfo *pMatch = GTFGCClientSystem()->GetMatch();
+	if ( !tf_mm_trusted.GetBool() && !( pMatch && pMatch->BAssignedByFrontressGC() ) )
 	{
 		m_nMatchGroupType.Set( k_eTFMatchGroup_Invalid );
 		StopCompetitiveMatch( CMsgGC_Match_Result_Status_MATCH_FAILED_TRUSTED );

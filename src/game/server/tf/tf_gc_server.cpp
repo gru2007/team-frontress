@@ -40,6 +40,7 @@
 #include "team.h"
 #include "util_shared.h"
 #include "workshop/maps_workshop.h"
+#include "frontress_gc.h"
 #include <memory>
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -474,7 +475,7 @@ void CMvMVictoryInfo::Init ( CTFGSLobby *pLobby )
 //-----------------------------------------------------------------------------
 // CCompetitiveMatchInfo
 //-----------------------------------------------------------------------------
-CMatchInfo::CMatchInfo( const CTFGSLobby *pLobby )
+CMatchInfo::CMatchInfo( const CTFGSLobby *pLobby, bool bAssignedByFrontressGC )
 	: m_nMatchID( pLobby->GetMatchID() )
 	, m_nLobbyID( pLobby->GetGroupID() )
 	, m_eMatchGroup( pLobby->GetMatchGroup() )
@@ -488,6 +489,7 @@ CMatchInfo::CMatchInfo( const CTFGSLobby *pLobby )
 	, m_bAwaitingMatchID( false )
 	, m_nPreviousMatchID( 0u )
 	, m_nNextMatchID( 0u )
+	, m_bAssignedByFrontressGC( bAssignedByFrontressGC )
 	, m_strMapName( pLobby->GetMapName() )
 	, m_bMatchEnded( false )
 	, m_bSentResult( false )
@@ -2627,13 +2629,17 @@ void CTFGCServerSystem::SOCreated( const CSteamID & steamIDOwner, const GCSDK::C
 				AbortInvalidMatchState();
 			}
 
-			m_pMatchInfo = new CMatchInfo( pLobby );
+			m_pMatchInfo = new CMatchInfo( pLobby, FrontressGC()->BConnected() );
+			MMLog( "Starting managed match %llu, group %d, Frontress assignment %d, Valve trusted %d\n",
+				(unsigned long long)pLobby->GetMatchID(), eMatchGroup,
+				m_pMatchInfo->BAssignedByFrontressGC(), tf_mm_trusted.GetBool() );
 			GTFGCClientSystem()->DumpLobby();
 
-			if ( eMatchGroup == ETFMatchGroup::k_eTFMatchGroup_Invalid ||
-				 !GetMatchGroupDescription( eMatchGroup )->InitServerSettingsForMatch( pConstLobby ) )
+			const IMatchGroupDescription *pMatchDesc = GetMatchGroupDescription( eMatchGroup );
+			if ( !pMatchDesc || !pMatchDesc->InitServerSettingsForMatch( pConstLobby ) )
 			{
 				AbortInvalidMatchState();
+				return;
 			}
 
 			// FIXME We should have some version checking like this.
@@ -2997,7 +3003,7 @@ bool CTFGCServerSystem::SteamIDAllowedToConnect(const CSteamID &steamID) const
 
 	// If we don't have a match, nobody can join
 	const CMatchInfo *pMatchInfo = GetMatch();
-	if ( !pMatchInfo )
+	if ( !pMatchInfo || pMatchInfo->BMatchTerminated() )
 	{
 		return false;
 	}
@@ -4038,7 +4044,7 @@ void CTFGCServerSystem::SendRejectLobby()
 	if ( GetLobby() )
 	{
 		msg.set_lobby_id( GetLobby()->GetGroupID() );
-		msg.set_lobby_id( GetLobby()->GetMatchID() );
+		msg.set_match_id( GetLobby()->GetMatchID() );
 	}
 
 	ReliableMsgQueue().Enqueue( pReliable );
@@ -4241,7 +4247,7 @@ void CTFGCServerSystem::LaunchNewMatchForLobby()
 
 	m_flWaitingForNewMatchTime = 0.f;
 
-	CMatchInfo* pNewMatchInfo = new CMatchInfo( pLobby );
+	CMatchInfo* pNewMatchInfo = new CMatchInfo( pLobby, m_pMatchInfo->BAssignedByFrontressGC() );
 	// Track that we are a chained match.
 	pNewMatchInfo->m_nPreviousMatchID = m_pMatchInfo->m_nMatchID;
 	// The old match info is holding the vote-winning map name
@@ -4346,8 +4352,8 @@ void CTFGCServerSystem::LaunchNewMatchForLobby()
 
 	GTFGCClientSystem()->DumpLobby();
 
-	if ( eMatchGroup == ETFMatchGroup::k_eTFMatchGroup_Invalid ||
-		!GetMatchGroupDescription( eMatchGroup )->InitServerSettingsForMatch( pLobby ) )
+	const IMatchGroupDescription *pMatchDesc = GetMatchGroupDescription( eMatchGroup );
+	if ( !pMatchDesc || !pMatchDesc->InitServerSettingsForMatch( pLobby ) )
 	{
 		AbortInvalidMatchState();
 	}
