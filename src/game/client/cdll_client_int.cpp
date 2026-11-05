@@ -960,6 +960,12 @@ ISourceVirtualReality *g_pSourceVR = NULL;
 //-----------------------------------------------------------------------------
 int CHLClient::Init( CreateInterfaceFn appSystemFactory, CreateInterfaceFn physicsFactory, CGlobalVarsBase *pGlobals )
 {
+#ifdef TF_CLIENT_DLL
+	// Frontress draws a client-only stage; never start a listen server for it.
+	if ( !CommandLine()->CheckParm( "-nobackgroundlevel" ) )
+		CommandLine()->AppendParm( "-nobackgroundlevel", NULL );
+#endif
+
 	InitCRTMemDebug();
 	MathLib_Init( 2.2f, 2.2f, 0.0f, 2.0f );
 

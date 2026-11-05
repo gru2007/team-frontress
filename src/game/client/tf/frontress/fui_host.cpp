@@ -65,10 +65,9 @@ static int s_iClassAtSelect = 0;	// the local class when class select opened
 class CFuiTextureBits : public ITextureRegenerator
 {
 public:
-	CFuiTextureBits( const uint8 *pRGBA, int w, int h ) : m_nWide( w ), m_nTall( h )
-	{
-		m_Pixels.CopyArray( pRGBA, w * h * 4 );
-	}
+	CFuiTextureBits( const uint8 *pRGBA, int w, int h ) : m_nWide( w ), m_nTall( h ) { Update( pRGBA ); }
+
+	void Update( const uint8 *pRGBA ) { m_Pixels.CopyArray( pRGBA, m_nWide * m_nTall * 4 ); }
 
 	virtual void RegenerateTextureBits( ITexture *pTexture, IVTFTexture *pVTFTexture, Rect_t *pRect ) OVERRIDE
 	{
@@ -92,6 +91,8 @@ public:
 		ITexture *pTexture;			// NULL for a game texture we only reference by name
 		IMaterial *pMaterial;
 		CFuiTextureBits *pBits;
+		int w, h;
+		bool bRepeat;
 		float uv[ 4 ];				// the part of it to draw: s0 t0 s1 t1
 	};
 
@@ -108,6 +109,9 @@ public:
 		FOR_EACH_MAP_FAST( m_Textures, i )
 			Free( m_Textures[ i ] );
 		m_Textures.RemoveAll();
+		FOR_EACH_VEC( m_FreeTextures, i )
+			Free( m_FreeTextures[ i ] );
+		m_FreeTextures.RemoveAll();
 		m_White = 0;
 	}
 
@@ -123,6 +127,21 @@ public:
 			return 0;
 
 		char szTexture[ 64 ], szMaterial[ 64 ];
+		// Source interns texture and material names permanently. Reuse freed
+		// procedural textures when decorators are rebuilt during animation.
+		FOR_EACH_VEC( m_FreeTextures, i )
+		{
+			const Texture_t &slot = m_FreeTextures[ i ];
+			if ( slot.w != w || slot.h != h || slot.bRepeat != bRepeat )
+				continue;
+			Texture_t texture = slot;
+			m_FreeTextures.FastRemove( i );
+			texture.pBits->Update( pRGBA );
+			texture.pTexture->Download();
+			const uintptr_t id = m_nNextID++;
+			m_Textures.Insert( id, texture );
+			return id;
+		}
 		const int n = m_nNextName++;
 		V_snprintf( szTexture, sizeof( szTexture ), "_fui/tex%d", n );
 		V_snprintf( szMaterial, sizeof( szMaterial ), "_fui/mat%d", n );
@@ -138,7 +157,7 @@ public:
 		pTexture->SetTextureRegenerator( pBits );
 		pTexture->Download();
 
-		Texture_t texture = { pTexture, MakeMaterial( szMaterial, szTexture ), pBits, { 0, 0, 1, 1 } };
+		Texture_t texture = { pTexture, MakeMaterial( szMaterial, szTexture ), pBits, w, h, bRepeat, { 0, 0, 1, 1 } };
 		const uintptr_t id = m_nNextID++;
 		m_Textures.Insert( id, texture );
 		return id;
@@ -160,11 +179,11 @@ public:
 			if ( !pTexture || pTexture->IsError() )
 				return 0;
 
-			char szMaterial[ 64 ];
-			V_snprintf( szMaterial, sizeof( szMaterial ), "_fui/mat%d", m_nNextName++ );
+			char szMaterial[ MAX_PATH + 16 ];
+			V_snprintf( szMaterial, sizeof( szMaterial ), "_fui/named/%s", strName.Get() );
 			w = pTexture->GetActualWidth();
 			h = pTexture->GetActualHeight();
-			Texture_t texture = { NULL, MakeMaterial( szMaterial, strName ), NULL, { 0, 0, 1, 1 } };
+			Texture_t texture = { NULL, MakeMaterial( szMaterial, strName ), NULL, 0, 0, false, { 0, 0, 1, 1 } };
 			const uintptr_t id = m_nNextID++;
 			m_Textures.Insert( id, texture );
 			return id;
@@ -191,11 +210,11 @@ public:
 			if ( !pTexture || pTexture->IsError() )
 				return 0;
 			const float tw = (float)pTexture->GetMappingWidth(), th = (float)pTexture->GetMappingHeight();
-			char szMaterial[ 64 ];
-			V_snprintf( szMaterial, sizeof( szMaterial ), "_fui/mat%d", m_nNextName++ );
+			char szMaterial[ MAX_PATH + 16 ];
+			V_snprintf( szMaterial, sizeof( szMaterial ), "_fui/named/%s", strName.Get() );
 			w = pIcon->rc.right - pIcon->rc.left;
 			h = pIcon->rc.bottom - pIcon->rc.top;
-			Texture_t texture = { NULL, MakeMaterial( szMaterial, strName ), NULL,
+			Texture_t texture = { NULL, MakeMaterial( szMaterial, strName ), NULL, 0, 0, false,
 				{ pIcon->rc.left / tw, pIcon->rc.top / th, pIcon->rc.right / tw, pIcon->rc.bottom / th } };
 			const uintptr_t id = m_nNextID++;
 			m_Textures.Insert( id, texture );
@@ -225,16 +244,20 @@ public:
 
 	virtual void ReleaseTexture( uintptr_t texture ) OVERRIDE
 	{
-		const unsigned short i = m_Textures.Find( texture );
+		const auto i = m_Textures.Find( texture );
 		if ( i == m_Textures.InvalidIndex() )
 			return;
-		Free( m_Textures[ i ] );
+		Texture_t &slot = m_Textures[ i ];
+		if ( slot.pBits )
+			m_FreeTextures.AddToTail( slot );
+		else
+			Free( slot );
 		m_Textures.RemoveAt( i );
 	}
 
 	virtual void DrawTriangles( const fui::DrawVertex *pVerts, int nVerts, const int *pIndices, int nIndices, uintptr_t texture ) OVERRIDE
 	{
-		const unsigned short i = m_Textures.Find( texture ? texture : m_White );
+		const auto i = m_Textures.Find( texture ? texture : m_White );
 		if ( i == m_Textures.InvalidIndex() || !m_Textures[ i ].pMaterial || nVerts <= 0 || nIndices <= 0 )
 			return;
 
@@ -279,7 +302,7 @@ private:
 		pVMT->SetInt( "$ignorez", 1 );
 		pVMT->SetInt( "$nocull", 1 );
 		pVMT->SetInt( "$nofog", 1 );
-		IMaterial *pMaterial = materials->CreateMaterial( pszName, pVMT );
+		IMaterial *pMaterial = materials->FindProceduralMaterial( pszName, TEXTURE_GROUP_VGUI, pVMT );
 		if ( pMaterial )
 			pMaterial->IncrementReferenceCount();
 		return pMaterial;
@@ -301,7 +324,8 @@ private:
 		delete texture.pBits;
 	}
 
-	CUtlMap< uintptr_t, Texture_t > m_Textures{ DefLessFunc( uintptr_t ) };
+	CUtlVector< Texture_t > m_FreeTextures;
+	CUtlMap< uintptr_t, Texture_t, int > m_Textures{ DefLessFunc( uintptr_t ) };
 	uintptr_t m_nNextID;
 	int m_nNextName;
 	int m_nOffsetX, m_nOffsetY;
@@ -468,7 +492,8 @@ public:
 		}
 		// Above the matchmaking dashboard and anything else that pops up on
 		// the menu; the 3D characters directly underneath.
-		if ( !FuiYielding( GetVPanel() ) )
+		const bool bYield = FuiYielding( GetVPanel() );
+		if ( !bYield )
 		{
 			FuiStageRaise( s_pStage );
 			MoveToFront();
@@ -477,7 +502,7 @@ public:
 		// Keys only while a text field has focus, so the console key and the
 		// game's own bindings keep working everywhere else.
 		Rml::Element *pFocus = m_pRuntime->Context() ? m_pRuntime->Context()->GetFocusElement() : NULL;
-		const bool bTyping = ( pFocus && pFocus->GetTagName() == "input" ) || s_bClassSelect;
+		const bool bTyping = !bYield && IsMouseInputEnabled() && ( ( pFocus && pFocus->GetTagName() == "input" ) || s_bClassSelect );
 		if ( bTyping != IsKeyBoardInputEnabled() )
 		{
 			SetKeyBoardInputEnabled( bTyping );
@@ -584,8 +609,14 @@ CON_COMMAND( fui_dev_hide, "fui_dev_hide <panel>: close a viewport panel, e.g. i
 // UI opens one, the popups that appear are "theirs", and while any of them
 // is up the UI stays where it is.
 //-----------------------------------------------------------------------------
-static CUtlVector< vgui::VPANEL > s_PopupsBefore, s_Foreign;
+static CUtlVector< vgui::HPanel > s_PopupsBefore, s_Foreign;
 static double s_flWatchUntil = 0.0;
+
+static bool FuiInteractivePopup( vgui::VPANEL popup )
+{
+	return popup && vgui::ipanel()->IsFullyVisible( popup ) &&
+		( vgui::ipanel()->IsMouseInputEnabled( popup ) || vgui::ipanel()->IsKeyBoardInputEnabled( popup ) );
+}
 
 void FrontressUIYield()
 {
@@ -593,35 +624,40 @@ void FrontressUIYield()
 	for ( int i = 0; i < vgui::surface()->GetPopupCount(); ++i )
 	{
 		const vgui::VPANEL popup = vgui::surface()->GetPopup( i );
-		if ( popup && vgui::ipanel()->IsVisible( popup ) )
-			s_PopupsBefore.AddToTail( popup );
+		if ( FuiInteractivePopup( popup ) )
+			s_PopupsBefore.AddToTail( vgui::ivgui()->PanelToHandle( popup ) );
 	}
-	s_flWatchUntil = Plat_FloatTime() + 3.0;
+	s_flWatchUntil = Plat_FloatTime() + 1.0;
 }
 
 static bool FuiYielding( vgui::VPANEL self )
 {
-	if ( Plat_FloatTime() < s_flWatchUntil )
+	const vgui::VPANEL modal = vgui::input()->GetAppModalSurface();
+	bool bYield = modal && modal != self;
+	for ( int i = 0; i < vgui::surface()->GetPopupCount(); ++i )
 	{
-		for ( int i = 0; i < vgui::surface()->GetPopupCount(); ++i )
+		const vgui::VPANEL popup = vgui::surface()->GetPopup( i );
+		if ( popup == self || !FuiInteractivePopup( popup ) )
+			continue;
+		// The console may also be opened by its key binding.
+		if ( !V_stricmp( vgui::ipanel()->GetName( popup ), "GameConsole" ) )
+			bYield = true;
+		if ( Plat_FloatTime() < s_flWatchUntil )
 		{
-			const vgui::VPANEL popup = vgui::surface()->GetPopup( i );
-			if ( popup && popup != self && vgui::ipanel()->IsVisible( popup ) && !s_PopupsBefore.HasElement( popup ) && !s_Foreign.HasElement( popup ) )
-				s_Foreign.AddToTail( popup );
+			const vgui::HPanel h = vgui::ivgui()->PanelToHandle( popup );
+			if ( !s_PopupsBefore.HasElement( h ) && !s_Foreign.HasElement( h ) )
+				s_Foreign.AddToTail( h );
 		}
 	}
-	bool bAny = false;
 	for ( int i = s_Foreign.Count() - 1; i >= 0; --i )
 	{
-		if ( !vgui::ipanel()->IsVisible( s_Foreign[ i ] ) )
-		{
-			if ( Plat_FloatTime() >= s_flWatchUntil )
-				s_Foreign.Remove( i );
-			continue;
-		}
-		bAny = true;
+		const vgui::VPANEL popup = vgui::ivgui()->HandleToPanel( s_Foreign[ i ] );
+		if ( !FuiInteractivePopup( popup ) )
+			s_Foreign.Remove( i );
+		else
+			bYield = true;
 	}
-	return bAny;
+	return bYield;
 }
 
 static void RunScheduled()
@@ -694,9 +730,10 @@ public:
 		const bool bShow = eMode != k_eHidden && !( fui_stage_debug.IsValid() && fui_stage_debug.GetInt() == 2 );
 		if ( m_pPanel->IsVisible() != bShow )
 			m_pPanel->SetVisible( bShow );
-		const bool bMouse = eMode == k_eMenu || eMode == k_ePause || eMode == k_eClass;
-		if ( m_pPanel->IsMouseInputEnabled() != bMouse )
-			m_pPanel->SetMouseInputEnabled( bMouse );
+		const bool bMouse = bShow && ( eMode == k_eMenu || eMode == k_ePause || eMode == k_eClass );
+		const bool bInput = bMouse && !FuiYielding( m_pPanel->GetVPanel() );
+		if ( m_pPanel->IsMouseInputEnabled() != bInput )
+			m_pPanel->SetMouseInputEnabled( bInput );
 
 		// The background level is a real map: its HUD (round timer and all)
 		// has no business on the main menu.
@@ -825,9 +862,12 @@ public:
 	{
 		if ( m_pPanel )
 		{
-			m_pPanel->MarkForDeletion();
+			delete m_pPanel;
 			m_pPanel = NULL;
 		}
+		s_Foreign.RemoveAll();
+		s_PopupsBefore.RemoveAll();
+		s_flWatchUntil = 0.;
 		FuiStageDestroy( s_pStage );
 		s_pStage = NULL;
 		FuiTF().Detach();
@@ -835,7 +875,8 @@ public:
 		m_backend.Shutdown();
 	}
 
-	bool BOwnsMenu() const { return m_pPanel && m_pPanel->IsVisible() && m_eMode != k_eHud; }
+	bool BOwnsMenu() const { return !m_bFailed && enginevgui->IsGameUIVisible(); }
+	bool BReplacesMenu() const { return !m_bFailed; }
 	fui::Runtime *Runtime() { return m_runtime.IsInitialized() ? &m_runtime : NULL; }
 
 	void Restart()
@@ -889,6 +930,11 @@ fui::Runtime *FrontressUI()
 bool FrontressUIOwnsMenu()
 {
 	return fui_menu.GetBool() && s_FuiSystem.BOwnsMenu();
+}
+
+bool FrontressUIReplacesMenu()
+{
+	return fui_menu.GetBool() && s_FuiSystem.BReplacesMenu();
 }
 
 static void FuiMenuChanged( IConVar *pVar, const char *pszOld, float flOld )

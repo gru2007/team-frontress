@@ -303,7 +303,6 @@
 }
 .l-tag.gold { color: #2a1a05; background-color: #ffc93c; border-color: #ffe066; }
 .l-name { font-weight: bold; color: #e6b36b; margin-right: 6dp; }
-.l-name.sup { color: #ff9ec4; }
 .line.mine .l-name { color: #ffc93c; }
 .l-text { color: #ece3cb; }
 .line.sys {

@@ -319,3 +319,6 @@ body#shell { pointer-events: none; }
 .hud-styles { gap: 12dp; flex-wrap: wrap; }
 .hud-style.active { background-color: #ffc93c26; border-color: #ffc93c; }
 .hud-style.active .set-title { color: #ffc93c; }
+
+.invite-list { max-height: 540dp; overflow-y: auto; }
+.invite-row { gap: 12dp; padding: 8dp 0; }

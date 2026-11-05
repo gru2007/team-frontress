@@ -309,6 +309,7 @@ struct Runtime::Impl {
 	Node fallbackStrings;	// english
 	std::map< std::string, int64_t > fileTimes;
 	bool debuggerReady = false;
+	std::string nextScreen;
 };
 
 //-----------------------------------------------------------------------------
@@ -369,6 +370,11 @@ bool Runtime::Init( Host *pHost, DrawBackend *pBackend, int width, int height )
 	if ( m_Screen.empty() )
 		m_Screen = "home";
 	LoadDocuments();
+	if ( !m_pShell || m_Screens.empty() || !m_Screens.front().second )
+	{
+		Shutdown();
+		return false;
+	}
 	return true;
 }
 
@@ -406,6 +412,12 @@ void Runtime::Update()
 	{
 		m_flNextFileCheck = m_pHost->Time() + 0.5;
 		CheckFiles();
+	}
+	if ( !m_pImpl->nextScreen.empty() )
+	{
+		std::string screen;
+		screen.swap( m_pImpl->nextScreen );
+		Navigate( screen );
 	}
 	m_pContext->Update();
 }
@@ -516,7 +528,7 @@ void Runtime::BindModel()
 
 	constructor.BindEventCallback( "nav", [ this ]( Rml::DataModelHandle, Rml::Event &, const Rml::VariantList &args ) {
 		if ( !args.empty() )
-			HandleEvent( "nav", { VariantToString( args[ 0 ] ) } );
+			m_pImpl->nextScreen = VariantToString( args[ 0 ] );
 	} );
 	constructor.BindEventCallback( "set", [ this ]( Rml::DataModelHandle, Rml::Event &, const Rml::VariantList &args ) {
 		if ( args.size() >= 2 )
@@ -736,12 +748,12 @@ void Runtime::ApplyScreen()
 	if ( pShown )
 	{
 		pShown->Show( Rml::ModalFlag::None, Rml::FocusFlag::None );
-		pShown->PushToBack();
+		pShown->SetProperty( "z-index", "0" );
 	}
 	if ( m_pShell )
 	{
 		m_pShell->Show( Rml::ModalFlag::None, Rml::FocusFlag::None );
-		m_pShell->PullToFront();
+		m_pShell->SetProperty( "z-index", "1" );
 	}
 	if ( m_pHud )
 		m_pHud->Hide();
@@ -758,6 +770,7 @@ void Runtime::Navigate( const std::string &screen )
 		return;
 	}
 	m_Screen = screen;
+	Set( "ui.modal", Node( "" ) );
 	Node *pScreen = m_State.FindPath( "ui.screen", true );
 	if ( pScreen->AsString() != screen )
 	{

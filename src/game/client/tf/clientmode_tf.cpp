@@ -506,12 +506,10 @@ void ClientModeTFNormal::Init()
 		m_pGameUI = (IGameUI *) gameUIFactory(GAMEUI_INTERFACE_VERSION, NULL );
 		if ( NULL != m_pGameUI )
 		{
-			// insert stats summary panel as the loading background dialog
-			CTFStatsSummaryPanel *pPanel = GStatsSummaryPanel();
-			pPanel->InvalidateLayout( false, true );
-			pPanel->SetVisible( false );
-			pPanel->MakePopup( false );
-			m_pGameUI->SetLoadingBackgroundDialog( pPanel->GetVPanel() );
+			// Use GameUI's progress and error window over the packaged loading
+			// backdrop. The old full-screen stats panel expects map artwork
+			// that is absent from some depots.
+			m_pGameUI->SetLoadingBackgroundDialog( NULL );
 
 			IViewPortPanel *pMMOverride = ( gViewPortInterface->FindPanelByName( PANEL_MAINMENUOVERRIDE ) );
 			if ( pMMOverride )

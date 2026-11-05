@@ -32,7 +32,7 @@
 					<img class="plate-class" data-if="m.class != ''" data-attr-src="'tex:vgui/class_icons/class_icon_orange_' + (m.class == 'demoman' ? 'demo' : m.class)"/>
 					<span class="plate-tag" data-if="m.tag != ''" data-class-gold="m.gold">{{ m.tag }}</span>
 					<div class="plate-name">{{ m.name }}</div>
-					<div class="sup-gem" data-if="m.sup"></div>
+
 				</div>
 				<div class="row plate-bottom">
 					<span class="plate-level" data-if="m.level > 0">{{ m.level }}</span>
@@ -133,7 +133,7 @@
 			<div data-for="l : social.view" data-attr-class="'line' + (l.sys ? ' sys k-' + l.kind : '') + (l.me ? ' mine' : '')">
 				<span class="l-time">{{ l.time }}</span>
 				<span class="l-tag" data-if="l.tag != ''" data-class-gold="l.gold">{{ l.tag }}</span>
-				<span class="l-name" data-if="!l.sys" data-class-sup="l.sup">{{ l.name }}</span>
+				<span class="l-name" data-if="!l.sys">{{ l.name }}</span>
 				<span class="l-text" data-if="!l.sys">{{ l.text }}</span>
 				<span class="l-sys" data-if="l.sys">{{ l.key | t(l.a1, l.a2, l.a3, l.a4) }}</span>
 			</div>
@@ -154,7 +154,7 @@
 					<div class="row">
 						<span class="l-tag" data-if="p.tag != ''" data-class-gold="p.gold">{{ p.tag }}</span>
 						<span class="who-name">{{ p.name }}</span>
-						<div class="sup-gem small" data-if="p.sup"></div>
+
 						<span class="who-level">{{ p.level }}</span>
 					</div>
 					<div class="who-status" data-if="p.lfg && p.note != ''">«{{ p.note }}»</div>

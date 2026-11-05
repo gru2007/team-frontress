@@ -106,6 +106,7 @@ private:
 	void StartRecv();
 	void Dispatch( const uint8 *pubData, uint32 cubData );
 	void EnsureOwnCacheSubscribed();
+	void FlushCacheRefresh();
 
 	ISteamHTTP *HTTP() const;
 	HTTPRequestHandle CreateRequest( EHTTPMethod eMethod, const char *pszPath );
@@ -133,6 +134,7 @@ private:
 	uint64      m_ulLastInSeq;  // highest seq received and dispatched
 	float       m_flNextRecv;
 	float       m_flNextRefresh;
+	CSteamID    m_steamIDRefresh;
 
 	HTTPRequestHandle m_hSession;
 	HTTPRequestHandle m_hSend;

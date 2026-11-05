@@ -1,7 +1,7 @@
 <rml>
 <!-- Support the developers: one-off donations and a monthly subscription,
      paid in Steam's overlay (services/gc/internal/support). Nothing here
-     buys an advantage: a badge, a name on the wall, our thanks. -->
+     buys an advantage. Donors can opt out of the supporter list. -->
 <head>
 	<title>Support</title>
 	<link type="text/rcss" href="../style/base.rcss"/>
@@ -95,23 +95,21 @@
 				</div>
 
 				<div class="perks">
-					<div class="dimmer tiny upper perks-title">#fui_support_perks</div>
-					<div class="row perk-line"><div class="sup-gem"></div><span>#fui_support_perk_badge</span></div>
-					<div class="row perk-line"><div class="sup-gem"></div><span>#fui_support_perk_wall</span></div>
-					<div class="row perk-line"><div class="sup-gem"></div><span>#fui_support_perk_sub</span></div>
+					<div class="dim small">#fui_support_perk_wall</div>
 				</div>
 			</div>
 
 			<!-- The wall -->
 			<div class="col wall panel in3">
 				<div class="panel-title">#fui_support_wall</div>
+				<div class="button ghost small-button" sfx="" data-event-click="toggle('support.show_wall')">{{ (support.show_wall ? 'fui_support_hide_wall' : 'fui_support_show_wall') | t }}</div>
 				<div class="wall-list">
-					<div data-for="w : support.wall" data-attr-class="'thanks k-' + w.kind">
-						<div class="sup-gem" data-class-small="w.kind == 'once'"></div>
+					<div data-for="w : support.wall" data-if="support.show_wall" class="thanks">
+						<div class="sup-gem small"></div>
 						<div class="thanks-name grow">{{ w.name }}</div>
 						<div class="thanks-ago dimmer tiny">{{ w.ago | duration }}</div>
 					</div>
-					<div class="dim small empty" data-if="support.wall.size == 0">#fui_support_wall_empty</div>
+					<div class="dim small empty" data-if="support.show_wall && support.wall.size == 0">#fui_support_wall_empty</div>
 				</div>
 			</div>
 		</div>

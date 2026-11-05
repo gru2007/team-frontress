@@ -18,7 +18,7 @@
 #ifdef CLIENT_DLL
 #include "clientsteamcontext.h"
 #include "tf_gc_client.h"
-#include "confirm_dialog.h"
+#include "tf/frontress/fui_tf.h"
 #else
 #include "steam/steam_gameserver.h"
 #endif
@@ -50,7 +50,8 @@ static const float k_flMaxBackoff = 60.f;
 static const uint32 k_cubMaxBatch = 256 * 1024;
 
 #ifdef CLIENT_DLL
-ConVar tf_gc_url( "tf_gc_url", "http://gc.team-frontress.org:27100", FCVAR_ARCHIVE,
+static const char k_szFrontressGCURL[] = "https://gc.team-frontress.org";
+ConVar tf_gc_url( "tf_gc_url", k_szFrontressGCURL, FCVAR_ARCHIVE,
 	"Address of the Team Frontress game coordinator. Empty plays without one." );
 #else
 // Server names differ from the client's: on a listen server both dlls are
@@ -120,7 +121,11 @@ CFrontressGC::~CFrontressGC()
 const char *CFrontressGC::GetBaseURL() const
 {
 #ifdef CLIENT_DLL
-	return tf_gc_url.GetString();
+	const char *pszURL = tf_gc_url.GetString();
+	// The old default is stored in config.cfg on existing installs. Keep
+	// private and local coordinator addresses exactly as configured.
+	return !V_stricmp( pszURL, "http://gc.team-frontress.org:27100" ) ||
+		!V_stricmp( pszURL, "http://gc.team-frontress.org:27100/" ) ? k_szFrontressGCURL : pszURL;
 #else
 	return ConfigValue( tf_gc_server_url, "GC_URL" );
 #endif
@@ -270,6 +275,8 @@ void CFrontressGC::Think()
 			break;
 
 		case k_eState_Connected:
+			if ( m_steamIDRefresh.IsValid() && flNow >= m_flNextRefresh )
+				FlushCacheRefresh();
 			FlushSends();
 			if ( m_hRecv == INVALID_HTTPREQUEST_HANDLE && flNow >= m_flNextRecv )
 				StartRecv();
@@ -304,6 +311,27 @@ void CFrontressGC::StartSession()
 	}
 #endif
 
+#ifdef GAME_DLL
+	CUtlString strConnect( ConfigValue( tf_gc_server_connect, "SERVER_CONNECT" ) );
+	if ( strConnect.IsEmpty() && steamgameserverapicontext->SteamGameServer() )
+	{
+		SteamIPAddress_t ip = steamgameserverapicontext->SteamGameServer()->GetPublicIP();
+		static ConVarRef hostport( "hostport" );
+		if ( ip.m_eType == k_ESteamIPTypeIPv4 && ip.m_unIPv4 != 0 && hostport.IsValid() && hostport.GetInt() > 0 )
+		{
+			strConnect.Format( "%u.%u.%u.%u:%d",
+			                   ( ip.m_unIPv4 >> 24 ) & 0xFF, ( ip.m_unIPv4 >> 16 ) & 0xFF,
+			                   ( ip.m_unIPv4 >> 8 ) & 0xFF, ip.m_unIPv4 & 0xFF, hostport.GetInt() );
+		}
+	}
+	if ( strConnect.IsEmpty() )
+	{
+		Backoff( "no public server address yet (set tf_gc_server_connect to host:port)", m_flBackoff );
+		return;
+	}
+	GCDbg( "advertising game address %s\n", strConnect.Get() );
+#endif
+
 	HTTPRequestHandle h = CreateRequest( k_EHTTPMethodPOST, "/gc/v1/session" );
 	if ( h == INVALID_HTTPREQUEST_HANDLE )
 	{
@@ -327,18 +355,7 @@ void CFrontressGC::StartSession()
 	static ConVarRef hostname( "hostname" );
 	pHTTP->SetHTTPRequestGetOrPostParameter( h, "name", hostname.IsValid() ? hostname.GetString() : "" );
 
-	CUtlString strConnect( ConfigValue( tf_gc_server_connect, "SERVER_CONNECT" ) );
-	if ( strConnect.IsEmpty() && steamgameserverapicontext->SteamGameServer() )
-	{
-		SteamIPAddress_t ip = steamgameserverapicontext->SteamGameServer()->GetPublicIP();
-		static ConVarRef hostport( "hostport" );
-		if ( ip.m_eType == k_ESteamIPTypeIPv4 && ip.m_unIPv4 != 0 && hostport.IsValid() )
-		{
-			strConnect.Format( "%u.%u.%u.%u:%d",
-			                   ( ip.m_unIPv4 >> 24 ) & 0xFF, ( ip.m_unIPv4 >> 16 ) & 0xFF,
-			                   ( ip.m_unIPv4 >> 8 ) & 0xFF, ip.m_unIPv4 & 0xFF, hostport.GetInt() );
-		}
-	}
+
 	pHTTP->SetHTTPRequestGetOrPostParameter( h, "connect", strConnect.Get() );
 #endif
 	pHTTP->SetHTTPRequestNetworkActivityTimeout( h, 30 );
@@ -462,6 +479,7 @@ void CFrontressGC::OnSessionCompleted( HTTPRequestCompleted_t *pInfo, bool bIOFa
 	m_ulLastInSeq = 0;
 	m_flBackoff = 2.f;
 	m_flNextRecv = 0.f;
+	m_flNextRefresh = 0.f;
 	m_strLastError.Clear();
 	m_eState = k_eState_Connected;
 
@@ -505,6 +523,7 @@ void CFrontressGC::LoseSession( const char *pszWhy )
 	if ( m_eState == k_eState_Connected )
 		Warning( "Lost the game coordinator: %s\n", pszWhy );
 	m_strSession.Clear();
+	m_steamIDRefresh.Clear();
 	// Whatever was not confirmed is dropped: reliable messages retry on their
 	// own once the GC is back, and anything else is stale by then.
 	m_vecOutbox.PurgeAndDeleteElements();
@@ -716,14 +735,17 @@ void CFrontressGC::EnsureOwnCacheSubscribed()
 
 void CFrontressGC::RequestCacheRefresh( const CSteamID &owner )
 {
-	if ( m_eState != k_eState_Connected || !owner.IsValid() )
-		return;
-	// The inventory and our own subscribe can land in the same second;
-	// one refresh covers both.
-	const float flNow = (float)Plat_FloatTime();
-	if ( flNow < m_flNextRefresh )
-		return;
-	m_flNextRefresh = flNow + 1.f;
+	if ( m_eState == k_eState_Connected && owner == OurSteamID() && owner.IsValid() )
+		m_steamIDRefresh = owner;
+}
+
+void CFrontressGC::FlushCacheRefresh()
+{
+	// Keep the trailing refresh. Inventory can replace the bootstrap cache
+	// after our first refresh has already arrived but before its cooldown ends.
+	const uint64 ulOwner = m_steamIDRefresh.ConvertToUint64();
+	m_steamIDRefresh.Clear();
+	m_flNextRefresh = (float)Plat_FloatTime() + 1.f;
 
 	// [u32 emsg|proto][u32 hdrlen = 0][CMsgSOCacheSubscriptionRefresh { fixed64 owner = 1 }]
 	uint8 msg[8 + 9];
@@ -732,7 +754,6 @@ void CFrontressGC::RequestCacheRefresh( const CSteamID &owner )
 	V_memcpy( &msg[0], &unType, 4 );
 	V_memcpy( &msg[4], &unHdr, 4 );
 	msg[8] = ( 1 << 3 ) | 1;
-	const uint64 ulOwner = owner.ConvertToUint64();
 	V_memcpy( &msg[9], &ulOwner, 8 );
 	SendGCMessage( unType, msg, sizeof( msg ) );
 }
@@ -769,7 +790,7 @@ public:
 		if ( pszText && pszText[0] )
 		{
 			Msg( "Game coordinator: %s\n", pszText );
-			ShowMessageBox( "#TF_MM_GenericFailure_Title", pszText );
+			FuiTF().Toast( "error", "Team Frontress", pszText, "" );
 		}
 		return true;
 	}
@@ -814,6 +835,10 @@ GC_REG_JOB( GCSDK::CGCClient, CGCFrontressSocialEvent, "CGCFrontressSocialEvent"
 CON_COMMAND( tf_gc_status, "Print the state of the game coordinator connection." )
 {
 	CFrontressGC *pGC = FrontressGC();
+#ifdef CLIENT_DLL
+	Msg( "Engine network protocol: %u (game traffic, separate from GC protocol %d)\n",
+	     engine->GetProtocolVersion(), k_nGCProtocolVersion );
+#endif
 	Msg( "Game coordinator: %s\n", pGC->GetBaseURL()[0] ? pGC->GetBaseURL() : "(not configured)" );
 	Msg( "  state: %s\n", pGC->GetStateName() );
 	if ( pGC->GetLastError()[0] )

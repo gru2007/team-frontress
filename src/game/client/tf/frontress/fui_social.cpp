@@ -117,12 +117,70 @@ struct Social_t
 	CMicroTxnListener *pTxn = nullptr;
 	float flNextPresence = 0.f;
 	std::string pendingOrder;
+	double flSupportDeadline = 0.;
 };
 
 Social_t &S()
 {
 	static Social_t s_Social;
 	return s_Social;
+}
+
+void RefreshInvites( fui::Runtime &ui, bool bFriends )
+{
+	Node incoming, friends;
+	incoming.SetArray();
+	friends.SetArray();
+	if ( auto *pParty = GTFPartyClient() )
+	{
+		for ( int i = 0; i < pParty->GetNumIncomingInvites(); ++i )
+		{
+			const auto *pInvite = pParty->GetIncomingInvite( i );
+			if ( !pInvite )
+				continue;
+			const CSteamID id = pInvite->GetInviter();
+			Node &entry = incoming.Append();
+			entry[ "id" ] = std::to_string( id.ConvertToUint64() );
+			entry[ "name" ] = UTF8Name( id );
+		}
+		auto *pFriends = steamapicontext ? steamapicontext->SteamFriends() : nullptr;
+		if ( bFriends && pFriends )
+		{
+			const int count = pFriends->GetFriendCount( k_EFriendFlagImmediate );
+			for ( int i = 0; i < count; ++i )
+			{
+				const CSteamID id = pFriends->GetFriendByIndex( i, k_EFriendFlagImmediate );
+				if ( !id.IsValid() || !pParty->BCanInvitePlayer( id ) || pParty->BHaveOutgoingInviteForSteamID( id ) )
+					continue;
+				Node &entry = friends.Append();
+				entry[ "id" ] = std::to_string( id.ConvertToUint64() );
+				entry[ "name" ] = UTF8Name( id );
+			}
+		}
+	}
+	ui.Set( "invites.incoming", std::move( incoming ) );
+	if ( bFriends )
+		ui.Set( "invites.friends", std::move( friends ) );
+}
+
+void SupportError( fui::Runtime &ui, const char *key )
+{
+	Social_t &s = S();
+	s.flSupportDeadline = 0.;
+	s.pendingOrder.clear();
+	ui.Set( "support.busy", Node( false ) );
+	ui.Set( "support.result", Node( "error" ) );
+	ui.Set( "support.error", Node( key ) );
+}
+
+void ReportOverlay( const char *reason )
+{
+	const Social_t &s = S();
+	Warning( "[frontress support] %s (order %s)\n", reason, s.pendingOrder.c_str() );
+	Node report = Op( "support_overlay" );
+	report[ "status" ] = reason;
+	report[ "order" ] = s.pendingOrder;
+	Send( report );
 }
 
 std::string Clock( double at )
@@ -285,7 +343,10 @@ void ApplyEvent( fui::Runtime &ui, const std::string &json )
 	{
 		Node doc = ev.Clone();
 		doc[ "loading" ] = false;
-		doc[ "busy" ] = false;
+		doc[ "busy" ] = s.flSupportDeadline > 0.;
+		if ( const Node *pError = ui.Get( "support.error" ) )
+			doc[ "error" ] = pError->AsString();
+		doc[ "show_wall" ] = !ui.Get( "support.show_wall" ) || ui.Get( "support.show_wall" )->AsBool();
 		doc[ "offered" ] = true;
 		if ( const Node *pAnon = ui.Get( "support.anon" ) )
 			doc[ "anon" ] = pAnon->AsBool();
@@ -302,12 +363,14 @@ void ApplyEvent( fui::Runtime &ui, const std::string &json )
 	else if ( t == "support_pending" )
 	{
 		s.pendingOrder = Str( &ev, "order" );
+		s.flSupportDeadline = Plat_FloatTime() + 120.;
 		ui.Set( "support.busy", Node( true ) );
 		ui.Set( "support.result", Node( "pending" ) );
 	}
 	else if ( t == "support_result" )
 	{
 		s.pendingOrder.clear();
+		s.flSupportDeadline = 0.;
 		ui.Set( "support.busy", Node( false ) );
 		const bool bOK = Bool( &ev, "ok" );
 		const std::string kind = Str( &ev, "kind" );
@@ -431,22 +494,32 @@ void FuiSocialUpdate( fui::Runtime &ui, bool bShown )
 	// Steam's answers to purchases go straight back to the coordinator.
 	if ( s.pTxn )
 	{
-		for ( const auto &answer : s.pTxn->m_Answers )
+		auto &answers = s.pTxn->m_Answers;
+		for ( auto it = answers.begin(); it != answers.end(); )
 		{
+			const auto &answer = *it;
 			Node op = Op( "support_auth" );
 			op[ "order" ] = std::to_string( answer.first );
 			op[ "ok" ] = answer.second;
-			Send( op );
-			if ( !answer.second )
-				ui.Set( "support.busy", Node( false ) );
+			if ( Send( op ) )
+				it = answers.erase( it );
+			else
+				++it;
 		}
-		s.pTxn->m_Answers.clear();
 	}
 
 	std::vector< std::string > events;
 	events.swap( s.events );
 	for ( const std::string &json : events )
 		ApplyEvent( ui, json );
+
+	if ( s.flSupportDeadline > 0. && Plat_FloatTime() >= s.flSupportDeadline )
+	{
+		ReportOverlay( s.pendingOrder.empty() ? "open_timeout" : "authorization_timeout" );
+		SupportError( ui, "timeout" );
+	}
+	if ( bShown )
+		RefreshInvites( ui, Path( ui, "ui.modal" ) == "invite" );
 
 	const std::string tab = Path( ui, "social.tab" );
 	if ( !tab.empty() && tab != s.tab )
@@ -469,8 +542,11 @@ void FuiSocialNavigate( fui::Runtime &ui, const std::string &screen )
 	if ( screen == "support" )
 	{
 		ui.Set( "support.loading", Node( true ) );
-		ui.Set( "support.result", Node( "" ) );
-		Send( Op( "support_info" ) );
+		if ( !Send( Op( "support_info" ) ) )
+		{
+			ui.Set( "support.loading", Node( false ) );
+			SupportError( ui, "unreachable" );
+		}
 	}
 }
 
@@ -510,7 +586,13 @@ bool FuiSocialCommand( fui::Runtime &ui, const std::string &name, const std::vec
 			ui.Set( "social.lfg", Node( bOn ) );
 		return true;
 	}
-	if ( name == "invite_player" || name == "join_player" || name == "profile" )
+	if ( name == "open_invites" )
+	{
+		RefreshInvites( ui, true );
+		ui.Set( "ui.modal", Node( "invite" ) );
+		return true;
+	}
+	if ( name == "invite_player" || name == "join_player" || name == "accept_invite" || name == "decline_invite" || name == "profile" )
 	{
 		const uint64 ul = V_atoui64( Digits( arg ).c_str() );
 		CSteamID id( ul );
@@ -521,14 +603,25 @@ bool FuiSocialCommand( fui::Runtime &ui, const std::string &name, const std::vec
 			if ( steamapicontext && steamapicontext->SteamFriends() )
 				steamapicontext->SteamFriends()->ActivateGameOverlayToUser( "steamid", id );
 		}
-		else if ( GTFPartyClient() )
+		else if ( FrontressGC() && FrontressGC()->BConnected() && GTFPartyClient() )
 		{
-			if ( name == "invite_player" )
-				GTFPartyClient()->BInvitePlayerToParty( id, false );
+			auto *pParty = GTFPartyClient();
+			if ( name == "decline_invite" )
+				pParty->CancelOutgoingJoinRequestOrIncomingInvite( id );
+			else if ( name == "accept_invite" )
+				pParty->BRequestJoinPlayer( id, true );
 			else
-				GTFPartyClient()->BRequestJoinPlayer( id, false );
-			FuiTF().Toast( "party", ui.Translate( name == "invite_player" ? "fui_toast_invited" : "fui_toast_asked" ), UTF8Name( id ), "" );
+			{
+				const bool bInvite = name == "invite_player";
+				const bool bSent = bInvite ? pParty->BInvitePlayerToParty( id, false ) : pParty->BRequestJoinPlayer( id, false );
+				if ( bSent )
+					FuiTF().Toast( "party", ui.Translate( bInvite ? "fui_toast_invited" : "fui_toast_asked" ), UTF8Name( id ), "" );
+				else
+					FuiTF().Toast( "error", ui.Translate( "fui_err_title" ), ui.Translate( "fui_invite_failed" ), "" );
+			}
 		}
+		else
+			FuiTF().Toast( "error", ui.Translate( "fui_err_title" ), ui.Translate( "fui_gc_offline" ), "" );
 		return true;
 	}
 
@@ -597,6 +690,13 @@ bool FuiSocialCommand( fui::Runtime &ui, const std::string &name, const std::vec
 	{
 		if ( ui.Get( "support.busy" ) && ui.Get( "support.busy" )->AsBool() )
 			return true;
+		auto *pUtils = steamapicontext ? steamapicontext->SteamUtils() : nullptr;
+		if ( !Bool( ui.Get( "support" ), "simulated" ) && ( !pUtils || !pUtils->IsOverlayEnabled() ) )
+		{
+			ReportOverlay( "unavailable" );
+			SupportError( ui, "overlay" );
+			return true;
+		}
 		Node op = Op( "support_buy" );
 		op[ "kind" ] = arg == "monthly" ? "monthly" : "once";
 		op[ "tier" ] = atoi( arg2.c_str() );
@@ -605,7 +705,10 @@ bool FuiSocialCommand( fui::Runtime &ui, const std::string &name, const std::vec
 		{
 			ui.Set( "support.busy", Node( true ) );
 			ui.Set( "support.result", Node( "opening" ) );
+			S().flSupportDeadline = Plat_FloatTime() + 35.;
 		}
+		else
+			SupportError( ui, "unreachable" );
 		return true;
 	}
 	if ( name == "support_cancel" )

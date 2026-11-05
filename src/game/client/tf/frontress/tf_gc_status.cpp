@@ -17,7 +17,6 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-extern ConVar tf_gc_url;
 
 // How often the menu asks. The numbers are for people to read, not to act on.
 static const float k_flStatusPollSeconds = 15.f;
@@ -60,9 +59,9 @@ void CTFGCStatus::Update( float )
 
 void CTFGCStatus::Poll()
 {
-	m_flNextPoll = (float)Plat_FloatTime() + k_flStatusPollSeconds;
+	m_flNextPoll = (float)Plat_FloatTime() + ( GetState() == k_eTFMMState_Searching ? 5.f : k_flStatusPollSeconds );
 	ISteamHTTP *pHTTP = SteamHTTP();
-	const char *pszBase = tf_gc_url.GetString();
+	const char *pszBase = FrontressGC()->GetBaseURL();
 	if ( !pHTTP || !pszBase || !pszBase[0] )
 		return;
 
@@ -201,9 +200,8 @@ ETFMMState CTFGCStatus::GetState() const
 	if ( pGC->BHaveLiveMatch() )
 		return engine->IsConnected() && !engine->IsLevelMainMenuBackground() ? k_eTFMMState_Connecting : k_eTFMMState_MatchReady;
 	if ( pGC->BHaveRunningMatch() )
-		return k_eTFMMState_MatchReady;
-	const CTFParty *pParty = ActiveParty();
-	if ( pParty && pParty->GetNumQueueEntries() > 0 )
+		return k_eTFMMState_Preparing;
+	if ( GetQueuedMatchGroup() != k_eTFMatchGroup_Invalid )
 		return k_eTFMMState_Searching;
 	return k_eTFMMState_Idle;
 }
@@ -213,6 +211,14 @@ ETFMatchGroup CTFGCStatus::GetQueuedMatchGroup() const
 	const CTFParty *pParty = ActiveParty();
 	if ( pParty && pParty->GetNumQueueEntries() > 0 )
 		return pParty->GetQueueEntryMatchGroup( 0 );
+	if ( GTFPartyClient() )
+	{
+		for ( const auto group : { k_eTFMatchGroup_Casual_12v12, k_eTFMatchGroup_Ladder_6v6 } )
+		{
+			if ( GTFPartyClient()->BInQueueForMatchGroup( group ) )
+				return group;
+		}
+	}
 	return GTFGCClientSystem()->GetLiveMatchGroup();
 }
 

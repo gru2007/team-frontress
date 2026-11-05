@@ -48,30 +48,6 @@
 		<p class="dim">#fui_war_none_body</p>
 	</div>
 
-	<!-- The campaign: name, day, who holds how much -->
-	<div id="campaign" class="glass in0" data-if="war.fronts.size > 0">
-		<div class="dim tiny upper">#fui_war_title · #fui_war_day {{ war.day }}<span data-if="war.days > 0"> #fui_war_of {{ war.days }}</span></div>
-		<h1 class="shadow">{{ war.name }}</h1>
-		<p class="small" data-if="war.winner == '' && player.war_side == ''">#fui_war_choose_hint</p>
-		<div class="row" data-if="war.winner == '' && player.war_side == ''">
-			<button class="red" data-event-click="cmd('war_side', 'red')">#fui_war_choose_red</button>
-			<button class="blu" data-event-click="cmd('war_side', 'blu')">#fui_war_choose_blu</button>
-		</div>
-		<p class="small" data-if="player.war_side != '' && war.winner == ''">#fui_war_faction_locked {{ player.war_side == 'red' ? 'RED' : 'BLU' }}</p>
-		<p class="small" data-if="war.winner != ''">#fui_war_campaign_winner {{ war.winner == 'red' ? 'RED' : 'BLU' }} · #fui_war_next_campaign</p>
-		<div class="tug-bar">
-			<div class="tug-fill" data-style-width="(war.red * 100) + '%'"></div>
-			<div class="tug-mid"></div>
-		</div>
-		<div class="row tug-labels">
-			<span class="tug-red">RED {{ war.red | percent }} · {{ war.red_fronts }}</span>
-			<div class="spacer"></div>
-			<span class="dim tiny upper">#fui_war_control</span>
-			<div class="spacer"></div>
-			<span class="tug-blu">{{ war.blu_fronts }} · {{ (1 - war.red) | percent }} BLU</span>
-		</div>
-	</div>
-
 	<div id="war-stats" class="row in0" data-if="war.fronts.size > 0">
 		<div class="stat"><div class="stat-num">{{ war.ops.size }}</div><div class="dim tiny upper">#fui_war_ops_live</div></div>
 		<div class="stat"><div class="stat-num">{{ war.battles }}</div><div class="dim tiny upper">#fui_war_battles</div></div>
@@ -79,8 +55,32 @@
 		<div class="stat"><div class="stat-num">{{ war.servers_free }}<span class="stat-of">/{{ war.servers }}</span></div><div class="dim tiny upper">#fui_war_servers</div></div>
 	</div>
 
-	<!-- The main push, then every operation -->
+	<!-- The campaign and operations share one scrollable column. -->
 	<div id="war-left" class="inl" data-if="war.fronts.size > 0">
+		<!-- The campaign: name, day, who holds how much -->
+		<div id="campaign" class="glass">
+			<div class="dim tiny upper">#fui_war_title · #fui_war_day {{ war.day }}<span data-if="war.days > 0"> #fui_war_of {{ war.days }}</span></div>
+			<h1 class="shadow">{{ war.name }}</h1>
+			<p class="small" data-if="war.winner == '' && player.war_side == ''">#fui_war_choose_hint</p>
+			<div class="row faction-actions" data-if="war.winner == '' && player.war_side == ''">
+				<div class="button red grow" sfx="" data-event-click="cmd('war_side', 'red')">#fui_war_choose_red</div>
+				<div class="button blu grow" sfx="" data-event-click="cmd('war_side', 'blu')">#fui_war_choose_blu</div>
+			</div>
+			<p class="small" data-if="player.war_side != '' && war.winner == ''">#fui_war_faction_locked {{ player.war_side == 'red' ? 'RED' : 'BLU' }}</p>
+			<p class="small" data-if="war.winner != ''">#fui_war_campaign_winner {{ war.winner == 'red' ? 'RED' : 'BLU' }} · #fui_war_next_campaign</p>
+			<div class="tug-bar">
+				<div class="tug-fill" data-style-width="(war.red * 100) + '%'"></div>
+				<div class="tug-mid"></div>
+			</div>
+			<div class="row tug-labels">
+				<span class="tug-red">RED {{ war.red | percent }} · {{ war.red_fronts }}</span>
+				<div class="spacer"></div>
+				<span class="dim tiny upper">#fui_war_control</span>
+				<div class="spacer"></div>
+				<span class="tug-blu">{{ war.blu_fronts }} · {{ (1 - war.red) | percent }} BLU</span>
+			</div>
+		</div>
+
 		<div data-for="o : war.ops">
 			<div class="order glass" data-if="o.node == war.top" data-event-click="set('ui.front', o.node)" sfx="click"
 				data-class-red="o.attacker == 'red'" data-class-blu="o.attacker == 'blu'">

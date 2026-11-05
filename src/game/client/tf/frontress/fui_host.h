@@ -24,6 +24,8 @@ fui::Runtime *FrontressUI();
 
 // True while the Frontress menu is the one on screen.
 bool FrontressUIOwnsMenu();
+// Hide the old menu even while the Frontress panel is between modes.
+bool FrontressUIReplacesMenu();
 
 // Open or close the Frontress class select (in a match). Opening returns
 // false when it is turned off, and the stock menu should show instead.

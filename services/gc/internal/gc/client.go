@@ -34,7 +34,8 @@ type Player struct {
 	chatTokens float64
 	chatAt     time.Time
 	// supportBusy: a donation is being opened, so a second click waits.
-	supportBusy time.Time
+	supportBusy     time.Time
+	supportReportAt time.Time
 }
 
 func (g *GC) player(id uint64) *Player {

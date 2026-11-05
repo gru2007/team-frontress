@@ -305,8 +305,10 @@ void Renderer::RenderShader( Rml::CompiledShaderHandle shader, Rml::CompiledGeom
 	{
 		if ( pShader->texture )
 			m_pBackend->ReleaseTexture( pShader->texture );
-		const int w = Rml::Math::Clamp( (int)std::ceil( hi.x - lo.x ), 2, 160 );
-		const int h = Rml::Math::Clamp( (int)std::ceil( hi.y - lo.y ), 2, 160 );
+		// Bucket sizes so a resized decorator can reuse its procedural texture.
+		const auto textureSize = []( float size ) { return size <= 32.f ? 32 : size <= 64.f ? 64 : 128; };
+		const int w = textureSize( hi.x - lo.x );
+		const int h = textureSize( hi.y - lo.y );
 		std::vector< uint8_t > pixels( w * h * 4 );
 		for ( int y = 0; y < h; ++y )
 		{

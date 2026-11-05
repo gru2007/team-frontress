@@ -27,6 +27,22 @@ func (g *GC) handleSupport(id uint64, op socialOp) {
 		return
 	}
 	switch op.Op {
+	case "support_overlay":
+		switch op.Status {
+		case "unavailable", "open_timeout", "authorization_timeout":
+			order, _ := strconv.ParseUint(op.Order, 10, 64)
+			if order != 0 {
+				o := g.book.Order(order)
+				if o == nil || o.SteamID != id {
+					return
+				}
+			}
+			p := g.player(id)
+			if now := g.now(); now.Sub(p.supportReportAt) >= 30*time.Second {
+				p.supportReportAt = now
+				g.log.Info("support: overlay", "steamid", id, "order", order, "status", op.Status)
+			}
+		}
 	case "support_info":
 		g.supportInfo(id)
 	case "support_buy":
@@ -110,7 +126,7 @@ func (g *GC) supportDoc(id uint64, currency string, ok bool, problem string) map
 		wall = append(wall, map[string]any{"name": t.Name, "kind": string(t.Kind), "ago": int(g.now().Sub(t.At).Seconds())})
 	}
 	return map[string]any{
-		"available": ok, "problem": problem, "sandbox": g.cfg.Support.Sandbox || g.cfg.Support.Fake,
+		"available": ok, "problem": problem, "sandbox": g.cfg.Support.Sandbox || g.cfg.Support.Fake, "simulated": g.cfg.Support.Fake,
 		"currency": currency, "once": tiers(support.Once, prices.Once), "monthly": tiers(support.Monthly, prices.Monthly),
 		"me": me, "wall": wall, "count": g.book.Count(), "subscribers": g.book.Subscribers(),
 	}
@@ -155,11 +171,11 @@ func (g *GC) supportBuy(id uint64, kind support.Kind, tier int, anon bool) {
 	}
 	p := g.player(id)
 	if !g.cfg.Support.Fake && p.AuthAppID != g.cfg.Support.AppID {
-		g.notice(id, "Support purchases are not enabled for this Steam app. Open the production game to support Frontress.")
+		g.emit(id, "support_result", map[string]any{"ok": false, "error": "app"})
 		return
 	}
 	if !p.supportBusy.IsZero() && g.now().Sub(p.supportBusy) < time.Minute {
-		g.fail(id, "support_busy")
+		g.emit(id, "support_result", map[string]any{"ok": false, "error": "busy"})
 		return
 	}
 	p.supportBusy = g.now()
@@ -242,13 +258,6 @@ func (g *GC) supportAuthorized(id, orderID uint64, ok bool) {
 		}
 		g.log.Info("support: paid", "steamid", id, "order", orderID, "kind", o.Kind, "amount", o.Amount, "currency", o.Currency)
 		g.emit(id, "support_result", map[string]any{"ok": true, "kind": string(o.Kind)})
-		if !o.Anon {
-			key := "fui_feed_support"
-			if o.Kind == support.Monthly {
-				key = "fui_feed_support_monthly"
-			}
-			g.feed("support", key, o.Name)
-		}
 		g.sendSupportSummary(id)
 		g.emit(id, "support", g.supportDoc(id, o.Currency, true, ""))
 		g.presenceLast = ""

@@ -15,8 +15,7 @@
 // (billingtype Steam, period Month); Steam bills it every month until the
 // player cancels it, here or in their Steam account.
 //
-// Donations buy nothing that matters in a fight: a supporter badge, a name on
-// the thank-you wall, and the developers' gratitude.
+// Donations grant no gameplay perks. Donors may appear on the thank-you wall.
 package support
 
 import (

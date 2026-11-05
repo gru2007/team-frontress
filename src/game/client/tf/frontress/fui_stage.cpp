@@ -34,6 +34,7 @@
 extern const char *g_pszLegacyClassSelectVCDWeapons[ TF_LAST_NORMAL_CLASS ];
 extern int g_iLegacyClassSelectWeaponSlots[ TF_LAST_NORMAL_CLASS ];
 
+ConVar fui_menu_3d( "fui_menu_3d", "1", FCVAR_ARCHIVE, "Show live 3D characters in the main menu." );
 ConVar fui_stage_frame( "fui_stage_frame", "108", FCVAR_NONE, "How many world units tall a character's box shows (smaller: bigger characters)." );
 ConVar fui_stage_distance( "fui_stage_distance", "122", FCVAR_NONE, "How far the menu's camera stands from a character." );
 ConVar fui_stage_debug( "fui_stage_debug", "0", FCVAR_NONE, "Print where the menu's 3D characters are, once a second." );
@@ -175,27 +176,13 @@ public:
 		SetZPos( 1000 );
 		SetVisible( false );
 
-		// Load every class's model now, while the game is starting, so
-		// switching class in the lobby, the locker or class select never
-		// stops a frame to read one from disk.
-		for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_LAST_NORMAL_CLASS; ++iClass )
-		{
-			TFPlayerClassData_t *pData = GetPlayerClassData( iClass );
-			const MDLHandle_t h = pData ? mdlcache->FindMDL( pData->GetModelName() ) : MDLHANDLE_INVALID;
-			if ( h == MDLHANDLE_INVALID )
-				continue;
-			mdlcache->GetStudioHdr( h );
-			m_Warm.AddToTail( h );
-		}
 	}
 
 	~CFuiStage()
 	{
-		FOR_EACH_VEC( m_Warm, i )
-			mdlcache->Release( m_Warm[ i ] );
+		if ( m_nBackdropTexture >= 0 )
+			vgui::surface()->DestroyTextureID( m_nBackdropTexture );
 	}
-
-	CUtlVector< MDLHandle_t > m_Warm;
 
 	struct Slot_t
 	{
@@ -222,7 +209,7 @@ public:
 			m_Slots[ i ].bUsed = false;
 
 		Rml::Context *pContext = runtime.Context();
-		if ( bShown && pContext )
+		if ( bShown && pContext && ( fui_menu_3d.GetBool() || engine->IsInGame() ) )
 		{
 			for ( int d = 0; d < pContext->GetNumDocuments(); ++d )
 			{
@@ -259,8 +246,7 @@ public:
 				slot.pPanel->SetVisible( false );
 			bAny |= slot.bUsed;
 		}
-		// No map behind the menu (the background level only loads when the
-		// game starts, not after a match): draw a backdrop instead.
+		// Behind the live 3D models, draw scenery without starting a server.
 		m_bBackdrop = bShown && !engine->IsInGame();
 		if ( IsVisible() != ( bAny || m_bBackdrop ) )
 			SetVisible( bAny || m_bBackdrop );

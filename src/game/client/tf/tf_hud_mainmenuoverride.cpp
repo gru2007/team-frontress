@@ -299,7 +299,7 @@ CHudMainMenuOverride::~CHudMainMenuOverride( void )
 void CHudMainMenuOverride::PaintTraverse( bool Repaint, bool allowForce )
 {
 	// The Frontress menu (resource/fui) is on screen instead.
-	if ( FrontressUIOwnsMenu() )
+	if ( FrontressUIReplacesMenu() )
 		return;
 
 	// Ugly hack: disable painting until we're done screwing around with updating the layout during initialization.
@@ -315,6 +315,11 @@ void CHudMainMenuOverride::PaintTraverse( bool Repaint, bool allowForce )
 //-----------------------------------------------------------------------------
 void CHudMainMenuOverride::OnTick()
 {
+	const bool bLegacyInput = !FrontressUIReplacesMenu();
+	if ( IsMouseInputEnabled() != bLegacyInput )
+		SetMouseInputEnabled( bLegacyInput );
+	if ( IsKeyBoardInputEnabled() != bLegacyInput )
+		SetKeyBoardInputEnabled( bLegacyInput );
 	if ( m_iNumNotifications != NotificationQueue_GetNumMainMenuNotifications() )
 	{
 		m_iNumNotifications = NotificationQueue_GetNumMainMenuNotifications();

@@ -187,7 +187,7 @@ func TestClans(t *testing.T) {
 }
 
 // The support tab with fake Steam: prices in the player's currency, a
-// donation goes through, the supporter badge and the feed follow.
+// donation goes through, and the optional thank-you wall is updated.
 func TestSupportFake(t *testing.T) {
 	cfg := testConfig()
 	cfg.Support.Enabled, cfg.Support.Fake = true, true
@@ -197,11 +197,9 @@ func TestSupportFake(t *testing.T) {
 	_, base, stop := startGCWith(t, cfg, nil)
 	defer stop()
 
-	a, b := newPeer(t, base, alice), newPeer(t, base, bob)
+	a := newPeer(t, base, alice)
 	a.client()
-	b.client()
 	a.op(map[string]any{"op": "hello", "name": "Alice"})
-	b.op(map[string]any{"op": "hello", "name": "Bob"})
 
 	a.op(map[string]any{"op": "support_info"})
 	a.until("the support tab", func() bool {
@@ -219,11 +217,14 @@ func TestSupportFake(t *testing.T) {
 		ev := a.last("support_result")
 		return ev != nil && ev["ok"] == true
 	})
-	a.until("the supporter badge", func() bool {
+	a.until("the subscription status", func() bool {
 		ev := a.last("supporter")
 		return ev != nil && ev["supporter"] == true && ev["monthly"] == true
 	})
-	b.until("the thanks in the feed", func() bool { return has(b.chatText("global"), "fui_feed_support_monthly") })
+	a.until("the name on the supporters list", func() bool {
+		wall, _ := a.last("support")["wall"].([]any)
+		return len(wall) == 1 && wall[0].(map[string]any)["name"] == "Alice"
+	})
 
 	a.op(map[string]any{"op": "support_cancel"})
 	a.until("the subscription stopped", func() bool {

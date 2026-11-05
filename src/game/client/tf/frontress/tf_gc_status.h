@@ -28,6 +28,7 @@ enum ETFMMState
 {
 	k_eTFMMState_Idle,        // not looking for anything
 	k_eTFMMState_Searching,   // in a queue
+	k_eTFMMState_Preparing,
 	k_eTFMMState_MatchReady,  // a match formed; its server is getting ready or ready
 	k_eTFMMState_Connecting,  // joining the match server
 	k_eTFMMState_InMatch,     // on the match server

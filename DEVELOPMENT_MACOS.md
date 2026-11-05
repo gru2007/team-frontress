@@ -60,6 +60,24 @@ engine-independent fixes that apply to every build:
 
 Passing the macOS build does not replace the Windows and Linux CI builds.
 
+## Matchmaking smoke test
+
+- Use `tf_gc_status` to check the coordinator URL and session. The production
+  URL is `https://gc.team-frontress.org`; quote URLs in console commands or cfg
+  files. For a local GC, use `tf_gc_url "http://127.0.0.1:27100"`.
+- In the local GC, set a two-player casual group and start `gc-devserver -fill 1`
+  with a test server key. Queue in the client, wait for the match card, and
+  accept. The simulator can verify the lobby and the destination passed to
+  `connect`, but does not run a game server. Use a real dedicated server for the
+  final join and gameplay check.
+- Run `version` in both the client and the dedicated server. Compare **Protocol
+  version** and **Network PatchVersion**. Use a macOS engine built with
+  protocol 24 and Steam session tickets for the official SDK dedicated
+  servers. Servers with `tf_mm_strict 1` require a coordinator-assigned match
+  before they admit a client.
+- `fui_menu_3d 0` disables lobby characters. Neither setting starts a background
+  map or a listen server.
+
 ## Status
 
 On the development engine, `ctf_2fort` is playable: the world, lighting, sky,

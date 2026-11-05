@@ -48,7 +48,7 @@ tf_gc_server_region "eu"          // optional; a match group can ask for a regio
 tf_mm_servermode 1
 tf_mm_strict 1
 sv_password ""
-sv_hibernate_when_empty 0
+tf_allow_server_hibernation 0
 ```
 
 `$GC_URL` and `$GC_SECRET` work instead of the first two, for containers.
@@ -56,4 +56,10 @@ sv_hibernate_when_empty 0
 It connects, reports itself empty, and is handed matches as they form. A
 community that runs servers for this GC gets its own key, so its servers can be
 told apart and cut off on their own. `GET /v1/status` shows the pool
-(`servers`, `free_servers`).
+(`servers`, `free_servers`). A connected server is counted in `servers` immediately. It
+only enters `free_servers` after reporting `EMPTY` with a connect address.
+Look for `server readiness changed` in the GC log. If the pool stays empty,
+check that the dedicated instance points to the same GC over HTTPS, has
+`tf_mm_servermode 1`, has loaded its initial map, and advertises a public UDP
+address. If it goes offline and comes back under a different SteamID, also
+check its Steam game server login and process restart logs.

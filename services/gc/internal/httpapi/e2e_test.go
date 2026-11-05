@@ -363,6 +363,17 @@ func TestMatchEndToEnd(t *testing.T) {
 		t.Fatal("players were told where to connect before the server was ready")
 	}
 
+	// An old empty heartbeat can name the very same map. It must not
+	// publish a join address before the server has accepted the lobby.
+	gs.send(msg(gcpb.ETFGCMsg_k_EMsgGCGameServerMatchmakingStatus), &gcpb.CMsgGameServerMatchmakingStatus{
+		MatchmakingState: gcpb.ServerMatchmakingState_ServerMatchmakingState_EMPTY.Enum(),
+		Map:              proto.String("koth_viaduct"),
+	})
+	a.pump(150 * time.Millisecond)
+	if l := a.lobby(); l.GetState() != gcpb.CSOTFGameServerLobby_SERVERSETUP || l.GetConnect() != "" {
+		t.Fatalf("empty heartbeat made the lobby joinable: %v", l)
+	}
+
 	// The server loads the map and acknowledges the players: the match goes
 	// live and the players are told where to connect.
 	gs.send(msg(gcpb.ETFGCMsg_k_EMsgGCGameServerMatchmakingStatus), &gcpb.CMsgGameServerMatchmakingStatus{

@@ -47,7 +47,7 @@
 		<div id="browser" class="panel">
 			<div class="row browser-head">
 				<div class="col grow">
-					<div class="title browser-title">{{ ('fui_slot_' + (ui.slot == 'cosmetic2' || ui.slot == 'cosmetic3' ? 'cosmetic' : ui.slot)) | t }}</div>
+					<div class="title browser-title">{{ locker.slot_label }}</div>
 					<div class="dimmer tiny">{{ locker.count }} #fui_items · {{ ('fui_class_' + ui.class) | t }}</div>
 				</div>
 				<div class="filter" data-class-on="locker.filter == 'all'" data-event-click="cmd('locker_filter', 'all')">#fui_filter_all</div>
@@ -56,6 +56,11 @@
 			</div>
 
 			<div id="grid">
+				<div class="dim small" data-if="locker.count == 0">
+					<span data-if="!locker.inventory_ready">#fui_locker_inventory_loading</span>
+					<span data-if="locker.inventory_ready && locker.inventory_count == 0">#fui_locker_inventory_empty</span>
+					<span data-if="locker.inventory_ready && locker.inventory_count > 0">#fui_locker_no_items</span>
+				</div>
 				<div data-for="it : locker.view"
 					data-attr-class="'item tile-' + it.quality + (it.index == ui.pick ? ' picked' : '') + (it.equipped ? ' equipped' : '')"
 					data-event-click="cmd('locker_pick', it.index)" data-event-dblclick="cmd('equip', it.index)">

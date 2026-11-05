@@ -117,7 +117,7 @@ tf_gc_server_key "<a key from server_keys>"
 tf_mm_servermode 1
 tf_mm_strict 1
 sv_password ""
-sv_hibernate_when_empty 0
+tf_allow_server_hibernation 0
 ```
 
 In a container the URL and key can come from `GC_URL` and `GC_SECRET`

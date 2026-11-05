@@ -2395,9 +2395,10 @@ void CTFGCServerSystem::UpdateServerDetails(void)
 
 bool CTFGCServerSystem::ShouldHibernate()
 {
-	// We only hibernate if we're just sitting there with a freshly loaded map
-	return ( engine->IsDedicatedServer() && tf_allow_server_hibernation.GetBool() && !GetLobby() &&
-	         !BPendingReliableMessages() && !m_pMatchInfo );
+	// An empty pool server still needs frames to announce its readiness
+	// and act on assignments from the coordinator.
+	return ( engine->IsDedicatedServer() && !m_bMMServerMode && tf_allow_server_hibernation.GetBool() &&
+	         !GetLobby() && !BPendingReliableMessages() && !m_pMatchInfo );
 }
 
 void CTFGCServerSystem::FireGameEvent( IGameEvent *event )
@@ -3079,6 +3080,14 @@ ConVar dbg_spew_connected_players_level( "dbg_spew_connected_players_level", "0"
 void CTFGCServerSystem::UpdateConnectedPlayersAndServerInfo( CMsgGameServerMatchmakingStatus_Event event, bool bForceSendMessages )
 {
 	VPROF_BUDGET( "CTFGCServerSystem::UpdateConnectedPlayersAndServerInfo", VPROF_BUDGETGROUP_OTHER_NETWORKING );
+
+	if ( !GCClientSystem()->BConnectedtoGC() )
+	{
+		// Force the next session's initial heartbeat even when the map and
+		// slot counts are unchanged.
+		m_eLastGameServerUpdateState = ServerMatchmakingState_INVALID;
+		return;
+	}
 
 	// Don't bother sending if we aren't initialized yet
 	if ( gpGlobals->maxClients == 0 || TFGameRules() == NULL )
@@ -3870,7 +3879,13 @@ void CTFGCServerSystem::UpdateConnectedPlayersAndServerInfo( CMsgGameServerMatch
 			{ return; }
 	}
 
-	GCClientSystem()->BSendMessage( msg );
+	if ( !GCClientSystem()->BSendMessage( msg ) )
+		return;
+
+	if ( m_eLastGameServerUpdateState == ServerMatchmakingState_INVALID )
+		MMLog( "First coordinator status sent: %s, map %s, group %d\n",
+			ServerMatchmakingState_Name( msg.Body().matchmaking_state() ).c_str(),
+			msg.Body().map().c_str(), msg.Body().match_group() );
 
 	// Remember what/when we sent, so we can tell next time if we need to send
 	m_timeLastSendGameServerInfoAndConnectedPlayers = now;

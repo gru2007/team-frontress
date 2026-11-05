@@ -896,8 +896,9 @@ void CTFGCClientSystem::OnWebapiInventoryReceived( HTTPRequestCompleted_t* pInfo
 			Warning( "[inventory] Valve SO cache failed to load or version mismatched; retrying.\n" );
 			return;
 		}
-		Msg( "[inventory] Valve SO cache loaded, version %llu.\n",
-		     (unsigned long long)pSOCache->GetVersion() );
+		const auto *pItems = pSOCache->FindTypeCache( CEconItem::k_nTypeID );
+		Msg( "[inventory] Valve SO cache loaded for app %u, version %llu, %u item objects.\n",
+		     engine->GetAppID(), (unsigned long long)pSOCache->GetVersion(), pItems ? pItems->GetCount() : 0u );
 	}
 	else
 	{

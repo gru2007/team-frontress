@@ -20,13 +20,14 @@
 	// world: a map is behind the menu (the game's background level or the
 	// match). preview: tools/fui-preview, which draws 2D stand-ins where the
 	// game puts 3D characters.
-	"app": { "gc": "offline", "online": 0, "version": "", "matches_live": 0, "world": false, "preview": false },
+	"app": { "gc": "offline", "online": 0, "version": "", "matches_live": 0, "no_servers": false, "world": false, "preview": false },
 	// tag: clan tag; sup: supports the developers (sup_monthly: subscribes)
 	"player": { "name": "", "avatar": "", "level": 1, "xp": 0, "xp_next": 1, "xp_frac": 0, "side": "red", "rank": "", "title": "", "tag": "", "sup": false, "sup_monthly": false },
 	// members: { key ("me" / "member:<id>", the 3D look), name, avatar, level,
 	// leader, me, class, slot (lobby position 0-4), has_look }
 	"party": { "max": 6, "count": 1, "members": [], "empty": [] },
-	// state: idle | searching | found | joining | live
+	"invites": { "incoming": [], "friends": [] },
+	// state: idle | searching | preparing | found | joining | live
 	"queue": { "state": "idle", "mode": "", "seconds": 0, "players": 0, "needed": 0, "map": "", "map_image": "" },
 	"modes": [],
 	"maps": [],
@@ -56,8 +57,9 @@
 		"war": { "active": false, "sector": "", "stage": 0, "stages": 0, "kind": "", "attacker": "", "attacking": false, "order": false, "conditions": [] }
 	},
 	// The settings window: the HUDs installed (resource/fui/huds) and the one in use.
-	"settings": { "hud_style": "auto", "huds": [ "auto" ] },
+	"settings": { "menu_3d": true, "hud_style": "auto", "huds": [ "auto" ] },
 	"locker": {
+		"slot_label": "", "inventory_ready": false, "inventory_count": 0,
 		"classes": [
 			{ "id": "scout", "name": "#fui_class_scout" }, { "id": "soldier", "name": "#fui_class_soldier" },
 			{ "id": "pyro", "name": "#fui_class_pyro" }, { "id": "demoman", "name": "#fui_class_demoman" },
@@ -98,7 +100,7 @@
 	// { tier, kind, amount, price }, me { supporter, monthly, donations, since },
 	// wall[] { name, kind, ago }, count, subscribers, anon, result (opening,
 	// pending, thanks, cancelled, error), error, problem.
-	"support": { "offered": false, "available": false, "loading": false, "busy": false, "sandbox": false, "currency": "",
+	"support": { "show_wall": true, "simulated": false, "offered": false, "available": false, "loading": false, "busy": false, "sandbox": false, "currency": "",
 		"once": [], "monthly": [], "me": { "supporter": false, "monthly": false, "donations": 0, "since": 0 }, "wall": [],
 		"count": 0, "subscribers": 0, "anon": false, "result": "", "error": "", "problem": "" },
 	// From the coordinator (GET /v1/player/<id>/quests). Each quest:

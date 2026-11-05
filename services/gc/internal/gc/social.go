@@ -79,6 +79,7 @@ type socialOp struct {
 	Tier   int    `json:"tier"`
 	Anon   bool   `json:"anon"`
 	Order  string `json:"order"`
+	Status string `json:"status"`
 	OK     bool   `json:"ok"`
 }
 

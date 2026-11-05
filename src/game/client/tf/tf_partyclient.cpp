@@ -448,8 +448,7 @@ bool CTFPartyClient::BRequestJoinPlayer( CSteamID steamID, bool bExpectingExisti
 	msg.Body().set_join_player_id( steamID.ConvertToUint64() );
 	if ( bExpectingExistingInvite )
 		{ msg.Body().set_expecting_invite( true ); }
-	GCClientSystem()->BSendMessage( msg );
-	return true;
+	return GCClientSystem()->BSendMessage( msg );
 }
 
 //-----------------------------------------------------------------------------

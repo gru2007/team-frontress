@@ -160,10 +160,8 @@
 	padding: 9dp 8dp;
 	border-bottom: 1dp #ffffff0a;
 }
-.thanks.k-monthly { background-color: #ff6fa80f; border-radius: 8dp; }
 .thanks-name { font-size: 18dp; color: #ece3cb; white-space: nowrap; overflow: hidden; }
 .thanks-ago { flex: 0 0 auto; white-space: nowrap; }
-.thanks.k-monthly .thanks-name { color: #ffd1e3; }
 
 /* ------------------------------------------------------------ status, footer */
 .result {

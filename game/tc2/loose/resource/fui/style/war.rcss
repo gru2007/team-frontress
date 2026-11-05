@@ -29,7 +29,9 @@
 #no-war { position: absolute; left: 50%; top: 40%; width: 640dp; margin-left: -320dp; text-align: center; }
 
 /* --- The campaign --- */
-#campaign { position: absolute; left: 40dp; top: 104dp; width: 400dp; }
+#war-left { position: absolute; left: 40dp; top: 104dp; bottom: 94dp; width: 434dp; overflow-y: auto; }
+.faction-actions { gap: 8dp; margin: 6dp 0 10dp 0; }
+.faction-actions .button { padding: 8dp; text-align: center; font-size: 16dp; }
 #campaign h1 { font-size: 40dp; line-height: 44dp; margin: 2dp 0 10dp 0; }
 .tug-bar {
 	position: relative;
@@ -55,7 +57,6 @@
 .stat-of { font-size: 20dp; color: #b8ab92; }
 
 /* --- Left: the main push and the operations --- */
-#war-left { position: absolute; left: 40dp; top: 268dp; width: 400dp; }
 #war-left > * { margin-bottom: 12dp; }
 .order { position: relative; cursor: pointer; border-left: 5dp #ffc93c; margin-bottom: 12dp; }
 .order.red { border-left-color: #d6463d; }

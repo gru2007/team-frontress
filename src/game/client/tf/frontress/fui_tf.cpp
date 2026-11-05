@@ -39,7 +39,6 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-extern ConVar tf_gc_url;
 
 namespace
 {
@@ -150,12 +149,8 @@ bool Fits( const CEconItemView *pItem, int iClass, const Slot_t &slot )
 	const GameItemDefinition_t *pDef = pItem ? pItem->GetStaticData() : NULL;
 	if ( !pDef || !pDef->CanBeUsedByClass( iClass ) )
 		return false;
-	const int iItemSlot = pDef->GetLoadoutSlot( iClass );
-	if ( !V_strcmp( slot.pszKind, "cosmetic" ) )
-		return IsWearableSlot( iItemSlot ) && !IsTauntSlot( iItemSlot ) && iItemSlot != LOADOUT_POSITION_ACTION;
-	if ( !V_strcmp( slot.pszKind, "taunt" ) )
-		return IsTauntSlot( iItemSlot );
-	return iItemSlot == slot.iPosition;
+	return pDef->GetEquipType() == EQUIP_TYPE_CLASS &&
+		AreSlotsConsideredIdentical( pDef->GetEquipType(), pDef->GetLoadoutSlot( iClass ), slot.iPosition );
 }
 
 const char *QualityName( int iQuality )
@@ -185,7 +180,7 @@ public:
 			return;
 		m_flNext = (float)Plat_FloatTime() + flInterval;
 		ISteamHTTP *pHTTP = SteamHTTP();
-		const char *pszBase = tf_gc_url.GetString();
+		const char *pszBase = FrontressGC()->GetBaseURL();
 		if ( !pHTTP || !pszBase || !pszBase[ 0 ] )
 			return;
 		CUtlString strBase( pszBase );
@@ -316,6 +311,7 @@ struct CFuiTF::Impl
 	void RefreshApp();
 	void RefreshPlayerAndParty();
 	void RefreshQueue();
+	bool StartQueue( const std::string &mode, const std::string *pFront = nullptr );
 	void RefreshModes();
 	void RefreshLocker();
 	void TakeFetches();
@@ -326,7 +322,7 @@ void CFuiTF::Impl::RefreshApp()
 {
 	const CTFGCStatus::Status_t &status = TFGCStatus()->GetStatus();
 	Node app;
-	const char *pszURL = tf_gc_url.GetString();
+	const char *pszURL = FrontressGC()->GetBaseURL();
 	if ( FrontressGC() && FrontressGC()->BConnected() )
 		app[ "gc" ] = "online";
 	else if ( !pszURL || !pszURL[ 0 ] || ( status.bChecked && !status.bValid ) )
@@ -335,6 +331,7 @@ void CFuiTF::Impl::RefreshApp()
 		app[ "gc" ] = "connecting";
 	app[ "online" ] = status.nOnlinePlayers;
 	app[ "matches_live" ] = status.nLiveMatches;
+	app[ "no_servers" ] = status.bValid && status.bServerCapacityKnown && status.nFreeServers == 0;
 	app[ "version" ] = status.strName.Get();
 	// The 3D characters (and the background level or the match, when there
 	// is one) are behind the menu: the documents leave the middle to them.
@@ -546,6 +543,7 @@ void CFuiTF::Impl::RefreshQueue()
 	{
 	case k_eTFMMState_Searching: queue[ "state" ] = "searching"; break;
 	case k_eTFMMState_MatchReady: queue[ "state" ] = "found"; break;
+	case k_eTFMMState_Preparing: queue[ "state" ] = "preparing"; break;
 	case k_eTFMMState_Connecting: queue[ "state" ] = "joining"; break;
 	case k_eTFMMState_InMatch: queue[ "state" ] = "live"; break;
 	default: queue[ "state" ] = "idle"; break;
@@ -556,7 +554,9 @@ void CFuiTF::Impl::RefreshQueue()
 		mode = "war";
 	queue[ "mode" ] = mode;
 	queue[ "seconds" ] = (int)pStatus->GetQueueSeconds();
-	queue[ "players" ] = pStatus->GetQueuePlayerCount();
+	const int nParty = GTFPartyClient() ? GTFPartyClient()->GetNumPartyMembers() : 1;
+	queue[ "players" ] = pStatus->GetState() == k_eTFMMState_Searching ?
+		Max( nParty, pStatus->GetQueuePlayerCount() ) : pStatus->GetQueuePlayerCount();
 	queue[ "needed" ] = pStatus->GetQueueNeededCount();
 
 	CTFGSLobby *pLobby = GTFGCClientSystem()->GetLobby();
@@ -565,6 +565,45 @@ void CFuiTF::Impl::RefreshQueue()
 	queue[ "map" ] = pMap ? Localized( pMap->pszMapNameLocKey ) : std::string( pszMap ? pszMap : "" );
 	queue[ "map_image" ] = ( pszMap && pszMap[ 0 ] ) ? std::string( "vgui/maps/menu_thumb_" ) + pszMap : std::string();
 	pRuntime->Set( "queue", std::move( queue ) );
+}
+
+bool CFuiTF::Impl::StartQueue( const std::string &mode, const std::string *pFront )
+{
+	const auto error = [this]( const char *key ) {
+		Toast( "error", pRuntime->Translate( "fui_err_title" ), pRuntime->Translate( key ), "" );
+		return false;
+	};
+	if ( !FrontressGC() || !FrontressGC()->BConnected() || !GTFPartyClient() || !GCClientSystem() )
+		return error( "fui_gc_offline" );
+	const auto group = GroupForMode( mode );
+	if ( !TFGCStatus()->BGroupOffered( group ) )
+		return error( "fui_queue_unavailable" );
+	if ( !GTFPartyClient()->GetActiveParty() )
+		return error( "fui_queue_party_sync" );
+	if ( !GTFPartyClient()->BControllingPartyActions() )
+		return error( "fui_queue_leader" );
+	if ( TFGCStatus()->GetState() != k_eTFMMState_Idle )
+		return error( "fui_queue_active" );
+	if ( mode == "war" )
+	{
+		if ( Str( "player.war_side" ).empty() )
+		{
+			pRuntime->Navigate( "war" );
+			return error( "fui_war_choose_hint" );
+		}
+	}
+	if ( group == k_eTFMatchGroup_Casual_12v12 )
+	{
+		GCSDK::CProtoBufMsg< CMsgPartyChatMsg > msg( 51003 );
+		const std::string front = pFront ? *pFront : "";
+		msg.Body().set_msg( "{\"front\":\"" + front + "\"}" );
+		if ( !GCClientSystem()->BSendMessage( msg ) )
+			return error( "fui_gc_offline" );
+	}
+	strQueuedMode = mode;
+	GTFPartyClient()->RequestQueueForMatch( group );
+	RefreshQueue();
+	return true;
 }
 
 void CFuiTF::Impl::RefreshModes()
@@ -649,8 +688,11 @@ void CFuiTF::Impl::RefreshLocker()
 	const Slot_t &current = SlotByID( Str( "ui.slot" ) );
 	const std::string filter = Str( "locker.filter" );
 	const int nPick = (int)( pRuntime->Get( "ui.pick" ) ? pRuntime->Get( "ui.pick" )->AsNumber( -1 ) : -1 );
+	const bool bHadPick = lockerItems.IsValidIndex( nPick );
+	const itemid_t selected = bHadPick ? lockerItems[ nPick ] : INVALID_ITEM_ID;
 
 	lockerItems.RemoveAll();
+	int iNewPick = -1;
 
 	// What is worn, slot by slot.
 	Node equipped;
@@ -689,14 +731,17 @@ void CFuiTF::Impl::RefreshLocker()
 		Node &entry = view.Append();
 		ItemNode( pItem, entry );
 		entry[ "index" ] = index;
-		entry[ "equipped" ] = id == worn || ( id == LOADOUT_SLOT_USE_BASE_ITEM && worn == INVALID_ITEM_ID );
-		if ( index == nPick )
+		entry[ "equipped" ] = id == worn;
+		if ( bHadPick && id == selected )
+		{
+			iNewPick = index;
 			detail.Assign( entry.Clone() );
+		}
 	};
 
 	CEconItemView *pBase = pManager->GetBaseItemForClass( iClass, current.iPosition );
 	if ( pBase && pBase->IsValid() )
-		offer( pBase, LOADOUT_SLOT_USE_BASE_ITEM );
+		offer( pBase, INVALID_ITEM_ID );
 	for ( int i = 0; i < pInventory->GetItemCount(); ++i )
 	{
 		CEconItemView *pItem = pInventory->GetItem( i );
@@ -704,6 +749,10 @@ void CFuiTF::Impl::RefreshLocker()
 			offer( pItem, pItem->GetItemID() );
 	}
 
+	pRuntime->Set( "ui.pick", Node( iNewPick ) );
+	pRuntime->Set( "locker.slot_label", Node( pRuntime->Translate( std::string( "fui_slot_" ) + current.pszKind ) ) );
+	pRuntime->Set( "locker.inventory_ready", Node( GTFGCClientSystem()->BValveInventoryReady() ) );
+	pRuntime->Set( "locker.inventory_count", Node( pInventory->GetItemCount() ) );
 	pRuntime->Set( "locker.equipped", std::move( equipped ) );
 	pRuntime->Set( "locker.count", Node( (int)view.Size() ) );
 	pRuntime->Set( "locker.view", std::move( view ) );
@@ -787,8 +836,7 @@ void CFuiTF::Impl::OpenClassic( const std::string &what )
 		{ "create", "gamemenucommand OpenCreateMultiplayerGameDialog" },
 		{ "mute", "gamemenucommand OpenMutePlayerDialog" },
 		{ "vote", "callvote" },
-		{ "console", "toggleconsole" },
-		{ "classic_menu", "fui_menu 0" },
+		{ "console", "con_enable 1; showconsole" },
 	};
 	for ( const auto &window : s_Windows )
 	{
@@ -807,6 +855,8 @@ void CFuiTF::Impl::RefreshSettings()
 	Node settings;
 	settings.SetObject();
 	static ConVarRef fui_hud_style( "fui_hud_style" );
+	static ConVarRef fui_menu_3d( "fui_menu_3d" );
+	settings[ "menu_3d" ] = Node( fui_menu_3d.IsValid() && fui_menu_3d.GetBool() );
 	settings[ "hud_style" ] = Node( fui_hud_style.IsValid() ? fui_hud_style.GetString() : "auto" );
 	Node &huds = settings[ "huds" ];
 	huds.SetArray();
@@ -1178,14 +1228,11 @@ void CFuiTF::OnCommand( const std::string &name, const std::vector< std::string 
 	if ( name == "queue" )
 	{
 		if ( arg == "community" )
-			engine->ClientCmd_Unrestricted( "gamemenucommand openserverbrowser\n" );
+			d.OpenClassic( "servers" );
 		else if ( arg == "training" )
-			engine->ClientCmd_Unrestricted( "gamemenucommand OpenCreateMultiplayerGameDialog\n" );
-		else if ( GTFPartyClient() )
-		{
-			d.strQueuedMode = arg;
-			GTFPartyClient()->RequestQueueForMatch( GroupForMode( arg ) );
-		}
+			d.OpenClassic( "create" );
+		else if ( arg == "casual" || arg == "ranked" || arg == "war" )
+			d.StartQueue( arg );
 	}
 	else if ( name == "war_side" )
 	{
@@ -1198,26 +1245,14 @@ void CFuiTF::OnCommand( const std::string &name, const std::vector< std::string 
 	}
 	else if ( name == "war_join" )
 	{
-		// Tell the coordinator which operation we want (services/gc/internal/
-		// gc/warfront.go), then queue for the war like the play button does.
-		if ( FrontressGC() && FrontressGC()->BConnected() && GCClientSystem() )
+		std::string front;
+		for ( char c : arg )
 		{
-			std::string front;
-			for ( char c : arg )
-			{
-				if ( isalnum( (unsigned char)c ) || c == '-' || c == '_' )
-					front += c;
-			}
-			GCSDK::CProtoBufMsg< CMsgPartyChatMsg > msg( 51003 );
-			msg.Body().set_msg( ( "{\"front\":\"" + front + "\"}" ).c_str() );
-			GCClientSystem()->BSendMessage( msg );
+			if ( isalnum( (unsigned char)c ) || c == '-' || c == '_' )
+				front += c;
 		}
-		ui.Set( "ui.mode", fui::Node( "war" ) );
-		if ( GTFPartyClient() && TFGCStatus()->GetQueuedMatchGroup() == k_eTFMatchGroup_Invalid )
-		{
-			d.strQueuedMode = "war";
-			GTFPartyClient()->RequestQueueForMatch( GroupForMode( "war" ) );
-		}
+		if ( !front.empty() && d.StartQueue( "war", &front ) )
+			ui.Set( "ui.mode", Node( "war" ) );
 	}
 	else if ( name == "unqueue" )
 	{
@@ -1229,8 +1264,13 @@ void CFuiTF::OnCommand( const std::string &name, const std::vector< std::string 
 		GTFGCClientSystem()->JoinMMMatch();
 	else if ( name == "decline" )
 	{
-		ui.Set( "queue.state", "idle" );
-		engine->ClientCmd_Unrestricted( "disconnect\n" );
+		const CTFGSLobby *pLobby = GTFGCClientSystem()->GetLobby();
+		if ( pLobby && GCClientSystem() )
+		{
+			GCSDK::CProtoBufMsg< CMsgExitMatchmaking > msg( k_EMsgGCExitMatchmaking );
+			msg.Body().set_lobby_id( pLobby->GetGroupID() );
+			GCClientSystem()->BSendMessage( msg );
+		}
 	}
 	else if ( name == "select_mode" )
 	{
@@ -1252,11 +1292,15 @@ void CFuiTF::OnCommand( const std::string &name, const std::vector< std::string 
 			d.RefreshModes();
 		}
 	}
-	else if ( name == "locker_class" )
+	else if ( name == "locker_class" || name == "lobby_class" )
 	{
-		ui.Set( "ui.class", fui::Node( arg ) );
-		ui.Set( "ui.pick", fui::Node( -1 ) );
-		d.RefreshLocker();
+		if ( arg != ClassID( ClassIndex( arg ) ) )
+			return;
+		ui.Set( "ui.class", Node( arg ) );
+		ui.Set( "ui.pick", Node( -1 ) );
+		d.RefreshPlayerAndParty();
+		if ( name == "locker_class" )
+			d.RefreshLocker();
 	}
 	else if ( name == "locker_slot" )
 	{
@@ -1280,15 +1324,18 @@ void CFuiTF::OnCommand( const std::string &name, const std::vector< std::string 
 		if ( d.lockerItems.IsValidIndex( index ) && TFInventoryManager() )
 		{
 			const Slot_t &slot = SlotByID( d.Str( "ui.slot" ) );
-			TFInventoryManager()->EquipItemInLoadout( ClassIndex( d.Str( "ui.class" ) ), slot.iPosition, d.lockerItems[ index ] );
-			ui.Set( "ui.pick", fui::Node( index ) );
+			if ( !TFInventoryManager()->EquipItemInLoadout( ClassIndex( d.Str( "ui.class" ) ), slot.iPosition, d.lockerItems[ index ] ) )
+			{
+				d.Toast( "error", ui.Translate( "fui_err_title" ), ui.Translate( "fui_locker_equip_failed" ), "" );
+				return;
+			}
+			ui.Set( "ui.pick", Node( index ) );
 			d.RefreshLocker();
 		}
 	}
 	else if ( name == "invite" )
 	{
-		if ( steamapicontext && steamapicontext->SteamFriends() )
-			steamapicontext->SteamFriends()->ActivateGameOverlay( "Friends" );
+		FuiSocialCommand( ui, "open_invites", {} );
 	}
 	else if ( name == "settings" )
 		d.OpenClassic( "options" );
@@ -1298,6 +1345,15 @@ void CFuiTF::OnCommand( const std::string &name, const std::vector< std::string 
 	{
 		d.RefreshSettings();
 		ui.Set( "ui.modal", Node( "settings" ) );
+	}
+	else if ( name == "toggle_menu_3d" )
+	{
+		static ConVarRef fui_menu_3d( "fui_menu_3d" );
+		if ( fui_menu_3d.IsValid() )
+		{
+			fui_menu_3d.SetValue( !fui_menu_3d.GetBool() );
+			ui.Set( "settings.menu_3d", Node( fui_menu_3d.GetBool() ) );
+		}
 	}
 	else if ( name == "hud_style" )
 	{

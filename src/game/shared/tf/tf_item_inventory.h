@@ -19,6 +19,8 @@
 #include "econ_notifications.h"
 #endif
 
+bool AreSlotsConsideredIdentical( EEquipType_t eEquipType, int iBaseSlot, int iTestSlot );
+
 #define LOADOUT_SLOT_USE_BASE_ITEM		0
 
 namespace vgui

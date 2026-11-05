@@ -37,7 +37,7 @@ type Server struct {
 }
 
 func (s *Server) idle(now time.Time) bool {
-	return s.Session != nil && !s.Session.Closed() && s.Ready && s.LobbyID == 0 &&
+	return s.Session != nil && !s.Session.Closed() && s.Ready && s.Connect != "" && s.LobbyID == 0 &&
 		!now.Before(s.RestUntil)
 }
 
@@ -57,7 +57,8 @@ func (g *GC) ServerConnected(s *session.Session) {
 	srv.Community = s.CommunityID
 	srv.Region = s.Region
 	srv.Connect = s.Connect
-	srv.LastStatus = g.now()
+	srv.Ready = false // Wait for a status from this session.
+	srv.LastStatus = time.Time{}
 
 	// Back to its match, if it had one.
 	if l := g.lobbies[srv.LobbyID]; l != nil && l.ServerID == srv.SteamID {
@@ -123,11 +124,22 @@ func (g *GC) handleServerStatus(s *session.Session, m *wire.Msg) {
 	if srv == nil || srv.Session != s {
 		return
 	}
+	firstHeartbeat := srv.LastStatus.IsZero()
 	srv.LastStatus = g.now()
 	srv.Map = msg.GetMap()
 	// Empty, in matchmaking mode, and with no match of its own any more.
-	srv.Ready = msg.GetMatchmakingState() == gcpb.ServerMatchmakingState_ServerMatchmakingState_EMPTY &&
-		msg.GetMatchGroup() < 0
+	wasReady := srv.Ready
+	state := msg.GetMatchmakingState()
+	srv.Ready = state == gcpb.ServerMatchmakingState_ServerMatchmakingState_EMPTY &&
+		msg.GetMatchGroup() < 0 && srv.Connect != ""
+	if firstHeartbeat {
+		g.log.Info("first server heartbeat", "server", srv.SteamID, "state", state.String(),
+			"match_group", msg.GetMatchGroup(), "map", srv.Map, "connect", srv.Connect, "ready", srv.Ready)
+	} else if wasReady != srv.Ready {
+		g.log.Info("server readiness changed", "server", srv.SteamID, "ready", srv.Ready,
+			"state", state.String(), "map", srv.Map, "region", srv.Region, "connect", srv.Connect,
+			"server_version", msg.GetServerVersion())
+	}
 
 	l := g.lobbies[srv.LobbyID]
 	if l == nil || l.ServerID != srv.SteamID {
@@ -160,7 +172,9 @@ func (g *GC) handleServerStatus(s *session.Session, m *wire.Msg) {
 		}
 	}
 
-	if l.State == lobbySetup && sameMap(l.Map, msg.GetMap()) {
+	active := state == gcpb.ServerMatchmakingState_ServerMatchmakingState_ACTIVE_MATCH ||
+		state == gcpb.ServerMatchmakingState_ServerMatchmakingState_ACTIVE_MATCH_REQUESTING_LATE_JOIN
+	if l.State == lobbySetup && active && sameMap(l.Map, msg.GetMap()) {
 		g.goLive(l)
 		return
 	}
