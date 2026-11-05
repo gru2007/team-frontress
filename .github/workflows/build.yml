@@ -205,6 +205,7 @@ jobs:
           # the environment, so it applies identically to a developer running
           # buildallprojects by hand. Sloppiness is not here -- buildallprojects
           # exports CCACHE_SLOPPINESS, and the environment beats the file.
+          mkdir -p "$CCACHE_DIR"
           cat > "$CCACHE_DIR/ccache.conf" <<'CONF'
           # Bounded on purpose: this cache is uploaded and downloaded once per
           # run, so its size is build time. One full build's objects are well
