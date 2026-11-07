@@ -11,7 +11,8 @@
 .pos2 { left: 980dp;  bottom: 162dp; width: 420dp; height: 610dp; z-index: 4; }
 .pos3 { left: 470dp;  bottom: 222dp; width: 340dp; height: 500dp; z-index: 3; }
 .pos4 { left: 1110dp; bottom: 222dp; width: 340dp; height: 500dp; z-index: 3; }
-.pos5 { display: none; }
+.pos5 { left: 385dp; bottom: 282dp; width: 300dp; height: 430dp; z-index: 2; }
+.model-enable { position: absolute; left: 790dp; top: 500dp; z-index: 8; }
 
 .member { animation: 0.6s back-out 1 arrive; }
 @keyframes arrive { from { opacity: 0; transform: translateY(60dp) scale(0.9); } to { opacity: 1; transform: translateY(0dp) scale(1); } }
@@ -46,8 +47,8 @@
 	text-align: center;
 }
 .member.me .nameplate { border-color: #ffc93caa; width: 250dp; margin-left: -125dp; padding: 8dp 12dp; }
-.pos3 .nameplate, .pos4 .nameplate { width: 180dp; margin-left: -90dp; }
-.pos3 .plate-name, .pos4 .plate-name { font-size: 17dp; }
+.pos3 .nameplate, .pos4 .nameplate, .pos5 .nameplate { width: 180dp; margin-left: -90dp; }
+.pos3 .plate-name, .pos4 .plate-name, .pos5 .plate-name { font-size: 17dp; }
 .plate-top { justify-content: center; gap: 8dp; }
 .plate-class { width: 26dp; height: 26dp; }
 .plate-name { font-family: "TF2 Build"; font-size: 21dp; white-space: nowrap; }

@@ -130,12 +130,13 @@ func (a *API) session(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s := a.gc.Sessions().Open(session.Client, id, func(s *session.Session) { s.AppID = appID })
-		if err := a.gc.Call(ctx, func() { a.gc.ClientConnected(s, a.auth.Verified()) }); err != nil {
+		var lobbyID uint64
+		if err := a.gc.Call(ctx, func() { lobbyID = a.gc.ClientConnected(s, a.auth.Verified()) }); err != nil {
 			writeKV(w, http.StatusServiceUnavailable, "error", "coordinator busy")
 			return
 		}
 		writeKV(w, http.StatusOK, "session", s.ID, "steam_id", strconv.FormatUint(id, 10),
-			"poll_ms", strconv.Itoa(int(a.poll.Milliseconds())), "name", a.cfg.Name)
+			"poll_ms", strconv.Itoa(int(a.poll.Milliseconds())), "name", a.cfg.Name, "lobby_id", strconv.FormatUint(lobbyID, 10))
 
 	case "server":
 		key, ok := a.serverKey(r.PostForm.Get("key"))
@@ -150,12 +151,13 @@ func (a *API) session(w http.ResponseWriter, r *http.Request) {
 			s.Region = firstNonEmpty(r.PostForm.Get("region"), key.Region)
 			s.Connect = r.PostForm.Get("connect")
 		})
-		if err := a.gc.Call(ctx, func() { a.gc.ServerConnected(s) }); err != nil {
+		var lobbyID uint64
+		if err := a.gc.Call(ctx, func() { lobbyID = a.gc.ServerConnected(s) }); err != nil {
 			writeKV(w, http.StatusServiceUnavailable, "error", "coordinator busy")
 			return
 		}
 		writeKV(w, http.StatusOK, "session", s.ID,
-			"poll_ms", strconv.Itoa(int(a.poll.Milliseconds())), "name", a.cfg.Name)
+			"poll_ms", strconv.Itoa(int(a.poll.Milliseconds())), "name", a.cfg.Name, "lobby_id", strconv.FormatUint(lobbyID, 10))
 
 	default:
 		writeKV(w, http.StatusBadRequest, "error", "kind must be client or server")

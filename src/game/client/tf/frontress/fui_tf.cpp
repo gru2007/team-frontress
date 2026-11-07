@@ -25,6 +25,7 @@
 #include "tf_lobby_server.h"
 #include "tf_party.h"
 #include "tf_partyclient.h"
+#include "tf_rating_data.h"
 #include "econ_item_system.h"
 #include "filesystem.h"
 #include "steam/steam_api.h"
@@ -253,6 +254,7 @@ struct CFuiTF::Impl
 	float flNextLocker = 0.f;
 	CFuiFetch war;
 	CFuiFetch record;
+	CFuiFetch history;
 	std::string strQueuedMode;			// what the play button asked for
 	CUtlVector< itemid_t > lockerItems;	// locker.items index -> item id
 
@@ -269,6 +271,7 @@ struct CFuiTF::Impl
 	std::map< uint64, Look_t > looks;
 	std::string strSentLook;
 	float flNextLookSend = 0.f;
+	double flLastLookSend = 0.;
 
 	CFuiFetch quests;
 	std::set< std::string > questsDone;		// keys already finished, for toasts
@@ -299,6 +302,7 @@ struct CFuiTF::Impl
 	void RefreshSettings();
 	void FakeParty( std::vector< CSteamID > &members );
 	void RefreshQuests( Node &doc );
+	void RefreshHistory( const Node &doc, const CSteamID &owner );
 	void RefreshMatch();
 	void RefreshToasts();
 
@@ -336,6 +340,8 @@ void CFuiTF::Impl::RefreshApp()
 	// The 3D characters (and the background level or the match, when there
 	// is one) are behind the menu: the documents leave the middle to them.
 	app[ "world" ] = true;
+	static ConVarRef fui_menu_3d( "fui_menu_3d" );
+	app[ "models" ] = fui_menu_3d.IsValid() && fui_menu_3d.GetBool();
 	pRuntime->Set( "app", std::move( app ) );
 }
 
@@ -395,15 +401,16 @@ void CFuiTF::Impl::RefreshPlayerAndParty()
 		if ( bFake )
 			name = s_FakeNames[ ( ul - 1 ) % 5 ];
 		m[ "name" ] = name;
+		m[ "id" ] = std::to_string( ul );
 		m[ "avatar" ] = bFake ? "avatar:" + std::to_string( ul ) : Avatar( id );
 		m[ "me" ] = bMe;
 		m[ "level" ] = bMe ? nMyLevel : ( bFake ? (int)( 3 + ul * 17 % 90 ) : 0 );
 		m[ "leader" ] = id == leader;
 		m[ "ready" ] = true;	// TF2 parties have no ready check
 		m[ "key" ] = bMe ? "me" : "member:" + std::to_string( ul );
-		m[ "class" ] = bMe ? Str( "ui.class" ) : ( itLook != looks.end() ? itLook->second.cls : std::string() );
+		m[ "class" ] = bMe ? Str( "ui.class" ) : ( itLook != looks.end() ? itLook->second.cls : std::string( "soldier" ) );
 		m[ "slot" ] = (int)n;
-		m[ "has_look" ] = bMe || itLook != looks.end();
+		m[ "has_look" ] = true;
 		m[ "tag" ] = bMe ? FuiSocialMyTag() : ( itLook != looks.end() ? itLook->second.tag : std::string() );
 		m[ "gold" ] = !bMe && itLook != looks.end() && itLook->second.bGold;
 		m[ "sup" ] = bMe ? FuiSocialMySupporter() : ( itLook != looks.end() && itLook->second.bSup );
@@ -429,6 +436,7 @@ void CFuiTF::Impl::RefreshPlayerAndParty()
 	Node party;
 	party[ "max" ] = nMax;
 	party[ "count" ] = (int)members.Size();
+	party[ "leader" ] = leader == me;
 	party[ "members" ].Assign( std::move( members ) );
 	party[ "empty" ].Assign( std::move( empty ) );
 	pRuntime->Set( "party", std::move( party ) );
@@ -599,6 +607,7 @@ bool CFuiTF::Impl::StartQueue( const std::string &mode, const std::string *pFron
 		msg.Body().set_msg( "{\"front\":\"" + front + "\"}" );
 		if ( !GCClientSystem()->BSendMessage( msg ) )
 			return error( "fui_gc_offline" );
+		GTFPartyClient()->MutLocalGroupCriteria().SetLateJoin( true );
 	}
 	strQueuedMode = mode;
 	GTFPartyClient()->RequestQueueForMatch( group );
@@ -801,17 +810,79 @@ void CFuiTF::Impl::TakeFetches()
 		Node ratings;
 		ratings.SetArray();
 		const double flRating = doc.Find( "rating" ) ? doc.Find( "rating" )->AsNumber() : 0.0;
-		if ( flRating > 0 )
+		if ( flRating > 0 && flMatches > 0 )
 		{
 			Node &r = ratings.Append();
-			r[ "mode" ] = "#fui_mode_war";
+			r[ "mode" ] = "#fui_tag_ranked";
 			r[ "rating" ] = flRating;
 			r[ "delta" ] = 0;
 			r[ "rank" ] = "";
+			if ( const auto *rank = CTFRatingData::YieldingGetPlayerRatingDataBySteamID( LocalSteamID(), k_nMMRating_6v6_Rank ) )
+			{
+				const uint32 nRank = rank->Obj().rating_primary();
+				r[ "rank" ] = nRank ? Localized( CFmtStr( "#TF_Competitive_Rank_%u", nRank ) ) :
+					pRuntime->Translate( "fui_career_placement" );
+			}
 			r[ "frac" ] = clamp( ( flRating - 1000.0 ) / 1000.0, 0.0, 1.0 );
 		}
 		pRuntime->Set( "career.ratings", std::move( ratings ) );
 	}
+}
+
+void CFuiTF::Impl::RefreshHistory( const Node &doc, const CSteamID &owner )
+{
+	Node historyRows;
+	historyRows.SetArray();
+	const std::string steamID = std::to_string( owner.ConvertToUint64() );
+	const Node *matches = doc.Find( "matches" );
+	for ( size_t i = 0; matches && i < matches->Size(); ++i )
+	{
+		const Node &match = *matches->At( i );
+		const Node *result = match.Find( "result" );
+		const Node *players = result ? result->Find( "players" ) : nullptr;
+		for ( size_t j = 0; players && j < players->Size(); ++j )
+		{
+			const Node &player = *players->At( j );
+			const Node *id = player.Find( "steam_id" );
+			if ( !id || id->AsString() != steamID )
+				continue;
+
+			const auto number = []( const Node &obj, const char *key ) -> double {
+				const Node *value = obj.Find( key );
+				return value ? value->AsNumber() : 0.0;
+			};
+			const Node *map = match.Find( "map" );
+			const std::string name = map ? map->AsString() : "";
+			const MapDef_t *pMap = GetItemSchema()->GetMasterMapDefByName( name.c_str() );
+			const Node *campaign = match.Find( "campaign" );
+			const bool bWar = campaign && !campaign->AsString().empty();
+			const Node *date = match.Find( "ended_at" );
+			const Node *excluded = player.Find( "excluded_from_progression" );
+			const int nStatus = (int)number( *result, "status" );
+			const int nWinner = (int)number( *result, "winning_team" );
+			const int nTeam = (int)number( player, "team" );
+			const bool bCounted = ( nStatus == 0 || nStatus == 7 ) && ( !excluded || !excluded->AsBool() );
+
+			Node &row = historyRows.Append();
+			row[ "map" ] = pMap ? Localized( pMap->pszMapNameLocKey ) : name;
+			row[ "image" ] = std::string( "vgui/maps/menu_thumb_" ) + name;
+			row[ "mode" ] = std::string( "#fui_mode_" ) +
+				( bWar ? "war" : ModeForGroup( (ETFMatchGroup)(int)number( match, "match_group" ) ) );
+			row[ "when" ] = date ? date->AsString().substr( 0, 10 ) : "";
+			row[ "result" ] = !bCounted ? "uncounted" :
+				( nWinner == TF_TEAM_RED || nWinner == TF_TEAM_BLUE ) ? ( nWinner == nTeam ? "win" : "loss" ) : "draw";
+			const double red = number( *result, "red_score" ), blu = number( *result, "blue_score" );
+			if ( red < 4294967295.0 && blu < 4294967295.0 )
+				row[ "score" ] = std::to_string( (uint32)red ) + " : " + std::to_string( (uint32)blu );
+			row[ "kills" ] = number( player, "kills" );
+			row[ "deaths" ] = number( player, "deaths" );
+			row[ "has_stats" ] = true;
+			row[ "xp" ] = number( player, "xp_change" );
+			row[ "delta" ] = number( player, "display_rating_change" );
+			break;
+		}
+	}
+	pRuntime->Set( "career.history", std::move( historyRows ) );
 }
 
 //-----------------------------------------------------------------------------
@@ -881,7 +952,12 @@ void CFuiTF::Impl::RefreshSettings()
 // what that class wears.
 void CFuiTF::Impl::SendOwnLook()
 {
-	if ( Plat_FloatTime() < flNextLookSend || !FrontressGC() || !FrontressGC()->BConnected() || !GCClientSystem() )
+	if ( !FrontressGC() || !FrontressGC()->BConnected() || !GCClientSystem() )
+	{
+		strSentLook.clear();
+		return;
+	}
+	if ( Plat_FloatTime() < flNextLookSend )
 		return;
 	flNextLookSend = (float)Plat_FloatTime() + 1.f;
 
@@ -916,13 +992,16 @@ void CFuiTF::Impl::SendOwnLook()
 		if ( it.iStyle ) e[ "st" ] = (int)it.iStyle;
 	}
 	const std::string json = look.Dump();
-	if ( json == strSentLook )
+	if ( json == strSentLook && Plat_FloatTime() - flLastLookSend < 30. )
 		return;
 
 	GCSDK::CProtoBufMsg< CMsgPartyChatMsg > msg( 51001 );	// services/gc/internal/gc/looks.go
 	msg.Body().set_msg( json.c_str() );
 	if ( GCClientSystem()->BSendMessage( msg ) )
+	{
 		strSentLook = json;
+		flLastLookSend = Plat_FloatTime();
+	}
 }
 
 bool CFuiTF::GetLook( const std::string &key, FuiLook_t &out )
@@ -948,7 +1027,13 @@ bool CFuiTF::GetLook( const std::string &key, FuiLook_t &out )
 	{
 		auto it = d.looks.find( V_atoui64( key.c_str() + 7 ) );
 		if ( it == d.looks.end() )
-			return false;
+		{
+			out.iClass = TF_CLASS_SOLDIER;
+			out.iTeam = TF_TEAM_RED;
+			out.bLocalLoadout = false;
+			out.vecItems.RemoveAll();
+			return true;
+		}
 		const Impl::Look_t &look = it->second;
 		out.iClass = ClassIndex( look.cls );
 		out.iTeam = look.iTeam;
@@ -1149,6 +1234,7 @@ void CFuiTF::Detach()
 	{
 		m_pImpl->war.Cancel();
 		m_pImpl->record.Cancel();
+		m_pImpl->history.Cancel();
 		m_pImpl->quests.Cancel();
 	}
 	delete m_pImpl;
@@ -1178,6 +1264,7 @@ void CFuiTF::Update( fui::Runtime &runtime, bool bShown )
 	Node questDoc;
 	if ( d.quests.Take( questDoc ) )
 		d.RefreshQuests( questDoc );
+	d.SendOwnLook();
 
 	if ( !bShown )
 		return;
@@ -1185,12 +1272,19 @@ void CFuiTF::Update( fui::Runtime &runtime, bool bShown )
 	d.RefreshApp();
 	d.RefreshPlayerAndParty();
 	d.RefreshModes();
-	d.SendOwnLook();
 
 	d.war.Poll( "/v1/war", k_flWarPoll );
 	if ( me.IsValid() )
 		d.record.Poll( CFmtStr( "/v1/player/%llu", me.ConvertToUint64() ), k_flRecordPoll );
 	d.TakeFetches();
+
+	if ( runtime.Screen() == "career" && me.IsValid() )
+	{
+		d.history.Poll( CFmtStr( "/v1/matches?steam_id=%llu&state=ended&limit=6", me.ConvertToUint64() ), 5.f );
+		Node historyDoc;
+		if ( d.history.Take( historyDoc ) )
+			d.RefreshHistory( historyDoc, me );
+	}
 
 	if ( runtime.Screen() == "locker" && flNow >= d.flNextLocker )
 	{
@@ -1207,6 +1301,11 @@ void CFuiTF::OnNavigate( const std::string &screen )
 		m_pImpl->RefreshLocker();
 	if ( screen == "war" )
 		m_pImpl->war.Soon();
+	if ( screen == "career" )
+	{
+		m_pImpl->history.Soon();
+		m_pImpl->record.Soon();
+	}
 	FuiSocialNavigate( *m_pImpl->pRuntime, screen );
 }
 
@@ -1264,15 +1363,7 @@ void CFuiTF::OnCommand( const std::string &name, const std::vector< std::string 
 	else if ( name == "accept" )
 		GTFGCClientSystem()->JoinMMMatch();
 	else if ( name == "decline" )
-	{
-		const CTFGSLobby *pLobby = GTFGCClientSystem()->GetLobby();
-		if ( pLobby && GCClientSystem() )
-		{
-			GCSDK::CProtoBufMsg< CMsgExitMatchmaking > msg( k_EMsgGCExitMatchmaking );
-			msg.Body().set_lobby_id( pLobby->GetGroupID() );
-			GCClientSystem()->BSendMessage( msg );
-		}
-	}
+		GTFGCClientSystem()->AbandonCurrentMatch( false );
 	else if ( name == "select_mode" )
 	{
 		const fui::Node *pModes = ui.Get( "modes" );
@@ -1376,7 +1467,23 @@ void CFuiTF::OnCommand( const std::string &name, const std::vector< std::string 
 	else if ( name == "resume" )
 		engine->ClientCmd_Unrestricted( "gameui_hide\n" );
 	else if ( name == "disconnect" )
-		engine->ClientCmd_Unrestricted( "disconnect\n" );
+	{
+		const CTFGSLobby *pLobby = GTFGCClientSystem()->GetLobby();
+		ui.Set( "ui.leave_lobby", Node( pLobby ? std::to_string( pLobby->GetGroupID() ) : "" ) );
+		ui.Set( "ui.modal", Node( "leave_match" ) );
+	}
+	else if ( name == "confirm_disconnect" )
+	{
+		const CTFGSLobby *pLobby = GTFGCClientSystem()->GetLobby();
+		const std::string lobby = pLobby ? std::to_string( pLobby->GetGroupID() ) : "";
+		ui.Set( "ui.modal", Node( "" ) );
+		if ( lobby != d.Str( "ui.leave_lobby" ) )
+			return;
+		if ( pLobby )
+			GTFGCClientSystem()->AbandonCurrentMatch();
+		else
+			engine->DisconnectInternal();
+	}
 	else if ( name == "changeteam" )
 	{
 		engine->ClientCmd_Unrestricted( "gameui_hide\n" );

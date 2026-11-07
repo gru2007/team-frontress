@@ -32,7 +32,14 @@ type Record struct {
 	// what matches give.
 	QuestXP int `json:"quest_xp,omitempty"`
 	// Quests is progress by quest key (see package quests).
-	Quests map[string]int `json:"-"`
+	Quests       map[string]int                    `json:"-"`
+	Acknowledged map[int32]ProgressAcknowledgement `json:"-"`
+}
+
+type ProgressAcknowledgement struct {
+	Rank  int
+	Value int
+	At    time.Time
 }
 
 // Result of one match for one player.
@@ -56,31 +63,42 @@ type event struct {
 	Rating int `json:"rating,omitempty"`
 	// Quest progress: the total after this event, and the XP it paid out
 	// if it finished the quest.
-	Quest    string `json:"quest,omitempty"`
-	Progress int    `json:"progress,omitempty"`
-	XP       int    `json:"xp,omitempty"`
-	Campaign string `json:"campaign,omitempty"`
-	Side     string `json:"side,omitempty"`
+	Quest    string  `json:"quest,omitempty"`
+	Progress int     `json:"progress,omitempty"`
+	XP       int     `json:"xp,omitempty"`
+	Campaign string  `json:"campaign,omitempty"`
+	Side     string  `json:"side,omitempty"`
+	Players  []event `json:"players,omitempty"` // a complete match in one log record
+	Group    int32   `json:"group,omitempty"`
+	Value    int     `json:"value,omitempty"`
+	Rank     int     `json:"rank,omitempty"`
 }
 
 const (
-	evPlayed  = "played"
-	evAbandon = "abandon"
-	evQuest   = "quest"
-	evBonus   = "bonus"
+	evProgressAck = "progress_ack"
+	evPlayed      = "played"
+	evMatch       = "match"
+	evAbandon     = "abandon"
+	evQuest       = "quest"
+	evBonus       = "bonus"
 )
 
 // Store is the record set.
 type Store struct {
-	mu      sync.Mutex
-	records map[uint64]*Record
-	f       *os.File
-	now     func() time.Time
+	mu        sync.Mutex
+	records   map[uint64]*Record
+	played    map[participation]bool
+	abandoned map[participation]bool
+	f         *os.File
+	now       func() time.Time
 }
+
+type participation struct{ matchID, steamID uint64 }
 
 // Open opens a store. An empty path keeps everything in memory.
 func Open(path string) (*Store, error) {
-	s := &Store{records: map[uint64]*Record{}, now: time.Now}
+	s := &Store{records: map[uint64]*Record{}, played: map[participation]bool{},
+		abandoned: map[participation]bool{}, now: time.Now}
 	if path == "" {
 		return s, nil
 	}
@@ -173,6 +191,13 @@ func (s *Store) recordLocked(id uint64) *Record {
 }
 
 func (s *Store) apply(ev event) {
+	if ev.Type == evMatch {
+		for _, p := range ev.Players {
+			p.Type, p.MatchID, p.At = evPlayed, ev.MatchID, ev.At
+			s.apply(p)
+		}
+		return
+	}
 	if ev.SteamID == 0 {
 		return
 	}
@@ -184,6 +209,13 @@ func (s *Store) apply(ev event) {
 	case "war_side":
 		r.WarCampaign, r.WarSide = ev.Campaign, ev.Side
 	case evPlayed:
+		if ev.MatchID != 0 {
+			key := participation{ev.MatchID, ev.SteamID}
+			if s.played[key] {
+				return
+			}
+			s.played[key] = true
+		}
 		r.Matches++
 		r.LastMatch = ev.At
 		switch ev.Result {
@@ -196,6 +228,13 @@ func (s *Store) apply(ev event) {
 			r.Rating = ev.Rating
 		}
 	case evAbandon:
+		if ev.MatchID != 0 {
+			key := participation{ev.MatchID, ev.SteamID}
+			if s.abandoned[key] {
+				return
+			}
+			s.abandoned[key] = true
+		}
 		r.Abandons++
 		r.LastAbandon = ev.At
 	case evBonus:
@@ -206,7 +245,30 @@ func (s *Store) apply(ev event) {
 		}
 		r.Quests[ev.Quest] = ev.Progress
 		r.QuestXP += ev.XP
+	case evProgressAck:
+		if r.Acknowledged == nil {
+			r.Acknowledged = make(map[int32]ProgressAcknowledgement)
+		}
+		r.Acknowledged[ev.Group] = ProgressAcknowledgement{Value: ev.Value, Rank: ev.Rank, At: ev.At}
 	}
+}
+
+// AcknowledgeProgress advances the baseline only to a value the client saw.
+func (s *Store) AcknowledgeProgress(id uint64, group int32, predicted uint32, rating bool, rank int) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	r := s.recordLocked(id)
+	value := r.XP()
+	if rating {
+		value = max(0, r.Rating)
+	}
+	if uint64(value) != uint64(predicted) {
+		return false
+	}
+	if ack, ok := r.Acknowledged[group]; !ok || ack.Value != value || ack.Rank != rank {
+		s.appendLocked(event{Type: evProgressAck, At: s.now(), SteamID: id, Group: group, Value: value, Rank: rank})
+	}
+	return true
 }
 
 // QuestProgress adds progress to one of a player's quests and reports the new
@@ -282,11 +344,18 @@ func (s *Store) RecordMatch(matchID uint64, ps []Participant) map[uint64]Record 
 		games[p.SteamID] = r.Matches
 	}
 	next := RatingUpdates(ps, ratings, games)
-	now := s.now()
+	batch := event{Type: evMatch, At: s.now(), MatchID: matchID}
 	out := make(map[uint64]Record, len(ps))
 	for _, p := range ps {
-		s.appendLocked(event{Type: evPlayed, At: now, SteamID: p.SteamID, Name: p.Name,
-			MatchID: matchID, Result: p.Result, Rating: next[p.SteamID]})
+		if !s.played[participation{matchID, p.SteamID}] {
+			batch.Players = append(batch.Players, event{SteamID: p.SteamID, Name: p.Name,
+				Result: p.Result, Rating: next[p.SteamID]})
+		}
+	}
+	if len(batch.Players) != 0 {
+		s.appendLocked(batch)
+	}
+	for _, p := range ps {
 		out[p.SteamID] = *s.records[p.SteamID]
 	}
 	return out
@@ -296,7 +365,9 @@ func (s *Store) RecordMatch(matchID uint64, ps []Participant) map[uint64]Record 
 func (s *Store) Abandoned(id uint64, name string, matchID uint64) Record {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.appendLocked(event{Type: evAbandon, At: s.now(), SteamID: id, Name: name, MatchID: matchID})
+	if !s.abandoned[participation{matchID, id}] {
+		s.appendLocked(event{Type: evAbandon, At: s.now(), SteamID: id, Name: name, MatchID: matchID})
+	}
 	return *s.records[id]
 }
 
@@ -310,6 +381,12 @@ func (s *Store) Get(id uint64) Record {
 			out.Quests = make(map[string]int, len(r.Quests))
 			for k, v := range r.Quests {
 				out.Quests[k] = v
+			}
+		}
+		if r.Acknowledged != nil {
+			out.Acknowledged = make(map[int32]ProgressAcknowledgement, len(r.Acknowledged))
+			for group, ack := range r.Acknowledged {
+				out.Acknowledged[group] = ack
 			}
 		}
 		return out

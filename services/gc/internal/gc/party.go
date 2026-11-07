@@ -364,7 +364,14 @@ func (g *GC) handleInvite(s *session.Session, m *wire.Msg) {
 		}
 		return
 	}
+	if msg.GetExpectingRequestToJoin() {
+		g.notice(s.SteamID, "That join request is no longer available.")
+		return
+	}
 	if p.has(target) {
+		return
+	}
+	if _, ok := p.pendingFor(target); ok {
 		return
 	}
 	if len(p.Members)+len(p.Pending) >= MaxPartySize {
@@ -381,13 +388,23 @@ func (g *GC) handleRequestJoin(s *session.Session, m *wire.Msg) {
 	if !g.parse(m, &msg) {
 		return
 	}
-	target := g.online[msg.GetJoinPlayerId()]
-	if target == nil || msg.GetJoinPlayerId() == s.SteamID {
-		g.notice(s.SteamID, "That player is not online in Team Frontress right now.")
+	if current := msg.GetCurrentPartyId(); current != 0 && g.player(s.SteamID).PartyID != current {
+		g.notice(s.SteamID, "Your group changed. Open the invitation again.")
 		return
 	}
-	p := g.parties[target.PartyID]
+	var p *Party
+	if msg.GetJoinPartyId() != 0 {
+		p = g.parties[msg.GetJoinPartyId()]
+	} else {
+		target := g.online[msg.GetJoinPlayerId()]
+		if target == nil || !target.Online || msg.GetJoinPlayerId() == s.SteamID {
+			g.notice(s.SteamID, "That player is not online in Team Frontress right now.")
+			return
+		}
+		p = g.parties[target.PartyID]
+	}
 	if p == nil || (msg.GetJoinPartyId() != 0 && msg.GetJoinPartyId() != p.ID) {
+		g.notice(s.SteamID, "That party is no longer available.")
 		return
 	}
 	if p.has(s.SteamID) {
@@ -398,6 +415,13 @@ func (g *GC) handleRequestJoin(s *session.Session, m *wire.Msg) {
 		if err := g.joinParty(p, s.SteamID); err != nil {
 			g.notice(s.SteamID, err.Error())
 		}
+		return
+	}
+	if msg.GetExpectingInvite() {
+		g.notice(s.SteamID, "That invitation is no longer available.")
+		return
+	}
+	if _, ok := p.pendingFor(s.SteamID); ok {
 		return
 	}
 	if len(p.Members)+len(p.Pending) >= MaxPartySize {
@@ -495,6 +519,7 @@ func (g *GC) handleExitMatchmaking(s *session.Session, m *wire.Msg) {
 		if l := g.lobbies[lid]; l != nil {
 			g.leaveLobby(l, s.SteamID, msg.GetExplicitAbandon())
 		}
+		g.emit(s.SteamID, "match_left", map[string]any{"lobby": lobbyKey(lid)})
 	}
 	if pid := msg.GetPartyId(); pid != 0 {
 		if p := g.parties[pid]; p != nil && p.has(s.SteamID) && len(p.Members) > 1 {

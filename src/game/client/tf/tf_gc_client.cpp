@@ -267,14 +267,8 @@ void CTFGCClientSystem::FireGameEvent( IGameEvent *event )
 		m_steamIDCurrentServer.Clear();
 		m_eConnectState = eConnectState_Disconnected;
 
-		// We treat the gameserver as authoritative when we are connected to it -- disconnecting from it may change what
-		// we believe about still having a live match. (e.g. if we have no pLobby anymore, but were loading into a live
-		// match so didn't get the m_bAssignedMatchEnded update, we need to reconsider if we think the match is live)
-		if ( UpdateAssignedLobby() )
-		{
-			// Fire this regardless of if our assigned lobby changed, since other SO fields did change.
-			FireGameEventLobbyUpdated();
-		}
+		// The same lobby becomes joinable again after a dropped connection.
+		FireGameEventLobbyUpdated();
 		return;
 	}
 
@@ -285,8 +279,10 @@ void CTFGCClientSystem::FireGameEvent( IGameEvent *event )
 		// handing the command to the engine. Preserve that state when the engine
 		// emits client_beginconnect. The source tag also covers stock retry paths.
 		const char *pszSource = event->GetString( "source", "" );
+		const CTFGSLobby *pLobby = GetLobby();
 		if ( m_eConnectState == eConnectState_ConnectingToMatchmade ||
-		     FStrEq( pszSource, "matchmaking" ) )
+		     FStrEq( pszSource, "matchmaking" ) ||
+		     ( pLobby && pLobby->GetConnect()[0] && FStrEq( event->GetString( "address" ), pLobby->GetConnect() ) ) )
 		{
 			m_eConnectState = eConnectState_ConnectingToMatchmade;
 		}
@@ -1060,9 +1056,20 @@ void CTFGCClientSystem::Update( float frametime )
 	BaseClass::Update( frametime );
 
 	WebapiInventoryThink();
-
-
-
+	if ( m_nLeavingLobbyID && FrontressGC() && FrontressGC()->BConnected() )
+	{
+		const CTFGSLobby *pLobby = GetLobby();
+		if ( pLobby && pLobby->GetGroupID() != m_nLeavingLobbyID )
+			m_nLeavingLobbyID = 0;
+		else if ( Plat_FloatTime() >= m_flNextLeaveSend )
+		{
+			GCSDK::CProtoBufMsg< CMsgExitMatchmaking > msg( k_EMsgGCExitMatchmaking );
+			msg.Body().set_lobby_id( m_nLeavingLobbyID );
+			msg.Body().set_explicit_abandon( m_bLeavingExplicitly );
+			GCClientSystem()->BSendMessage( msg );
+			m_flNextLeaveSend = Plat_FloatTime() + 2.;
+		}
+	}
 	FOR_EACH_VEC_BACK( m_vecDelayedLocalPlayerSOListenersToAdd, i )
 	{
 		SubscribeToLocalPlayerSOCache( m_vecDelayedLocalPlayerSOListenersToAdd[ i ] );
@@ -1094,6 +1101,15 @@ void CTFGCClientSystem::SOCacheSubscribed( const CSteamID & steamIDOwner, GCSDK:
 
 void CTFGCClientSystem::FireGameEventLobbyUpdated()
 {
+	// The address may first arrive in an update to an existing lobby.
+	const CTFGSLobby *pLobby = GetLobby();
+	netadr_t adr;
+	if ( pLobby && pLobby->GetConnect()[0] && adr.SetFromString( pLobby->GetConnect(), false ) &&
+	     m_vecMatchServerHistory.Find( adr ) == m_vecMatchServerHistory.InvalidIndex() )
+	{
+		m_vecMatchServerHistory.AddToTail( adr );
+	}
+
 	IGameEvent *event2 = gameeventmanager->CreateEvent( "lobby_updated" );
 	if ( event2 )
 	{
@@ -1110,6 +1126,8 @@ void CTFGCClientSystem::SOChanged( const GCSDK::CSharedObject *pObject, SOChange
 	// (CTFParty objects are handled by CTFPartyClient)
 	if ( pObject->GetTypeID() == CTFGSLobby::k_nTypeID )
 	{
+		if ( changeType == SOChanged_Destroy && eEvent == GCSDK::eSOCacheEvent_Incremental )
+			ConfirmMatchLeave( static_cast< const CTFGSLobby * >( pObject )->GetGroupID() );
 		#if GCMATCHMAKING_DEBUG_LEVEL > 0
 			switch ( changeType )
 			{
@@ -1120,7 +1138,6 @@ void CTFGCClientSystem::SOChanged( const GCSDK::CSharedObject *pObject, SOChange
 			}
 		#endif
 
-		UpdateAssignedLobby();
 		// Fire this regardless of if our assigned lobby changed, since other SO fields did change.
 		FireGameEventLobbyUpdated();
 	}
@@ -1170,32 +1187,6 @@ void CTFGCClientSystem::SOChanged( const GCSDK::CSharedObject *pObject, SOChange
 		OnMatchInvitesUpdated();
 	}
 
-}
-
-bool CTFGCClientSystem::UpdateAssignedLobby()
-{
-	// Our assigned lobby is whatever lobby object is in our SO cache. The
-	// caller wants to know whether that changed, because "which match am I in"
-	// changing is what drives the match-found and match-over flows.
-	CTFGSLobby *pLobby = GetLobby();
-	PlayerGroupID_t nLobbyID = pLobby ? pLobby->GetGroupID() : 0u;
-
-	bool bChanged = ( nLobbyID != m_nAssignedLobbyID );
-	m_nAssignedLobbyID = nLobbyID;
-
-	if ( bChanged && nLobbyID != 0u && pLobby )
-	{
-		// Remember the address so the server browser can tell a matchmade
-		// server apart from one the player found themselves.
-		netadr_t adr;
-		if ( adr.SetFromString( pLobby->GetConnect(), false ) &&
-		     m_vecMatchServerHistory.Find( adr ) == m_vecMatchServerHistory.InvalidIndex() )
-		{
-			m_vecMatchServerHistory.AddToTail( adr );
-		}
-	}
-
-	return bChanged;
 }
 
 // Find the single object of a type in our own SO cache, or NULL.
@@ -1432,16 +1423,31 @@ bool CTFGCClientSystem::BGetLocalPlayerBadgeInfoForTour( int iTourIndex, uint32 
 
 #endif // USE_MVM_TOUR
 
-void CTFGCClientSystem::AbandonCurrentMatch()
+void CTFGCClientSystem::AbandonCurrentMatch( bool bExplicitAbandon )
 {
-	Msg( "Sending request to abandon current match\n" );
+	const CTFGSLobby *pLobby = GetLobby();
+	if ( !pLobby )
+		return;
 
-	if ( BConnectedToMatchServer( true ) )
+	const bool bDisconnect = BConnectedToMatchServer( true ) || BConnectingToMatchServer();
+	m_nLeavingLobbyID = pLobby->GetGroupID();
+	m_bLeavingExplicitly = bExplicitAbandon;
+	m_flNextLeaveSend = Plat_FloatTime() + 2.;
+	GCSDK::CProtoBufMsg< CMsgExitMatchmaking > msg( k_EMsgGCExitMatchmaking );
+	msg.Body().set_lobby_id( pLobby->GetGroupID() );
+	msg.Body().set_explicit_abandon( bExplicitAbandon );
+	if ( !GCClientSystem()->BSendMessage( msg ) )
 	{
-		// If we were connected to said match, then disconnect
-		Msg( "Disconnecting from abandoned match server\n" );
-		engine->ClientCmd_Unrestricted( "disconnect" );
+		Warning( "Could not send the leave request to the game coordinator.\n" );
 	}
+	if ( bDisconnect )
+		engine->DisconnectInternal();
+}
+
+void CTFGCClientSystem::ConfirmMatchLeave( uint64 nLobbyID )
+{
+	if ( m_nLeavingLobbyID == nLobbyID )
+		m_nLeavingLobbyID = 0;
 }
 
 bool CTFGCClientSystem::IsConnectStateDisconnected()
@@ -1455,6 +1461,8 @@ bool CTFGCClientSystem::IsConnectStateDisconnected()
 //-----------------------------------------------------------------------------
 void CTFGCClientSystem::RequestMatchMakerStats() const
 {
+	GCSDK::CProtoBufMsg< CMsgGCRequestMatchMakerStats > msg( k_EMsgGCRequestMatchMakerStats );
+	GCClientSystem()->BSendMessage( msg );
 }
 
 //-----------------------------------------------------------------------------
@@ -1463,6 +1471,21 @@ void CTFGCClientSystem::RequestMatchMakerStats() const
 //-----------------------------------------------------------------------------
 void CTFGCClientSystem::SetMatchMakerStats( const CMsgGCMatchMakerStatsResponse newStats )
 {
+	m_MatchMakerStats = newStats;
+	m_nMostSearchedMapCount = 0;
+	for ( int i = 0; i < newStats.map_count_size(); ++i )
+		m_nMostSearchedMapCount = Max( m_nMostSearchedMapCount, newStats.map_count( i ) );
+
+	for ( int i = 0; i <= k_eTFMatchGroup_Event_Last; ++i )
+	{
+		auto &populations = m_dictDataCenterPopulationRatio[i];
+		populations.RemoveAll();
+		if ( i < newStats.matchgroup_data_center_population_size() )
+		{
+			for ( const auto &center : newStats.matchgroup_data_center_population( i ).data_center_population() )
+				populations.Insert( center.name().c_str(), center.health_ratio() );
+		}
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -1563,10 +1586,41 @@ CTFGCClientSystem::MatchMakerHealthData_t CTFGCClientSystem::GetHealthDataForMap
 //-----------------------------------------------------------------------------
 void CTFGCClientSystem::AcknowledgePendingRatingAndSources( ETFMatchGroup eMatchGroup )
 {
+	const auto *pDescription = GetMatchGroupDescription( eMatchGroup );
+	if ( !pDescription )
+		return;
+
+	const CSteamID steamID = ClientSteamContext().GetLocalPlayerSteamID();
+	const auto *pRating = CTFRatingData::YieldingGetPlayerRatingDataBySteamID( steamID, pDescription->GetCurrentDisplayRating() );
+	if ( !pRating )
+		return;
+
+	GCSDK::CProtoBufMsg< CMsgAcknowledgeXP > msg( k_EMsgGC_AcknowledgeXP );
+	msg.Body().set_match_group( eMatchGroup );
+	msg.Body().set_predicted_experience( pRating->Obj().rating_primary() );
+	GCClientSystem()->BSendMessage( msg );
 }
+
+class ReliableMsgNotificationAcknowledge
+	: public CJobReliableMessageBase< ReliableMsgNotificationAcknowledge,
+	                                  CMsgNotificationAcknowledge, k_EMsgGC_NotificationAcknowledge,
+	                                  CMsgNotificationAcknowledgeReply, k_EMsgGC_NotificationAcknowledgeReply >
+{
+public:
+	const char *MsgName() { return "NotificationAcknowledge"; }
+	void InitDebugString( CUtlString &debugStr )
+	{
+		debugStr.Format( "Notification %llu", (unsigned long long)Msg().Body().notification_id() );
+	}
+};
 
 void CTFGCClientSystem::AcknowledgeNotification( uint32 nAccountID, uint64 ulNotificationID )
 {
+	auto *pReliable = new ReliableMsgNotificationAcknowledge;
+	auto &msg = pReliable->Msg();
+	msg.Body().set_account_id( nAccountID );
+	msg.Body().set_notification_id( ulNotificationID );
+	ReliableMsgQueue().Enqueue( pReliable );
 }
 
 //-----------------------------------------------------------------------------
@@ -1625,7 +1679,15 @@ bool CTFGCClientSystem::BConnectedToMatchServer( bool bLiveMatch )
 	// "Connected to a match server" and "connected to the server running the
 	// match I am currently in" are different questions -- after a match ends
 	// the player is still on the server, on the summary screen.
-	return bLiveMatch ? BHaveLiveMatch() : true;
+	const CTFGSLobby *pLobby = GetLobby();
+	return !bLiveMatch || ( pLobby && BHaveLiveMatch() &&
+		( !m_steamIDCurrentServer.IsValid() || pLobby->GetServerID() == m_steamIDCurrentServer ) );
+}
+
+bool CTFGCClientSystem::BConnectingToMatchServer() const
+{
+	return m_eConnectState == eConnectState_ConnectingToMatchmade ||
+		( m_eConnectState == eConnectState_ConnectedToMatchmade && !engine->IsInGame() );
 }
 
 bool CTFGCClientSystem::BHaveRunningMatch() const
@@ -1637,6 +1699,18 @@ bool CTFGCClientSystem::BHaveLiveMatch() const
 {
 	const CTFGSLobby *pLobby = GetLobby();
 	return pLobby && pLobby->GetState() == CSOTFGameServerLobby_State_RUN;
+}
+
+uint64_t CTFGCClientSystem::GetLiveMatchID() const
+{
+	const CTFGSLobby *pLobby = GetLobby();
+	return pLobby ? pLobby->GetMatchID() : 0u;
+}
+
+PlayerGroupID_t CTFGCClientSystem::GetLiveMatchLobbyID() const
+{
+	const CTFGSLobby *pLobby = GetLobby();
+	return pLobby ? pLobby->GetGroupID() : 0u;
 }
 
 EAbandonGameStatus CTFGCClientSystem::GetAssignedMatchAbandonStatus()
@@ -1653,23 +1727,25 @@ ETFMatchGroup CTFGCClientSystem::GetLiveMatchGroup() const
 	return pLobby ? pLobby->GetMatchGroup() : k_eTFMatchGroup_Invalid;
 }
 
-void CTFGCClientSystem::JoinMMMatch()
+bool CTFGCClientSystem::BCanJoinMatch() const
 {
-	CTFGSLobby *pLobby = GetLobby();
-	if ( !pLobby || pLobby->GetState() != CSOTFGameServerLobby_State_RUN )
-	{
-		Warning( "There is no match to join.\n" );
-		return;
-	}
+	const CTFGSLobby *pLobby = GetLobby();
+	if ( !BHaveLiveMatch() || pLobby->GetGroupID() == m_nLeavingLobbyID || !pLobby->GetConnect()[0] )
+		return false;
 
-	if ( !pLobby->GetConnect() || !pLobby->GetConnect()[0] )
-	{
-		Warning( "The match has no server address yet.\n" );
-		return;
-	}
+	const int nMember = pLobby->GetMemberIndexBySteamID( ClientSteamContext().GetLocalPlayerSteamID() );
+	return nMember >= 0 &&
+		pLobby->GetMemberDetails( nMember ).GetConnectState() != CTFLobbyPlayerProto_ConnectState_RESERVATION_PENDING;
+}
+
+bool CTFGCClientSystem::JoinMMMatch()
+{
+	if ( !BCanJoinMatch() || BConnectingToMatchServer() || BConnectedToMatchServer( true ) )
+		return false;
 
 	// No password: the server admits the lobby's roster and nobody else.
-	ConnectToServer( pLobby->GetConnect() );
+	ConnectToServer( GetLobby()->GetConnect() );
+	return true;
 }
 
 //-----------------------------------------------------------------------------

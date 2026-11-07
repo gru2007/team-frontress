@@ -13,6 +13,7 @@
 #include "tf_gcmessages.h"
 #include "tf_gcmessages.pb.h"
 #include "fmtstr.h"
+#include "tf_lobby_server.h"
 #include "tier1/convar.h"
 
 #ifdef CLIENT_DLL
@@ -487,7 +488,33 @@ void CFrontressGC::OnSessionCompleted( HTTPRequestCompleted_t *pInfo, bool bIOFa
 	// only reads once it is subscribed.
 	EnsureOwnCacheSubscribed();
 
+	// A destroy sent to a dead session cannot be replayed by the cache
+	// refresh. Remove stale lobbies without replacing the inventory cache.
+	const CUtlString strLobbyID = KVLine( pszBody, "lobby_id" );
+	if ( !strLobbyID.IsEmpty() && GCClientSystem() )
+	{
+		const uint64 nLobbyID = V_atoi64( strLobbyID.Get() );
+		GCSDK::CGCClientSharedObjectCache *pCache = GCClientSystem()->GetSOCache( OurSteamID() );
+		auto *pLobbies = pCache ? pCache->FindTypeCache( CTFGSLobby::k_nTypeID ) : NULL;
+		for ( int i = pLobbies ? pLobbies->GetCount() - 1 : -1; i >= 0; --i )
+		{
+			const auto *pLobby = static_cast< const CTFGSLobby * >( pLobbies->GetObject( i ) );
+			if ( pLobby->GetGroupID() != nLobbyID )
+			{
+				CSOTFGameServerLobby key;
+				key.set_lobby_id( pLobby->GetGroupID() );
+				const std::string data = key.SerializeAsString();
+				pCache->BDestroyFromMsg( CTFGSLobby::k_nTypeID, data.data(), data.size() );
+			}
+		}
+	}
+
 	Msg( "Connected to the game coordinator at %s (%s)\n", GetBaseURL(), KVLine( pszBody, "name" ).Get() );
+#ifdef CLIENT_DLL
+	GCSDK::CProtoBufMsg< CMsgTFClientInit > init( k_EMsgGC_TFClientInit );
+	init.Body().set_client_version( engine->GetClientVersion() );
+	GCClientSystem()->BSendMessage( init );
+#endif
 	StartRecv();
 }
 
@@ -776,6 +803,19 @@ public:
 	}
 };
 GC_REG_JOB( GCSDK::CGCClient, CGCWorldStatusBroadcast, "CGCWorldStatusBroadcast", k_EMsgGC_WorldStatusBroadcast, GCSDK::k_EServerTypeGCClient );
+
+class CGCMatchMakerStats : public GCSDK::CGCClientJob
+{
+public:
+	CGCMatchMakerStats( GCSDK::CGCClient *pClient ) : GCSDK::CGCClientJob( pClient ) {}
+	virtual bool BYieldingRunGCJob( GCSDK::IMsgNetPacket *pNetPacket ) OVERRIDE
+	{
+		GCSDK::CProtoBufMsg< CMsgGCMatchMakerStatsResponse > msg( pNetPacket );
+		GTFGCClientSystem()->SetMatchMakerStats( msg.Body() );
+		return true;
+	}
+};
+GC_REG_JOB( GCSDK::CGCClient, CGCMatchMakerStats, "CGCMatchMakerStats", k_EMsgGCMatchMakerStatsResponse, GCSDK::k_EServerTypeGCClient );
 
 // Something the GC wants the player to read: why a queue was refused, why a
 // party could not be joined.

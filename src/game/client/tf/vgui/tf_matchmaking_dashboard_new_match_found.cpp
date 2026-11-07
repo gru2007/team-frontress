@@ -10,6 +10,7 @@
 #include "tf_matchmaking_dashboard_popup.h"
 #include "tf_matchmaking_dashboard.h"
 #include "tf_hud_disconnect_prompt.h"
+#include "frontress/fui_host.h"
 #include "tf_gc_client.h"
 #include "tf_gamerules.h"
 #include "tf_partyclient.h"
@@ -182,6 +183,14 @@ public:
 	{
 		BaseClass::OnTick();
 
+		if ( m_eState == STATE_LOBBY_PRESENT_JOINING &&
+		     !GTFGCClientSystem()->BConnectingToMatchServer() &&
+		     !GTFGCClientSystem()->BConnectedToMatchServer( true ) )
+		{
+			m_eState = STATE_LOBBY_PRESENT_PROMPT;
+			InvalidateLayout();
+		}
+
 		if ( m_eState != STATE_LOBBY_INVITE_PROMPT && m_eState != STATE_LOBBY_PRESENT_PROMPT )
 			return;
 
@@ -250,8 +259,11 @@ public:
 	MESSAGE_FUNC( OnConnect, "Connect" )
 	{
 		// Connect to the lobby
-		GTFGCClientSystem()->JoinMMMatch();
-		m_eState = STATE_LOBBY_PRESENT_JOINING;
+		CTFGCClientSystem *pGC = GTFGCClientSystem();
+		if ( pGC->GetLiveMatchLobbyID() != m_GroupID )
+			return;
+		m_eState = pGC->JoinMMMatch() || pGC->BConnectingToMatchServer() ?
+			STATE_LOBBY_PRESENT_JOINING : STATE_LOBBY_PRESENT_PROMPT;
 		InvalidateLayout();
 	}
 
@@ -289,7 +301,7 @@ private:
 			// Did it become a lobby?
 			auto unLiveLobbyID = GTFGCClientSystem()->GetLiveMatchLobbyID();
 			// Hey that's us!
-			if ( unLiveLobbyID == m_GroupID )
+			if ( unLiveLobbyID == m_GroupID && GTFGCClientSystem()->BCanJoinMatch() )
 			{
 				BeginConnect();
 				return;
@@ -335,6 +347,7 @@ private:
 	// Animate thing out and get ready to connect
 	void BeginConnect()
 	{
+		m_flAutoJoinTime = 0.f;
 		// Make the main dashboard sides go away
 		PostActionSignal( new KeyValues( "CloseSideStack" ) ); // Not passing in "side", meaning all sides
 		// Delay the actual connect a smidge so everything can animate.
@@ -390,9 +403,12 @@ private:
 	//
 	bool EnsurePanelForExistingLobby()
 	{
+		if ( FrontressUIReplacesMenu() )
+			return false;
+
 		auto unLobbyID = GTFGCClientSystem()->GetLiveMatchLobbyID();
 		bool bNeedsPanel = !GTFGCClientSystem()->BConnectedToMatchServer( true ) 
-			&& GTFGCClientSystem()->BHaveLiveMatch()
+			&& GTFGCClientSystem()->BCanJoinMatch()
 			&& unLobbyID != 0u;
 
 		bool bHasPanel = BHasPanelForLobby( unLobbyID );
@@ -462,7 +478,8 @@ private:
 		{
 			auto unPanelLobbyID = m_mapInvitePanels.Key( idx );
 
-			if ( unLiveLobbyID == unPanelLobbyID && !GTFGCClientSystem()->BConnectedToMatchServer( true )  )
+			if ( unLiveLobbyID == unPanelLobbyID && !FrontressUIReplacesMenu() &&
+			     !GTFGCClientSystem()->BConnectedToMatchServer( true ) )
 			{
 				continue;
 			}

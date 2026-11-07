@@ -10,6 +10,7 @@
 //
 //=============================================================================
 #include "cbase.h"
+#include "frontress/fui_host.h"
 #include "hud.h"
 #include "clientmode_tf.h"
 #include "cdll_client_int.h"
@@ -1918,6 +1919,9 @@ void OnAskBlacklistDialogButtonPressed( bool bConfirm, void *pContext )
 // the last server they had connected to.
 void ClientModeTFNormal::AskFavoriteOrBlacklist() const
 {
+	if ( FrontressUIReplacesMenu() )
+		return;
+
 	// based on the time we spent on our last server, ask to favorite or blacklist it
 	int sessionDuration = GetSteamWorksSGameStatsUploader().GetTimeSinceEpoch() - m_lastServerConnectTime;
 

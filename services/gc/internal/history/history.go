@@ -14,20 +14,49 @@ import (
 )
 
 type Member struct {
-	SteamID string `json:"steam_id"`
-	Name    string `json:"name"`
-	Team    string `json:"team"`
-	Left    bool   `json:"left"`
+	SteamID    string `json:"steam_id"`
+	Name       string `json:"name"`
+	Team       string `json:"team"`
+	Left       bool   `json:"left"`
+	VoteKicked bool   `json:"vote_kicked,omitempty"`
 }
 
 type PlayerResult struct {
-	SteamID string `json:"steam_id"`
-	Team    uint32 `json:"team"`
-	Score   uint32 `json:"score"`
-	Kills   uint32 `json:"kills"`
-	Deaths  uint32 `json:"deaths"`
-	Damage  uint32 `json:"damage"`
-	Healing uint32 `json:"healing"`
+	SteamID      string     `json:"steam_id"`
+	Team         uint32     `json:"team"`
+	Score        uint32     `json:"score"`
+	Kills        uint32     `json:"kills"`
+	Deaths       uint32     `json:"deaths"`
+	Damage       uint32     `json:"damage"`
+	Healing      uint32     `json:"healing"`
+	Support      uint32     `json:"support,omitempty"`
+	Ping         uint32     `json:"ping,omitempty"`
+	Flags        uint32     `json:"flags,omitempty"`
+	Rank         uint32     `json:"rank,omitempty"`
+	Classes      uint32     `json:"classes_played,omitempty"`
+	Medals       [5]uint32  `json:"medals"` // score, kills, damage, healing, support
+	PartyID      string     `json:"original_party_id,omitempty"`
+	LeaveReason  int32      `json:"leave_reason,omitempty"`
+	LeaveTime    uint32     `json:"leave_time,omitempty"`
+	ConnectTime  uint32     `json:"connect_time,omitempty"`
+	Rating       int        `json:"display_rating,omitempty"`
+	RatingChange int        `json:"display_rating_change,omitempty"`
+	XPChange     int        `json:"xp_change,omitempty"`
+	Excluded     bool       `json:"excluded_from_progression,omitempty"`
+	XPSources    []XPSource `json:"xp_sources,omitempty"`
+}
+
+type XPSource struct {
+	Type   int32 `json:"type"`
+	Amount int32 `json:"amount"`
+}
+
+type MatchEvent struct {
+	Type    int32    `json:"type"`
+	Victim  string   `json:"victim,omitempty"`
+	Killers []string `json:"killers,omitempty"`
+	Time    int32    `json:"time"`
+	Bounty  int32    `json:"bounty,omitempty"`
 }
 
 type Result struct {
@@ -36,7 +65,17 @@ type Result struct {
 	BlueScore   uint32         `json:"blue_score"`
 	Duration    uint32         `json:"duration"`
 	Players     []PlayerResult `json:"players"`
+	Status      int32          `json:"status"`
+	MapIndex    uint32         `json:"map_index,omitempty"`
+	GameType    uint32         `json:"game_type,omitempty"`
+	WinReason   uint32         `json:"win_reason,omitempty"`
+	Flags       uint32         `json:"flags,omitempty"`
+	Bots        uint32         `json:"bots,omitempty"`
+	RecordedAt  time.Time      `json:"recorded_at,omitzero"`
+	Events      []MatchEvent   `json:"events,omitempty"`
 }
+
+func (r Result) Completed() bool { return r.Status == 0 || r.Status == 7 }
 
 // Match contains no session tokens, server keys or private connection addresses.
 // All IDs are strings so JavaScript never rounds a SteamID or match ID.
@@ -114,6 +153,13 @@ func clone(m Match) Match {
 	if m.Result != nil {
 		r := *m.Result
 		r.Players = append([]PlayerResult{}, r.Players...)
+		for i := range r.Players {
+			r.Players[i].XPSources = append([]XPSource(nil), r.Players[i].XPSources...)
+		}
+		r.Events = append([]MatchEvent(nil), r.Events...)
+		for i := range r.Events {
+			r.Events[i].Killers = append([]string(nil), r.Events[i].Killers...)
+		}
 		m.Result = &r
 	}
 	if m.StartedAt != nil {
@@ -125,6 +171,47 @@ func clone(m Match) Match {
 		m.EndedAt = &at
 	}
 	return m
+}
+
+// Results returns finished results in a group, newest first. An empty player
+// filter selects all players. Old archive entries use the lobby's end time.
+func (s *Store) Results(group int32, steamID string, since time.Time) []Match {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []Match
+	for _, m := range s.matches {
+		if m.Group != group || m.Result == nil || m.ResultTime().Before(since) {
+			continue
+		}
+		if steamID != "" {
+			for _, p := range m.Result.Players {
+				if p.SteamID == steamID {
+					out = append(out, clone(m))
+					break
+				}
+			}
+		} else {
+			out = append(out, clone(m))
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		a, b := out[i].ResultTime(), out[j].ResultTime()
+		if a.Equal(b) {
+			return out[i].MatchID > out[j].MatchID
+		}
+		return a.After(b)
+	})
+	return out
+}
+
+func (m Match) ResultTime() time.Time {
+	if m.Result != nil && !m.Result.RecordedAt.IsZero() {
+		return m.Result.RecordedAt
+	}
+	if m.EndedAt != nil {
+		return *m.EndedAt
+	}
+	return m.FormedAt
 }
 
 func (s *Store) Put(m Match) error {

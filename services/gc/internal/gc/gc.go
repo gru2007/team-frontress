@@ -28,6 +28,7 @@ import (
 	"github.com/gru2007/team-frontress/services/gc/internal/gcpb"
 	"github.com/gru2007/team-frontress/services/gc/internal/history"
 	"github.com/gru2007/team-frontress/services/gc/internal/players"
+	"github.com/gru2007/team-frontress/services/gc/internal/reports"
 	"github.com/gru2007/team-frontress/services/gc/internal/session"
 	"github.com/gru2007/team-frontress/services/gc/internal/sink"
 	"github.com/gru2007/team-frontress/services/gc/internal/socache"
@@ -47,6 +48,7 @@ type GC struct {
 	war      *war.Engine
 	store    *state.Store
 	history  *history.Store
+	reports  *reports.Store
 	hooks    *sink.Webhooks
 	clans    *clans.Store
 	book     *support.Book
@@ -57,12 +59,14 @@ type GC struct {
 	loop chan func()
 
 	// Everything below belongs to the loop.
-	online     map[uint64]*Player
-	parties    map[uint64]*Party
-	lobbies    map[uint64]*Lobby
-	servers    map[uint64]*Server
-	recentMaps map[string]time.Time
-	dirty      bool // lobbies changed since the last save
+	online            map[uint64]*Player
+	parties           map[uint64]*Party
+	lobbies           map[uint64]*Lobby
+	servers           map[uint64]*Server
+	recentMaps        map[string]time.Time
+	dirty             bool // lobbies changed since the last save
+	matchmakerStats   *gcpb.CMsgGCMatchMakerStatsResponse
+	matchmakerStatsAt time.Time
 
 	// Social (social.go).
 	chat         map[string][]ChatLine
@@ -84,6 +88,7 @@ type Deps struct {
 	War     *war.Engine
 	Store   *state.Store
 	History *history.Store
+	Reports *reports.Store
 	Hooks   *sink.Webhooks
 	// Clans; nil keeps them in memory.
 	Clans *clans.Store
@@ -105,6 +110,7 @@ func New(d Deps) (*GC, error) {
 		war:        d.War,
 		store:      d.Store,
 		history:    d.History,
+		reports:    d.Reports,
 		hooks:      d.Hooks,
 		clans:      d.Clans,
 		book:       d.Support,
@@ -133,6 +139,9 @@ func New(d Deps) (*GC, error) {
 	}
 	if g.history == nil {
 		g.history, _ = history.Open("")
+	}
+	if g.reports == nil {
+		g.reports, _ = reports.Open("")
 	}
 	if g.hooks == nil {
 		g.hooks = sink.New(nil, g.log)

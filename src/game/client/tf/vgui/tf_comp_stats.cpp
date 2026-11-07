@@ -557,11 +557,8 @@ void CCompStatsPanel::FireGameEvent( IGameEvent *event )
 	if ( !Q_stricmp( pszEventname, "gc_new_session" ) )
 	{
 		// This is loaded on demand by the GC - if we have a new session, we need to re-request
-		if ( m_bMatchHistoryLoaded )
-		{
-			m_bMatchHistoryLoaded = false;
-			m_bMatchDataForLocalPlayerDirty = true;
-		}
+		m_bMatchHistoryLoaded = false;
+		m_bMatchDataForLocalPlayerDirty = true;
 	}
 }
 
@@ -581,10 +578,12 @@ void CCompStatsPanel::SOCreated( const CSteamID & steamIDOwner, const CSharedObj
 //-----------------------------------------------------------------------------
 void CCompStatsPanel::SOUpdated( const CSteamID & steamIDOwner, const CSharedObject *pObject, ESOCacheEvent eEvent )
 {
-	if ( pObject->GetTypeID() != CSOTFMatchResultPlayerInfo::k_nTypeID )
-		return;
+	SOCreated( steamIDOwner, pObject, eEvent );
+}
 
-	m_bMatchDataForLocalPlayerDirty = true;
+void CCompStatsPanel::SODestroyed( const CSteamID & steamIDOwner, const CSharedObject *pObject, ESOCacheEvent eEvent )
+{
+	SOCreated( steamIDOwner, pObject, eEvent );
 }
 
 //-----------------------------------------------------------------------------
@@ -661,9 +660,7 @@ void CCompStatsPanel::UpdateMatchDataForLocalPlayer()
 	{
 		GCSDK::CProtoBufMsg< CMsgGCMatchHistoryLoad > msg( k_EMsgGCMatchHistoryLoad );
 		msg.Body().set_match_group( k_eTFMatchGroup_Ladder_6v6 );
-		GCClientSystem()->BSendMessage( msg );
-
-		m_bMatchHistoryLoaded = true;
+		m_bMatchHistoryLoaded = GCClientSystem()->BSendMessage( msg );
 	}
 
 	if ( m_pMatchHistoryScroller )

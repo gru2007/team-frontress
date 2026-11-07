@@ -15,18 +15,23 @@
 		"modal": "",			// "", "quit", "invite"
 		"in_game": false,		// in a match: the pause, class and HUD screens
 		"class_hover": "soldier",	// class select: the class shown
-		"chat_draft": ""			// the chat line being typed
+		"chat_draft": "",			// the chat line being typed
+		"leave_lobby": "",
+		"party_target": "",
+		"kick_target": "",
+		"kick_name": ""
 	},
 	// world: a map is behind the menu (the game's background level or the
 	// match). preview: tools/fui-preview, which draws 2D stand-ins where the
 	// game puts 3D characters.
-	"app": { "gc": "offline", "online": 0, "version": "", "matches_live": 0, "no_servers": false, "world": false, "preview": false },
+	"app": { "gc": "offline", "online": 0, "version": "", "matches_live": 0, "no_servers": false, "world": false, "preview": false, "models": true },
 	// tag: clan tag; sup: supports the developers (sup_monthly: subscribes)
 	"player": { "name": "", "avatar": "", "level": 1, "xp": 0, "xp_next": 1, "xp_frac": 0, "side": "red", "rank": "", "title": "", "tag": "", "sup": false, "sup_monthly": false },
 	// members: { key ("me" / "member:<id>", the 3D look), name, avatar, level,
 	// leader, me, class, slot (lobby position 0-4), has_look }
-	"party": { "max": 6, "count": 1, "members": [], "empty": [] },
-	"invites": { "incoming": [], "friends": [] },
+	"party": { "max": 6, "count": 1, "leader": true, "members": [], "empty": [] },
+	"invites": { "incoming": [], "friends": [], "outgoing": [], "requests": [], "search": "" },
+	"report": { "players": [], "target": "", "reason": 0, "pending": false },
 	// state: idle | searching | preparing | found | joining | live
 	"queue": { "state": "idle", "mode": "", "seconds": 0, "players": 0, "needed": 0, "map": "", "map_image": "" },
 	"modes": [],

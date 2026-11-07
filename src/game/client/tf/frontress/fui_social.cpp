@@ -20,6 +20,7 @@
 #include "tf_gc_client.h"
 #include "tf_party.h"
 #include "tf_partyclient.h"
+#include "vgui/report_player_dialog.h"
 #include "steam/steam_api.h"
 #include "vgui/ILocalize.h"
 
@@ -118,6 +119,8 @@ struct Social_t
 	float flNextPresence = 0.f;
 	std::string pendingOrder;
 	double flSupportDeadline = 0.;
+	double flReportDeadline = 0.;
+	std::string reportTarget;
 };
 
 Social_t &S()
@@ -128,9 +131,11 @@ Social_t &S()
 
 void RefreshInvites( fui::Runtime &ui, bool bFriends )
 {
-	Node incoming, friends;
+	Node incoming, friends, outgoing, requests;
 	incoming.SetArray();
 	friends.SetArray();
+	outgoing.SetArray();
+	requests.SetArray();
 	if ( auto *pParty = GTFPartyClient() )
 	{
 		for ( int i = 0; i < pParty->GetNumIncomingInvites(); ++i )
@@ -143,6 +148,20 @@ void RefreshInvites( fui::Runtime &ui, bool bFriends )
 			entry[ "id" ] = std::to_string( id.ConvertToUint64() );
 			entry[ "name" ] = UTF8Name( id );
 		}
+		for ( int i = 0; i < pParty->GetNumOutgoingInvites(); ++i )
+		{
+			const CSteamID id = pParty->GetOutgoingInvite( i );
+			Node &entry = outgoing.Append();
+			entry[ "id" ] = std::to_string( id.ConvertToUint64() );
+			entry[ "name" ] = UTF8Name( id );
+		}
+		for ( int i = 0; i < pParty->GetNumIncomingJoinRequests(); ++i )
+		{
+			const CSteamID id = pParty->GetIncomingJoinRequest( i );
+			Node &entry = requests.Append();
+			entry[ "id" ] = std::to_string( id.ConvertToUint64() );
+			entry[ "name" ] = UTF8Name( id );
+		}
 		auto *pFriends = steamapicontext ? steamapicontext->SteamFriends() : nullptr;
 		if ( bFriends && pFriends )
 		{
@@ -152,13 +171,21 @@ void RefreshInvites( fui::Runtime &ui, bool bFriends )
 				const CSteamID id = pFriends->GetFriendByIndex( i, k_EFriendFlagImmediate );
 				if ( !id.IsValid() || !pParty->BCanInvitePlayer( id ) || pParty->BHaveOutgoingInviteForSteamID( id ) )
 					continue;
+				const Node *pSearch = ui.Get( "invites.search" );
+				const std::string search = pSearch ? pSearch->AsString() : std::string();
+				const std::string playerName = UTF8Name( id );
+				if ( !search.empty() && !V_stristr( playerName.c_str(), search.c_str() ) )
+					continue;
 				Node &entry = friends.Append();
 				entry[ "id" ] = std::to_string( id.ConvertToUint64() );
-				entry[ "name" ] = UTF8Name( id );
+				entry[ "name" ] = playerName;
+				entry[ "online" ] = pFriends->GetFriendPersonaState( id ) != k_EPersonaStateOffline;
 			}
 		}
 	}
 	ui.Set( "invites.incoming", std::move( incoming ) );
+	ui.Set( "invites.outgoing", std::move( outgoing ) );
+	ui.Set( "invites.requests", std::move( requests ) );
 	if ( bFriends )
 		ui.Set( "invites.friends", std::move( friends ) );
 }
@@ -380,8 +407,31 @@ void ApplyEvent( fui::Runtime &ui, const std::string &json )
 		if ( bOK && kind != "cancelled" && ui.Screen() != "support" )
 			FuiTF().Toast( "support", ui.Translate( "fui_support_thanks_title" ), ui.Translate( kind == "monthly" ? "fui_support_thanks_monthly" : "fui_support_thanks_once" ), "" );
 	}
+	else if ( t == "match_left" )
+		GTFGCClientSystem()->ConfirmMatchLeave( V_atoui64( Str( &ev, "lobby" ).c_str() ) );
+	else if ( t == "report_saved" )
+	{
+		const std::string target = Str( &ev, "target" );
+		ConfirmPlayerReport( CSteamID( V_atoui64( target.c_str() ) ) );
+		if ( target == s.reportTarget )
+		{
+			s.flReportDeadline = 0.;
+			ui.Set( "report.pending", Node( false ) );
+			const Node *modal = ui.Get( "ui.modal" );
+			if ( modal && modal->AsString() == "report" )
+				ui.Set( "ui.modal", Node( "" ) );
+		}
+		FuiTF().Toast( "party", ui.Translate( "fui_report_title" ), ui.Translate( "fui_report_saved" ), "" );
+	}
 	else if ( t == "error" )
+	{
+		if ( Str( &ev, "key" ).find( "fui_err_report_" ) == 0 )
+		{
+			s.flReportDeadline = 0.;
+			ui.Set( "report.pending", Node( false ) );
+		}
 		FuiTF().Toast( "error", ui.Translate( "fui_err_title" ), ui.Translate( Str( &ev, "key" ) ), "" );
+	}
 	else if ( t == "toast" )
 	{
 		const Node *pArgs = ev.Find( "args" );
@@ -512,6 +562,12 @@ void FuiSocialUpdate( fui::Runtime &ui, bool bShown )
 	events.swap( s.events );
 	for ( const std::string &json : events )
 		ApplyEvent( ui, json );
+	if ( s.flReportDeadline > 0. && Plat_FloatTime() >= s.flReportDeadline )
+	{
+		s.flReportDeadline = 0.;
+		ui.Set( "report.pending", Node( false ) );
+		FuiTF().Toast( "error", ui.Translate( "fui_report_title" ), ui.Translate( "fui_report_timeout" ), "" );
+	}
 
 	if ( s.flSupportDeadline > 0. && Plat_FloatTime() >= s.flSupportDeadline )
 	{
@@ -592,7 +648,76 @@ bool FuiSocialCommand( fui::Runtime &ui, const std::string &name, const std::vec
 		ui.Set( "ui.modal", Node( "invite" ) );
 		return true;
 	}
-	if ( name == "invite_player" || name == "join_player" || name == "accept_invite" || name == "decline_invite" || name == "profile" )
+	if ( name == "leave_party" )
+	{
+		auto *pParty = GTFPartyClient();
+		if ( pParty && pParty->GetActiveParty() )
+		{
+			ui.Set( "ui.party_target", Node( std::to_string( pParty->GetActiveParty()->GetGroupID() ) ) );
+			ui.Set( "ui.modal", Node( "leave_party" ) );
+		}
+		return true;
+	}
+	if ( name == "confirm_leave_party" )
+	{
+		auto *pParty = GTFPartyClient();
+		if ( FrontressGC() && FrontressGC()->BConnected() && pParty && pParty->GetActiveParty() &&
+			Path( ui, "ui.party_target" ) == std::to_string( pParty->GetActiveParty()->GetGroupID() ) )
+		{
+			pParty->LeaveActiveParty();
+			ui.Set( "ui.modal", Node( "" ) );
+		}
+		else
+			FuiTF().Toast( "error", ui.Translate( "fui_err_title" ), ui.Translate( "fui_gc_offline" ), "" );
+		return true;
+	}
+	if ( name == "open_report" )
+	{
+		if ( S().flReportDeadline > 0. )
+		{
+			ui.Set( "ui.modal", Node( "report" ) );
+			return true;
+		}
+		Node players;
+		players.SetArray();
+		for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+		{
+			player_info_t info;
+			if ( !engine->GetPlayerInfo( i, &info ) || !info.friendsID || info.fakeplayer )
+				continue;
+			const CSteamID id( info.friendsID, Me().GetEUniverse(), k_EAccountTypeIndividual );
+			if ( id == Me() )
+				continue;
+			Node &p = players.Append();
+			p[ "id" ] = std::to_string( id.ConvertToUint64() );
+			p[ "name" ] = info.name;
+		}
+		ui.Set( "report.players", std::move( players ) );
+		ui.Set( "report.target", Node( "" ) );
+		ui.Set( "report.reason", Node( 0 ) );
+		ui.Set( "ui.modal", Node( "report" ) );
+		return true;
+	}
+	if ( name == "send_report" )
+	{
+		if ( S().flReportDeadline > 0. )
+			return true;
+		const CSteamID id( V_atoui64( Path( ui, "report.target" ).c_str() ) );
+		const Node *reason = ui.Get( "report.reason" );
+		if ( !FrontressGC() || !FrontressGC()->BConnected() )
+			FuiTF().Toast( "error", ui.Translate( "fui_err_title" ), ui.Translate( "fui_gc_offline" ), "" );
+		else if ( reason && ReportPlayerAccount( id, (int)reason->AsNumber() ) )
+		{
+			S().reportTarget = Path( ui, "report.target" );
+			S().flReportDeadline = Plat_FloatTime() + 15.;
+			ui.Set( "report.pending", Node( true ) );
+		}
+		else
+			FuiTF().Toast( "error", ui.Translate( "fui_err_title" ), ui.Translate( "fui_report_failed" ), "" );
+		return true;
+	}
+	if ( name == "invite_player" || name == "join_player" || name == "accept_invite" || name == "decline_invite" ||
+		name == "cancel_invite" || name == "accept_request" || name == "kick_member" || name == "confirm_kick" || name == "profile" )
 	{
 		const uint64 ul = V_atoui64( Digits( arg ).c_str() );
 		CSteamID id( ul );
@@ -606,16 +731,38 @@ bool FuiSocialCommand( fui::Runtime &ui, const std::string &name, const std::vec
 		else if ( FrontressGC() && FrontressGC()->BConnected() && GTFPartyClient() )
 		{
 			auto *pParty = GTFPartyClient();
-			if ( name == "decline_invite" )
+			if ( name == "kick_member" )
+			{
+				if ( pParty->BIsPartyLeader() && pParty->GetActiveParty() && pParty->GetActiveParty()->GetMemberIndexBySteamID( id ) >= 0 )
+				{
+					ui.Set( "ui.kick_target", Node( arg ) );
+					ui.Set( "ui.kick_name", Node( UTF8Name( id ) ) );
+					ui.Set( "ui.party_target", Node( std::to_string( pParty->GetActiveParty()->GetGroupID() ) ) );
+					ui.Set( "ui.modal", Node( "kick_member" ) );
+				}
+			}
+			else if ( name == "confirm_kick" )
+			{
+				if ( pParty->GetActiveParty() && Path( ui, "ui.party_target" ) == std::to_string( pParty->GetActiveParty()->GetGroupID() ) &&
+					pParty->BKickPartyMember( id ) )
+					ui.Set( "ui.modal", Node( "invite" ) );
+			}
+			else if ( name == "cancel_invite" )
+				pParty->CancelOutgoingInviteOrIncomingJoinRequest( id );
+			else if ( name == "accept_request" )
+				pParty->BInvitePlayerToParty( id, true );
+			else if ( name == "decline_invite" )
 				pParty->CancelOutgoingJoinRequestOrIncomingInvite( id );
-			else if ( name == "accept_invite" )
-				pParty->BRequestJoinPlayer( id, true );
 			else
 			{
 				const bool bInvite = name == "invite_player";
-				const bool bSent = bInvite ? pParty->BInvitePlayerToParty( id, false ) : pParty->BRequestJoinPlayer( id, false );
+				const bool bSent = bInvite ? pParty->BInvitePlayerToParty( id, false ) : pParty->BRequestJoinPlayer( id, name == "accept_invite" );
 				if ( bSent )
+				{
 					FuiTF().Toast( "party", ui.Translate( bInvite ? "fui_toast_invited" : "fui_toast_asked" ), UTF8Name( id ), "" );
+					if ( name == "accept_invite" )
+						ui.Set( "ui.modal", Node( "" ) );
+				}
 				else
 					FuiTF().Toast( "error", ui.Translate( "fui_err_title" ), ui.Translate( "fui_invite_failed" ), "" );
 			}

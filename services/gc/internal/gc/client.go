@@ -15,14 +15,15 @@ import (
 
 // Player is somebody the GC has seen this run.
 type Player struct {
-	SteamID      uint64
-	Online       bool
-	OfflineSince time.Time
-	Verified     bool
-	AuthAppID    uint32
-	PartyID      uint64
-	Look         *Look  // see looks.go
-	WarFront     string // the operation they asked to fight in, see warfront.go
+	SteamID        uint64
+	Online         bool
+	OfflineSince   time.Time
+	Verified       bool
+	AuthAppID      uint32
+	PartyID        uint64
+	Look           *Look  // see looks.go
+	WarFront       string // the operation they asked to fight in, see warfront.go
+	BestDataCenter string
 
 	// Social (social.go): their name as the game told us, their language,
 	// whether they are looking for a squad, their chat allowance.
@@ -50,12 +51,13 @@ func (g *GC) player(id uint64) *Player {
 // ClientConnected brings a freshly authenticated client up to date: its
 // party, its match if it has one, its rating, and what the GC offers. It runs
 // on the loop.
-func (g *GC) ClientConnected(s *session.Session, verified bool) {
+func (g *GC) ClientConnected(s *session.Session, verified bool) uint64 {
 	p := g.player(s.SteamID)
 	p.Online = true
 	p.OfflineSince = time.Time{}
 	p.Verified = verified
 	p.AuthAppID = s.AppID
+	p.BestDataCenter = ""
 
 	party := g.parties[p.PartyID]
 	if party == nil || !party.has(p.SteamID) {
@@ -63,6 +65,11 @@ func (g *GC) ClientConnected(s *session.Session, verified bool) {
 	}
 	g.publishParty(party)
 	g.publishRatings(p.SteamID)
+	for _, grp := range g.cfg.MatchGroups {
+		if grp.Enabled {
+			g.publishMatchStats(p.SteamID, grp.MatchGroup)
+		}
+	}
 	g.sendWorldStatus(s)
 	g.sendFaction(s.SteamID)
 
@@ -71,6 +78,10 @@ func (g *GC) ClientConnected(s *session.Session, verified bool) {
 	// refresh.
 	g.so.Refresh(p.SteamID)
 	g.log.Info("client connected", "steamid", p.SteamID, "party", party.ID, "verified", verified)
+	if l := g.lobbyOf(p.SteamID); l != nil {
+		return l.ID
+	}
+	return 0
 }
 
 func (g *GC) onSessionEnd(s *session.Session) {
@@ -98,6 +109,8 @@ func (g *GC) onSessionEnd(s *session.Session) {
 }
 
 func init() {
+	onClient(gcpb.ETFGCMsg_k_EMsgGC_AcknowledgeXP, (*GC).handleAcknowledgeXP)
+	onClient(gcpb.ETFGCMsg_k_EMsgGC_NotificationAcknowledge, (*GC).handleAcknowledgeNotification)
 	// The game's cache was replaced -- the web API inventory arrived, or the
 	// game restarted its GC client -- and our objects went with it.
 	onClient(gcpb.ESOMsg_k_ESOMsg_CacheSubscriptionRefresh, func(g *GC, s *session.Session, m *wire.Msg) {
@@ -129,30 +142,88 @@ func (g *GC) sendWorldStatus(s *session.Session) {
 
 // Rating types the stock menu reads (EMMRating).
 const (
-	ratingLadder6v6     = 2  // k_nMMRating_6v6_GLICKO
-	ratingLadder6v6Ackd = 11 // k_nMMRating_6v6_GLICKO_PlayerAcknowledged
-	ratingCasualXP      = 5  // k_nMMRating_Casual_XP
-	ratingCasualXPAckd  = 6  // k_nMMRating_Casual_XP_PlayerAcknowledged
+	ladderGroup          = int32(gcpb.ETFMatchGroup_k_eTFMatchGroup_Ladder_6v6)
+	casualGroup          = int32(gcpb.ETFMatchGroup_k_eTFMatchGroup_Casual_12v12)
+	ratingLadder6v6      = 2  // k_nMMRating_6v6_GLICKO
+	ratingLadder6v6Ackd  = 11 // k_nMMRating_6v6_GLICKO_PlayerAcknowledged
+	ratingLadderRank     = 7  // k_nMMRating_6v6_Rank
+	ratingLadderRankAckd = 8  // k_nMMRating_6v6_Rank_PlayerAcknowledged
+	ratingCasualXP       = 5  // k_nMMRating_Casual_XP
+	ratingCasualXPAckd   = 6  // k_nMMRating_Casual_XP_PlayerAcknowledged
 )
 
 // publishRatings puts the numbers the main menu badge reads into the
 // player's cache: XP for casual, the rating for the ladder.
 func (g *GC) publishRatings(id uint64) {
 	rec := g.players.Get(id)
-	put := func(typ int32, value int) {
+	putRating := func(typ int32, value int, secondary int) {
 		if value < 0 {
 			value = 0
 		}
 		g.so.Put(id, socache.TypeRatingData, strconv.Itoa(int(typ)), &gcpb.CSOTFRatingData{
-			AccountId:     proto.Uint32(uint32(id)),
-			RatingType:    proto.Int32(typ),
-			RatingPrimary: proto.Uint32(uint32(value)),
+			AccountId:       proto.Uint32(uint32(id)),
+			RatingType:      proto.Int32(typ),
+			RatingPrimary:   proto.Uint32(uint32(value)),
+			RatingSecondary: proto.Uint32(uint32(secondary)),
 		})
 	}
-	put(ratingCasualXP, rec.XP())
-	put(ratingCasualXPAckd, rec.XP())
-	put(ratingLadder6v6, rec.Rating)
-	put(ratingLadder6v6Ackd, rec.Rating)
+	putRating(ratingCasualXP, rec.XP(), 0)
+	putRating(ratingCasualXPAckd, rec.Acknowledged[casualGroup].Value, 0)
+	putRating(ratingLadder6v6, rec.Rating, 0)
+	ackRating := players.DefaultRating
+	if ack, ok := rec.Acknowledged[ladderGroup]; ok {
+		ackRating = ack.Value
+	}
+	putRating(ratingLadder6v6Ackd, ackRating, 0)
+	rank, wins := g.ladderRank(id, rec.Rating)
+	putRating(ratingLadderRank, rank, wins)
+	putRating(ratingLadderRankAckd, rec.Acknowledged[ladderGroup].Rank, 0)
+}
+
+func (g *GC) handleAcknowledgeXP(s *session.Session, m *wire.Msg) {
+	var msg gcpb.CMsgAcknowledgeXP
+	if !g.parse(m, &msg) || msg.PredictedExperience == nil {
+		return
+	}
+	group := msg.GetMatchGroup()
+	if group != casualGroup && group != ladderGroup {
+		return
+	}
+	rank := 0
+	if group == ladderGroup {
+		rank, _ = g.ladderRank(s.SteamID, g.players.Get(s.SteamID).Rating)
+	}
+	if g.players.AcknowledgeProgress(s.SteamID, group, msg.GetPredictedExperience(), group == ladderGroup, rank) {
+		g.publishRatings(s.SteamID)
+		g.publishMatchStats(s.SteamID, group)
+	}
+}
+
+func (g *GC) ladderRank(id uint64, rating int) (rank, placementWins int) {
+	const winsToPlace = 10 // CMatchGroupDescription_Competitive in the SDK
+	steamID := lobbyKey(id)
+	for _, match := range g.history.Results(ladderGroup, steamID, time.Time{}) {
+		if !match.Result.Completed() {
+			continue
+		}
+		for _, p := range match.Result.Players {
+			if p.SteamID == steamID && !p.Excluded && p.Team == match.Result.WinningTeam {
+				placementWins++
+				if placementWins == winsToPlace {
+					return players.LadderRank(rating), placementWins
+				}
+			}
+		}
+	}
+	return 0, placementWins
+}
+
+func (g *GC) handleAcknowledgeNotification(s *session.Session, m *wire.Msg) {
+	var msg gcpb.CMsgNotificationAcknowledge
+	defer g.reply(s, m, uint32(gcpb.ETFGCMsg_k_EMsgGC_NotificationAcknowledgeReply), &gcpb.CMsgNotificationAcknowledgeReply{})
+	if g.parse(m, &msg) && (msg.AccountId == nil || msg.GetAccountId() == uint32(s.SteamID)) {
+		g.so.Delete(s.SteamID, socache.TypeNotification, lobbyKey(msg.GetNotificationId()))
+	}
 }
 
 // PlayerRecord is a player's public record, for the HTTP API.

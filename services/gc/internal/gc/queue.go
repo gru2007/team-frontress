@@ -101,15 +101,22 @@ func (g *GC) seatStandby(p *Party) {
 	if l == nil || l.State != lobbyRun {
 		return
 	}
+	srv := g.lateJoinServer(l)
+	if srv == nil {
+		return
+	}
 	grp, ok := g.cfg.Group(l.Group)
 	if !ok {
 		return
 	}
 	changed := false
 	for id := range p.Standby {
-		if !g.isOnline(id) || l.member(id) != nil {
+		if !g.isOnline(id) || g.lobbyOf(id) != nil {
 			delete(p.Standby, id)
 			changed = true
+			continue
+		}
+		if srv.LateJoinSlots == 0 || l.kicked[id] {
 			continue
 		}
 		red, blu := l.teamCounts()
@@ -124,6 +131,7 @@ func (g *GC) seatStandby(p *Party) {
 			continue
 		}
 		l.addMember(id, team, p.ID, g.now())
+		srv.LateJoinSlots--
 		delete(p.Standby, id)
 		changed = true
 		g.log.Info("standby seated", "lobby", l.ID, "steamid", id)
@@ -252,9 +260,8 @@ func remaining(queue []mm.Entry, f mm.Formed) []mm.Entry {
 	return out
 }
 
-// backfill seats queued parties in running matches that have room, emptiest
-// match first so players spread out. A party only goes into a running match
-// if it said it is willing to join late. It returns who is still waiting.
+// backfill fills the most populated matches first. A frontline search
+// includes running matches by default and honors an explicit opt-out.
 func (g *GC) backfill(grp config.MatchGroupConfig, queue []mm.Entry) []mm.Entry {
 	open := g.openLobbies(grp)
 	if len(open) == 0 {
@@ -263,12 +270,23 @@ func (g *GC) backfill(grp config.MatchGroupConfig, queue []mm.Entry) []mm.Entry 
 	var left []mm.Entry
 	for _, e := range queue {
 		p := g.parties[e.PartyID]
-		if p == nil || !p.Criteria.GetLateJoinOk() {
+		if p == nil || (p.Criteria != nil && p.Criteria.LateJoinOk != nil && !p.Criteria.GetLateJoinOk()) {
 			left = append(left, e)
 			continue
 		}
 		seated := false
 		for _, l := range open {
+			srv := g.servers[l.ServerID]
+			if e.Size() > srv.LateJoinSlots {
+				continue
+			}
+			blocked := false
+			for _, player := range e.Players {
+				blocked = blocked || l.kicked[player.SteamID]
+			}
+			if blocked {
+				continue
+			}
 			red, blu := l.teamCounts()
 			team, ok := mm.RoomFor(red, blu, e.Size(), l.teamCap(grp))
 			if l.War != nil {
@@ -283,6 +301,7 @@ func (g *GC) backfill(grp config.MatchGroupConfig, queue []mm.Entry) []mm.Entry 
 			for _, pl := range e.Players {
 				l.addMember(pl.SteamID, team, p.ID, g.now())
 			}
+			srv.LateJoinSlots -= e.Size()
 			delete(p.Queues, grp.MatchGroup)
 			g.lobbyChanged(l)
 			g.publishParty(p)
@@ -301,7 +320,7 @@ func (g *GC) openLobbies(grp config.MatchGroupConfig) []*Lobby {
 	now := g.now()
 	var out []*Lobby
 	for _, l := range g.lobbies {
-		if l.Group != grp.MatchGroup || l.State != lobbyRun {
+		if l.Group != grp.MatchGroup || l.State != lobbyRun || g.lateJoinServer(l) == nil {
 			continue
 		}
 		if grp.BackfillSecs > 0 && now.Sub(l.StartedAt) > time.Duration(grp.BackfillSecs)*time.Second {
@@ -317,11 +336,20 @@ func (g *GC) openLobbies(grp config.MatchGroupConfig) []*Lobby {
 		ri, bi := out[i].teamCounts()
 		rj, bj := out[j].teamCounts()
 		if ri+bi != rj+bj {
-			return ri+bi < rj+bj
+			return ri+bi > rj+bj
 		}
 		return out[i].ID < out[j].ID
 	})
 	return out
+}
+
+func (g *GC) lateJoinServer(l *Lobby) *Server {
+	srv := g.servers[l.ServerID]
+	if l.resultSeen || srv == nil || srv.LobbyID != l.ID || srv.Session == nil ||
+		srv.Session.Closed() || srv.LateJoinSlots <= 0 {
+		return nil
+	}
+	return srv
 }
 
 // form asks the arithmetic for a match, sized by the war's battle if this

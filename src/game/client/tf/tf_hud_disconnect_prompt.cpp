@@ -171,7 +171,6 @@ CTFRejoinConfirmDialog *BuildRejoinConfirmDialog ()
 			if ( bConfirmed )
 			{
 				GTFGCClientSystem()->AbandonCurrentMatch();
-				engine->DisconnectInternal();
 			}
 		},
 		NULL ) );

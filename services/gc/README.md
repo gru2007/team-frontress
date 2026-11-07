@@ -49,6 +49,18 @@ arrives is abandoned and its parties go back to the front of the queue; a match
 whose server disappears, that nobody joins, or that runs too long is ended. No
 state waits forever.
 
+The stock competitive history and rank panels receive the latest 30 match rows
+per group, season totals and medals. The medal baseline uses the last 24 hours
+of completed matches and normalizes performance to a nine-minute match. Elo
+and XP still use the Frontress rules. The stock Competitive badge uses the
+SDK's rank thresholds and counts ten Competitive wins for placement. History
+and placement counts start with the available match archive.
+
+Casual 12v12 lobbies outside the campaign can continue on the same server after
+a map vote. The current map and three alternatives in the group's map pool
+need IDs in `map_index`. The next match has its own history and result while
+the lobby and its roster carry over.
+
 ## Reliability
 
 - **One owner.** All GC state belongs to one goroutine. HTTP handlers decode
@@ -201,6 +213,31 @@ far, the online list, its clan and its supporter badge.
 From tf2pickup the GC takes its rating (Elo, K 32 for the first ten matches
 then 16, scored against the other team's average) and its rule that every
 match ends on its own deadlines.
+
+## Player reports and group controls
+
+The pause menu offers player reports with the four native reasons. The GC
+accepts `CMsgGC_ReportPlayer` and sends confirmation after saving the report.
+With `data_dir` configured, private reports are separate JSON files under
+`reports/`, with a mode-0700 directory and mode-0600 files. They contain the
+authenticated reporter, target SteamID, reason, timestamp and a shared match
+ID when one is known. Direct dedicated-server connections can also report.
+Moderators review these files on the GC host. Reports are excluded from the
+public match archive and API. The limit is one report per target every five
+minutes and five reports per reporter per minute, including after restart.
+
+The Group button opens the member list, incoming invitations, join requests,
+sent invitations and searchable Steam friends. The leader can remove members
+with confirmation. Leaving the group transfers leadership when needed and
+cancels its queue. The current match reservation is controlled separately by
+the Leave server action in the pause menu. That action confirms the exit,
+disconnects the game and retries the targeted GC request after a connection
+interruption until it is acknowledged.
+
+The menu periodically republishes the player's appearance and uses a stock
+Soldier while another member's equipment is loading. All six group positions
+are displayed. When 3D models are disabled, the home screen offers a button
+to enable them.
 
 ## Tests
 

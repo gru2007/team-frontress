@@ -23,11 +23,15 @@ import (
 
 // Type IDs from tf_gcmessages.h (EGCTFProtoObjectTypes).
 const (
-	TypeParty       int32 = 2003
-	TypeLobby       int32 = 2004
-	TypePartyInvite int32 = 2006
-	TypeRatingData  int32 = 2007
-	TypeLobbyInvite int32 = 2008
+	TypeLadderData   int32 = 39
+	TypeMatchResult  int32 = 40
+	TypeXPSource     int32 = 41
+	TypeNotification int32 = 42
+	TypeParty        int32 = 2003
+	TypeLobby        int32 = 2004
+	TypePartyInvite  int32 = 2006
+	TypeRatingData   int32 = 2007
+	TypeLobbyInvite  int32 = 2008
 )
 
 // Message types (ESOMsg).
@@ -157,13 +161,20 @@ func (s *Store) Keys(owner uint64, typ int32) []string {
 // Refresh resends every object in a cache as a create. A create of an object
 // the game already has updates it in place, so this is safe to do at any time.
 func (s *Store) Refresh(owner uint64) {
+	s.RefreshType(owner, 0)
+}
+
+// RefreshType resends one kind of shared object. Zero resends the full cache.
+func (s *Store) RefreshType(owner uint64, typ int32) {
 	c := s.caches[owner]
 	if c == nil {
 		return
 	}
 	keys := make([]objKey, 0, len(c.objects))
 	for k := range c.objects {
-		keys = append(keys, k)
+		if typ == 0 || typ == k.typ {
+			keys = append(keys, k)
+		}
 	}
 	sort.Slice(keys, func(i, j int) bool {
 		if keys[i].typ != keys[j].typ {

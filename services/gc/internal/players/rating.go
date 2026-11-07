@@ -14,6 +14,14 @@ const (
 	ProvisionalThreshold = 10
 )
 
+// LadderRank uses the display thresholds in tf_progression_description_comp.cpp.
+func LadderRank(rating int) int {
+	if rating < 1300 {
+		return 1
+	}
+	return min(13, 2+(rating-1300)/50)
+}
+
 func kFactor(gamesPlayed int) float64 {
 	if gamesPlayed < ProvisionalThreshold {
 		return 32

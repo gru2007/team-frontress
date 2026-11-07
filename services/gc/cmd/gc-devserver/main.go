@@ -86,26 +86,23 @@ func main() {
 	for {
 		// Empty and waiting.
 		for s.lobby == nil {
-			s.status(gcpb.ServerMatchmakingState_ServerMatchmakingState_EMPTY, "", nil)
+			s.status()
 			s.pumpFor(5 * time.Second)
 		}
 		l := s.lobby
 		log.Printf("got match %d on %s: %d players", l.GetMatchId(), l.GetMapName(), len(l.GetMembers()))
 
 		// The map is up and the players are expected: the lobby goes live.
-		var players []*gcpb.CMsgGameServerMatchmakingStatus_Player
-		for _, m := range l.GetMembers() {
-			players = append(players, &gcpb.CMsgGameServerMatchmakingStatus_Player{
-				SteamId: proto.Uint64(m.GetId()), ConnectState: gcpb.CMsgGameServerMatchmakingStatus_RESERVED.Enum(),
-			})
-		}
-		s.status(gcpb.ServerMatchmakingState_ServerMatchmakingState_ACTIVE_MATCH, l.GetMapName(), players)
 		log.Printf("match live; result in %s", *after)
 		deadline := time.Now().Add(*after)
-		for time.Now().Before(deadline) {
-			s.status(gcpb.ServerMatchmakingState_ServerMatchmakingState_ACTIVE_MATCH, l.GetMapName(), players)
+		for s.lobby != nil && time.Now().Before(deadline) {
+			s.status()
 			s.pumpFor(5 * time.Second)
 		}
+		if s.lobby == nil {
+			continue
+		}
+		l = s.lobby
 
 		// The result. Defenders wear RED (2), invaders BLU (3).
 		winner := uint32(0)
@@ -166,10 +163,24 @@ func (s *server) connect(form url.Values) error {
 	return nil
 }
 
-func (s *server) status(state gcpb.ServerMatchmakingState, mapName string, players []*gcpb.CMsgGameServerMatchmakingStatus_Player) {
-	m := &gcpb.CMsgGameServerMatchmakingStatus{MatchmakingState: state.Enum(), Players: players}
-	if mapName != "" {
-		m.Map = proto.String(mapName)
+func (s *server) status() {
+	m := &gcpb.CMsgGameServerMatchmakingStatus{
+		MatchmakingState: gcpb.ServerMatchmakingState_ServerMatchmakingState_EMPTY.Enum(),
+	}
+	if l := s.lobby; l != nil {
+		m.MatchmakingState = gcpb.ServerMatchmakingState_ServerMatchmakingState_ACTIVE_MATCH.Enum()
+		m.Map = l.MapName
+		m.MatchGroup = proto.Int32(int32(l.GetMatchGroup()))
+		m.LobbyMmVersion = l.LobbyMmVersion
+		if slots := int(l.GetFixedMatchSize()) - len(l.GetMembers()); l.GetLateJoinEligible() && slots > 0 {
+			m.MatchmakingState = gcpb.ServerMatchmakingState_ServerMatchmakingState_ACTIVE_MATCH_REQUESTING_LATE_JOIN.Enum()
+			m.SlotsFree = proto.Uint32(uint32(slots))
+		}
+		for _, member := range l.GetMembers() {
+			m.Players = append(m.Players, &gcpb.CMsgGameServerMatchmakingStatus_Player{
+				SteamId: proto.Uint64(member.GetId()), ConnectState: gcpb.CMsgGameServerMatchmakingStatus_RESERVED.Enum(),
+			})
+		}
 	}
 	s.send(uint32(gcpb.ETFGCMsg_k_EMsgGCGameServerMatchmakingStatus), m)
 }

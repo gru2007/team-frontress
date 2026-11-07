@@ -38,6 +38,7 @@ type peer struct {
 	base    string
 	steamID uint64
 	session string
+	lobbyID string
 	outSeq  uint64
 	ack     uint64
 
@@ -66,6 +67,9 @@ func (p *peer) connect(form url.Values) {
 	for _, line := range strings.Split(string(body), "\n") {
 		if v, ok := strings.CutPrefix(line, "session="); ok {
 			p.session = v
+		}
+		if v, ok := strings.CutPrefix(line, "lobby_id="); ok {
+			p.lobbyID = v
 		}
 	}
 	if p.session == "" {
@@ -180,6 +184,18 @@ func soKey(typ int32, data []byte) string {
 		var x gcpb.CSOTFRatingData
 		_ = proto.Unmarshal(data, &x)
 		return strconv.Itoa(int(x.GetRatingType()))
+	case socache.TypeMatchResult:
+		var x gcpb.CSOTFMatchResultPlayerStats
+		_ = proto.Unmarshal(data, &x)
+		return strconv.FormatUint(x.GetMatchId(), 10)
+	case socache.TypeLadderData:
+		var x gcpb.CSOTFLadderPlayerStats
+		_ = proto.Unmarshal(data, &x)
+		return strconv.Itoa(int(x.GetMatchGroup()))
+	case socache.TypeXPSource:
+		var x gcpb.CMsgTFXPSource
+		_ = proto.Unmarshal(data, &x)
+		return strconv.FormatUint(x.GetMatchId(), 10)
 	}
 	return ""
 }
@@ -392,6 +408,21 @@ func TestMatchEndToEnd(t *testing.T) {
 	// The server reports the result and closes the lobby.
 	matchID := gs.lobby().GetMatchId()
 	lobbyID := gs.lobby().GetLobbyId()
+	gs.send(msg(gcpb.ETFGCMsg_k_EMsgGC_ProcessMatchVoteKick), &gcpb.CMsgProcessMatchVoteKick{
+		MatchId: proto.Uint64(matchID), InitiatorSteamId: proto.Uint64(bob), TargetSteamId: proto.Uint64(alice),
+		DefaultPass: proto.Bool(false),
+	})
+	gs.until("the failed vote reply", func() bool {
+		return gs.replied(msg(gcpb.ETFGCMsg_k_EMsgGC_ProcessMatchVoteKickResponse))
+	})
+	for _, reply := range gs.inbox {
+		if reply.Type == msg(gcpb.ETFGCMsg_k_EMsgGC_ProcessMatchVoteKickResponse) {
+			var vote gcpb.CMsgProcessMatchVoteKickResponse
+			if err := proto.Unmarshal(reply.Body, &vote); err != nil || vote.GetRip() {
+				t.Fatalf("failed vote was accepted: %v (%v)", &vote, err)
+			}
+		}
+	}
 	var aliceGameTeam, bobGameTeam uint32 = 2, 3
 	for _, m := range a.lobby().GetMembers() {
 		if m.GetId() == alice && m.GetTeam() == gcpb.TF_GC_TEAM_TF_GC_TEAM_INVADERS {
@@ -401,17 +432,68 @@ func TestMatchEndToEnd(t *testing.T) {
 	gs.send(msg(gcpb.ETFGCMsg_k_EMsgGC_Match_Result), &gcpb.CMsgGC_Match_Result{
 		MatchId:     proto.Uint64(matchID),
 		WinningTeam: proto.Uint32(aliceGameTeam),
+		Duration:    proto.Uint32(540),
 		Players: []*gcpb.CMsgGC_Match_Result_Player{
+			{SteamId: proto.Uint64(alice), Team: proto.Uint32(aliceGameTeam), Rank: proto.Uint32(6),
+				Score: proto.Uint32(50), Support: proto.Uint32(71), KillsMedal: proto.Uint32(2)},
+			{SteamId: proto.Uint64(bob), Team: proto.Uint32(bobGameTeam), Rank: proto.Uint32(6), Score: proto.Uint32(150)},
 			{SteamId: proto.Uint64(alice), Team: proto.Uint32(aliceGameTeam)},
-			{SteamId: proto.Uint64(bob), Team: proto.Uint32(bobGameTeam)},
+			{SteamId: proto.Uint64(carol), Team: proto.Uint32(bobGameTeam), Flags: proto.Uint32(1 << 5)},
 		},
 	})
 	gs.until("the result reply", func() bool { return gs.replied(msg(gcpb.ETFGCMsg_k_EMsgGC_Match_ResultResponse)) })
+	gs.send(msg(gcpb.ETFGCMsg_k_EMsgGC_DailyCompetitiveStatsRollup), &gcpb.CMsgGC_DailyCompetitiveStatsRollup{})
+	gs.until("the daily stats reply", func() bool {
+		return gs.replied(msg(gcpb.ETFGCMsg_k_EMsgGC_DailyCompetitiveStatsRollup_Response))
+	})
+	for _, reply := range gs.inbox {
+		if reply.Type == msg(gcpb.ETFGCMsg_k_EMsgGC_DailyCompetitiveStatsRollup_Response) {
+			var stats gcpb.CMsgGC_DailyCompetitiveStatsRollup_Response
+			if err := proto.Unmarshal(reply.Body, &stats); err != nil || len(stats.GetRankdata()) != 1 {
+				t.Fatalf("daily rank buckets: %v (%v)", &stats, err)
+			}
+			bucket := stats.GetRankdata()[0]
+			if bucket.GetRank() != 6 || bucket.GetRecords() != 2 || bucket.GetAvgScore() != 100 || bucket.GetStdevScore() != 50 {
+				t.Fatalf("daily statistics include a duplicate or no-show: %v", bucket)
+			}
+		}
+	}
+	key := strconv.FormatUint(matchID, 10)
+	a.until("native match history and XP", func() bool {
+		return a.cache[socache.TypeMatchResult][key] != nil && a.cache[socache.TypeXPSource][key] != nil
+	})
+	var row gcpb.CSOTFMatchResultPlayerStats
+	if err := proto.Unmarshal(a.cache[socache.TypeMatchResult][key], &row); err != nil ||
+		row.GetSupport() != 71 || row.GetKillsMedal() != 2 || row.GetDisplayRatingChange() != 16 {
+		t.Fatalf("native match result: %v (%v)", &row, err)
+	}
+	var totals gcpb.CSOTFLadderPlayerStats
+	if err := proto.Unmarshal(a.cache[socache.TypeLadderData]["7"], &totals); err != nil ||
+		totals.GetGames() != 1 || totals.GetKillsSilver() != 1 {
+		t.Fatalf("native ladder totals: %v (%v)", &totals, err)
+	}
+	var xp gcpb.CSOTFRatingData
+	if err := proto.Unmarshal(a.cache[socache.TypeRatingData]["5"], &xp); err != nil || xp.GetRatingPrimary() == 0 {
+		t.Fatalf("current XP: %v (%v)", &xp, err)
+	}
+	a.send(msg(gcpb.ETFGCMsg_k_EMsgGC_AcknowledgeXP), &gcpb.CMsgAcknowledgeXP{
+		MatchGroup: proto.Int32(7), PredictedExperience: proto.Uint32(xp.GetRatingPrimary()),
+	})
+	a.until("XP acknowledgement clears the source", func() bool { return a.cache[socache.TypeXPSource][key] == nil })
+	var ack gcpb.CSOTFRatingData
+	if err := proto.Unmarshal(a.cache[socache.TypeRatingData]["6"], &ack); err != nil || ack.GetRatingPrimary() != xp.GetRatingPrimary() {
+		t.Fatalf("acknowledged XP: %v (%v)", &ack, err)
+	}
 	gs.send(msg(gcpb.ETFGCMsg_k_EMsgGCGameServerKickingLobby), &gcpb.CMsgGameServerKickingLobby{
 		LobbyId: proto.Uint64(lobbyID), MatchId: proto.Uint64(matchID),
 	})
 	gs.until("the lobby gone from the server", func() bool { return gs.lobby() == nil })
 	a.until("the lobby gone from alice", func() bool { return a.lobby() == nil })
+	a2 := newPeer(t, base, alice)
+	a2.client()
+	if a2.lobbyID != "0" {
+		t.Fatalf("reconnecting after the match ended reported lobby %q", a2.lobbyID)
+	}
 
 	resp, err := http.Get(base + "/v1/player/" + strconv.FormatUint(alice, 10))
 	if err != nil {
@@ -511,6 +593,10 @@ func TestRestartKeepsRunningMatch(t *testing.T) {
 	gs2.until("the lobby back", func() bool { l := gs2.lobby(); return l != nil && l.GetLobbyId() == lobbyID })
 	a2 := newPeer(t, base2, alice)
 	a2.client()
+	wantLobbyID := strconv.FormatUint(lobbyID, 10)
+	if gs2.lobbyID != wantLobbyID || a2.lobbyID != wantLobbyID {
+		t.Fatalf("session lobby IDs: server %q, client %q, want %q", gs2.lobbyID, a2.lobbyID, wantLobbyID)
+	}
 	a2.until("alice's lobby back", func() bool {
 		l := a2.lobby()
 		return l != nil && l.GetLobbyId() == lobbyID && l.GetState() == gcpb.CSOTFGameServerLobby_RUN

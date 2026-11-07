@@ -55,7 +55,7 @@
 			</div>
 		</div>
 
-		<div class="icon-button" data-if="invites.incoming.size > 0" sfx="" data-event-click="cmd('open_invites')">#fui_party_invites · {{ invites.incoming.size }}</div>
+		<div class="icon-button party-button" sfx="" data-event-click="cmd('open_invites')">#fui_party_group · {{ party.count }}<span class="count-badge" data-if="invites.incoming.size + invites.requests.size > 0">{{ invites.incoming.size + invites.requests.size }}</span></div>
 		<div class="icon-button support-button" sfx="" data-class-active="ui.screen == 'support'" data-event-click="nav('support')"><div class="sup-gem"></div><span>#fui_tab_support</span></div>
 		<div class="icon-button" sfx="" data-event-click="cmd('open_settings')">#fui_settings</div>
 		<div class="icon-button quit" sfx="" data-event-click="set('ui.modal', 'quit')">#fui_quit</div>
@@ -131,7 +131,10 @@
 					<div class="button primary big" sfx="play" data-event-click="cmd('accept')">#fui_accept</div>
 					<div class="button ghost" sfx="" data-event-click="cmd('decline')">#fui_decline</div>
 				</div>
-				<div class="dim mf-joining" data-if="queue.state == 'joining'"><span class="pulse"></span> #fui_joining</div>
+				<div class="dim mf-joining" data-if="queue.state == 'joining'">
+					<span class="pulse"></span> #fui_joining
+					<div class="button ghost" sfx="" data-event-click="cmd('decline')">#fui_cancel</div>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -184,23 +187,98 @@
 	</div>
 
 	<div class="modal-dim hit" data-if="ui.modal == 'invite'">
-		<div class="modal settings-modal">
+		<div class="modal settings-modal party-modal">
 			<div class="row">
-				<h2 class="shadow grow">#fui_party_invites</h2>
+				<h2 class="shadow grow">#fui_party_group · {{ party.count }}/{{ party.max }}</h2>
 				<div class="icon-button" sfx="" data-event-click="set('ui.modal', '')">#fui_close</div>
 			</div>
-			<div class="invite-list">
-				<div class="row invite-row" data-for="p : invites.incoming">
-					<span class="grow">{{ p.name }}</span>
-					<div class="button primary small-button" data-event-click="cmd('accept_invite', p.id)">#fui_accept</div>
-					<div class="button ghost small-button" data-event-click="cmd('decline_invite', p.id)">#fui_decline</div>
+			<div class="party-columns">
+				<div class="party-column">
+					<div class="panel-title">#fui_party_members</div>
+					<div class="row invite-row" data-for="p : party.members">
+						<div class="col grow"><span>{{ p.name }}</span><span class="tiny dim" data-if="p.leader">#fui_party_leader</span></div>
+						<div class="button danger small-button" data-if="party.leader &amp;&amp; !p.me" data-event-click="cmd('kick_member', p.id)">#fui_party_kick</div>
+					</div>
+					<div class="button danger small-button" data-if="party.count > 1" data-event-click="cmd('leave_party')">#fui_party_leave</div>
+					<div class="panel-title invite-heading" data-if="invites.incoming.size > 0">#fui_party_invites</div>
+					<div class="row invite-row" data-for="p : invites.incoming">
+						<span class="grow">{{ p.name }}</span>
+						<div class="button primary small-button" data-event-click="cmd('accept_invite', p.id)">#fui_accept</div>
+						<div class="button ghost small-button" data-event-click="cmd('decline_invite', p.id)">#fui_decline</div>
+					</div>
+					<div class="panel-title invite-heading" data-if="party.leader &amp;&amp; invites.requests.size > 0">#fui_party_requests</div>
+					<div data-if="party.leader">
+						<div class="row invite-row" data-for="p : invites.requests">
+							<span class="grow">{{ p.name }}</span>
+							<div class="button primary small-button" data-event-click="cmd('accept_request', p.id)">#fui_accept</div>
+							<div class="button ghost small-button" data-event-click="cmd('cancel_invite', p.id)">#fui_decline</div>
+						</div>
+					</div>
+					<div class="panel-title invite-heading" data-if="invites.outgoing.size > 0">#fui_party_pending</div>
+					<div class="row invite-row" data-for="p : invites.outgoing">
+						<span class="grow">{{ p.name }}</span>
+						<div class="button ghost small-button" data-if="party.leader" data-event-click="cmd('cancel_invite', p.id)">#fui_cancel</div>
+					</div>
 				</div>
-				<div class="row invite-row" data-for="p : invites.friends">
-					<span class="grow">{{ p.name }}</span>
-					<div class="button ghost small-button" data-event-click="cmd('invite_player', p.id)">#fui_soc_invite</div>
+				<div class="party-column" data-if="party.leader">
+					<div class="panel-title">#fui_party_friends</div>
+					<div class="dim small">#fui_party_search</div>
+					<input class="text invite-search" type="text" maxlength="64" data-value="invites.search" data-attr-placeholder="'fui_party_search' | t"/>
+					<div class="invite-list">
+						<div class="row invite-row" data-for="p : invites.friends">
+							<div class="col grow"><span>{{ p.name }}</span><span class="tiny dim" data-if="p.online">#fui_online</span><span class="tiny dim" data-if="!p.online">#fui_party_offline</span></div>
+							<div class="button ghost small-button" data-if="party.count + invites.outgoing.size + invites.requests.size &lt; party.max" data-event-click="cmd('invite_player', p.id)">#fui_soc_invite</div>
+						</div>
+						<div class="dim small" data-if="invites.friends.size == 0">#fui_invite_empty</div>
+					</div>
 				</div>
-				<div class="dim small" data-if="invites.incoming.size == 0 && invites.friends.size == 0">#fui_invite_empty</div>
+				<div class="party-column dim" data-if="!party.leader">#fui_party_leader_invites</div>
 			</div>
+		</div>
+	</div>
+
+	<div class="modal-dim hit" data-if="ui.modal == 'leave_party' || ui.modal == 'kick_member'">
+		<div class="modal quit-modal">
+			<h2 data-if="ui.modal == 'leave_party'">#fui_party_leave</h2>
+			<h2 data-if="ui.modal == 'kick_member'">#fui_party_kick</h2>
+			<p class="dim" data-if="ui.modal == 'leave_party'">#fui_party_leave_body</p>
+			<p class="dim" data-if="ui.modal == 'kick_member'">{{ 'fui_party_kick_body' | t(ui.kick_name) }}</p>
+			<div class="row mf-buttons">
+				<div class="button danger" data-if="ui.modal == 'leave_party'" data-event-click="cmd('confirm_leave_party')">#fui_party_leave</div>
+				<div class="button danger" data-if="ui.modal == 'kick_member'" data-event-click="cmd('confirm_kick', ui.kick_target)">#fui_party_kick</div>
+				<div class="button primary" data-event-click="set('ui.modal', 'invite')">#fui_cancel</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="modal-dim hit" data-if="ui.modal == 'leave_match'">
+		<div class="modal quit-modal">
+			<h2>#fui_disconnect</h2>
+			<p class="dim">#fui_leave_match_body</p>
+			<div class="row mf-buttons">
+				<div class="button danger" data-event-click="cmd('confirm_disconnect')">#fui_disconnect</div>
+				<div class="button primary" data-event-click="set('ui.modal', '')">#fui_cancel</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="modal-dim hit" data-if="ui.modal == 'report'">
+		<div class="modal settings-modal">
+			<div class="row"><h2 class="grow">#fui_report_title</h2><div class="icon-button" data-event-click="set('ui.modal', '')">#fui_close</div></div>
+			<div class="party-columns" data-if="!report.pending">
+				<div class="party-column invite-list">
+					<div class="button ghost report-choice" data-for="p : report.players" data-class-active="report.target == p.id" data-event-click="set('report.target', p.id)">{{ p.name }}</div>
+					<p class="dim" data-if="report.players.size == 0">#fui_report_empty</p>
+				</div>
+				<div class="party-column">
+					<div class="button ghost report-choice" data-class-active="report.reason == 1" data-event-click="set('report.reason', 1)">#fui_report_cheating</div>
+					<div class="button ghost report-choice" data-class-active="report.reason == 2" data-event-click="set('report.reason', 2)">#fui_report_idle</div>
+					<div class="button ghost report-choice" data-class-active="report.reason == 3" data-event-click="set('report.reason', 3)">#fui_report_harassment</div>
+					<div class="button ghost report-choice" data-class-active="report.reason == 4" data-event-click="set('report.reason', 4)">#fui_report_griefing</div>
+				</div>
+			</div>
+			<p class="dim" data-if="report.pending">#fui_report_sending</p>
+			<div class="button primary" data-if="!report.pending &amp;&amp; report.target != '' &amp;&amp; report.reason > 0" data-event-click="cmd('send_report')">#fui_report_send</div>
 		</div>
 	</div>
 

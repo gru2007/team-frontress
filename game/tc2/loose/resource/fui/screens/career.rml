@@ -55,21 +55,21 @@
 			<div class="panel history">
 				<div class="panel-title">#fui_career_history</div>
 				<div class="dim empty" data-if="career.history.size == 0">#fui_career_no_history</div>
-				<div class="match" data-for="m : career.history" data-class-win="m.result == 'win'">
+				<div class="match" data-for="m : career.history" data-class-win="m.result == 'win'" data-class-loss="m.result == 'loss'">
 					<div class="match-art" data-style-decorator="'image(tex:' + m.image + ' cover center top)'"></div>
 					<div class="col grow">
 						<div class="row">
 							<span class="title match-map">{{ m.map }}</span>
 							<span class="chip">{{ m.mode | t }}</span>
 						</div>
-						<div class="dimmer small">{{ m.when }} · {{ ('fui_class_' + m.class) | t }}</div>
+						<div class="dimmer small">{{ m.when }} <span data-if="m.has_stats">· #fui_career_kd {{ m.kills }}/{{ m.deaths }}</span></div>
 					</div>
 					<div class="match-result">
-						<div class="title" data-class-good="m.result == 'win'" data-class-bad="m.result == 'loss'">{{ (m.result == 'win' ? 'fui_win' : 'fui_loss') | t }}</div>
+						<div class="title" data-class-good="m.result == 'win'" data-class-bad="m.result == 'loss'">{{ ('fui_' + m.result) | t }}</div>
 						<div class="dim small">{{ m.score }}</div>
 					</div>
 					<div class="match-xp">
-						<div class="gold title">+{{ m.xp }} XP</div>
+						<div class="gold title" data-if="m.xp != 0">{{ m.xp | signed }} XP</div>
 						<div data-attr-class="'small ' + (m.delta >= 0 ? 'good' : 'bad')" data-if="m.delta != 0">{{ m.delta | signed }}</div>
 					</div>
 				</div>

@@ -7,7 +7,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/gru2007/team-frontress/services/gc/internal/gcpb"
-	"github.com/gru2007/team-frontress/services/gc/internal/history"
 	"github.com/gru2007/team-frontress/services/gc/internal/mm"
 	"github.com/gru2007/team-frontress/services/gc/internal/players"
 	"github.com/gru2007/team-frontress/services/gc/internal/session"
@@ -26,9 +25,10 @@ type Server struct {
 	LobbyID   uint64
 	// Ready is the server's own word that it is empty and in matchmaking
 	// mode. Only a ready server with no lobby is handed a new match.
-	Ready      bool
-	LastStatus time.Time
-	Map        string
+	Ready         bool
+	LastStatus    time.Time
+	Map           string
+	LateJoinSlots int
 	// RestUntil keeps a server that just finished a match out of the pool for
 	// a moment. Its game is still tearing the old match down, and a new lobby
 	// arriving in that window is one the stock server code refuses by
@@ -46,7 +46,7 @@ const serverRest = 30 * time.Second
 
 // ServerConnected takes a server into the pool, or back to the match it was
 // running before it or the GC restarted. It runs on the loop.
-func (g *GC) ServerConnected(s *session.Session) {
+func (g *GC) ServerConnected(s *session.Session) uint64 {
 	srv := g.servers[s.SteamID]
 	if srv == nil {
 		srv = &Server{SteamID: s.SteamID}
@@ -59,6 +59,7 @@ func (g *GC) ServerConnected(s *session.Session) {
 	srv.Connect = s.Connect
 	srv.Ready = false // Wait for a status from this session.
 	srv.LastStatus = time.Time{}
+	srv.LateJoinSlots = 0
 
 	// Back to its match, if it had one.
 	if l := g.lobbies[srv.LobbyID]; l != nil && l.ServerID == srv.SteamID {
@@ -66,12 +67,13 @@ func (g *GC) ServerConnected(s *session.Session) {
 		g.sendConditions(srv, l)
 		g.so.Refresh(srv.SteamID)
 		g.log.Info("server reconnected to its match", "server", srv.SteamID, "lobby", l.ID)
-		return
+		return l.ID
 	}
 	srv.LobbyID = 0
 
 	g.log.Info("server connected", "server", srv.SteamID, "name", srv.Name, "community", srv.Community,
 		"connect", srv.Connect)
+	return 0
 }
 
 func (g *GC) serverGone(s *session.Session) {
@@ -81,6 +83,7 @@ func (g *GC) serverGone(s *session.Session) {
 	}
 	srv.Session = nil
 	srv.Ready = false
+	srv.LateJoinSlots = 0
 	if srv.LobbyID == 0 {
 		delete(g.servers, s.SteamID)
 	}
@@ -146,7 +149,28 @@ func (g *GC) handleServerStatus(s *session.Session, m *wire.Msg) {
 		return
 	}
 
-	changed := false
+	requesting := state == gcpb.ServerMatchmakingState_ServerMatchmakingState_ACTIVE_MATCH_REQUESTING_LATE_JOIN
+	active := requesting || state == gcpb.ServerMatchmakingState_ServerMatchmakingState_ACTIVE_MATCH
+	if !active || (msg.MatchGroup != nil && msg.GetMatchGroup() != l.Group) || !sameMap(l.Map, msg.GetMap()) {
+		srv.LateJoinSlots = 0
+		return
+	}
+	readyForLobby := msg.LobbyMmVersion != nil && msg.GetLobbyMmVersion() == l.MMVersion
+	if l.State == lobbySetup && l.PreviousMatchID != 0 &&
+		(!readyForLobby || msg.GetGameState() == gcpb.TF_GC_GameState_TF_GC_GAMESTATE_DISCONNECT) {
+		return
+	}
+	// A heartbeat for an older roster cannot replenish seats we just assigned.
+	if !requesting {
+		srv.LateJoinSlots = 0
+	} else if msg.LobbyMmVersion != nil && msg.GetLobbyMmVersion() == l.MMVersion {
+		srv.LateJoinSlots = int(msg.GetSlotsFree())
+	}
+
+	changed := srv.Connect != "" && srv.Connect != l.Connect
+	if changed {
+		l.Connect = srv.Connect
+	}
 	for _, sp := range msg.GetPlayers() {
 		mem := l.member(sp.GetSteamId())
 		if mem == nil {
@@ -172,9 +196,8 @@ func (g *GC) handleServerStatus(s *session.Session, m *wire.Msg) {
 		}
 	}
 
-	active := state == gcpb.ServerMatchmakingState_ServerMatchmakingState_ACTIVE_MATCH ||
-		state == gcpb.ServerMatchmakingState_ServerMatchmakingState_ACTIVE_MATCH_REQUESTING_LATE_JOIN
-	if l.State == lobbySetup && active && sameMap(l.Map, msg.GetMap()) {
+	legacySetup := msg.LobbyMmVersion == nil && l.PreviousMatchID == 0
+	if l.State == lobbySetup && (readyForLobby || legacySetup) {
 		g.goLive(l)
 		return
 	}
@@ -190,48 +213,51 @@ func (g *GC) handleMatchResult(s *session.Session, m *wire.Msg) {
 		return
 	}
 	_, l := g.serverLobby(s, 0)
-	if l == nil || l.MatchID != msg.GetMatchId() || l.resultSeen {
+	if l == nil || l.MatchID != msg.GetMatchId() || l.resultSeen ||
+		(msg.MatchGroup != nil && msg.GetMatchGroup() != l.Group) {
 		return
 	}
 	l.resultSeen = true
-	result := &history.Result{WinningTeam: msg.GetWinningTeam(), RedScore: msg.GetRedScore(), BlueScore: msg.GetBlueScore(), Duration: msg.GetDuration(), Players: []history.PlayerResult{}}
-	for _, rp := range msg.GetPlayers() {
-		if l.member(rp.GetSteamId()) == nil {
-			continue
-		}
-		result.Players = append(result.Players, history.PlayerResult{SteamID: strconv.FormatUint(rp.GetSteamId(), 10), Team: rp.GetTeam(), Score: rp.GetScore(), Kills: rp.GetKills(), Deaths: rp.GetDeaths(), Damage: rp.GetDamage(), Healing: rp.GetHealing()})
-	}
-
-	// Game teams: 2 is RED, 3 is BLU. Zero is a draw.
-	winner := msg.GetWinningTeam()
+	result := g.newMatchResult(l, &msg)
+	winner := result.WinningTeam
 	var ps []players.Participant
 	results := map[uint64]players.Result{}
 	gameTeamOf := map[uint64]uint32{}
-	for _, rp := range msg.GetPlayers() {
-		id := rp.GetSteamId()
-		if l.member(id) == nil {
-			continue // not one of ours: a bot, a spectator, somebody who left
+	ratingBefore := map[uint64]int{}
+	xpBefore := map[uint64]int{}
+	for _, rp := range result.Players {
+		id, _ := strconv.ParseUint(rp.SteamID, 10, 64)
+		if l.State == lobbyRun && rp.Flags&matchPlayerAbandoned != 0 {
+			g.players.Abandoned(id, "", l.MatchID)
 		}
-		gameTeamOf[id] = rp.GetTeam()
+		if rp.Excluded {
+			continue
+		}
+		gameTeamOf[id] = rp.Team
 		res := players.Draw
 		if winner == 2 || winner == 3 {
 			res = players.Loss
-			if rp.GetTeam() == winner {
+			if rp.Team == winner {
 				res = players.Win
 			}
 		}
-		team := 0
-		if rp.GetTeam() == 3 {
-			team = 1
-		}
-		ps = append(ps, players.Participant{SteamID: id, Team: team, Result: res})
+		ps = append(ps, players.Participant{SteamID: id, Team: int(rp.Team - 2), Result: res})
 		results[id] = res
+		before := g.players.Get(id)
+		ratingBefore[id], xpBefore[id] = before.Rating, before.XP()
 	}
-	g.players.RecordMatch(l.MatchID, ps)
+	ratings := g.players.RecordMatch(l.MatchID, ps)
+	for i := range result.Players {
+		rp := &result.Players[i]
+		id, _ := strconv.ParseUint(rp.SteamID, 10, 64)
+		if rec, ok := ratings[id]; ok {
+			rp.Rating, rp.RatingChange = rec.Rating, rec.Rating-ratingBefore[id]
+		}
+	}
 	g.creditQuests(l, &msg, results)
 	g.creditClans(l, results)
 
-	if l.War != nil && g.war != nil && l.War.Campaign == g.war.Campaign() && (winner == 2 || winner == 3) {
+	if result.Completed() && len(results) > 0 && l.War != nil && g.war != nil && l.War.Campaign == g.war.Campaign() && (winner == 2 || winner == 3) {
 		// Which side the attacker's players ended up on is the server's word,
 		// not ours: a competitive match swaps sides at halftime.
 		attackerWon := false
@@ -267,11 +293,26 @@ func (g *GC) handleMatchResult(s *session.Session, m *wire.Msg) {
 		}
 	}
 
+	for i := range result.Players {
+		p := &result.Players[i]
+		id, _ := strconv.ParseUint(p.SteamID, 10, 64)
+		if before, ok := xpBefore[id]; ok {
+			p.XPChange = g.players.Get(id).XP() - before
+		}
+	}
 	g.archiveMatch(l, result, "")
+	for _, p := range result.Players {
+		id, _ := strconv.ParseUint(p.SteamID, 10, 64)
+		g.publishRatings(id)
+		if g.isOnline(id) {
+			g.publishMatchStats(id, l.Group)
+		}
+	}
 	g.log.Info("match result", "lobby", l.ID, "match", l.MatchID, "winner", winner,
 		"red", msg.GetRedScore(), "blu", msg.GetBlueScore(), "players", len(ps))
 	g.hooks.Emit(sink.Event{Type: "match_result", At: g.now(), Data: g.matchSummary(l, map[string]any{
 		"winning_team": winner,
+		"status":       msg.GetStatus().String(),
 		"red_score":    msg.GetRedScore(),
 		"blue_score":   msg.GetBlueScore(),
 		"duration":     msg.GetDuration(),
@@ -304,8 +345,8 @@ func (g *GC) handleKickingLobby(s *session.Session, m *wire.Msg) {
 	if !g.parse(m, &msg) {
 		return
 	}
-	if _, l := g.serverLobby(s, msg.GetLobbyId()); l != nil {
-		g.endLobby(l, "the server ended the match", false)
+	if _, l := g.serverLobby(s, msg.GetLobbyId()); l != nil && l.MatchID == msg.GetMatchId() {
+		g.endLobby(l, "the server ended the match", l.State == lobbySetup)
 	}
 }
 
@@ -316,37 +357,74 @@ func (g *GC) handlePlayerLeft(s *session.Session, m *wire.Msg) {
 		return
 	}
 	_, l := g.serverLobby(s, msg.GetLobbyId())
-	if l == nil {
+	if l == nil || l.MatchID != msg.GetMatchId() {
 		return
 	}
 	id := msg.GetSteamId()
-	if msg.GetWasAbandon() {
-		g.players.Abandoned(id, "", l.MatchID)
+	// GC_REMOVED acknowledges an exit we already processed. The player may
+	// have been assigned a new reservation in the meantime.
+	if l.member(id) == nil || msg.GetLeaveReason() == gcpb.TFMatchLeaveReason_TFMatchLeaveReason_GC_REMOVED {
+		return
 	}
+	if msg.GetWasAbandon() && l.State == lobbyRun {
+		g.players.Abandoned(id, "", l.MatchID)
+		g.publishRatings(id)
+	}
+	// Let the server send its final result before it tears down the lobby.
 	g.dropMember(l, id)
 	g.log.Info("player left match", "lobby", l.ID, "steamid", id,
 		"reason", msg.GetLeaveReason().String(), "abandon", msg.GetWasAbandon())
 }
 
 func (g *GC) handleVoteKickRequest(s *session.Session, m *wire.Msg) {
-	// The vote still has to pass on the server; this only asks whether one
-	// may be called at all, which we always allow.
-	g.reply(s, m, uint32(gcpb.ETFGCMsg_k_EMsgGCVoteKickPlayerRequestResponse), &gcpb.CMsgGC_VoteKickPlayerRequestResponse{
-		Allowed: proto.Bool(true),
-	})
+	var msg gcpb.CMsgGC_TFVoteKickPlayerRequest
+	reply := &gcpb.CMsgGC_VoteKickPlayerRequestResponse{Allowed: proto.Bool(false)}
+	defer g.reply(s, m, uint32(gcpb.ETFGCMsg_k_EMsgGCVoteKickPlayerRequestResponse), reply)
+	_, l := g.serverLobby(s, 0)
+	if !g.parse(m, &msg) || l == nil || l.State != lobbyRun || l.resultSeen || l.MatchID != msg.GetMatchId() {
+		return
+	}
+	voter, target := l.member(msg.GetVoterId()), l.member(msg.GetTargetId())
+	*reply.Allowed = voter != nil && target != nil && voter != target &&
+		msg.GetReason() >= gcpb.TFVoteKickReason_TFVoteKickReason_Other &&
+		msg.GetReason() <= gcpb.TFVoteKickReason_TFVoteKickReason_Scamming
 }
 
 func (g *GC) handleVoteKick(s *session.Session, m *wire.Msg) {
 	var msg gcpb.CMsgProcessMatchVoteKick
-	defer g.reply(s, m, uint32(gcpb.ETFGCMsg_k_EMsgGC_ProcessMatchVoteKickResponse), &gcpb.CMsgProcessMatchVoteKickResponse{
-		Rip: proto.Bool(true),
-	})
-	if !g.parse(m, &msg) {
+	reply := &gcpb.CMsgProcessMatchVoteKickResponse{Rip: proto.Bool(false)}
+	defer g.reply(s, m, uint32(gcpb.ETFGCMsg_k_EMsgGC_ProcessMatchVoteKickResponse), reply)
+	_, l := g.serverLobby(s, 0)
+	if !g.parse(m, &msg) || l == nil || l.State != lobbyRun || l.resultSeen || l.MatchID != msg.GetMatchId() ||
+		!msg.GetDefaultPass() || msg.GetInitiatorSteamId() == msg.GetTargetSteamId() {
 		return
 	}
-	if _, l := g.serverLobby(s, 0); l != nil && l.MatchID == msg.GetMatchId() {
-		g.dropMember(l, msg.GetTargetSteamId())
+	id := msg.GetTargetSteamId()
+	if l.kicked[id] {
+		*reply.Rip = true
+		return
 	}
+	if l.member(id) == nil {
+		// A player can leave while the server's vote is still in progress.
+		archived, _ := g.history.Get(lobbyKey(l.MatchID))
+		found := false
+		for _, p := range archived.Members {
+			found = found || p.SteamID == lobbyKey(id)
+		}
+		if !found {
+			return
+		}
+	}
+	if l.kicked == nil {
+		l.kicked = make(map[uint64]bool)
+	}
+	l.kicked[id] = true
+	if l.member(id) != nil {
+		g.dropMember(l, id)
+	} else {
+		g.archiveMatch(l, nil, "")
+	}
+	*reply.Rip = true
 }
 
 // handleChangeTeams is the server rebalancing. The lobby has to agree, or the
@@ -358,34 +436,25 @@ func (g *GC) handleChangeTeams(s *session.Session, m *wire.Msg) {
 		return
 	}
 	ok := false
-	if _, l := g.serverLobby(s, msg.GetLobbyId()); l != nil {
-		if l.War != nil {
-			g.reply(s, m, uint32(gcpb.ETFGCMsg_k_EMsgGC_ChangeMatchPlayerTeamsResponse), &gcpb.CMsgGCChangeMatchPlayerTeamsResponse{Success: proto.Bool(false)})
-			return
-		}
+	if _, l := g.serverLobby(s, msg.GetLobbyId()); l != nil && l.MatchID == msg.GetMatchId() && l.War == nil {
+		teams := make(map[*Member]mm.Team, len(msg.GetMember()))
 		for _, ch := range msg.GetMember() {
-			if mem := l.member(ch.GetMemberId()); mem != nil {
-				switch ch.GetNewTeam() {
-				case gcpb.TF_GC_TEAM_TF_GC_TEAM_DEFENDERS:
-					mem.Team = mm.Red
-				case gcpb.TF_GC_TEAM_TF_GC_TEAM_INVADERS:
-					mem.Team = mm.Blu
-				}
+			mem := l.member(ch.GetMemberId())
+			team := mm.Team(ch.GetNewTeam())
+			if mem == nil || (team != mm.Red && team != mm.Blu) {
+				g.reply(s, m, uint32(gcpb.ETFGCMsg_k_EMsgGC_ChangeMatchPlayerTeamsResponse), &gcpb.CMsgGCChangeMatchPlayerTeamsResponse{Success: proto.Bool(false)})
+				return
 			}
+			teams[mem] = team
+		}
+		for mem, team := range teams {
+			mem.Team = team
 		}
 		g.lobbyChanged(l)
 		ok = true
 	}
 	g.reply(s, m, uint32(gcpb.ETFGCMsg_k_EMsgGC_ChangeMatchPlayerTeamsResponse), &gcpb.CMsgGCChangeMatchPlayerTeamsResponse{
 		Success: proto.Bool(ok),
-	})
-}
-
-// handleNewMatch is the server asking to keep the same players for another
-// map. Every match here is one map; the honest answer ends it cleanly.
-func (g *GC) handleNewMatch(s *session.Session, m *wire.Msg) {
-	g.reply(s, m, uint32(gcpb.ETFGCMsg_k_EMsgGC_NewMatchForLobbyResponse), &gcpb.CMsgGCNewMatchForLobbyResponse{
-		Success: proto.Bool(false),
 	})
 }
 

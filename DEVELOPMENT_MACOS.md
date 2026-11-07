@@ -62,6 +62,9 @@ Passing the macOS build does not replace the Windows and Linux CI builds.
 
 ## Matchmaking smoke test
 
+- For a secure server, start the installed Playtest from Steam with `-steam`
+  in its macOS launch arguments. Close any running local build first.
+  The engine marks direct developer launches without `-steam` as insecure.
 - Use `tf_gc_status` to check the coordinator URL and session. The production
   URL is `https://gc.team-frontress.org`; quote URLs in console commands or cfg
   files. For a local GC, use `tf_gc_url "http://127.0.0.1:27100"`.

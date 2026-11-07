@@ -31,9 +31,10 @@
 	margin-bottom: 10dp;
 	border-radius: 12dp;
 	background-color: #00000044;
-	border-left: 6dp #c8413b;
+	border-left: 6dp #a4967d;
 }
 .match.win { border-left-color: #8fd16a; }
+.match.loss { border-left-color: #c8413b; }
 .match-art { width: 150dp; height: 84dp; border-radius: 8dp; }
 .match-map { font-size: 24dp; margin-right: 10dp; }
 .match-result { width: 140dp; text-align: center; }

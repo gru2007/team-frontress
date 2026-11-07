@@ -653,6 +653,12 @@ int main( int argc, char **argv )
 		else
 			fprintf( stderr, "[fui] mock data %s: %s\n", mockFile.c_str(), error.empty() ? "missing" : error.c_str() );
 	}
+	if ( !screen.empty() )
+		runtime.Set( "ui.screen", screen.c_str() );
+
+	if ( !runtime.Init( &host, &backend, width, height ) )
+		return 1;
+	// Apply overrides after initial navigation, which closes modal windows.
 	for ( const auto &kv : sets )
 	{
 		fui::Node value;
@@ -660,11 +666,6 @@ int main( int argc, char **argv )
 			value.SetString( kv.second );
 		runtime.Set( kv.first, std::move( value ) );
 	}
-	if ( !screen.empty() )
-		runtime.Set( "ui.screen", screen.c_str() );
-
-	if ( !runtime.Init( &host, &backend, width, height ) )
-		return 1;
 	runtime.SetHotReload( !bShot );
 	host.RefreshLocker();
 	if ( bDebug )

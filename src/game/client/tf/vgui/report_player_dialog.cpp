@@ -6,6 +6,7 @@
 //=============================================================================//
 #include "cbase.h"
 #include "report_player_dialog.h"
+#include "frontress_gc.h"
 #include "gc_clientsystem.h"
 #include "ienginevgui.h"
 #include "c_tf_playerresource.h"
@@ -24,7 +25,7 @@ static const float MIN_REPORT_INTERVAL = 300.f;
 struct ReportedPlayer_t
 {
 	CSteamID steamID;
-	float flReportedTime;
+	double flReportedTime;
 };
 CUtlVector< ReportedPlayer_t > vecReportedPlayers;
 
@@ -35,7 +36,7 @@ bool CanReportPlayer( CSteamID steamID, bool bVerbose )
 	{
 		if ( vecReportedPlayers[i].steamID == steamID )
 		{
-			float flTimeSinceLastReported = gpGlobals->curtime - vecReportedPlayers[i].flReportedTime;
+			double flTimeSinceLastReported = Plat_FloatTime() - vecReportedPlayers[i].flReportedTime;
 			bCanReport = flTimeSinceLastReported >= MIN_REPORT_INTERVAL;
 			if ( !bCanReport && bVerbose )
 			{
@@ -51,7 +52,8 @@ bool CanReportPlayer( CSteamID steamID, bool bVerbose )
 
 bool ReportPlayerAccount( CSteamID steamID, int nReason )
 {
-	if ( !steamID.IsValid() )
+	if ( !steamID.IsValid() || !steamID.BIndividualAccount() ||
+		!steamapicontext || !steamapicontext->SteamUser() || steamID == steamapicontext->SteamUser()->GetSteamID() )
 	{
 		Warning( "Reporting an invalid steam ID\n" );
 		return false;
@@ -71,14 +73,26 @@ bool ReportPlayerAccount( CSteamID steamID, int nReason )
 	GCSDK::CProtoBufMsg< CMsgGC_ReportPlayer > msg( k_EMsgGC_ReportPlayer );
 	msg.Body().set_account_id_target( steamID.GetAccountID() );
 	msg.Body().set_reason( (CMsgGC_ReportPlayer_EReason)nReason );
-	GCClientSystem()->BSendMessage( msg );
-	ConMsg( "Report sent. Thank you.\n" );
+	if ( !FrontressGC() || !FrontressGC()->BConnected() || !GCClientSystem()->BSendMessage( msg ) )
+		return false;
+	ConMsg( "Report submitted to the game coordinator.\n" );
+	return true;
+}
 
+void ConfirmPlayerReport( CSteamID steamID )
+{
+	FOR_EACH_VEC( vecReportedPlayers, i )
+	{
+		if ( vecReportedPlayers[i].steamID == steamID )
+		{
+			vecReportedPlayers[i].flReportedTime = Plat_FloatTime();
+			return;
+		}
+	}
 	ReportedPlayer_t reportedPlayer;
 	reportedPlayer.steamID = steamID;
-	reportedPlayer.flReportedTime = gpGlobals->curtime;
+	reportedPlayer.flReportedTime = Plat_FloatTime();
 	vecReportedPlayers.AddToTail( reportedPlayer );
-	return true;
 }
 
 //-----------------------------------------------------------------------------
@@ -329,8 +343,8 @@ void CReportPlayerDialog::ReportPlayer()
 		CSteamID steamID( pi.friendsID, GetUniverse(), k_EAccountTypeIndividual );
 		KeyValues *pReasonData = m_pReasonBox->GetActiveItemUserData();
 		int nReason = ( pReasonData ) ? pReasonData->GetInt( "reason", 0 ) : 0;
-		ReportPlayerAccount( steamID, nReason );
-		Close();
+		if ( ReportPlayerAccount( steamID, nReason ) )
+			Close();
 		return;
 	}
 

@@ -2315,6 +2315,9 @@ bool CTFGCServerSystem::CanRequestNewMatchForLobby()
 	if ( !m_pMatchInfo || !GetLobby() || m_pMatchInfo->BMatchTerminated() )
 		{ return false; }
 
+	if ( m_pMatchInfo->BAssignedByFrontressGC() && GetLobby()->Obj().next_maps_for_vote_size() < NEXT_MAP_VOTE_OPTIONS )
+		{ return false; }
+
 	// If we're waiting on other pending match magic, then no you can't stack them god help your soul.
 	if ( m_pMatchInfo->m_bAwaitingMatchID || m_bWaitingForNewMatchID || m_flWaitingForNewMatchTime != 0.f )
 		{ return false; }
@@ -3031,9 +3034,9 @@ bool CTFGCServerSystem::SteamIDAllowedToConnect(const CSteamID &steamID) const
 	{
 		CTFLobbyShared::MatchPlayers_t matchPlayers = GetLobby()->GatherMatchPlayers();
 		auto matchIdx = matchPlayers.GetIndexBySteamID( steamID );
-		if ( matchPlayers.BValidIdx( matchIdx ) && matchPlayers.BIsPending( matchIdx ) )
+		if ( !matchPlayers.BValidIdx( matchIdx ) || matchPlayers.BIsPending( matchIdx ) )
 		{
-			MMLog( "Player %s connecting is in the match but is not accepted into the lobby\n", steamID.Render() );
+			MMLog( "Player %s connecting has no accepted lobby seat\n", steamID.Render() );
 			return false;
 		}
 	}
@@ -3730,6 +3733,8 @@ void CTFGCServerSystem::UpdateConnectedPlayersAndServerInfo( CMsgGameServerMatch
 //		}
 
 	int nSlotsFree = nMaxHumans - nHumans;
+	if ( bLiveMatch )
+		nSlotsFree = Max( 0, Min( nSlotsFree, Min( nMaxMatchPlayers - nHumans, gpGlobals->maxClients - nClients ) ) );
 
 	// Check if number of slots available is changing.  Our urgency to notify the GC about this
 	// change depends on which direction it is changing!
@@ -3807,7 +3812,7 @@ void CTFGCServerSystem::UpdateConnectedPlayersAndServerInfo( CMsgGameServerMatch
 		msg.Body().set_server_trusted( tf_mm_trusted.GetBool() );
 		msg.Body().set_map( sGameServerInfoMap );
 		msg.Body().set_game_state( gcState );
-		if ( pLobby )
+		if ( pLobby && m_pMatchInfo && pLobby->GetMatchID() == m_pMatchInfo->m_nMatchID )
 			msg.Body().set_lobby_mm_version( pLobby->GetLobbyMMVersion() );
 		if ( nBotCountToSend >= 0 )
 			msg.Body().set_bot_count( (uint32)nBotCountToSend );

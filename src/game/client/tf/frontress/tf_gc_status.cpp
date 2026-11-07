@@ -60,6 +60,8 @@ void CTFGCStatus::Update( float )
 void CTFGCStatus::Poll()
 {
 	m_flNextPoll = (float)Plat_FloatTime() + ( GetState() == k_eTFMMState_Searching ? 5.f : k_flStatusPollSeconds );
+	if ( FrontressGC()->BConnected() )
+		GTFGCClientSystem()->RequestMatchMakerStats();
 	ISteamHTTP *pHTTP = SteamHTTP();
 	const char *pszBase = FrontressGC()->GetBaseURL();
 	if ( !pHTTP || !pszBase || !pszBase[0] )
@@ -195,10 +197,12 @@ static const CTFParty *ActiveParty()
 ETFMMState CTFGCStatus::GetState() const
 {
 	CTFGCClientSystem *pGC = GTFGCClientSystem();
+	if ( pGC->BConnectingToMatchServer() && pGC->BHaveLiveMatch() )
+		return k_eTFMMState_Connecting;
 	if ( pGC->BConnectedToMatchServer( true ) )
 		return k_eTFMMState_InMatch;
-	if ( pGC->BHaveLiveMatch() )
-		return engine->IsConnected() && !engine->IsLevelMainMenuBackground() ? k_eTFMMState_Connecting : k_eTFMMState_MatchReady;
+	if ( pGC->BCanJoinMatch() )
+		return k_eTFMMState_MatchReady;
 	if ( pGC->BHaveRunningMatch() )
 		return k_eTFMMState_Preparing;
 	if ( GetQueuedMatchGroup() != k_eTFMatchGroup_Invalid )

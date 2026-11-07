@@ -46,6 +46,11 @@ func TestReplayAndTornTail(t *testing.T) {
 	if r := s.Get(2); r.Abandons != 1 || r.Losses != 1 {
 		t.Fatalf("bob %+v", r)
 	}
+	s.RecordMatch(7, []Participant{{SteamID: 1, Team: 0, Result: Win}, {SteamID: 2, Team: 1, Result: Loss}})
+	s.Abandoned(2, "", 8)
+	if a, b := s.Get(1), s.Get(2); a.Matches != 1 || a.Rating != 1516 || b.Matches != 1 || b.Abandons != 1 {
+		t.Fatalf("replayed result or abandon counted twice: %+v / %+v", a, b)
+	}
 	// And the repaired file takes appends that replay cleanly.
 	s.Abandoned(1, "", 9)
 	s.Close()

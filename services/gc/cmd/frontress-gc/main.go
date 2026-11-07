@@ -20,6 +20,7 @@ import (
 	"github.com/gru2007/team-frontress/services/gc/internal/history"
 	"github.com/gru2007/team-frontress/services/gc/internal/httpapi"
 	"github.com/gru2007/team-frontress/services/gc/internal/players"
+	"github.com/gru2007/team-frontress/services/gc/internal/reports"
 	"github.com/gru2007/team-frontress/services/gc/internal/sink"
 	"github.com/gru2007/team-frontress/services/gc/internal/state"
 	"github.com/gru2007/team-frontress/services/gc/internal/steamauth"
@@ -72,6 +73,10 @@ func run(path string, log *slog.Logger) error {
 		archiveDir = filepath.Join(cfg.DataDir, "history")
 	}
 	archive, err := history.Open(archiveDir)
+	if err != nil {
+		return err
+	}
+	reportStore, err := reports.Open(file("reports"))
 	if err != nil {
 		return err
 	}
@@ -154,6 +159,7 @@ func run(path string, log *slog.Logger) error {
 		War:      engine,
 		Store:    state.Open(file("matches.json")),
 		History:  archive,
+		Reports:  reportStore,
 		Hooks:    hooks,
 		Clans:    cs,
 		Support:  book,

@@ -20,6 +20,8 @@
 			<div class="menu-item" sfx="" data-event-click="nav('quests')">#fui_tab_quests</div>
 			<div class="menu-item" sfx="" data-event-click="cmd('classic', 'vote')">#fui_vote</div>
 			<div class="menu-item" sfx="" data-event-click="cmd('classic', 'mute')">#fui_mute</div>
+			<div class="menu-item" sfx="" data-event-click="cmd('open_report')">#fui_report_title</div>
+			<div class="menu-item" sfx="" data-event-click="cmd('open_invites')">#fui_party_group</div>
 			<div class="menu-item" sfx="" data-event-click="cmd('open_settings')">#fui_settings</div>
 			<div class="menu-gap"></div>
 			<div class="menu-item danger" sfx="" data-event-click="cmd('disconnect')">#fui_disconnect</div>

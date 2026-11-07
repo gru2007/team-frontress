@@ -21,6 +21,7 @@
 
 	<!-- The party, standing. Positions are pos0 (you) .. pos4. -->
 	<div id="stage">
+		<div class="button ghost model-enable" data-if="!app.models" data-event-click="cmd('toggle_menu_3d')">#fui_models_enable</div>
 		<div data-for="m : party.members" data-attr-class="'member pos' + m.slot + (m.me ? ' me' : '')">
 			<div class="spot"></div>
 			<div class="floor"></div>

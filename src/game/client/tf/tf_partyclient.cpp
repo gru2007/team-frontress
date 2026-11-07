@@ -447,7 +447,19 @@ bool CTFPartyClient::BRequestJoinPlayer( CSteamID steamID, bool bExpectingExisti
 		{ msg.Body().set_current_party_id( m_unActivePartyID ); }
 	msg.Body().set_join_player_id( steamID.ConvertToUint64() );
 	if ( bExpectingExistingInvite )
-		{ msg.Body().set_expecting_invite( true ); }
+	{
+		msg.Body().set_expecting_invite( true );
+		for ( int i = 0; i < GetNumIncomingInvites(); ++i )
+		{
+			const CTFPartyInvite *pInvite = GetIncomingInvite( i );
+			if ( pInvite && pInvite->GetInviter() == steamID )
+			{
+				// Keep the inviter for coordinators deployed before party-ID acceptance.
+				msg.Body().set_join_party_id( pInvite->GetGroupID() );
+				break;
+			}
+		}
+	}
 	return GCClientSystem()->BSendMessage( msg );
 }
 
@@ -553,9 +565,7 @@ bool CTFPartyClient::BKickPartyMember( CSteamID steamID )
 	msg.Body().set_target_id( steamID.ConvertToUint64() );
 
 	PartyDbg( "Sending PartyKickMember(%s)\n", steamID.Render() );
-	GCClientSystem()->BSendMessage( msg );
-
-	return true;
+	return GCClientSystem()->BSendMessage( msg );
 }
 
 
@@ -1124,6 +1134,18 @@ bool CTFPartyClient::BCanQueueForStandby() const
 //-----------------------------------------------------------------------------
 void CTFPartyClient::Think()
 {
+	if ( m_unLeavingPartyID )
+	{
+		if ( m_unActivePartyID && m_unActivePartyID != m_unLeavingPartyID )
+			m_unLeavingPartyID = 0u;
+		else if ( GCClientSystem()->BConnectedtoGC() && Plat_FloatTime() >= m_flNextLeaveSend )
+		{
+			CProtoBufMsg<CMsgExitMatchmaking> msg( k_EMsgGCExitMatchmaking );
+			msg.Body().set_party_id( m_unLeavingPartyID );
+			GCClientSystem()->BSendMessage( msg );
+			m_flNextLeaveSend = Plat_FloatTime() + 2.;
+		}
+	}
 	tmZone( TELEMETRY_LEVEL0, TMZF_NONE, "%s", __FUNCTION__ );
 	if ( m_bQueuedEffectiveCriteriaChangeEvent )
 		{ OnEffectiveCriteriaChanged(); }
@@ -1471,10 +1493,12 @@ void CTFPartyClient::OnRemoveFromStandbyQueueReply( const CProtoBufMsg< CMsgPart
 void CTFPartyClient::LeaveActiveParty()
 {
 	// TODO(Universal Parties): Fixup GC side ExitMatchmaking message and give us one
-	if ( !m_unActivePartyID )
+	if ( !m_unActivePartyID || GetNumPartyMembers() <= 1 )
 		{ return; }
 
 	PartyMsg( "Sending request to leave party %llu\n", m_unActivePartyID );
+	m_unLeavingPartyID = m_unActivePartyID;
+	m_flNextLeaveSend = Plat_FloatTime() + 2.;
 	CProtoBufMsg<CMsgExitMatchmaking> msg( k_EMsgGCExitMatchmaking );
 	msg.Body().set_party_id( m_unActivePartyID );
 	GCClientSystem()->BSendMessage( msg );

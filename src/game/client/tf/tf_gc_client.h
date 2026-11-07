@@ -139,18 +139,20 @@ public:
 	// live match, as opposed to servers we joined once-upon-a-time for a match (but might now be on the match-result
 	// screen)
 	bool BConnectedToMatchServer( bool bLiveMatch );
+	bool BConnectingToMatchServer() const;
 
 	// !! Does NOT mean you're *in* this match. See Above.
 	bool BHaveRunningMatch() const;
 	bool BHaveLiveMatch() const;
-	uint64_t GetLiveMatchID() const { return 0u; }
-	PlayerGroupID_t GetLiveMatchLobbyID() const { return 0u; }
+	uint64_t GetLiveMatchID() const;
+	PlayerGroupID_t GetLiveMatchLobbyID() const;
 
 	// Whether the local player has a chat suspension in their assigned match.
 	bool BHaveChatSuspensionInCurrentMatch() const { return m_bAssignedMatchChatSuspension; }
 
 	// Abandon our currently assigned match.
-	void AbandonCurrentMatch();
+	void AbandonCurrentMatch( bool bExplicitAbandon = true );
+	void ConfirmMatchLeave( uint64 nLobbyID );
 
 	// If we are assigned to a match, this is its matchgroup.
 	ETFMatchGroup GetLiveMatchGroup() const;
@@ -167,7 +169,8 @@ public:
 	static bool BIsBannedFromMatchmaking( EMMPenaltyPool ePool, CRTime* prtExpireTime = NULL, int* pnDuration = NULL );
 
 	// Connect to our current match
-	void JoinMMMatch();
+	bool BCanJoinMatch() const;
+	bool JoinMMMatch();
 
 	// TODO(Universal Parties): Audit/relocate remaining party functions.
 	CTFParty* GetParty();
@@ -404,8 +407,6 @@ private:
 	void OnAcceptLobbyReply( PlayerGroupID_t );
 
 	bool IsConnectStateDisconnected();
-	// Called to re-evaluate our have-a-lobby state, returns true if it updated anything.
-	bool UpdateAssignedLobby();
 	void FireGameEventLobbyUpdated();
 
 	// Fired when our invite objects change
@@ -422,10 +423,12 @@ private:
 
 	// Reliable messages in flight to accept matches, to prevent UI confusion
 	PlayerGroupID_t m_nAcceptingMatchLobbyID = 0;
+	PlayerGroupID_t m_nLeavingLobbyID = 0;
+	bool m_bLeavingExplicitly = false;
+	double m_flNextLeaveSend = 0.;
 
 	// The lobby we were assigned to last time we looked, so UpdateAssignedLobby
 	// can report a change rather than just a current value.
-	PlayerGroupID_t m_nAssignedLobbyID = 0;
 
 
 	// If we were given a chat suspension for the assigned match.

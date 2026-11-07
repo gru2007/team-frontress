@@ -11,6 +11,7 @@ import (
 	"github.com/gru2007/team-frontress/services/gc/internal/config"
 	"github.com/gru2007/team-frontress/services/gc/internal/gcpb"
 	"github.com/gru2007/team-frontress/services/gc/internal/mm"
+	"github.com/gru2007/team-frontress/services/gc/internal/players"
 	"github.com/gru2007/team-frontress/services/gc/internal/sink"
 	"github.com/gru2007/team-frontress/services/gc/internal/socache"
 	"github.com/gru2007/team-frontress/services/gc/internal/state"
@@ -43,25 +44,28 @@ type Member struct {
 
 // Lobby is one match.
 type Lobby struct {
-	ID         uint64
-	MatchID    uint64
-	Group      int32
-	Map        string
-	MaxPlayers int
-	State      lobbyState
-	Members    []*Member
-	ServerID   uint64
-	Connect    string
-	STV        string
-	FormedAt   time.Time
-	StartedAt  time.Time
-	MMVersion  uint32
-	War        *state.War
+	ID              uint64
+	MatchID         uint64
+	Group           int32
+	Map             string
+	MaxPlayers      int
+	State           lobbyState
+	Members         []*Member
+	ServerID        uint64
+	Connect         string
+	STV             string
+	FormedAt        time.Time
+	StartedAt       time.Time
+	MMVersion       uint32
+	PreviousMatchID uint64
+	NextMaps        []uint32
+	War             *state.War
 
 	// Runtime only.
 	serverLostAt  time.Time
 	everConnected bool
 	resultSeen    bool
+	kicked        map[uint64]bool
 }
 
 func (l *Lobby) member(id uint64) *Member {
@@ -122,14 +126,15 @@ func (g *GC) proto(l *Lobby) *gcpb.CSOTFGameServerLobby {
 		st = gcpb.CSOTFGameServerLobby_RUN
 	}
 	msg := &gcpb.CSOTFGameServerLobby{
-		LobbyId:        proto.Uint64(l.ID),
-		MatchId:        proto.Uint64(l.MatchID),
-		State:          st.Enum(),
-		MapName:        proto.String(l.Map),
-		MatchGroup:     proto.Uint32(uint32(l.Group)),
-		FormedTime:     proto.Uint32(uint32(l.FormedAt.Unix())),
-		LobbyMmVersion: proto.Uint32(l.MMVersion),
-		FixedMatchSize: proto.Uint32(uint32(l.MaxPlayers)),
+		LobbyId:         proto.Uint64(l.ID),
+		MatchId:         proto.Uint64(l.MatchID),
+		State:           st.Enum(),
+		MapName:         proto.String(l.Map),
+		MatchGroup:      proto.Uint32(uint32(l.Group)),
+		FormedTime:      proto.Uint32(uint32(l.FormedAt.Unix())),
+		LobbyMmVersion:  proto.Uint32(l.MMVersion),
+		FixedMatchSize:  proto.Uint32(uint32(l.MaxPlayers)),
+		NextMapsForVote: l.NextMaps,
 	}
 	if l.ServerID != 0 {
 		msg.ServerId = proto.Uint64(l.ServerID)
@@ -153,6 +158,9 @@ func (g *GC) proto(l *Lobby) *gcpb.CSOTFGameServerLobby {
 		}
 		if rec.Name != "" {
 			p.Name = proto.String(rec.Name)
+		}
+		if l.Group == ladderGroup {
+			p.Rank = proto.Uint32(uint32(players.LadderRank(rec.Rating)))
 		}
 		msg.Members = append(msg.Members, p)
 	}
@@ -273,6 +281,7 @@ func (g *GC) createLobby(grp config.MatchGroupConfig, f mm.Formed, sizes mm.Size
 		l.Map = mm.ChooseMap(grp.EffectiveMaps(), picked, lastPlayed)
 	}
 	g.recentMaps[l.Map] = now
+	l.NextMaps = g.nextMapOptions(l, grp)
 
 	seat := func(es []mm.Entry, team mm.Team) {
 		for _, e := range es {
@@ -335,6 +344,7 @@ func (g *GC) assignServer(l *Lobby) {
 func (g *GC) bindServer(l *Lobby, srv *Server) {
 	l.ServerID = srv.SteamID
 	srv.LobbyID = l.ID
+	srv.LateJoinSlots = 0
 	if l.Connect == "" {
 		l.Connect = srv.Connect
 	}
@@ -412,6 +422,7 @@ func (g *GC) endLobby(l *Lobby, why string, requeue bool) {
 		if srv := g.servers[l.ServerID]; srv != nil && srv.LobbyID == l.ID {
 			srv.LobbyID = 0
 			srv.Ready = false // it says when it is empty again
+			srv.LateJoinSlots = 0
 			srv.RestUntil = g.now().Add(serverRest)
 			if srv.Session == nil {
 				delete(g.servers, srv.SteamID)
@@ -515,7 +526,7 @@ func (l *Lobby) record() state.Lobby {
 		ID: l.ID, MatchID: l.MatchID, Group: l.Group, Map: l.Map, MaxPlayers: l.MaxPlayers,
 		State: string(l.State), ServerID: l.ServerID, Connect: l.Connect, STV: l.STV,
 		FormedAt: l.FormedAt, StartedAt: l.StartedAt,
-		MMVersion: l.MMVersion, War: l.War,
+		MMVersion: l.MMVersion, War: l.War, PreviousMatchID: l.PreviousMatchID, NextMaps: l.NextMaps,
 	}
 	for _, m := range l.Members {
 		r.Members = append(r.Members, state.Member{
@@ -533,10 +544,19 @@ func (g *GC) restoreLobby(r state.Lobby) {
 		ID: r.ID, MatchID: r.MatchID, Group: r.Group, Map: r.Map, MaxPlayers: r.MaxPlayers,
 		State: lobbyState(r.State), ServerID: r.ServerID, Connect: r.Connect, STV: r.STV,
 		FormedAt: r.FormedAt, StartedAt: r.StartedAt,
-		MMVersion: r.MMVersion, War: r.War, everConnected: true,
+		MMVersion: r.MMVersion, War: r.War, everConnected: r.State == string(lobbyRun),
+		PreviousMatchID: r.PreviousMatchID, NextMaps: r.NextMaps,
 	}
 	if archived, ok := g.history.Get(lobbyKey(r.MatchID)); ok {
 		l.resultSeen = archived.Result != nil
+		for _, p := range archived.Members {
+			if id, err := strconv.ParseUint(p.SteamID, 10, 64); p.VoteKicked && err == nil {
+				if l.kicked == nil {
+					l.kicked = make(map[uint64]bool)
+				}
+				l.kicked[id] = true
+			}
+		}
 	}
 	for _, m := range r.Members {
 		l.Members = append(l.Members, &Member{

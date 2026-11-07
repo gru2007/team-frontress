@@ -413,6 +413,8 @@ private:
 	// The currently active party object, if we have one
 	CTFParty *m_pActiveParty = nullptr;
 	GCSDK::PlayerGroupID_t m_unActivePartyID = 0u;
+	GCSDK::PlayerGroupID_t m_unLeavingPartyID = 0u;
+	double m_flNextLeaveSend = 0.;
 	// If we are the leader of our active party, false if we have no party
 	bool m_bIsActivePartyLeader = false;
 	// If we are currently in queue.  Cached so UpdateActiveParty can fire events on edges, since we may leave queue as

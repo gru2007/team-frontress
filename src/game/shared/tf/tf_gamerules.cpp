@@ -2683,41 +2683,6 @@ void CTFGameRules::StopCompetitiveMatch( CMsgGC_Match_Result_Status nCode )
 {
 	CMatchInfo *pMatch = GTFGCClientSystem()->GetMatch();
 	int nActiveMatchPlayers = pMatch ? pMatch->GetNumActiveMatchPlayers() : 0;
-	if ( BAttemptMapVoteRollingMatch() &&
-		nCode == CMsgGC_Match_Result_Status_MATCH_SUCCEEDED &&
-		nActiveMatchPlayers > 0 )
-	{
-		ChooseNextMapVoteOptions();
-	}
-	else
-	{
-		// If we're not attempting a rolling match, end it
-		// TODO ROLLING MATCHES: If we bail between now and RequestNewMatchForLobby, we need to call this or we'll get stuck.
-		if ( !IsManagedMatchEnded() )
-		{
-			GTFGCClientSystem()->EndManagedMatch();
-			Assert( IsManagedMatchEnded() );
-			m_bMatchEnded.Set( true );
-
-			// reset the match shortly
-			if ( nCode != CMsgGC_Match_Result_Status_MATCH_SUCCEEDED )
-			{
-				for ( int i = 1; i <= MAX_PLAYERS; i++ )
-				{
-					CBasePlayer* pPlayer = UTIL_PlayerByIndex( i );
-					if ( !pPlayer )
-						continue;
-
-					pPlayer->AddFlag( FL_FROZEN );
-				}
-				
-				g_fGameOver = true;
-				State_Enter( GR_STATE_GAME_OVER );
-				m_flStateTransitionTime = gpGlobals->curtime + 5.0f;
-			}
-		}
-	}
-
 	if ( nCode == CMsgGC_Match_Result_Status_MATCH_SUCCEEDED )
 	{
 		IGameEvent *winEvent = gameeventmanager->CreateEvent( "competitive_victory" );
@@ -2766,8 +2731,6 @@ void CTFGameRules::StopCompetitiveMatch( CMsgGC_Match_Result_Status nCode )
 		{
 			Warning( "CalculatePlayerMatchRankData(): General failure (investigate).\n" );
 		}
-
-		ReportMatchResultsToGC( nCode );
 	}
 	else if ( nCode == CMsgGC_Match_Result_Status_MATCH_FAILED_ABANDON )
 	{
@@ -2778,8 +2741,45 @@ void CTFGameRules::StopCompetitiveMatch( CMsgGC_Match_Result_Status nCode )
 			pEvent->SetBool( "game_over", ( tf_competitive_abandon_method.GetBool() || State_Get() == GR_STATE_BETWEEN_RNDS ) );
 			gameeventmanager->FireEvent( pEvent );
 		}
+	}
 
+	// Queue the result before the reliable message that destroys its lobby.
+	if ( !pMatch || !pMatch->BSentResult() )
 		ReportMatchResultsToGC( nCode );
+
+	if ( BAttemptMapVoteRollingMatch() &&
+		nCode == CMsgGC_Match_Result_Status_MATCH_SUCCEEDED &&
+		nActiveMatchPlayers > 0 )
+	{
+		ChooseNextMapVoteOptions();
+	}
+	else
+	{
+		// If we're not attempting a rolling match, end it
+		// TODO ROLLING MATCHES: If we bail between now and RequestNewMatchForLobby, we need to call this or we'll get stuck.
+		if ( !IsManagedMatchEnded() )
+		{
+			GTFGCClientSystem()->EndManagedMatch();
+			Assert( IsManagedMatchEnded() );
+			m_bMatchEnded.Set( true );
+
+			// reset the match shortly
+			if ( nCode != CMsgGC_Match_Result_Status_MATCH_SUCCEEDED )
+			{
+				for ( int i = 1; i <= MAX_PLAYERS; i++ )
+				{
+					CBasePlayer* pPlayer = UTIL_PlayerByIndex( i );
+					if ( !pPlayer )
+						continue;
+
+					pPlayer->AddFlag( FL_FROZEN );
+				}
+
+				g_fGameOver = true;
+				State_Enter( GR_STATE_GAME_OVER );
+				m_flStateTransitionTime = gpGlobals->curtime + 5.0f;
+			}
+		}
 	}
 }
 

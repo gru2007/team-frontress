@@ -322,3 +322,14 @@ body#shell { pointer-events: none; }
 
 .invite-list { max-height: 540dp; overflow-y: auto; }
 .invite-row { gap: 12dp; padding: 8dp 0; }
+
+.party-columns { display: flex; gap: 24dp; margin-top: 18dp; margin-bottom: 18dp; max-height: 600dp; overflow-y: auto; }
+.party-column { width: 50%; min-width: 0; }
+.party-column .grow { min-width: 0; overflow: hidden; }
+.invite-heading { margin-top: 20dp; }
+.invite-search { display: block; width: 92%; margin-bottom: 12dp; }
+.party-column .invite-list { max-height: 430dp; }
+.report-choice { display: block; margin-bottom: 8dp; text-align: left; }
+.report-choice.active { border-color: #ffc93c; color: #ffc93c; background-color: #ffc93c22; }
+
+.party-button { white-space: nowrap; flex-shrink: 0; }

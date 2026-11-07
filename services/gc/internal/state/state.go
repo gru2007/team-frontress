@@ -48,20 +48,22 @@ type War struct {
 
 // Lobby is a match.
 type Lobby struct {
-	ID         uint64    `json:"id,string"`
-	MatchID    uint64    `json:"match_id,string"`
-	Group      int32     `json:"group"`
-	Map        string    `json:"map"`
-	MaxPlayers int       `json:"max_players"`
-	State      string    `json:"state"`
-	Members    []Member  `json:"members"`
-	ServerID   uint64    `json:"server_id,string,omitempty"`
-	Connect    string    `json:"connect,omitempty"`
-	STV        string    `json:"stv,omitempty"`
-	FormedAt   time.Time `json:"formed_at"`
-	StartedAt  time.Time `json:"started_at,omitempty"`
-	MMVersion  uint32    `json:"mm_version"`
-	War        *War      `json:"war,omitempty"`
+	ID              uint64    `json:"id,string"`
+	MatchID         uint64    `json:"match_id,string"`
+	Group           int32     `json:"group"`
+	Map             string    `json:"map"`
+	MaxPlayers      int       `json:"max_players"`
+	State           string    `json:"state"`
+	Members         []Member  `json:"members"`
+	ServerID        uint64    `json:"server_id,string,omitempty"`
+	Connect         string    `json:"connect,omitempty"`
+	STV             string    `json:"stv,omitempty"`
+	FormedAt        time.Time `json:"formed_at"`
+	StartedAt       time.Time `json:"started_at,omitempty"`
+	MMVersion       uint32    `json:"mm_version"`
+	PreviousMatchID uint64    `json:"previous_match_id,string,omitempty"`
+	NextMaps        []uint32  `json:"next_maps,omitempty"`
+	War             *War      `json:"war,omitempty"`
 }
 
 // Store reads and writes the snapshot.

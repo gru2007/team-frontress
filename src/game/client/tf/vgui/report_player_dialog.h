@@ -67,5 +67,6 @@ private:
 };
 
 bool ReportPlayerAccount( CSteamID steamID, int nReason );
+void ConfirmPlayerReport( CSteamID steamID );
 
 #endif // REPORT_PLAYER_DIALOG_H

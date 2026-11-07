@@ -3052,7 +3052,9 @@ void CTFPlayer::PostThink()
 	SetLocalAngles( angles );
 	
 	// Store the eye angles pitch so the client can compute its animation state correctly.
-	m_angEyeAngles = EyeAngles();
+	QAngle eyeAngles = EyeAngles();
+	eyeAngles[PITCH] = clamp( AngleNormalize( eyeAngles[PITCH] ), -90.0f, 90.0f );
+	m_angEyeAngles = eyeAngles;
 
     m_PlayerAnimState->Update( m_angEyeAngles[YAW], m_angEyeAngles[PITCH] );
 
