@@ -23,6 +23,7 @@
 #include "tf_partyclient.h"
 #include "vgui/report_player_dialog.h"
 #include "frontress_anticheat_client.h"
+#include "c_tf_player.h"
 #include "c_tf_playerresource.h"
 #include "tf_gcmessages.h"
 #include "voice_status.h"

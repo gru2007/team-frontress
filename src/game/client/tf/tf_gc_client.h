@@ -139,6 +139,7 @@ public:
 	// live match, as opposed to servers we joined once-upon-a-time for a match (but might now be on the match-result
 	// screen)
 	bool BConnectedToMatchServer( bool bLiveMatch );
+	bool BOnLobbyServer() const;
 	bool BConnectingToMatchServer() const;
 
 	// !! Does NOT mean you're *in* this match. See Above.

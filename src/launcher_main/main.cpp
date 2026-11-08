@@ -662,7 +662,63 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 bool GetExePath( char *pszPath, size_t size )
 {
-	return readlink("/proc/self/exe", pszPath, size ) > 0;
+	// readlink does not terminate the string.
+	const ssize_t n = readlink( "/proc/self/exe", pszPath, size - 1 );
+	if ( n <= 0 )
+		return false;
+	pszPath[ n ] = 0;
+	return true;
+}
+
+#include <sys/resource.h>
+#include <unistd.h>
+
+// The client runs Team Fortress 2's engine inside this process, as on Windows.
+// Easy Anti-Cheat needs that: its launcher (start_protected_game) starts this
+// binary and injects the anti-cheat into it, so the game has to stay in this
+// process. -gathermod instead hands off to hl2.sh and TF2's own tf_linux64,
+// which Easy Anti-Cheat then reports as not started through its launcher.
+//
+// TF2's engine libraries find each other through LD_LIBRARY_PATH, which only
+// takes effect when a program starts. tc2.sh sets it up; a launch that did not
+// gets the environment hl2.sh would have set, then this binary starts again in
+// the same process.
+static void PrepareInProcessClient( const char *pRootDir, const char *pEngineDir, char *argv[] )
+{
+	setenv( "SDK_EXEC_DIR", pEngineDir, 1 );
+
+	struct rlimit files;
+	if ( getrlimit( RLIMIT_NOFILE, &files ) == 0 && files.rlim_cur < 2048 )
+	{
+		files.rlim_cur = files.rlim_max < 2048 ? files.rlim_max : 2048;
+		setrlimit( RLIMIT_NOFILE, &files );
+	}
+
+	const std::string engineBin = std::string( pEngineDir ) + "/" PLATFORM_BIN_DIR;
+	const char *pszLibraryPath = getenv( "LD_LIBRARY_PATH" );
+	const std::string libraryPath = pszLibraryPath ? pszLibraryPath : "";
+	if ( ( ":" + libraryPath + ":" ).find( ":" + engineBin + ":" ) != std::string::npos )
+		return;
+
+	if ( getenv( "TC2_LAUNCH_ENV" ) )
+	{
+		fprintf( stderr, "LD_LIBRARY_PATH does not include %s; the engine may fail to load.\n", engineBin.c_str() );
+		return;
+	}
+
+	std::string newPath = std::string( pRootDir ) + "/" PLATFORM_BIN_DIR + ":" + engineBin;
+	if ( !libraryPath.empty() )
+		newPath += ":" + libraryPath;
+	setenv( "LD_LIBRARY_PATH", newPath.c_str(), 1 );
+	setenv( "__GL_THREADED_OPTIMIZATIONS", "1", 0 );
+	const std::string pathmatch = std::string( pEngineDir ) + "/pathmatch.inf";
+	struct stat info;
+	if ( stat( pathmatch.c_str(), &info ) == 0 )
+		setenv( "ENABLE_PATHMATCH", "1", 1 );
+	setenv( "TC2_LAUNCH_ENV", "1", 1 );
+
+	execv( "/proc/self/exe", argv );
+	perror( "Restarting with the engine's library path failed" );
 }
 
 #include <fcntl.h>
@@ -915,6 +971,19 @@ int main( int argc, char *argv[] )
 		return 1;
 	}
 
+#if defined( LINUX )
+	// Started by Easy Anti-Cheat's launcher, which preloads its module into
+	// this process: -gathermod would move the game to another one (see
+	// PrepareInProcessClient), so the client stays here whatever the launch
+	// options say.
+	const char *pszPreload = getenv( "LD_PRELOAD" );
+	if ( !bLaunchDedicated && bGatherDedicated && pszPreload && strstr( pszPreload, "easyanticheat" ) )
+	{
+		fprintf( stderr, "Easy Anti-Cheat launch: ignoring -gathermod, the game runs in this process.\n" );
+		bGatherDedicated = false;
+	}
+#endif
+
 	char pRootDir[MAX_PATH];
 	GetBaseDir( moduleName, pRootDir );
 
@@ -967,6 +1036,9 @@ int main( int argc, char *argv[] )
 		}
 		else
 		{
+#if defined( LINUX )
+			PrepareInProcessClient( pRootDir, pBinaryGameDir, argv );
+#endif
 			#define LAUNCHER_DLL_PATH	"%s/" PLATFORM_BIN_DIR "/launcher.so"
 			char szExecutable[8192];
 			snprintf(szExecutable, sizeof(szExecutable), LAUNCHER_DLL_PATH, pBinaryGameDir );
@@ -974,7 +1046,7 @@ int main( int argc, char *argv[] )
 			void* launcher = Launcher_LoadModule(szExecutable);
 			if (!launcher)
 			{
-				fprintf(stderr, "Failed to load the launcher: %s\n", szExecutable);
+				fprintf(stderr, "Failed to load the launcher: %s\n%s\n", szExecutable, dlerror());
 				return 0;
 			}
 
@@ -986,6 +1058,25 @@ int main( int argc, char *argv[] )
 			}
 
 			WaitForDebuggerConnect( argc, argv, 30 );
+
+			// The game named after this binary (tc2_linux64 -> tc2), as the
+			// -gathermod path passes it to hl2.sh.
+			bool bHasGame = false;
+			for ( int i = 1; i < argc; i++ )
+			{
+				if ( !strcmp( argv[i], "-game" ) )
+					bHasGame = true;
+			}
+			if ( !bHasGame )
+			{
+				static char szGamePath[8193];
+				snprintf( szGamePath, sizeof( szGamePath ), "%s/%s", pRootDir, GetExecutableModName( moduleName ) );
+				std::vector<char *> new_argv( argv, argv + argc );
+				new_argv.push_back( (char *)"-game" );
+				new_argv.push_back( szGamePath );
+				new_argv.push_back( NULL );
+				return entryFunc( (int)new_argv.size() - 1, new_argv.data() );
+			}
 		}
 
 		return entryFunc( argc, argv );

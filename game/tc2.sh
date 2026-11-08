@@ -3,6 +3,22 @@
 script=$(readlink -f -- "$0")
 pushd "$(dirname -- "$script")" > /dev/null
 
+# Second stage of a protected launch, already inside the runtime container
+# (see the Easy Anti-Cheat notes further down).
+if [ "${1:-}" = "--tc2-protected" ]; then
+  shift
+  TF2_DIR="$1"
+  shift
+  if [ -n "${TF2_DIR}" ] && [ -d "${TF2_DIR}/bin/linux64" ]; then
+    export LD_LIBRARY_PATH="${PWD}/bin/linux64:${TF2_DIR}/bin/linux64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+    export TC2_LAUNCH_ENV=1
+    export __GL_THREADED_OPTIMIZATIONS=1
+    [ -f "${TF2_DIR}/pathmatch.inf" ] && export ENABLE_PATHMATCH=1
+  fi
+  ulimit -n 2048 2>/dev/null || true
+  exec ./start_protected_game "$@"
+fi
+
 #ulimit -c unlimited
 #sudo bash -c 'echo "core.%p" > /proc/sys/kernel/core_pattern 2>/dev/null || true'
 
@@ -58,14 +74,49 @@ esac
 # EasyAntiCheat/Settings.json), passing every argument on. A dedicated server
 # is not a protected client and starts the binary directly, as does -noeac
 # (offline and modding; protected servers refuse such a client).
-GAME_EXE=./tc2_linux64
+#
+# Under the anti-cheat the game must stay in the process the bootstrapper
+# started, so tc2_linux64 loads TF2's engine itself (as on Windows) instead of
+# handing off to hl2.sh and TF2's tf_linux64 (-gathermod). That needs TF2's
+# engine libraries on LD_LIBRARY_PATH from the start, inside the runtime
+# container: this script runs itself again in there to set it up.
+
+# Where Team Fortress 2 is installed: TC2_TF2_DIR, next to this game in the
+# same Steam library, or any library Steam knows about. tc2_linux64 asks Steam
+# itself when this finds nothing.
+find_tf2_dir() {
+  local dir lib vdf
+  for dir in "${TC2_TF2_DIR:-}" "$(dirname -- "$PWD")/Team Fortress 2"; do
+    if [ -n "${dir}" ] && [ -f "${dir}/bin/linux64/launcher.so" ]; then
+      echo "${dir}"
+      return
+    fi
+  done
+  for vdf in "$HOME/.steam/steam/steamapps/libraryfolders.vdf" \
+             "$HOME/.local/share/Steam/steamapps/libraryfolders.vdf"; do
+    [ -f "${vdf}" ] || continue
+    while IFS= read -r lib; do
+      dir="${lib}/steamapps/common/Team Fortress 2"
+      if [ -f "${dir}/bin/linux64/launcher.so" ]; then
+        echo "${dir}"
+        return
+      fi
+    done < <(sed -n 's/^[[:space:]]*"path"[[:space:]]*"\(.*\)"[[:space:]]*$/\1/p' "${vdf}" | sed 's/\\\\/\\/g')
+  done
+}
+
+PROTECTED=0
 if [ -x ./start_protected_game ]; then
   case " $* " in
     *" -dedicated "*|*" -noeac "*) ;;
-    *) GAME_EXE=./start_protected_game ;;
+    *) PROTECTED=1 ;;
   esac
 fi
 
-${SLR_SNIPER_PATH} --devel -- "${GAME_EXE}" -steam -gathermod -particles 1 "$@" "${IP_DEFAULT[@]}"
+if [ "${PROTECTED}" -eq 1 ]; then
+  ${SLR_SNIPER_PATH} --devel -- "${script}" --tc2-protected "$(find_tf2_dir)" -steam -particles 1 "$@" "${IP_DEFAULT[@]}"
+else
+  ${SLR_SNIPER_PATH} --devel -- ./tc2_linux64 -steam -gathermod -particles 1 "$@" "${IP_DEFAULT[@]}"
+fi
 
 popd > /dev/null

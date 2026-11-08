@@ -140,6 +140,7 @@ func (a *API) adminReportAction(w http.ResponseWriter, r *http.Request) {
 		Action string `json:"action"`
 		Hours  int    `json:"hours"`
 		Reason string `json:"reason"`
+		Steam  bool   `json:"steam"`
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
 	decoder.DisallowUnknownFields()
@@ -157,7 +158,7 @@ func (a *API) adminReportAction(w http.ResponseWriter, r *http.Request) {
 	callErr := a.gc.Call(r.Context(), func() {
 		switch req.Action {
 		case "ban":
-			opErr = a.gc.AntiCheatBan(id, req.Hours, req.Reason, by)
+			opErr = a.banWithSteam(id, req.Hours, req.Steam, req.Reason, by)
 		case "dismiss":
 			opErr = a.gc.DismissReportCase(id, by, req.Reason)
 		default:
@@ -169,13 +170,14 @@ func (a *API) adminReportAction(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "coordinator busy"})
 	case opErr == errBadAction:
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "action must be ban or dismiss"})
+	case writeSteamBanError(w, opErr):
 	case opErr == reports.ErrNothingOpen:
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "this case has no open reports"})
 	case opErr != nil:
 		a.log.Error("report case action", "steamid", id, "err", opErr)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not save"})
 	default:
-		a.log.Info("report case action", "steamid", id, "action", req.Action, "by", by)
+		a.log.Info("report case action", "steamid", id, "action", req.Action, "steam", req.Steam, "by", by)
 		writeJSON(w, http.StatusOK, map[string]string{"ok": req.Action})
 	}
 }

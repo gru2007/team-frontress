@@ -334,6 +334,15 @@ void CTFGCClientSystem::FireGameEvent( IGameEvent *event )
 			GCMatchmakingDebugSpew( 4, "Recognizing MM server id %s\n", m_steamIDCurrentServer.Render() );
 		}
 
+		// Back on our match's server by another route (see BOnLobbyServer).
+		const CTFGSLobby *pLobby = GetLobby();
+		if ( m_eConnectState == eConnectState_NonmatchmadeServer && pLobby && m_steamIDCurrentServer.IsValid() &&
+		     pLobby->GetServerID() == m_steamIDCurrentServer )
+		{
+			m_eConnectState = eConnectState_ConnectedToMatchmade;
+			GCMatchmakingDebugSpew( 4, "Server is our match's server: treating it as matchmade.\n" );
+		}
+
 		if ( m_eConnectState == eConnectState_ConnectedToMatchmade && !m_steamIDCurrentServer.IsValid() )
 		{
 			Warning( "Connected to MM server but no GS steamid is set.\n" );
@@ -1671,9 +1680,19 @@ void CTFGCClientSystem::RemoveLocalPlayerSOListener( ISharedObjectListener* pLis
 	}
 }
 
+bool CTFGCClientSystem::BOnLobbyServer() const
+{
+	// Being on the lobby's server is what counts, however we got there: a
+	// reconnect, "retry", a map change or a join outside the queue all leave
+	// the connect state as non-matchmade.
+	const CTFGSLobby *pLobby = GetLobby();
+	return pLobby && engine->IsInGame() && m_steamIDCurrentServer.IsValid() &&
+		pLobby->GetServerID() == m_steamIDCurrentServer;
+}
+
 bool CTFGCClientSystem::BConnectedToMatchServer( bool bLiveMatch )
 {
-	if ( m_eConnectState != eConnectState_ConnectedToMatchmade )
+	if ( m_eConnectState != eConnectState_ConnectedToMatchmade && !BOnLobbyServer() )
 		return false;
 
 	// "Connected to a match server" and "connected to the server running the

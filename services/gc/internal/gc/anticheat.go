@@ -1,6 +1,7 @@
 package gc
 
 import (
+	"errors"
 	"time"
 
 	"github.com/gru2007/team-frontress/services/gc/internal/anticheat"
@@ -84,6 +85,12 @@ func (g *GC) handleAntiCheatEvent(s *session.Session, m *wire.Msg) {
 	if sanction != nil {
 		g.applySanction(id)
 		g.closeReportCase(id, reports.OutcomeActioned, "eac:"+s.ServerName, sanction.Reason)
+		if sanction.Kind == "permanent" && g.cfg.AntiCheat.SteamGameBans.Auto() {
+			if err := g.steamGameBan(id, sanction.Reason, "eac:"+s.ServerName, steamBanEAC); err != nil &&
+				!errors.Is(err, ErrSteamBanned) {
+				g.log.Warn("steam game ban after an EAC ban", "steamid", id, "err", err)
+			}
+		}
 	}
 }
 

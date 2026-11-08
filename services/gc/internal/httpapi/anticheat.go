@@ -2,11 +2,13 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/gru2007/team-frontress/services/gc/internal/anticheat"
+	"github.com/gru2007/team-frontress/services/gc/internal/gc"
 	"github.com/gru2007/team-frontress/services/gc/internal/steamauth"
 )
 
@@ -77,6 +79,8 @@ func (a *API) adminAntiCheatAction(w http.ResponseWriter, r *http.Request) {
 		Action string `json:"action"`
 		Hours  int    `json:"hours"`
 		Reason string `json:"reason"`
+		// Steam: with "ban", also a Steam game ban (permanent bans only).
+		Steam bool `json:"steam"`
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
 	decoder.DisallowUnknownFields()
@@ -94,9 +98,13 @@ func (a *API) adminAntiCheatAction(w http.ResponseWriter, r *http.Request) {
 	callErr := a.gc.Call(r.Context(), func() {
 		switch req.Action {
 		case "ban":
-			opErr = a.gc.AntiCheatBan(id, req.Hours, req.Reason, by)
+			opErr = a.banWithSteam(id, req.Hours, req.Steam, req.Reason, by)
 		case "clear":
 			opErr = a.gc.AntiCheatClear(id, req.Reason, by)
+		case "steam_ban":
+			opErr = a.gc.SteamGameBan(id, req.Reason, by)
+		case "steam_unban":
+			opErr = a.gc.SteamGameUnban(id, req.Reason, by)
 		default:
 			opErr = errBadAction
 		}
@@ -105,7 +113,8 @@ func (a *API) adminAntiCheatAction(w http.ResponseWriter, r *http.Request) {
 	case callErr != nil:
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "coordinator busy"})
 	case opErr == errBadAction:
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "action must be ban or clear"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "action must be ban, clear, steam_ban or steam_unban"})
+	case writeSteamBanError(w, opErr):
 	case opErr != nil:
 		a.log.Error("anti-cheat admin action", "steamid", id, "err", opErr)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not save"})
@@ -119,6 +128,44 @@ type adminError string
 func (e adminError) Error() string { return string(e) }
 
 const errBadAction = adminError("bad action")
+
+// banWithSteam is a matchmaking ban and, when asked, a Steam game ban on top.
+// Run on the GC loop. The Steam half is checked first, so a request that
+// cannot get it changes nothing.
+func (a *API) banWithSteam(id uint64, hours int, steam bool, reason, by string) error {
+	if steam {
+		if hours != 0 {
+			return gc.ErrSteamBanNeedsPerm
+		}
+		if !a.gc.SteamGameBansEnabled() {
+			return gc.ErrSteamBansOff
+		}
+	}
+	if err := a.gc.AntiCheatBan(id, hours, reason, by); err != nil {
+		return err
+	}
+	if !steam {
+		return nil
+	}
+	if err := a.gc.SteamGameBan(id, reason, by); err != nil && !errors.Is(err, gc.ErrSteamBanned) {
+		return err
+	}
+	return nil
+}
+
+// writeSteamBanError answers the errors the Steam ban calls return.
+func writeSteamBanError(w http.ResponseWriter, err error) bool {
+	switch {
+	case errors.Is(err, gc.ErrSteamBanNeedsPerm):
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+	case errors.Is(err, gc.ErrSteamBansOff), errors.Is(err, gc.ErrSteamBanPending),
+		errors.Is(err, gc.ErrSteamBanned), errors.Is(err, gc.ErrNotSteamBanned):
+		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+	default:
+		return false
+	}
+	return true
+}
 
 func steamIDParam(w http.ResponseWriter, r *http.Request) (uint64, bool) {
 	id, err := strconv.ParseUint(r.PathValue("steamid"), 10, 64)

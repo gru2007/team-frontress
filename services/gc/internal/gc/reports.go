@@ -87,6 +87,9 @@ func (g *GC) handleReportPlayer(s *session.Session, m *wire.Msg) {
 	g.log.Info("player report saved", "reporter", s.SteamID, "target", target, "reason", r.Reason,
 		"detail", r.Detail, "match", r.MatchID, "server", r.Server, "eac", r.EAC)
 	g.emit(s.SteamID, "report_saved", map[string]any{"target": strconv.FormatUint(target, 10)})
+	if r.Reason == reports.ReasonCheating {
+		g.forwardCheatingReport(s.SteamID, target, s.AppID, r.Detail)
+	}
 }
 
 // reportDetail keeps the detail bits that belong to the reason.
@@ -130,6 +133,7 @@ type CaseEAC struct {
 	NotProtected     int                 `json:"not_protected"`
 	VoteKicks        int                 `json:"vote_kicks"`
 	Sanction         *anticheat.Sanction `json:"sanction,omitempty"`
+	SteamBanned      bool                `json:"steam_banned,omitempty"` // a Steam game ban from us
 }
 
 // ReportCase is one reported player, as moderators see the queue.
@@ -167,6 +171,10 @@ type ReportCaseDetail struct {
 	Reports     []ReportView         `json:"reports"`
 	AntiCheat   anticheat.Record     `json:"anticheat"`
 	Resolutions []reports.Resolution `json:"resolutions"`
+	// SteamBans: may this console issue Steam game bans, and is one on its
+	// way to Steam for this player right now.
+	SteamBans       bool `json:"steam_bans"`
+	SteamBanPending bool `json:"steam_ban_pending"`
 }
 
 var reasonWeights = map[int32]float64{
@@ -293,7 +301,7 @@ func (g *GC) reportCase(target string) ReportCase {
 
 func (g *GC) caseEAC(id uint64, now time.Time) CaseEAC {
 	rec, _ := g.anticheat.Get(id)
-	out := CaseEAC{ProductUserID: rec.ProductUserID, VerifiedAt: rec.VerifiedAt}
+	out := CaseEAC{ProductUserID: rec.ProductUserID, VerifiedAt: rec.VerifiedAt, SteamBanned: rec.SteamBan != nil}
 	if sc, ok := g.anticheat.Sanctioned(id, now); ok {
 		out.Sanction = &sc
 	}
@@ -361,7 +369,8 @@ func (g *GC) ReportCaseDetail(id uint64) (ReportCaseDetail, bool) {
 	if len(all) == 0 {
 		return ReportCaseDetail{}, false
 	}
-	d := ReportCaseDetail{ReportCase: g.reportCase(target), Resolutions: g.reports.Resolutions(target)}
+	d := ReportCaseDetail{ReportCase: g.reportCase(target), Resolutions: g.reports.Resolutions(target),
+		SteamBans: g.steamBansOn(), SteamBanPending: g.steamBanBusy[id]}
 	if d.Resolutions == nil {
 		d.Resolutions = []reports.Resolution{}
 	}

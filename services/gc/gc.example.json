@@ -17,10 +17,15 @@
     { "name": "frontress", "key": "change-me-a-long-random-server-key", "community": "frontress", "anticheat_authority": true }
   ],
 
-  "//anticheat": "Easy Anti-Cheat. require_protected_servers: matches only go to servers running a protected session. temp_ban_hours: how long an EAC temporary ban keeps a player out of matchmaking.",
+  "//anticheat": "Easy Anti-Cheat. require_protected_servers: matches only go to servers running a protected session. temp_ban_hours: how long an EAC temporary ban keeps a player out of matchmaking. steam_game_bans: Steam game bans (public, permanent) through ICheatReportingService with the publisher key ($STEAM_PUBLISHER_KEY); mode off, manual (the moderator console and admin API) or auto (also every permanent EAC ban from an anticheat_authority server); app_ids default to auth.app_id/app_ids; immediate skips Valve's ban delay; forward_player_reports files in-game cheating reports with Steam too.",
   "anticheat": {
     "require_protected_servers": false,
-    "temp_ban_hours": 24
+    "temp_ban_hours": 24,
+    "steam_game_bans": {
+      "mode": "off",
+      "immediate": false,
+      "forward_player_reports": false
+    }
   },
 
   "match_groups": [

@@ -34,6 +34,7 @@ import (
 	"github.com/gru2007/team-frontress/services/gc/internal/sink"
 	"github.com/gru2007/team-frontress/services/gc/internal/socache"
 	"github.com/gru2007/team-frontress/services/gc/internal/state"
+	"github.com/gru2007/team-frontress/services/gc/internal/steamban"
 	"github.com/gru2007/team-frontress/services/gc/internal/support"
 	"github.com/gru2007/team-frontress/services/gc/internal/war"
 	"github.com/gru2007/team-frontress/services/gc/internal/wire"
@@ -55,8 +56,11 @@ type GC struct {
 	clans     *clans.Store
 	book      *support.Book
 	steam     support.Steam
-	commerce  *support.Admin
-	now       func() time.Time
+	// Steam game bans (steambans.go); nil when they are off.
+	steamBans    SteamBanner
+	steamBanBusy map[uint64]bool
+	commerce     *support.Admin
+	now          func() time.Time
 
 	loop chan func()
 
@@ -101,7 +105,10 @@ type Deps struct {
 	Support  *support.Book
 	Steam    support.Steam
 	Commerce *support.Admin
-	Now      func() time.Time
+	// SteamBans issues Steam game bans; nil builds the Web API client when
+	// anticheat.steam_game_bans asks for it.
+	SteamBans SteamBanner
+	Now       func() time.Time
 }
 
 // New makes a GC and restores the matches that were running when it last
@@ -159,6 +166,11 @@ func New(d Deps) (*GC, error) {
 	}
 	if g.book == nil {
 		g.book, _ = support.OpenBook("")
+	}
+	g.steamBans = d.SteamBans
+	if sb := d.Config.AntiCheat.SteamGameBans; g.steamBans == nil && (sb.Enabled() || sb.ForwardPlayerReports) &&
+		d.Config.Support.PublisherKey != "" {
+		g.steamBans = &steamban.Client{Key: d.Config.Support.PublisherKey}
 	}
 	if g.steam == nil && d.Config.Support.Enabled && d.Config.Support.Fake {
 		g.steam = &support.Fake{}

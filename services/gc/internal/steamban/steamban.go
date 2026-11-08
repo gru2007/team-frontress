@@ -36,6 +36,9 @@ type Report struct {
 	Heuristic    bool
 	// NoReportID files the report without asking for an id to ban on.
 	NoReportID bool
+	// AppData is ours to define: the report's detail bits (aimbot,
+	// wallhack...), shown with the report in Steamworks.
+	AppData uint64
 }
 
 // Ban is a ban request on a report.
@@ -91,6 +94,9 @@ func (c *Client) ReportPlayerCheating(ctx context.Context, r Report) (uint64, er
 	}
 	if r.NoReportID {
 		in["noreportid"] = true
+	}
+	if r.AppData != 0 {
+		in["appdata"] = strconv.FormatUint(r.AppData, 10)
 	}
 	var out struct {
 		Response struct {

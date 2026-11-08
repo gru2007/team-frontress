@@ -83,7 +83,11 @@
 					<button type="button" class="danger" id="a-ban">Забанить в матчмейкинге</button>
 					<button type="button" class="ghost" id="a-dismiss">Отклонить жалобы</button>
 				</div>
-				<p class="hint">Бан закрывает дело как «приняты меры», и все авторы жалоб получат уведомление в игре (без имени нарушителя). Бан EAC на всех защищённых серверах выдаётся санкцией в EOS Developer Portal: Product User ID указан выше.</p>
+				<div class="act-row" id="a-steam-row" hidden>
+					<label class="check"><input type="checkbox" id="a-steam"> Также игровой бан Steam: навсегда, виден в профиле Steam, закрывает защищённые серверы игры</label>
+					<button type="button" class="ghost" id="a-unsteam" hidden>Снять бан Steam</button>
+				</div>
+				<p class="hint">Бан закрывает дело как «приняты меры», и все авторы жалоб получат уведомление в игре (без имени нарушителя). Бан Steam выдаётся только вместе с бессрочным баном, через Steam Web API; Valve применяет его с задержкой. Бан EAC на всех защищённых серверах выдаётся санкцией в EOS Developer Portal: Product User ID указан выше.</p>
 				<p class="err" id="a-err" role="alert"></p>
 			</div>
 

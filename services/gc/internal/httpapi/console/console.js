@@ -203,6 +203,14 @@ function renderCase(d) {
 		const s = d.eac.sanction;
 		row("Санкция", (s.until && !s.until.startsWith("0001") ? "до " + new Date(s.until).toLocaleString("ru-RU") : "бессрочно") + " — " + s.reason + " (" + s.by + ")", true);
 	}
+	const steamBan = d.anticheat && d.anticheat.steam_ban;
+	if (d.steam_ban_pending) {
+		row("Бан Steam", "отправляется в Steam…", true);
+	} else if (steamBan) {
+		row("Бан Steam", when(steamBan.at) + ", приложения " + (steamBan.app_ids || []).join(", ") + " (" + steamBan.by + ")", true);
+	}
+	state.detail = d;
+	updateSteamControls();
 
 	const bars = $("d-reasons");
 	bars.replaceChildren();
@@ -273,6 +281,41 @@ function renderCase(d) {
 	$("a-dismiss").disabled = d.open_reports === 0;
 }
 
+// The Steam ban goes with a permanent ban only, and only when the GC has
+// anticheat.steam_game_bans switched on.
+function updateSteamControls() {
+	const d = state.detail;
+	const on = !!(d && d.steam_bans);
+	const banned = !!(d && d.anticheat && d.anticheat.steam_ban);
+	const permanent = (parseInt($("a-hours").value, 10) || 0) === 0;
+	$("a-steam-row").hidden = !on && !banned;
+	$("a-steam").disabled = !on || banned || d.steam_ban_pending || !permanent;
+	if ($("a-steam").disabled) $("a-steam").checked = false;
+	$("a-unsteam").hidden = !banned;
+	$("a-unsteam").disabled = !!(d && d.steam_ban_pending);
+}
+
+async function unsteam() {
+	const id = state.selected;
+	const reason = $("a-reason").value.trim();
+	$("a-err").textContent = "";
+	if (!id) return;
+	if (!reason) {
+		$("a-err").textContent = "Укажите причину — она попадёт в журнал.";
+		$("a-reason").focus();
+		return;
+	}
+	if (!window.confirm("Снять игровой бан Steam?")) return;
+	try {
+		await api("/admin/v1/anticheat/" + encodeURIComponent(id), { body: { action: "steam_unban", reason } });
+	} catch (e) {
+		$("a-err").textContent = e.message;
+		return;
+	}
+	$("a-reason").value = "";
+	await selectCase(id);
+}
+
 async function act(action) {
 	const id = state.selected;
 	const reason = $("a-reason").value.trim();
@@ -284,10 +327,12 @@ async function act(action) {
 		return;
 	}
 	const hours = parseInt($("a-hours").value, 10) || 0;
-	const what = action === "ban" ? (hours ? "Забанить на " + $("a-hours").selectedOptions[0].textContent : "Забанить навсегда") : "Отклонить все открытые жалобы";
+	const steam = action === "ban" && hours === 0 && $("a-steam").checked;
+	let what = action === "ban" ? (hours ? "Забанить на " + $("a-hours").selectedOptions[0].textContent : "Забанить навсегда") : "Отклонить все открытые жалобы";
+	if (steam) what += " и выдать игровой бан Steam (публичный, в профиле)";
 	if (!window.confirm(what + "?")) return;
 	try {
-		await api("/admin/v1/reports/" + encodeURIComponent(id), { body: action === "ban" ? { action, hours, reason } : { action, reason } });
+		await api("/admin/v1/reports/" + encodeURIComponent(id), { body: action === "ban" ? { action, hours, reason, steam } : { action, reason } });
 	} catch (e) {
 		$("a-err").textContent = e.message;
 		return;
@@ -314,6 +359,8 @@ document.addEventListener("DOMContentLoaded", () => {
 	}
 	$("a-ban").addEventListener("click", () => act("ban"));
 	$("a-dismiss").addEventListener("click", () => act("dismiss"));
+	$("a-unsteam").addEventListener("click", unsteam);
+	$("a-hours").addEventListener("change", updateSteamControls);
 	$("actor").value = state.actor;
 	if (state.key && state.actor) {
 		loadCases().then(() => showApp(true)).catch(() => { store.clear(); state.key = ""; showApp(false); });

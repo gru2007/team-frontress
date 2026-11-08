@@ -62,7 +62,7 @@ static int s_iClassAtSelect = 0;	// the local class when class select opened
 // with an UnlitGeneric material around it; triangles go through a dynamic
 // mesh in the screen-space matrices VGUI paints with.
 //-----------------------------------------------------------------------------
-class CFuiTextureBits : public ITextureRegenerator
+class CFuiTextureBits final : public ITextureRegenerator
 {
 public:
 	CFuiTextureBits( const uint8 *pRGBA, int w, int h ) : m_nWide( w ), m_nTall( h ) { Update( pRGBA ); }
