@@ -65,8 +65,17 @@ if [ $PLATFORM = "win" ]; then
     bin/$PLAT_DIR/vvis_dll
   )
 
+  # The open-source libraries TF2's engine links against, which Valve ships
+  # unsigned: ours are covered by the Easy Anti-Cheat catalog and loaded
+  # before TF2's (PreloadOwnLibraries in launcher_main).
   declare -a DLLS_LIB=(
     bin/$PLAT_DIR/steam_api64
+    bin/$PLAT_DIR/SDL2
+    bin/$PLAT_DIR/libxml2-2
+    bin/$PLAT_DIR/libharfbuzz-0
+    bin/$PLAT_DIR/libfreetype-6
+    bin/$PLAT_DIR/libfontconfig-1
+    bin/$PLAT_DIR/dxvk_d3d9
   )
 
   FILES_REP+=(

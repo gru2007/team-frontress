@@ -669,3 +669,12 @@ game/tc2/glshaders.cfg
 /src/thirdparty/eos_sdk/
 base_private.key
 *.eac
+
+# Our copies of the libraries TF2 ships unsigned on Windows (Easy Anti-Cheat;
+# see PreloadOwnLibraries in src/launcher_main/main.cpp).
+!/game/bin/x64/SDL2.dll
+!/game/bin/x64/libxml2-2.dll
+!/game/bin/x64/libharfbuzz-0.dll
+!/game/bin/x64/libfreetype-6.dll
+!/game/bin/x64/libfontconfig-1.dll
+!/game/bin/x64/dxvk_d3d9.dll

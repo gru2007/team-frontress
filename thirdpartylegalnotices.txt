@@ -1019,3 +1019,86 @@ Refined Pickups (https://gamebanana.com/mods/610415) by Everik is licensed under
 VGUI Facelift (https://gamebanana.com/mods/530974) by Azarciel is licensed under a Creative Commons Attribution-NonCommercial-NoDerivs 4.0 Unported License.
 
 Source Text Refont (https://gamebanana.com/mods/314848) by Fred McFrizzle is licensed under a Creative Commons Attribution-NonCommercial-NoDerivs 4.0 Unported License.
+
+************************************************************************************
+Libraries shipped in bin/x64 for Team Fortress 2's engine on Windows:
+SDL2, FreeType, HarfBuzz, Fontconfig, libxml2, DXVK
+************************************************************************************
+
+SDL2 (Simple DirectMedia Layer) - https://www.libsdl.org/
+	Copyright (C) 1997-2024 Sam Lantinga <slouken@libsdl.org>
+	Licensed under the zlib license:
+
+	This software is provided 'as-is', without any express or implied
+	warranty.  In no event will the authors be held liable for any damages
+	arising from the use of this software.
+
+	Permission is granted to anyone to use this software for any purpose,
+	including commercial applications, and to alter it and redistribute it
+	freely, subject to the following restrictions:
+
+	1. The origin of this software must not be misrepresented; you must not
+	   claim that you wrote the original software. If you use this software
+	   in a product, an acknowledgment in the product documentation would be
+	   appreciated but is not required.
+	2. Altered source versions must be plainly marked as such, and must not be
+	   misrepresented as being the original software.
+	3. This notice may not be removed or altered from any source distribution.
+
+DXVK - https://github.com/doitsujin/dxvk
+	Copyright (c) 2017 Philip Rebohle
+	Copyright (c) 2019 Joshua Ashton
+	Licensed under the zlib license (text above).
+
+FreeType - https://freetype.org/
+	Portions of this software are copyright (C) The FreeType Project
+	(www.freetype.org).  All rights reserved.
+	Used under the FreeType License (FTL).
+
+HarfBuzz - https://harfbuzz.github.io/
+	Copyright (C) the HarfBuzz authors.  Licensed under the "Old MIT" license:
+
+	Permission is hereby granted, without written agreement and without
+	license or royalty fees, to use, copy, modify, and distribute this
+	software and its documentation for any purpose, provided that the
+	above copyright notice and the following two paragraphs appear in
+	all copies of this software.
+
+	IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE TO ANY PARTY FOR
+	DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES
+	ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN
+	IF THE COPYRIGHT HOLDER HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH
+	DAMAGE.
+
+	THE COPYRIGHT HOLDER SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING,
+	BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+	FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
+	ON AN "AS IS" BASIS, AND THE COPYRIGHT HOLDER HAS NO OBLIGATION TO
+	PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+
+Fontconfig - https://www.freedesktop.org/wiki/Software/fontconfig/
+	Copyright (C) 2000-2007 Keith Packard and others; see the Fontconfig
+	COPYING file.  Licensed under the MIT license (text below).
+
+libxml2 - https://gitlab.gnome.org/GNOME/libxml2
+	Copyright (C) 1998-2012 Daniel Veillard.  All Rights Reserved.
+	Licensed under the MIT license:
+
+	Permission is hereby granted, free of charge, to any person obtaining a
+	copy of this software and associated documentation files (the
+	"Software"), to deal in the Software without restriction, including
+	without limitation the rights to use, copy, modify, merge, publish,
+	distribute, sublicense, and/or sell copies of the Software, and to
+	permit persons to whom the Software is furnished to do so, subject to
+	the following conditions:
+
+	The above copyright notice and this permission notice shall be included
+	in all copies or substantial portions of the Software.
+
+	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+	OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+	MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+	IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+	CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+	TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+	SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

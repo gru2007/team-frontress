@@ -27,6 +27,30 @@
 	#define SENTRY_DB_PATH		PLATFORM_BIN_DIR "/.sentry"
 #endif
 
+#if defined( LINUX )
+#include <unistd.h>
+
+// The Linux client runs from Team Fortress 2's folder (the engine loads its
+// modules from the working directory), so paths of our own files are taken
+// from the folder this executable is in.
+static const char *ExeRelativePath( const char *pszRelative, char *pszOut, size_t nOut )
+{
+	char szExe[ MAX_PATH ];
+	const ssize_t nLen = readlink( "/proc/self/exe", szExe, sizeof( szExe ) - 1 );
+	char *pszSlash = NULL;
+	if ( nLen > 0 )
+	{
+		szExe[ nLen ] = 0;
+		pszSlash = strrchr( szExe, '/' );
+	}
+	if ( !pszSlash )
+		return pszRelative;
+	*pszSlash = 0;
+	V_snprintf( pszOut, nOut, "%s/%s", szExe, pszRelative );
+	return pszOut;
+}
+#endif
+
 static CCrashReporter s_CrashReporter;
 CCrashReporter* GetCrashReporter() { return &s_CrashReporter; }
 
@@ -62,8 +86,14 @@ bool CCrashReporter::Init()
 	sentry_options_t* options = sentry_options_new();
 	sentry_options_set_dsn(options, SENTRY_DSN_LINK);
 
+#if defined( LINUX )
+	char szHandler[ MAX_PATH ], szDatabase[ MAX_PATH ];
+	sentry_options_set_handler_path(options, ExeRelativePath( CRASHPAD_HANDLER, szHandler, sizeof( szHandler ) ));
+	sentry_options_set_database_path(options, ExeRelativePath( SENTRY_DB_PATH, szDatabase, sizeof( szDatabase ) ));
+#else
 	sentry_options_set_handler_path(options, CRASHPAD_HANDLER);
 	sentry_options_set_database_path(options, SENTRY_DB_PATH);
+#endif
 
 	sentry_options_set_release(options, SENTRY_RELEASE);
 	sentry_options_set_environment(options, SENTRY_ENVIRONMENT);

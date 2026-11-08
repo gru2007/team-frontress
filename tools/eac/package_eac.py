@@ -40,6 +40,10 @@ PLATFORMS = {
         "exe": "tc2_win64.exe",
         "runtime": ("EOSSDK-Win64-Shipping.dll", os.path.join("tc2", "bin", "x64")),
         "code_paths": ["tc2_win64.exe", "bin\\x64", "tc2\\bin\\x64"],
+        # Our copies of the libraries TF2 ships unsigned: loaded instead of
+        # TF2's, so they must be in the catalog (launcher_main PreloadOwnLibraries).
+        "must_cover": ["SDL2.dll", "libfreetype-6.dll", "libfontconfig-1.dll",
+                       "libharfbuzz-0.dll", "libxml2-2.dll"],
     },
     "linux": {
         "exe": "tc2_linux64",
@@ -291,8 +295,10 @@ def main():
     # covers the main executable and every listed file matches.
     listing = subprocess.run([exe, "-productid", product, "list", os.path.join(certs, "base.bin")],
                              capture_output=True, text=True)
-    if plat["exe"] not in listing.stdout + listing.stderr:
-        fail("the integrity catalog does not cover %s" % plat["exe"])
+    listed = listing.stdout + listing.stderr
+    for required in [plat["exe"]] + plat.get("must_cover", []):
+        if required not in listed:
+            fail("the integrity catalog does not cover %s" % required)
     verify = subprocess.run([exe, "-productid", product, "verify", dist])
     if verify.returncode != 0:
         fail("the signed client does not verify (anticheat_integritytool verify exited with %d)" % verify.returncode)

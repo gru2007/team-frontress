@@ -3,22 +3,6 @@
 script=$(readlink -f -- "$0")
 pushd "$(dirname -- "$script")" > /dev/null
 
-# Second stage of a protected launch, already inside the runtime container
-# (see the Easy Anti-Cheat notes further down).
-if [ "${1:-}" = "--tc2-protected" ]; then
-  shift
-  TF2_DIR="$1"
-  shift
-  if [ -n "${TF2_DIR}" ] && [ -d "${TF2_DIR}/bin/linux64" ]; then
-    export LD_LIBRARY_PATH="${PWD}/bin/linux64:${TF2_DIR}/bin/linux64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
-    export TC2_LAUNCH_ENV=1
-    export __GL_THREADED_OPTIMIZATIONS=1
-    [ -f "${TF2_DIR}/pathmatch.inf" ] && export ENABLE_PATHMATCH=1
-  fi
-  ulimit -n 2048 2>/dev/null || true
-  exec ./start_protected_game "$@"
-fi
-
 #ulimit -c unlimited
 #sudo bash -c 'echo "core.%p" > /proc/sys/kernel/core_pattern 2>/dev/null || true'
 
@@ -28,7 +12,17 @@ fi
 # steamcmd_update.sh puts it, which is what a dedicated server (and the docker
 # image built from this payload) has -- neither of them has a Steam install to
 # borrow one from.
-if [ -z "${SLR_SNIPER_PATH:-}" ]; then
+# Steam starts the game inside the runtime already when the app is set to use
+# it; a second container inside the first does not start, so the game runs
+# as it is then.
+in_runtime_container() {
+  [ -d /run/pressure-vessel ] || [ -e /run/host/container-manager ] || [ -n "${PRESSURE_VESSEL_RUNTIME:-}" ]
+}
+
+SLR=()
+if in_runtime_container; then
+  :
+elif [ -z "${SLR_SNIPER_PATH:-}" ]; then
   for candidate in \
     "./SteamLinuxRuntime_sniper/run" \
     "$HOME/.steam/steam/steamapps/common/SteamLinuxRuntime_sniper/run" \
@@ -41,11 +35,14 @@ if [ -z "${SLR_SNIPER_PATH:-}" ]; then
   done
 fi
 
-if [ ! -f "${SLR_SNIPER_PATH:-}" ]; then
-  echo "Steam Linux Runtime 3.0 (sniper) not found."
-  echo "Run ./steamcmd_update.sh next to this script, install it through Steam"
-  echo "(steam://install/1628350), or set \$SLR_SNIPER_PATH to its run file."
-  exit 1
+if ! in_runtime_container; then
+  if [ ! -f "${SLR_SNIPER_PATH:-}" ]; then
+    echo "Steam Linux Runtime 3.0 (sniper) not found."
+    echo "Run ./steamcmd_update.sh next to this script, install it through Steam"
+    echo "(steam://install/1628350), or set \$SLR_SNIPER_PATH to its run file."
+    exit 1
+  fi
+  SLR=("${SLR_SNIPER_PATH}" --devel --)
 fi
 
 #trap 'echo "Received SIGTERM, shutting down gracefully..." && kill -TERM $!' SIGTERM
@@ -71,40 +68,14 @@ esac
 # carries it through to the binary.
 # Easy Anti-Cheat: a client starts through the anti-cheat bootstrapper, which
 # loads the anti-cheat and then runs tc2_linux64 itself (the "executable" in
-# EasyAntiCheat/Settings.json), passing every argument on. A dedicated server
-# is not a protected client and starts the binary directly, as does -noeac
-# (offline and modding; protected servers refuse such a client).
+# EasyAntiCheat/Settings.json), passing every argument on. tc2_linux64 then
+# loads TF2's engine into that same process and finds TF2 through Steam --
+# nothing to set up here. Steam can just as well start start_protected_game
+# directly.
 #
-# Under the anti-cheat the game must stay in the process the bootstrapper
-# started, so tc2_linux64 loads TF2's engine itself (as on Windows) instead of
-# handing off to hl2.sh and TF2's tf_linux64 (-gathermod). That needs TF2's
-# engine libraries on LD_LIBRARY_PATH from the start, inside the runtime
-# container: this script runs itself again in there to set it up.
-
-# Where Team Fortress 2 is installed: TC2_TF2_DIR, next to this game in the
-# same Steam library, or any library Steam knows about. tc2_linux64 asks Steam
-# itself when this finds nothing.
-find_tf2_dir() {
-  local dir lib vdf
-  for dir in "${TC2_TF2_DIR:-}" "$(dirname -- "$PWD")/Team Fortress 2"; do
-    if [ -n "${dir}" ] && [ -f "${dir}/bin/linux64/launcher.so" ]; then
-      echo "${dir}"
-      return
-    fi
-  done
-  for vdf in "$HOME/.steam/steam/steamapps/libraryfolders.vdf" \
-             "$HOME/.local/share/Steam/steamapps/libraryfolders.vdf"; do
-    [ -f "${vdf}" ] || continue
-    while IFS= read -r lib; do
-      dir="${lib}/steamapps/common/Team Fortress 2"
-      if [ -f "${dir}/bin/linux64/launcher.so" ]; then
-        echo "${dir}"
-        return
-      fi
-    done < <(sed -n 's/^[[:space:]]*"path"[[:space:]]*"\(.*\)"[[:space:]]*$/\1/p' "${vdf}" | sed 's/\\\\/\\/g')
-  done
-}
-
+# A dedicated server is not a protected client: it hands off to srcds_run_64
+# (-gatherdedi). -noeac (offline and modding; protected servers refuse such a
+# client) runs the game the way it ran before the anti-cheat, through hl2.sh.
 PROTECTED=0
 if [ -x ./start_protected_game ]; then
   case " $* " in
@@ -114,9 +85,9 @@ if [ -x ./start_protected_game ]; then
 fi
 
 if [ "${PROTECTED}" -eq 1 ]; then
-  ${SLR_SNIPER_PATH} --devel -- "${script}" --tc2-protected "$(find_tf2_dir)" -steam -particles 1 "$@" "${IP_DEFAULT[@]}"
+  "${SLR[@]}" ./start_protected_game -steam -particles 1 "$@" "${IP_DEFAULT[@]}"
 else
-  ${SLR_SNIPER_PATH} --devel -- ./tc2_linux64 -steam -gathermod -particles 1 "$@" "${IP_DEFAULT[@]}"
+  "${SLR[@]}" ./tc2_linux64 -steam -gathermod -particles 1 "$@" "${IP_DEFAULT[@]}"
 fi
 
 popd > /dev/null

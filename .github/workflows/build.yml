@@ -384,6 +384,10 @@ jobs:
           ./game_clean/copy.sh
           test -f game_dist/tc2/bin/x64/client.dll
           test -f game_dist/tc2/bin/x64/server.dll
+          # Our copies of TF2's unsigned libraries (see PreloadOwnLibraries).
+          for lib in SDL2 libxml2-2 libharfbuzz-0 libfreetype-6 libfontconfig-1 dxvk_d3d9; do
+            test -f "game_dist/bin/x64/${lib}.dll"
+          done
           touch game_dist/STEAM_READY
 
       # Bootstrapper, EasyAntiCheat/, EOS runtime, and the integrity catalog

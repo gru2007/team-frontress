@@ -140,6 +140,7 @@ public:
 	// screen)
 	bool BConnectedToMatchServer( bool bLiveMatch );
 	bool BOnLobbyServer() const;
+	bool BIsLobbyServer( const CTFGSLobby *pLobby ) const;
 	bool BConnectingToMatchServer() const;
 
 	// !! Does NOT mean you're *in* this match. See Above.

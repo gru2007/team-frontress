@@ -541,6 +541,40 @@ static void HandleRelaunching()
 #endif
 }
 
+// Team Fortress 2's engine links against a few open-source libraries that
+// Valve ships without a code signature (SDL2, FreeType and company). Easy
+// Anti-Cheat reports an unsigned module it has no record of, and our integrity
+// catalog only covers files in our own folder. So the same libraries ship in
+// our bin\x64, where the catalog covers them, and are loaded first: Windows
+// hands a module that links against "SDL2.dll" by name the SDL2.dll already
+// in the process, wherever it came from, so TF2's copies are never loaded.
+// tools/eac/tf2_unsigned_modules.py lists them; refresh ours when TF2's change.
+static void PreloadOwnLibraries( const char *pRootDir, bool bVulkan )
+{
+	// Dependencies first; LOAD_WITH_ALTERED_SEARCH_PATH finds the rest of a
+	// library's dependencies next to it.
+	static const char *s_pszLibraries[] =
+	{
+		"SDL2.dll", "libxml2-2.dll", "libharfbuzz-0.dll", "libfreetype-6.dll", "libfontconfig-1.dll",
+	};
+	char szPath[ MAX_PATH ];
+	for ( const char *pszLibrary : s_pszLibraries )
+	{
+		_snprintf( szPath, sizeof( szPath ), "%s\\" PLATFORM_BIN_DIR "\\%s", pRootDir, pszLibrary );
+		szPath[ sizeof( szPath ) - 1 ] = '\0';
+		if ( GetFileAttributesA( szPath ) != INVALID_FILE_ATTRIBUTES )
+			LoadLibraryExA( szPath, NULL, LOAD_WITH_ALTERED_SEARCH_PATH );
+	}
+	// The Vulkan renderer's Direct3D 9 layer, only when it is used.
+	if ( bVulkan )
+	{
+		_snprintf( szPath, sizeof( szPath ), "%s\\" PLATFORM_BIN_DIR "\\dxvk_d3d9.dll", pRootDir );
+		szPath[ sizeof( szPath ) - 1 ] = '\0';
+		if ( GetFileAttributesA( szPath ) != INVALID_FILE_ATTRIBUTES )
+			LoadLibraryExA( szPath, NULL, LOAD_WITH_ALTERED_SEARCH_PATH );
+	}
+}
+
 int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow )
 {
 	HandleRelaunching();
@@ -570,8 +604,11 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	bool bLaunchDedicated = false;
 	bool bForceNoSteamClient = false;
 	bool bHasPriorityArg = false;
+	bool bVulkan = false;
 	for (std::wstring& arg : pArgs)
 	{
+		if ( arg == L"-vulkan" )
+			bVulkan = true;
 		if (arg == L"-dedicated")
 		{
 			bLaunchDedicated = true;
@@ -630,6 +667,9 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 	szBuffer[sizeof( szBuffer ) - 1] = '\0';
 
+	if ( !bLaunchDedicated )
+		PreloadOwnLibraries( pRootDir, bVulkan );
+
 	// STEAM OK ... filesystem not mounted yet
 	HINSTANCE launcher = LoadLibraryEx( szBuffer, NULL, LOAD_WITH_ALTERED_SEARCH_PATH );
 
@@ -670,23 +710,77 @@ bool GetExePath( char *pszPath, size_t size )
 	return true;
 }
 
+#include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <sys/resource.h>
 #include <unistd.h>
+#include <set>
+#include <vector>
+
+// The shared libraries (lib*.so*) in a directory. openat + fdopendir, not
+// opendir: the launcher links with --wrap for opendir, stat, access and the
+// like (pathmatch), and nothing here provides the wrappers.
+static std::vector< std::string > ListLibraries( const std::string &dir )
+{
+	std::vector< std::string > names;
+	const int fd = openat( AT_FDCWD, dir.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC );
+	if ( fd < 0 )
+		return names;
+	DIR *pDir = fdopendir( fd );
+	if ( !pDir )
+	{
+		close( fd );
+		return names;
+	}
+	while ( struct dirent *pEntry = readdir( pDir ) )
+	{
+		const std::string name = pEntry->d_name;
+		if ( name.compare( 0, 3, "lib" ) != 0 || name.find( ".so" ) == std::string::npos )
+			continue;
+		// Never a second allocator in a running process.
+		if ( name.find( "malloc" ) != std::string::npos )
+			continue;
+		names.push_back( name );
+	}
+	closedir( pDir );
+	return names;
+}
 
 // The client runs Team Fortress 2's engine inside this process, as on Windows.
 // Easy Anti-Cheat needs that: its launcher (start_protected_game) starts this
 // binary and injects the anti-cheat into it, so the game has to stay in this
-// process. -gathermod instead hands off to hl2.sh and TF2's own tf_linux64,
-// which Easy Anti-Cheat then reports as not started through its launcher.
+// process -- and in this program image: starting it again (exec) loses the
+// anti-cheat too, which then reports the client as not started through its
+// launcher. -gathermod hands off to hl2.sh and TF2's own tf_linux64 instead.
 //
-// TF2's engine libraries find each other through LD_LIBRARY_PATH, which only
-// takes effect when a program starts. tc2.sh sets it up; a launch that did not
-// gets the environment hl2.sh would have set, then this binary starts again in
-// the same process.
-static void PrepareInProcessClient( const char *pRootDir, const char *pEngineDir, char *argv[] )
+// TF2's engine libraries find each other through LD_LIBRARY_PATH, which the
+// dynamic linker only reads when a program starts. Without it, every shared
+// library they link against is loaded here first, by full path: a library
+// already in the process satisfies anything that links against it by name.
+// Ours (libsteam_api.so and the like) go first and win over TF2's.
+static void PrepareInProcessClient( const char *pRootDir, const char *pEngineDir )
 {
 	setenv( "SDK_EXEC_DIR", pEngineDir, 1 );
+	// Steam reads steam_appid.txt from the working directory, which is about
+	// to be TF2's; a launch outside Steam (start_protected_game run by hand)
+	// names the app here instead.
+	if ( !getenv( "SteamAppId" ) )
+	{
+		char szAppId[ 16 ];
+		snprintf( szAppId, sizeof( szAppId ), "%u", k_unMyModAppid );
+		setenv( "SteamAppId", szAppId, 1 );
+		setenv( "SteamGameId", szAppId, 0 );
+	}
+	// The engine loads its modules from <working directory>/bin/linux64
+	// (Sys_LoadModule), so it runs from TF2's folder, as hl2.sh has it. The
+	// game folder reaches it as an absolute -game.
+	if ( chdir( pEngineDir ) != 0 )
+		fprintf( stderr, "Could not change to %s: %s\n", pEngineDir, strerror( errno ) );
+	setenv( "__GL_THREADED_OPTIMIZATIONS", "1", 0 );
+	const std::string pathmatch = std::string( pEngineDir ) + "/pathmatch.inf";
+	if ( faccessat( AT_FDCWD, pathmatch.c_str(), F_OK, 0 ) == 0 )
+		setenv( "ENABLE_PATHMATCH", "1", 0 );
 
 	struct rlimit files;
 	if ( getrlimit( RLIMIT_NOFILE, &files ) == 0 && files.rlim_cur < 2048 )
@@ -699,28 +793,44 @@ static void PrepareInProcessClient( const char *pRootDir, const char *pEngineDir
 	const char *pszLibraryPath = getenv( "LD_LIBRARY_PATH" );
 	const std::string libraryPath = pszLibraryPath ? pszLibraryPath : "";
 	if ( ( ":" + libraryPath + ":" ).find( ":" + engineBin + ":" ) != std::string::npos )
-		return;
+		return; // set up by hand; the dynamic linker finds everything
 
-	if ( getenv( "TC2_LAUNCH_ENV" ) )
+	std::vector< std::string > pending;
+	std::set< std::string > seen;
+	const std::string dirs[] = { std::string( pRootDir ) + "/" PLATFORM_BIN_DIR, engineBin };
+	for ( const std::string &dir : dirs )
 	{
-		fprintf( stderr, "LD_LIBRARY_PATH does not include %s; the engine may fail to load.\n", engineBin.c_str() );
-		return;
+		for ( const std::string &name : ListLibraries( dir ) )
+		{
+			if ( seen.insert( name ).second )
+				pending.push_back( dir + "/" + name );
+		}
 	}
 
-	std::string newPath = std::string( pRootDir ) + "/" PLATFORM_BIN_DIR + ":" + engineBin;
-	if ( !libraryPath.empty() )
-		newPath += ":" + libraryPath;
-	setenv( "LD_LIBRARY_PATH", newPath.c_str(), 1 );
-	setenv( "__GL_THREADED_OPTIMIZATIONS", "1", 0 );
-	// faccessat, not stat or access: the launcher links with --wrap for those
-	// (pathmatch), and nothing here provides the wrappers.
-	const std::string pathmatch = std::string( pEngineDir ) + "/pathmatch.inf";
-	if ( faccessat( AT_FDCWD, pathmatch.c_str(), F_OK, 0 ) == 0 )
-		setenv( "ENABLE_PATHMATCH", "1", 1 );
-	setenv( "TC2_LAUNCH_ENV", "1", 1 );
-
-	execv( "/proc/self/exe", argv );
-	perror( "Restarting with the engine's library path failed" );
+	// A library whose own dependencies are not loaded yet fails; go round
+	// until a pass loads nothing more.
+	bool bProgress = true;
+	while ( bProgress && !pending.empty() )
+	{
+		bProgress = false;
+		for ( size_t i = 0; i < pending.size(); )
+		{
+			if ( dlopen( pending[ i ].c_str(), RTLD_LAZY | RTLD_GLOBAL ) )
+			{
+				pending.erase( pending.begin() + i );
+				bProgress = true;
+			}
+			else
+			{
+				i++;
+			}
+		}
+	}
+	for ( const std::string &path : pending )
+	{
+		dlopen( path.c_str(), RTLD_LAZY | RTLD_GLOBAL );
+		fprintf( stderr, "Could not preload %s: %s\n", path.c_str(), dlerror() );
+	}
 }
 
 #include <fcntl.h>
@@ -1039,7 +1149,7 @@ int main( int argc, char *argv[] )
 		else
 		{
 #if defined( LINUX )
-			PrepareInProcessClient( pRootDir, pBinaryGameDir, argv );
+			PrepareInProcessClient( pRootDir, pBinaryGameDir );
 #endif
 			#define LAUNCHER_DLL_PATH	"%s/" PLATFORM_BIN_DIR "/launcher.so"
 			char szExecutable[8192];
@@ -1062,12 +1172,20 @@ int main( int argc, char *argv[] )
 			WaitForDebuggerConnect( argc, argv, 30 );
 
 			// The game named after this binary (tc2_linux64 -> tc2), as the
-			// -gathermod path passes it to hl2.sh.
+			// -gathermod path passes it to hl2.sh. A relative -game is taken
+			// from this binary's folder: the engine runs from TF2's.
 			bool bHasGame = false;
+			static std::string strGameArg;
 			for ( int i = 1; i < argc; i++ )
 			{
-				if ( !strcmp( argv[i], "-game" ) )
-					bHasGame = true;
+				if ( strcmp( argv[i], "-game" ) )
+					continue;
+				bHasGame = true;
+				if ( i + 1 < argc && argv[i + 1][0] != '/' )
+				{
+					strGameArg = std::string( pRootDir ) + "/" + argv[i + 1];
+					argv[i + 1] = (char *)strGameArg.c_str();
+				}
 			}
 			if ( !bHasGame )
 			{

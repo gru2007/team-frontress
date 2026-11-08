@@ -12,6 +12,7 @@
 #include "base_gcmessages.pb.h"
 #include "igameevents.h"
 #include "netadr.h"
+#include "inetchannelinfo.h"
 #include "econ_item_inventory.h"
 #include "tf_item_inventory.h"
 #include "tf_hud_mann_vs_machine_status.h"
@@ -336,8 +337,7 @@ void CTFGCClientSystem::FireGameEvent( IGameEvent *event )
 
 		// Back on our match's server by another route (see BOnLobbyServer).
 		const CTFGSLobby *pLobby = GetLobby();
-		if ( m_eConnectState == eConnectState_NonmatchmadeServer && pLobby && m_steamIDCurrentServer.IsValid() &&
-		     pLobby->GetServerID() == m_steamIDCurrentServer )
+		if ( m_eConnectState == eConnectState_NonmatchmadeServer && pLobby && BIsLobbyServer( pLobby ) )
 		{
 			m_eConnectState = eConnectState_ConnectedToMatchmade;
 			GCMatchmakingDebugSpew( 4, "Server is our match's server: treating it as matchmade.\n" );
@@ -1680,14 +1680,28 @@ void CTFGCClientSystem::RemoveLocalPlayerSOListener( ISharedObjectListener* pLis
 	}
 }
 
+bool CTFGCClientSystem::BIsLobbyServer( const CTFGSLobby *pLobby ) const
+{
+	if ( m_steamIDCurrentServer.IsValid() && pLobby->GetServerID() == m_steamIDCurrentServer )
+		return true;
+
+	// The Steam ID the coordinator has for the server is not always the one
+	// the server announces on connect (a server that logs on to Steam again
+	// can come back as someone else). The address the lobby sent us to is
+	// the other way to tell it is the same server.
+	const char *pszConnect = pLobby->GetConnect();
+	INetChannelInfo *pInfo = engine->GetNetChannelInfo();
+	const char *pszAddress = pInfo ? pInfo->GetAddress() : NULL;
+	return pszConnect && pszConnect[0] && pszAddress && !V_stricmp( pszAddress, pszConnect );
+}
+
 bool CTFGCClientSystem::BOnLobbyServer() const
 {
 	// Being on the lobby's server is what counts, however we got there: a
 	// reconnect, "retry", a map change or a join outside the queue all leave
 	// the connect state as non-matchmade.
 	const CTFGSLobby *pLobby = GetLobby();
-	return pLobby && engine->IsInGame() && m_steamIDCurrentServer.IsValid() &&
-		pLobby->GetServerID() == m_steamIDCurrentServer;
+	return pLobby && engine->IsInGame() && BIsLobbyServer( pLobby );
 }
 
 bool CTFGCClientSystem::BConnectedToMatchServer( bool bLiveMatch )
@@ -1700,7 +1714,7 @@ bool CTFGCClientSystem::BConnectedToMatchServer( bool bLiveMatch )
 	// the player is still on the server, on the summary screen.
 	const CTFGSLobby *pLobby = GetLobby();
 	return !bLiveMatch || ( pLobby && BHaveLiveMatch() &&
-		( !m_steamIDCurrentServer.IsValid() || pLobby->GetServerID() == m_steamIDCurrentServer ) );
+		( !m_steamIDCurrentServer.IsValid() || BIsLobbyServer( pLobby ) ) );
 }
 
 bool CTFGCClientSystem::BConnectingToMatchServer() const
