@@ -711,9 +711,10 @@ static void PrepareInProcessClient( const char *pRootDir, const char *pEngineDir
 		newPath += ":" + libraryPath;
 	setenv( "LD_LIBRARY_PATH", newPath.c_str(), 1 );
 	setenv( "__GL_THREADED_OPTIMIZATIONS", "1", 0 );
+	// faccessat, not stat or access: the launcher links with --wrap for those
+	// (pathmatch), and nothing here provides the wrappers.
 	const std::string pathmatch = std::string( pEngineDir ) + "/pathmatch.inf";
-	struct stat info;
-	if ( stat( pathmatch.c_str(), &info ) == 0 )
+	if ( faccessat( AT_FDCWD, pathmatch.c_str(), F_OK, 0 ) == 0 )
 		setenv( "ENABLE_PATHMATCH", "1", 1 );
 	setenv( "TC2_LAUNCH_ENV", "1", 1 );
 
