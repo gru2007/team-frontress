@@ -1,0 +1,40 @@
+//-----------------------------------------------------------------------------
+//	FRONTRESS_EAC.VPC
+//
+//	Easy Anti-Cheat (EOS SDK) for client_tf and server_tf.
+//
+//	The source files always build: without the SDK they compile to an
+//	unprotected stub that still answers a protected server. The SDK itself is
+//	only used when VPC runs with /define:FRONTRESS_EAC, which needs
+//	src/thirdparty/eos_sdk staged by tools/eac/stage_eos_sdk.sh (CI does this
+//	when the EOS secrets are set; see tools/eac/README.md).
+//-----------------------------------------------------------------------------
+
+$Configuration
+{
+	$Compiler
+	{
+		$AdditionalIncludeDirectories	"$BASE;$SRCDIR\thirdparty\eos_sdk\include;$SRCDIR\thirdparty\eos_sdk\config"	[$FRONTRESS_EAC]
+		$PreprocessorDefinitions		"$BASE;FRONTRESS_EAC"	[$FRONTRESS_EAC]
+	}
+}
+
+$Project
+{
+	$Folder "Link Libraries"
+	{
+		$ImpLibexternal "$SRCDIR\thirdparty\eos_sdk\lib\EOSSDK-Win64-Shipping"	[$FRONTRESS_EAC && $WIN64]
+		$ImpLibexternal "$SRCDIR\thirdparty\eos_sdk\lib\EOSSDK-Linux-Shipping"	[$FRONTRESS_EAC && $LINUXALL]
+		$ImpLibexternal "$SRCDIR\thirdparty\eos_sdk\lib\EOSSDK-Mac-Shipping"	[$FRONTRESS_EAC && $OSXALL]
+	}
+
+	$Folder "Source Files"
+	{
+		$Folder "Frontress Anti-Cheat"
+		{
+			$File	"$SRCDIR\game\shared\tf\frontress_anticheat_shared.h"
+			$File	"$SRCDIR\game\shared\tf\frontress_eos.h"
+			$File	"$SRCDIR\game\shared\tf\frontress_eos.cpp"
+		}
+	}
+}

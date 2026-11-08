@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gru2007/team-frontress/services/gc/internal/anticheat"
 	"github.com/gru2007/team-frontress/services/gc/internal/clans"
 	"github.com/gru2007/team-frontress/services/gc/internal/config"
 	"github.com/gru2007/team-frontress/services/gc/internal/gc"
@@ -77,6 +78,10 @@ func run(path string, log *slog.Logger) error {
 		return err
 	}
 	reportStore, err := reports.Open(file("reports"))
+	if err != nil {
+		return err
+	}
+	antiCheatStore, err := anticheat.Open(file("anticheat"))
 	if err != nil {
 		return err
 	}
@@ -153,18 +158,19 @@ func run(path string, log *slog.Logger) error {
 
 	hooks := sink.New(cfg.Webhooks, log)
 	g, err := gc.New(gc.Deps{
-		Config:   cfg,
-		Log:      log,
-		Players:  ps,
-		War:      engine,
-		Store:    state.Open(file("matches.json")),
-		History:  archive,
-		Reports:  reportStore,
-		Hooks:    hooks,
-		Clans:    cs,
-		Support:  book,
-		Steam:    steam,
-		Commerce: commerce,
+		Config:    cfg,
+		Log:       log,
+		Players:   ps,
+		War:       engine,
+		Store:     state.Open(file("matches.json")),
+		History:   archive,
+		Reports:   reportStore,
+		AntiCheat: antiCheatStore,
+		Hooks:     hooks,
+		Clans:     cs,
+		Support:   book,
+		Steam:     steam,
+		Commerce:  commerce,
 	})
 	if err != nil {
 		return err

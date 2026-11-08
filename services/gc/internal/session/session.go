@@ -64,6 +64,9 @@ type Session struct {
 	Connect     string // the address players use
 	Region      string
 	CommunityID string // which community operates this server
+	// AntiCheatAuthority: this server's anti-cheat bans are applied
+	// (config.ServerKey.AntiCheatAuthority).
+	AntiCheatAuthority bool
 
 	mu       sync.Mutex
 	outbox   []wire.Frame

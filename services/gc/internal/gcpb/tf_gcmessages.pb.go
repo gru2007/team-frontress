@@ -232,6 +232,8 @@ const (
 	ETFGCMsg_k_EMsgGCToGC_SendNotification                ETFGCMsg = 6585 // GC->GC, via SQL message queue, send a notification.  Used for queuing multiple notifications transactionally without locking everyone involved.
 	ETFGCMsg_k_EMsgGCParty_MMError                        ETFGCMsg = 6586 // GC -> client, feedback for when an MM error ends your queue/match/etc
 	ETFGCMsg_k_EMsgGC_GameServer_UpdateData               ETFGCMsg = 6587 // game server -> GC, report server data (CMsgGameServerData)
+	// Team Frontress
+	ETFGCMsg_k_EMsgGC_Frontress_AntiCheatEvent ETFGCMsg = 6590 // game server -> GC, an Easy Anti-Cheat verdict about a player (CMsgGC_Frontress_AntiCheatEvent)
 	// Development only messages
 	ETFGCMsg_k_EMsgGCDev_GrantWarKill ETFGCMsg = 10001 //War kill tracking. No longer in use
 )
@@ -407,6 +409,7 @@ var (
 		6585:  "k_EMsgGCToGC_SendNotification",
 		6586:  "k_EMsgGCParty_MMError",
 		6587:  "k_EMsgGC_GameServer_UpdateData",
+		6590:  "k_EMsgGC_Frontress_AntiCheatEvent",
 		10001: "k_EMsgGCDev_GrantWarKill",
 	}
 	ETFGCMsg_value = map[string]int32{
@@ -578,6 +581,7 @@ var (
 		"k_EMsgGCToGC_SendNotification":                          6585,
 		"k_EMsgGCParty_MMError":                                  6586,
 		"k_EMsgGC_GameServer_UpdateData":                         6587,
+		"k_EMsgGC_Frontress_AntiCheatEvent":                      6590,
 		"k_EMsgGCDev_GrantWarKill":                               10001,
 	}
 )
@@ -1360,6 +1364,80 @@ func (SurveyQuestionType) EnumDescriptor() ([]byte, []int) {
 	return file_tf_gcmessages_proto_rawDescGZIP(), []int{10}
 }
 
+type CMsgGC_Frontress_AntiCheatEvent_EEvent int32
+
+const (
+	CMsgGC_Frontress_AntiCheatEvent_kEvent_INVALID           CMsgGC_Frontress_AntiCheatEvent_EEvent = 0
+	CMsgGC_Frontress_AntiCheatEvent_kEvent_VERIFIED          CMsgGC_Frontress_AntiCheatEvent_EEvent = 1 // EAC authenticated the player; product_user_id is theirs
+	CMsgGC_Frontress_AntiCheatEvent_kEvent_KICKED            CMsgGC_Frontress_AntiCheatEvent_EEvent = 2 // removed for a reason that is not a verdict (timeouts, protocol)
+	CMsgGC_Frontress_AntiCheatEvent_kEvent_NOT_PROTECTED     CMsgGC_Frontress_AntiCheatEvent_EEvent = 3 // joined without working anti-cheat
+	CMsgGC_Frontress_AntiCheatEvent_kEvent_IDENTITY_MISMATCH CMsgGC_Frontress_AntiCheatEvent_EEvent = 4 // EOS identity did not belong to the Steam account
+	CMsgGC_Frontress_AntiCheatEvent_kEvent_VIOLATION         CMsgGC_Frontress_AntiCheatEvent_EEvent = 5 // client or backend integrity violation
+	CMsgGC_Frontress_AntiCheatEvent_kEvent_TEMP_BANNED       CMsgGC_Frontress_AntiCheatEvent_EEvent = 6 // an active temporary EOS sanction
+	CMsgGC_Frontress_AntiCheatEvent_kEvent_PERM_BANNED       CMsgGC_Frontress_AntiCheatEvent_EEvent = 7 // an active permanent EOS sanction
+)
+
+// Enum value maps for CMsgGC_Frontress_AntiCheatEvent_EEvent.
+var (
+	CMsgGC_Frontress_AntiCheatEvent_EEvent_name = map[int32]string{
+		0: "kEvent_INVALID",
+		1: "kEvent_VERIFIED",
+		2: "kEvent_KICKED",
+		3: "kEvent_NOT_PROTECTED",
+		4: "kEvent_IDENTITY_MISMATCH",
+		5: "kEvent_VIOLATION",
+		6: "kEvent_TEMP_BANNED",
+		7: "kEvent_PERM_BANNED",
+	}
+	CMsgGC_Frontress_AntiCheatEvent_EEvent_value = map[string]int32{
+		"kEvent_INVALID":           0,
+		"kEvent_VERIFIED":          1,
+		"kEvent_KICKED":            2,
+		"kEvent_NOT_PROTECTED":     3,
+		"kEvent_IDENTITY_MISMATCH": 4,
+		"kEvent_VIOLATION":         5,
+		"kEvent_TEMP_BANNED":       6,
+		"kEvent_PERM_BANNED":       7,
+	}
+)
+
+func (x CMsgGC_Frontress_AntiCheatEvent_EEvent) Enum() *CMsgGC_Frontress_AntiCheatEvent_EEvent {
+	p := new(CMsgGC_Frontress_AntiCheatEvent_EEvent)
+	*p = x
+	return p
+}
+
+func (x CMsgGC_Frontress_AntiCheatEvent_EEvent) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (CMsgGC_Frontress_AntiCheatEvent_EEvent) Descriptor() protoreflect.EnumDescriptor {
+	return file_tf_gcmessages_proto_enumTypes[11].Descriptor()
+}
+
+func (CMsgGC_Frontress_AntiCheatEvent_EEvent) Type() protoreflect.EnumType {
+	return &file_tf_gcmessages_proto_enumTypes[11]
+}
+
+func (x CMsgGC_Frontress_AntiCheatEvent_EEvent) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Do not use.
+func (x *CMsgGC_Frontress_AntiCheatEvent_EEvent) UnmarshalJSON(b []byte) error {
+	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
+	if err != nil {
+		return err
+	}
+	*x = CMsgGC_Frontress_AntiCheatEvent_EEvent(num)
+	return nil
+}
+
+// Deprecated: Use CMsgGC_Frontress_AntiCheatEvent_EEvent.Descriptor instead.
+func (CMsgGC_Frontress_AntiCheatEvent_EEvent) EnumDescriptor() ([]byte, []int) {
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{1, 0}
+}
+
 type CMsgGC_GameServer_CreateIdentityResponse_EStatus int32
 
 const (
@@ -1396,11 +1474,11 @@ func (x CMsgGC_GameServer_CreateIdentityResponse_EStatus) String() string {
 }
 
 func (CMsgGC_GameServer_CreateIdentityResponse_EStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_tf_gcmessages_proto_enumTypes[11].Descriptor()
+	return file_tf_gcmessages_proto_enumTypes[12].Descriptor()
 }
 
 func (CMsgGC_GameServer_CreateIdentityResponse_EStatus) Type() protoreflect.EnumType {
-	return &file_tf_gcmessages_proto_enumTypes[11]
+	return &file_tf_gcmessages_proto_enumTypes[12]
 }
 
 func (x CMsgGC_GameServer_CreateIdentityResponse_EStatus) Number() protoreflect.EnumNumber {
@@ -1419,7 +1497,7 @@ func (x *CMsgGC_GameServer_CreateIdentityResponse_EStatus) UnmarshalJSON(b []byt
 
 // Deprecated: Use CMsgGC_GameServer_CreateIdentityResponse_EStatus.Descriptor instead.
 func (CMsgGC_GameServer_CreateIdentityResponse_EStatus) EnumDescriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{40, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{41, 0}
 }
 
 type CMsgGC_Client_UseServerModificationItem_Response_EServerModificationItemResponse int32
@@ -1461,11 +1539,11 @@ func (x CMsgGC_Client_UseServerModificationItem_Response_EServerModificationItem
 }
 
 func (CMsgGC_Client_UseServerModificationItem_Response_EServerModificationItemResponse) Descriptor() protoreflect.EnumDescriptor {
-	return file_tf_gcmessages_proto_enumTypes[12].Descriptor()
+	return file_tf_gcmessages_proto_enumTypes[13].Descriptor()
 }
 
 func (CMsgGC_Client_UseServerModificationItem_Response_EServerModificationItemResponse) Type() protoreflect.EnumType {
-	return &file_tf_gcmessages_proto_enumTypes[12]
+	return &file_tf_gcmessages_proto_enumTypes[13]
 }
 
 func (x CMsgGC_Client_UseServerModificationItem_Response_EServerModificationItemResponse) Number() protoreflect.EnumNumber {
@@ -1484,7 +1562,7 @@ func (x *CMsgGC_Client_UseServerModificationItem_Response_EServerModificationIte
 
 // Deprecated: Use CMsgGC_Client_UseServerModificationItem_Response_EServerModificationItemResponse.Descriptor instead.
 func (CMsgGC_Client_UseServerModificationItem_Response_EServerModificationItemResponse) EnumDescriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{48, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{49, 0}
 }
 
 type CMsgGC_GameServer_UseServerModificationItem_Response_EServerModificationItemServerResponse int32
@@ -1520,11 +1598,11 @@ func (x CMsgGC_GameServer_UseServerModificationItem_Response_EServerModification
 }
 
 func (CMsgGC_GameServer_UseServerModificationItem_Response_EServerModificationItemServerResponse) Descriptor() protoreflect.EnumDescriptor {
-	return file_tf_gcmessages_proto_enumTypes[13].Descriptor()
+	return file_tf_gcmessages_proto_enumTypes[14].Descriptor()
 }
 
 func (CMsgGC_GameServer_UseServerModificationItem_Response_EServerModificationItemServerResponse) Type() protoreflect.EnumType {
-	return &file_tf_gcmessages_proto_enumTypes[13]
+	return &file_tf_gcmessages_proto_enumTypes[14]
 }
 
 func (x CMsgGC_GameServer_UseServerModificationItem_Response_EServerModificationItemServerResponse) Number() protoreflect.EnumNumber {
@@ -1543,7 +1621,7 @@ func (x *CMsgGC_GameServer_UseServerModificationItem_Response_EServerModificatio
 
 // Deprecated: Use CMsgGC_GameServer_UseServerModificationItem_Response_EServerModificationItemServerResponse.Descriptor instead.
 func (CMsgGC_GameServer_UseServerModificationItem_Response_EServerModificationItemServerResponse) EnumDescriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{50, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{51, 0}
 }
 
 type TFPendingPartyMember_EType int32
@@ -1576,11 +1654,11 @@ func (x TFPendingPartyMember_EType) String() string {
 }
 
 func (TFPendingPartyMember_EType) Descriptor() protoreflect.EnumDescriptor {
-	return file_tf_gcmessages_proto_enumTypes[14].Descriptor()
+	return file_tf_gcmessages_proto_enumTypes[15].Descriptor()
 }
 
 func (TFPendingPartyMember_EType) Type() protoreflect.EnumType {
-	return &file_tf_gcmessages_proto_enumTypes[14]
+	return &file_tf_gcmessages_proto_enumTypes[15]
 }
 
 func (x TFPendingPartyMember_EType) Number() protoreflect.EnumNumber {
@@ -1599,7 +1677,7 @@ func (x *TFPendingPartyMember_EType) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use TFPendingPartyMember_EType.Descriptor instead.
 func (TFPendingPartyMember_EType) EnumDescriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{60, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{61, 0}
 }
 
 type CMsgPartyMMError_Type int32
@@ -1632,11 +1710,11 @@ func (x CMsgPartyMMError_Type) String() string {
 }
 
 func (CMsgPartyMMError_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_tf_gcmessages_proto_enumTypes[15].Descriptor()
+	return file_tf_gcmessages_proto_enumTypes[16].Descriptor()
 }
 
 func (CMsgPartyMMError_Type) Type() protoreflect.EnumType {
-	return &file_tf_gcmessages_proto_enumTypes[15]
+	return &file_tf_gcmessages_proto_enumTypes[16]
 }
 
 func (x CMsgPartyMMError_Type) Number() protoreflect.EnumNumber {
@@ -1655,7 +1733,7 @@ func (x *CMsgPartyMMError_Type) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use CMsgPartyMMError_Type.Descriptor instead.
 func (CMsgPartyMMError_Type) EnumDescriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{79, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{80, 0}
 }
 
 // CTFPlayer::EPendingType
@@ -1689,11 +1767,11 @@ func (x CSOTFPartyInvite_Type) String() string {
 }
 
 func (CSOTFPartyInvite_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_tf_gcmessages_proto_enumTypes[16].Descriptor()
+	return file_tf_gcmessages_proto_enumTypes[17].Descriptor()
 }
 
 func (CSOTFPartyInvite_Type) Type() protoreflect.EnumType {
-	return &file_tf_gcmessages_proto_enumTypes[16]
+	return &file_tf_gcmessages_proto_enumTypes[17]
 }
 
 func (x CSOTFPartyInvite_Type) Number() protoreflect.EnumNumber {
@@ -1712,7 +1790,7 @@ func (x *CSOTFPartyInvite_Type) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use CSOTFPartyInvite_Type.Descriptor instead.
 func (CSOTFPartyInvite_Type) EnumDescriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{88, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{89, 0}
 }
 
 type CTFLobbyPlayerProto_ConnectState int32
@@ -1755,11 +1833,11 @@ func (x CTFLobbyPlayerProto_ConnectState) String() string {
 }
 
 func (CTFLobbyPlayerProto_ConnectState) Descriptor() protoreflect.EnumDescriptor {
-	return file_tf_gcmessages_proto_enumTypes[17].Descriptor()
+	return file_tf_gcmessages_proto_enumTypes[18].Descriptor()
 }
 
 func (CTFLobbyPlayerProto_ConnectState) Type() protoreflect.EnumType {
-	return &file_tf_gcmessages_proto_enumTypes[17]
+	return &file_tf_gcmessages_proto_enumTypes[18]
 }
 
 func (x CTFLobbyPlayerProto_ConnectState) Number() protoreflect.EnumNumber {
@@ -1778,7 +1856,7 @@ func (x *CTFLobbyPlayerProto_ConnectState) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use CTFLobbyPlayerProto_ConnectState.Descriptor instead.
 func (CTFLobbyPlayerProto_ConnectState) EnumDescriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{89, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{90, 0}
 }
 
 type CTFLobbyPlayerProto_Type int32
@@ -1817,11 +1895,11 @@ func (x CTFLobbyPlayerProto_Type) String() string {
 }
 
 func (CTFLobbyPlayerProto_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_tf_gcmessages_proto_enumTypes[18].Descriptor()
+	return file_tf_gcmessages_proto_enumTypes[19].Descriptor()
 }
 
 func (CTFLobbyPlayerProto_Type) Type() protoreflect.EnumType {
-	return &file_tf_gcmessages_proto_enumTypes[18]
+	return &file_tf_gcmessages_proto_enumTypes[19]
 }
 
 func (x CTFLobbyPlayerProto_Type) Number() protoreflect.EnumNumber {
@@ -1840,7 +1918,7 @@ func (x *CTFLobbyPlayerProto_Type) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use CTFLobbyPlayerProto_Type.Descriptor instead.
 func (CTFLobbyPlayerProto_Type) EnumDescriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{89, 1}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{90, 1}
 }
 
 // optional	uint32                    game_mode              = 3;
@@ -1879,11 +1957,11 @@ func (x CSOTFGameServerLobby_State) String() string {
 }
 
 func (CSOTFGameServerLobby_State) Descriptor() protoreflect.EnumDescriptor {
-	return file_tf_gcmessages_proto_enumTypes[19].Descriptor()
+	return file_tf_gcmessages_proto_enumTypes[20].Descriptor()
 }
 
 func (CSOTFGameServerLobby_State) Type() protoreflect.EnumType {
-	return &file_tf_gcmessages_proto_enumTypes[19]
+	return &file_tf_gcmessages_proto_enumTypes[20]
 }
 
 func (x CSOTFGameServerLobby_State) Number() protoreflect.EnumNumber {
@@ -1902,7 +1980,7 @@ func (x *CSOTFGameServerLobby_State) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use CSOTFGameServerLobby_State.Descriptor instead.
 func (CSOTFGameServerLobby_State) EnumDescriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{91, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{92, 0}
 }
 
 // Disabled for now - war not in progress, would need to be slightly tweaked for new MM world, but all code is
@@ -1940,11 +2018,11 @@ func (x CSOTFGameServerLobby_WarMatch) String() string {
 }
 
 func (CSOTFGameServerLobby_WarMatch) Descriptor() protoreflect.EnumDescriptor {
-	return file_tf_gcmessages_proto_enumTypes[20].Descriptor()
+	return file_tf_gcmessages_proto_enumTypes[21].Descriptor()
 }
 
 func (CSOTFGameServerLobby_WarMatch) Type() protoreflect.EnumType {
-	return &file_tf_gcmessages_proto_enumTypes[20]
+	return &file_tf_gcmessages_proto_enumTypes[21]
 }
 
 func (x CSOTFGameServerLobby_WarMatch) Number() protoreflect.EnumNumber {
@@ -1963,7 +2041,7 @@ func (x *CSOTFGameServerLobby_WarMatch) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use CSOTFGameServerLobby_WarMatch.Descriptor instead.
 func (CSOTFGameServerLobby_WarMatch) EnumDescriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{91, 1}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{92, 1}
 }
 
 type CMsgGameServerMatchmakingStatus_PlayerConnectState int32
@@ -1999,11 +2077,11 @@ func (x CMsgGameServerMatchmakingStatus_PlayerConnectState) String() string {
 }
 
 func (CMsgGameServerMatchmakingStatus_PlayerConnectState) Descriptor() protoreflect.EnumDescriptor {
-	return file_tf_gcmessages_proto_enumTypes[21].Descriptor()
+	return file_tf_gcmessages_proto_enumTypes[22].Descriptor()
 }
 
 func (CMsgGameServerMatchmakingStatus_PlayerConnectState) Type() protoreflect.EnumType {
-	return &file_tf_gcmessages_proto_enumTypes[21]
+	return &file_tf_gcmessages_proto_enumTypes[22]
 }
 
 func (x CMsgGameServerMatchmakingStatus_PlayerConnectState) Number() protoreflect.EnumNumber {
@@ -2022,7 +2100,7 @@ func (x *CMsgGameServerMatchmakingStatus_PlayerConnectState) UnmarshalJSON(b []b
 
 // Deprecated: Use CMsgGameServerMatchmakingStatus_PlayerConnectState.Descriptor instead.
 func (CMsgGameServerMatchmakingStatus_PlayerConnectState) EnumDescriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{98, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{99, 0}
 }
 
 type CMsgGameServerMatchmakingStatus_Event int32
@@ -2061,11 +2139,11 @@ func (x CMsgGameServerMatchmakingStatus_Event) String() string {
 }
 
 func (CMsgGameServerMatchmakingStatus_Event) Descriptor() protoreflect.EnumDescriptor {
-	return file_tf_gcmessages_proto_enumTypes[22].Descriptor()
+	return file_tf_gcmessages_proto_enumTypes[23].Descriptor()
 }
 
 func (CMsgGameServerMatchmakingStatus_Event) Type() protoreflect.EnumType {
-	return &file_tf_gcmessages_proto_enumTypes[22]
+	return &file_tf_gcmessages_proto_enumTypes[23]
 }
 
 func (x CMsgGameServerMatchmakingStatus_Event) Number() protoreflect.EnumNumber {
@@ -2084,7 +2162,7 @@ func (x *CMsgGameServerMatchmakingStatus_Event) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use CMsgGameServerMatchmakingStatus_Event.Descriptor instead.
 func (CMsgGameServerMatchmakingStatus_Event) EnumDescriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{98, 1}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{99, 1}
 }
 
 type CMsgMvMVictoryInfo_GrantReason int32
@@ -2126,11 +2204,11 @@ func (x CMsgMvMVictoryInfo_GrantReason) String() string {
 }
 
 func (CMsgMvMVictoryInfo_GrantReason) Descriptor() protoreflect.EnumDescriptor {
-	return file_tf_gcmessages_proto_enumTypes[23].Descriptor()
+	return file_tf_gcmessages_proto_enumTypes[24].Descriptor()
 }
 
 func (CMsgMvMVictoryInfo_GrantReason) Type() protoreflect.EnumType {
-	return &file_tf_gcmessages_proto_enumTypes[23]
+	return &file_tf_gcmessages_proto_enumTypes[24]
 }
 
 func (x CMsgMvMVictoryInfo_GrantReason) Number() protoreflect.EnumNumber {
@@ -2149,7 +2227,7 @@ func (x *CMsgMvMVictoryInfo_GrantReason) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use CMsgMvMVictoryInfo_GrantReason.Descriptor instead.
 func (CMsgMvMVictoryInfo_GrantReason) EnumDescriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{100, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{101, 0}
 }
 
 type CMsgTFXPSource_XPSourceType int32
@@ -2200,11 +2278,11 @@ func (x CMsgTFXPSource_XPSourceType) String() string {
 }
 
 func (CMsgTFXPSource_XPSourceType) Descriptor() protoreflect.EnumDescriptor {
-	return file_tf_gcmessages_proto_enumTypes[24].Descriptor()
+	return file_tf_gcmessages_proto_enumTypes[25].Descriptor()
 }
 
 func (CMsgTFXPSource_XPSourceType) Type() protoreflect.EnumType {
-	return &file_tf_gcmessages_proto_enumTypes[24]
+	return &file_tf_gcmessages_proto_enumTypes[25]
 }
 
 func (x CMsgTFXPSource_XPSourceType) Number() protoreflect.EnumNumber {
@@ -2223,7 +2301,7 @@ func (x *CMsgTFXPSource_XPSourceType) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use CMsgTFXPSource_XPSourceType.Descriptor instead.
 func (CMsgTFXPSource_XPSourceType) EnumDescriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{130, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{131, 0}
 }
 
 // Message GC sends to clients when they have a pending notification
@@ -2272,11 +2350,11 @@ func (x CMsgGCNotification_NotificationType) String() string {
 }
 
 func (CMsgGCNotification_NotificationType) Descriptor() protoreflect.EnumDescriptor {
-	return file_tf_gcmessages_proto_enumTypes[25].Descriptor()
+	return file_tf_gcmessages_proto_enumTypes[26].Descriptor()
 }
 
 func (CMsgGCNotification_NotificationType) Type() protoreflect.EnumType {
-	return &file_tf_gcmessages_proto_enumTypes[25]
+	return &file_tf_gcmessages_proto_enumTypes[26]
 }
 
 func (x CMsgGCNotification_NotificationType) Number() protoreflect.EnumNumber {
@@ -2295,7 +2373,7 @@ func (x *CMsgGCNotification_NotificationType) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use CMsgGCNotification_NotificationType.Descriptor instead.
 func (CMsgGCNotification_NotificationType) EnumDescriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{133, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{134, 0}
 }
 
 type CMsgGC_Match_Result_Status int32
@@ -2345,11 +2423,11 @@ func (x CMsgGC_Match_Result_Status) String() string {
 }
 
 func (CMsgGC_Match_Result_Status) Descriptor() protoreflect.EnumDescriptor {
-	return file_tf_gcmessages_proto_enumTypes[26].Descriptor()
+	return file_tf_gcmessages_proto_enumTypes[27].Descriptor()
 }
 
 func (CMsgGC_Match_Result_Status) Type() protoreflect.EnumType {
-	return &file_tf_gcmessages_proto_enumTypes[26]
+	return &file_tf_gcmessages_proto_enumTypes[27]
 }
 
 func (x CMsgGC_Match_Result_Status) Number() protoreflect.EnumNumber {
@@ -2368,7 +2446,7 @@ func (x *CMsgGC_Match_Result_Status) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use CMsgGC_Match_Result_Status.Descriptor instead.
 func (CMsgGC_Match_Result_Status) EnumDescriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{137, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{138, 0}
 }
 
 type CMsgGC_Match_Result_EventInfo_EventType int32
@@ -2401,11 +2479,11 @@ func (x CMsgGC_Match_Result_EventInfo_EventType) String() string {
 }
 
 func (CMsgGC_Match_Result_EventInfo_EventType) Descriptor() protoreflect.EnumDescriptor {
-	return file_tf_gcmessages_proto_enumTypes[27].Descriptor()
+	return file_tf_gcmessages_proto_enumTypes[28].Descriptor()
 }
 
 func (CMsgGC_Match_Result_EventInfo_EventType) Type() protoreflect.EnumType {
-	return &file_tf_gcmessages_proto_enumTypes[27]
+	return &file_tf_gcmessages_proto_enumTypes[28]
 }
 
 func (x CMsgGC_Match_Result_EventInfo_EventType) Number() protoreflect.EnumNumber {
@@ -2424,7 +2502,7 @@ func (x *CMsgGC_Match_Result_EventInfo_EventType) UnmarshalJSON(b []byte) error 
 
 // Deprecated: Use CMsgGC_Match_Result_EventInfo_EventType.Descriptor instead.
 func (CMsgGC_Match_Result_EventInfo_EventType) EnumDescriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{137, 1, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{138, 1, 0}
 }
 
 type CMsgGC_ReportPlayer_EReason int32
@@ -2470,11 +2548,11 @@ func (x CMsgGC_ReportPlayer_EReason) String() string {
 }
 
 func (CMsgGC_ReportPlayer_EReason) Descriptor() protoreflect.EnumDescriptor {
-	return file_tf_gcmessages_proto_enumTypes[28].Descriptor()
+	return file_tf_gcmessages_proto_enumTypes[29].Descriptor()
 }
 
 func (CMsgGC_ReportPlayer_EReason) Type() protoreflect.EnumType {
-	return &file_tf_gcmessages_proto_enumTypes[28]
+	return &file_tf_gcmessages_proto_enumTypes[29]
 }
 
 func (x CMsgGC_ReportPlayer_EReason) Number() protoreflect.EnumNumber {
@@ -2493,7 +2571,7 @@ func (x *CMsgGC_ReportPlayer_EReason) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use CMsgGC_ReportPlayer_EReason.Descriptor instead.
 func (CMsgGC_ReportPlayer_EReason) EnumDescriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{148, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{149, 0}
 }
 
 type CMsgGCDataCenterPing_Update_Status int32
@@ -2532,11 +2610,11 @@ func (x CMsgGCDataCenterPing_Update_Status) String() string {
 }
 
 func (CMsgGCDataCenterPing_Update_Status) Descriptor() protoreflect.EnumDescriptor {
-	return file_tf_gcmessages_proto_enumTypes[29].Descriptor()
+	return file_tf_gcmessages_proto_enumTypes[30].Descriptor()
 }
 
 func (CMsgGCDataCenterPing_Update_Status) Type() protoreflect.EnumType {
-	return &file_tf_gcmessages_proto_enumTypes[29]
+	return &file_tf_gcmessages_proto_enumTypes[30]
 }
 
 func (x CMsgGCDataCenterPing_Update_Status) Number() protoreflect.EnumNumber {
@@ -2555,7 +2633,7 @@ func (x *CMsgGCDataCenterPing_Update_Status) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use CMsgGCDataCenterPing_Update_Status.Descriptor instead.
 func (CMsgGCDataCenterPing_Update_Status) EnumDescriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{155, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{156, 0}
 }
 
 // k_EMsgGC_GameServer_UpdateData
@@ -2803,6 +2881,107 @@ func (x *CMsgGameServerData) GetGameServerToken() string {
 	return ""
 }
 
+// k_EMsgGC_Frontress_AntiCheatEvent
+//
+// What Easy Anti-Cheat decided about a player on a protected server. The GC
+// keeps these per player and keeps sanctioned players out of matchmaking.
+type CMsgGC_Frontress_AntiCheatEvent struct {
+	state         protoimpl.MessageState                  `protogen:"open.v1"`
+	SteamId       *uint64                                 `protobuf:"fixed64,1,opt,name=steam_id,json=steamId" json:"steam_id,omitempty"`
+	ProductUserId *string                                 `protobuf:"bytes,2,opt,name=product_user_id,json=productUserId" json:"product_user_id,omitempty"`
+	Event         *CMsgGC_Frontress_AntiCheatEvent_EEvent `protobuf:"varint,3,opt,name=event,enum=CMsgGC_Frontress_AntiCheatEvent_EEvent,def=0" json:"event,omitempty"`
+	ActionReason  *uint32                                 `protobuf:"varint,4,opt,name=action_reason,json=actionReason" json:"action_reason,omitempty"` // EOS_EAntiCheatCommonClientActionReason
+	Details       *string                                 `protobuf:"bytes,5,opt,name=details" json:"details,omitempty"`
+	MatchId       *uint64                                 `protobuf:"varint,6,opt,name=match_id,json=matchId" json:"match_id,omitempty"`
+	Enforced      *bool                                   `protobuf:"varint,7,opt,name=enforced" json:"enforced,omitempty"` // false: the server only logged it (fr_eac_enforce 0)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+// Default values for CMsgGC_Frontress_AntiCheatEvent fields.
+const (
+	Default_CMsgGC_Frontress_AntiCheatEvent_Event = CMsgGC_Frontress_AntiCheatEvent_kEvent_INVALID
+)
+
+func (x *CMsgGC_Frontress_AntiCheatEvent) Reset() {
+	*x = CMsgGC_Frontress_AntiCheatEvent{}
+	mi := &file_tf_gcmessages_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CMsgGC_Frontress_AntiCheatEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CMsgGC_Frontress_AntiCheatEvent) ProtoMessage() {}
+
+func (x *CMsgGC_Frontress_AntiCheatEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_tf_gcmessages_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CMsgGC_Frontress_AntiCheatEvent.ProtoReflect.Descriptor instead.
+func (*CMsgGC_Frontress_AntiCheatEvent) Descriptor() ([]byte, []int) {
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *CMsgGC_Frontress_AntiCheatEvent) GetSteamId() uint64 {
+	if x != nil && x.SteamId != nil {
+		return *x.SteamId
+	}
+	return 0
+}
+
+func (x *CMsgGC_Frontress_AntiCheatEvent) GetProductUserId() string {
+	if x != nil && x.ProductUserId != nil {
+		return *x.ProductUserId
+	}
+	return ""
+}
+
+func (x *CMsgGC_Frontress_AntiCheatEvent) GetEvent() CMsgGC_Frontress_AntiCheatEvent_EEvent {
+	if x != nil && x.Event != nil {
+		return *x.Event
+	}
+	return Default_CMsgGC_Frontress_AntiCheatEvent_Event
+}
+
+func (x *CMsgGC_Frontress_AntiCheatEvent) GetActionReason() uint32 {
+	if x != nil && x.ActionReason != nil {
+		return *x.ActionReason
+	}
+	return 0
+}
+
+func (x *CMsgGC_Frontress_AntiCheatEvent) GetDetails() string {
+	if x != nil && x.Details != nil {
+		return *x.Details
+	}
+	return ""
+}
+
+func (x *CMsgGC_Frontress_AntiCheatEvent) GetMatchId() uint64 {
+	if x != nil && x.MatchId != nil {
+		return *x.MatchId
+	}
+	return 0
+}
+
+func (x *CMsgGC_Frontress_AntiCheatEvent) GetEnforced() bool {
+	if x != nil && x.Enforced != nil {
+		return *x.Enforced
+	}
+	return false
+}
+
 type CMsgGSUserPlaying struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SteamId       *uint64                `protobuf:"fixed64,1,opt,name=steam_id,json=steamId" json:"steam_id,omitempty"`
@@ -2814,7 +2993,7 @@ type CMsgGSUserPlaying struct {
 
 func (x *CMsgGSUserPlaying) Reset() {
 	*x = CMsgGSUserPlaying{}
-	mi := &file_tf_gcmessages_proto_msgTypes[1]
+	mi := &file_tf_gcmessages_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2826,7 +3005,7 @@ func (x *CMsgGSUserPlaying) String() string {
 func (*CMsgGSUserPlaying) ProtoMessage() {}
 
 func (x *CMsgGSUserPlaying) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[1]
+	mi := &file_tf_gcmessages_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2839,7 +3018,7 @@ func (x *CMsgGSUserPlaying) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGSUserPlaying.ProtoReflect.Descriptor instead.
 func (*CMsgGSUserPlaying) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{1}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *CMsgGSUserPlaying) GetSteamId() uint64 {
@@ -2872,7 +3051,7 @@ type CMsgGSDisconnectNotice struct {
 
 func (x *CMsgGSDisconnectNotice) Reset() {
 	*x = CMsgGSDisconnectNotice{}
-	mi := &file_tf_gcmessages_proto_msgTypes[2]
+	mi := &file_tf_gcmessages_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2884,7 +3063,7 @@ func (x *CMsgGSDisconnectNotice) String() string {
 func (*CMsgGSDisconnectNotice) ProtoMessage() {}
 
 func (x *CMsgGSDisconnectNotice) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[2]
+	mi := &file_tf_gcmessages_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2897,7 +3076,7 @@ func (x *CMsgGSDisconnectNotice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGSDisconnectNotice.ProtoReflect.Descriptor instead.
 func (*CMsgGSDisconnectNotice) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{2}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *CMsgGSDisconnectNotice) GetSteamId() uint64 {
@@ -2919,7 +3098,7 @@ type CMsgTFGoldenWrenchBroadcast struct {
 
 func (x *CMsgTFGoldenWrenchBroadcast) Reset() {
 	*x = CMsgTFGoldenWrenchBroadcast{}
-	mi := &file_tf_gcmessages_proto_msgTypes[3]
+	mi := &file_tf_gcmessages_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2931,7 +3110,7 @@ func (x *CMsgTFGoldenWrenchBroadcast) String() string {
 func (*CMsgTFGoldenWrenchBroadcast) ProtoMessage() {}
 
 func (x *CMsgTFGoldenWrenchBroadcast) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[3]
+	mi := &file_tf_gcmessages_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2944,7 +3123,7 @@ func (x *CMsgTFGoldenWrenchBroadcast) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgTFGoldenWrenchBroadcast.ProtoReflect.Descriptor instead.
 func (*CMsgTFGoldenWrenchBroadcast) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{3}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *CMsgTFGoldenWrenchBroadcast) GetWrenchNumber() int32 {
@@ -2979,7 +3158,7 @@ type CMsgTFSaxxyBroadcast struct {
 
 func (x *CMsgTFSaxxyBroadcast) Reset() {
 	*x = CMsgTFSaxxyBroadcast{}
-	mi := &file_tf_gcmessages_proto_msgTypes[4]
+	mi := &file_tf_gcmessages_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2991,7 +3170,7 @@ func (x *CMsgTFSaxxyBroadcast) String() string {
 func (*CMsgTFSaxxyBroadcast) ProtoMessage() {}
 
 func (x *CMsgTFSaxxyBroadcast) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[4]
+	mi := &file_tf_gcmessages_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3004,7 +3183,7 @@ func (x *CMsgTFSaxxyBroadcast) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgTFSaxxyBroadcast.ProtoReflect.Descriptor instead.
 func (*CMsgTFSaxxyBroadcast) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{4}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *CMsgTFSaxxyBroadcast) GetCategoryNumber() int32 {
@@ -3033,7 +3212,7 @@ type CMsgGCTFSpecificItemBroadcast struct {
 
 func (x *CMsgGCTFSpecificItemBroadcast) Reset() {
 	*x = CMsgGCTFSpecificItemBroadcast{}
-	mi := &file_tf_gcmessages_proto_msgTypes[5]
+	mi := &file_tf_gcmessages_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3045,7 +3224,7 @@ func (x *CMsgGCTFSpecificItemBroadcast) String() string {
 func (*CMsgGCTFSpecificItemBroadcast) ProtoMessage() {}
 
 func (x *CMsgGCTFSpecificItemBroadcast) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[5]
+	mi := &file_tf_gcmessages_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3058,7 +3237,7 @@ func (x *CMsgGCTFSpecificItemBroadcast) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGCTFSpecificItemBroadcast.ProtoReflect.Descriptor instead.
 func (*CMsgGCTFSpecificItemBroadcast) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{5}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *CMsgGCTFSpecificItemBroadcast) GetItemDefIndex() uint32 {
@@ -3113,7 +3292,7 @@ const (
 
 func (x *CMsgTFWorldStatus) Reset() {
 	*x = CMsgTFWorldStatus{}
-	mi := &file_tf_gcmessages_proto_msgTypes[6]
+	mi := &file_tf_gcmessages_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3125,7 +3304,7 @@ func (x *CMsgTFWorldStatus) String() string {
 func (*CMsgTFWorldStatus) ProtoMessage() {}
 
 func (x *CMsgTFWorldStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[6]
+	mi := &file_tf_gcmessages_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3138,7 +3317,7 @@ func (x *CMsgTFWorldStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgTFWorldStatus.ProtoReflect.Descriptor instead.
 func (*CMsgTFWorldStatus) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{6}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *CMsgTFWorldStatus) GetBetaStressTestEventActive() bool {
@@ -3191,7 +3370,7 @@ type CSOTFDuelSummary struct {
 
 func (x *CSOTFDuelSummary) Reset() {
 	*x = CSOTFDuelSummary{}
-	mi := &file_tf_gcmessages_proto_msgTypes[7]
+	mi := &file_tf_gcmessages_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3203,7 +3382,7 @@ func (x *CSOTFDuelSummary) String() string {
 func (*CSOTFDuelSummary) ProtoMessage() {}
 
 func (x *CSOTFDuelSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[7]
+	mi := &file_tf_gcmessages_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3216,7 +3395,7 @@ func (x *CSOTFDuelSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CSOTFDuelSummary.ProtoReflect.Descriptor instead.
 func (*CSOTFDuelSummary) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{7}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *CSOTFDuelSummary) GetAccountId() uint32 {
@@ -3272,7 +3451,7 @@ type CMsgTrackedStat struct {
 
 func (x *CMsgTrackedStat) Reset() {
 	*x = CMsgTrackedStat{}
-	mi := &file_tf_gcmessages_proto_msgTypes[8]
+	mi := &file_tf_gcmessages_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3284,7 +3463,7 @@ func (x *CMsgTrackedStat) String() string {
 func (*CMsgTrackedStat) ProtoMessage() {}
 
 func (x *CMsgTrackedStat) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[8]
+	mi := &file_tf_gcmessages_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3297,7 +3476,7 @@ func (x *CMsgTrackedStat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgTrackedStat.ProtoReflect.Descriptor instead.
 func (*CMsgTrackedStat) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{8}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *CMsgTrackedStat) GetTrackedStatId() uint32 {
@@ -3326,7 +3505,7 @@ type CSOTFMapContribution struct {
 
 func (x *CSOTFMapContribution) Reset() {
 	*x = CSOTFMapContribution{}
-	mi := &file_tf_gcmessages_proto_msgTypes[9]
+	mi := &file_tf_gcmessages_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3338,7 +3517,7 @@ func (x *CSOTFMapContribution) String() string {
 func (*CSOTFMapContribution) ProtoMessage() {}
 
 func (x *CSOTFMapContribution) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[9]
+	mi := &file_tf_gcmessages_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3351,7 +3530,7 @@ func (x *CSOTFMapContribution) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CSOTFMapContribution.ProtoReflect.Descriptor instead.
 func (*CSOTFMapContribution) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{9}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *CSOTFMapContribution) GetAccountId() uint32 {
@@ -3385,7 +3564,7 @@ type CMsgTFFreeTrialChooseMostHelpfulFriend struct {
 
 func (x *CMsgTFFreeTrialChooseMostHelpfulFriend) Reset() {
 	*x = CMsgTFFreeTrialChooseMostHelpfulFriend{}
-	mi := &file_tf_gcmessages_proto_msgTypes[10]
+	mi := &file_tf_gcmessages_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3397,7 +3576,7 @@ func (x *CMsgTFFreeTrialChooseMostHelpfulFriend) String() string {
 func (*CMsgTFFreeTrialChooseMostHelpfulFriend) ProtoMessage() {}
 
 func (x *CMsgTFFreeTrialChooseMostHelpfulFriend) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[10]
+	mi := &file_tf_gcmessages_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3410,7 +3589,7 @@ func (x *CMsgTFFreeTrialChooseMostHelpfulFriend) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use CMsgTFFreeTrialChooseMostHelpfulFriend.ProtoReflect.Descriptor instead.
 func (*CMsgTFFreeTrialChooseMostHelpfulFriend) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{10}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *CMsgTFFreeTrialChooseMostHelpfulFriend) GetAccountIdFriend() uint32 {
@@ -3430,7 +3609,7 @@ type CMsgTFRequestTF2Friends struct {
 
 func (x *CMsgTFRequestTF2Friends) Reset() {
 	*x = CMsgTFRequestTF2Friends{}
-	mi := &file_tf_gcmessages_proto_msgTypes[11]
+	mi := &file_tf_gcmessages_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3442,7 +3621,7 @@ func (x *CMsgTFRequestTF2Friends) String() string {
 func (*CMsgTFRequestTF2Friends) ProtoMessage() {}
 
 func (x *CMsgTFRequestTF2Friends) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[11]
+	mi := &file_tf_gcmessages_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3455,7 +3634,7 @@ func (x *CMsgTFRequestTF2Friends) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgTFRequestTF2Friends.ProtoReflect.Descriptor instead.
 func (*CMsgTFRequestTF2Friends) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{11}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *CMsgTFRequestTF2Friends) GetAccountIds() []uint32 {
@@ -3475,7 +3654,7 @@ type CMsgTFRequestTF2FriendsResponse struct {
 
 func (x *CMsgTFRequestTF2FriendsResponse) Reset() {
 	*x = CMsgTFRequestTF2FriendsResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[12]
+	mi := &file_tf_gcmessages_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3487,7 +3666,7 @@ func (x *CMsgTFRequestTF2FriendsResponse) String() string {
 func (*CMsgTFRequestTF2FriendsResponse) ProtoMessage() {}
 
 func (x *CMsgTFRequestTF2FriendsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[12]
+	mi := &file_tf_gcmessages_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3500,7 +3679,7 @@ func (x *CMsgTFRequestTF2FriendsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgTFRequestTF2FriendsResponse.ProtoReflect.Descriptor instead.
 func (*CMsgTFRequestTF2FriendsResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{12}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *CMsgTFRequestTF2FriendsResponse) GetAccountIds() []uint32 {
@@ -3520,7 +3699,7 @@ type CSOTFPlayerInfo struct {
 
 func (x *CSOTFPlayerInfo) Reset() {
 	*x = CSOTFPlayerInfo{}
-	mi := &file_tf_gcmessages_proto_msgTypes[13]
+	mi := &file_tf_gcmessages_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3532,7 +3711,7 @@ func (x *CSOTFPlayerInfo) String() string {
 func (*CSOTFPlayerInfo) ProtoMessage() {}
 
 func (x *CSOTFPlayerInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[13]
+	mi := &file_tf_gcmessages_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3545,7 +3724,7 @@ func (x *CSOTFPlayerInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CSOTFPlayerInfo.ProtoReflect.Descriptor instead.
 func (*CSOTFPlayerInfo) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{13}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *CSOTFPlayerInfo) GetNumNewUsersHelped() uint32 {
@@ -3565,7 +3744,7 @@ type CMsgTFThankedBySomeone struct {
 
 func (x *CMsgTFThankedBySomeone) Reset() {
 	*x = CMsgTFThankedBySomeone{}
-	mi := &file_tf_gcmessages_proto_msgTypes[14]
+	mi := &file_tf_gcmessages_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3577,7 +3756,7 @@ func (x *CMsgTFThankedBySomeone) String() string {
 func (*CMsgTFThankedBySomeone) ProtoMessage() {}
 
 func (x *CMsgTFThankedBySomeone) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[14]
+	mi := &file_tf_gcmessages_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3590,7 +3769,7 @@ func (x *CMsgTFThankedBySomeone) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgTFThankedBySomeone.ProtoReflect.Descriptor instead.
 func (*CMsgTFThankedBySomeone) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{14}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *CMsgTFThankedBySomeone) GetThankerSteamId() uint64 {
@@ -3609,7 +3788,7 @@ type CMsgTFThankedSomeone struct {
 
 func (x *CMsgTFThankedSomeone) Reset() {
 	*x = CMsgTFThankedSomeone{}
-	mi := &file_tf_gcmessages_proto_msgTypes[15]
+	mi := &file_tf_gcmessages_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3621,7 +3800,7 @@ func (x *CMsgTFThankedSomeone) String() string {
 func (*CMsgTFThankedSomeone) ProtoMessage() {}
 
 func (x *CMsgTFThankedSomeone) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[15]
+	mi := &file_tf_gcmessages_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3634,7 +3813,7 @@ func (x *CMsgTFThankedSomeone) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgTFThankedSomeone.ProtoReflect.Descriptor instead.
 func (*CMsgTFThankedSomeone) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{15}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{16}
 }
 
 // k_EMsgGCFreeTrial_ConvertedToPremium
@@ -3646,7 +3825,7 @@ type CMsgTFFreeTrialConvertedToPremium struct {
 
 func (x *CMsgTFFreeTrialConvertedToPremium) Reset() {
 	*x = CMsgTFFreeTrialConvertedToPremium{}
-	mi := &file_tf_gcmessages_proto_msgTypes[16]
+	mi := &file_tf_gcmessages_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3658,7 +3837,7 @@ func (x *CMsgTFFreeTrialConvertedToPremium) String() string {
 func (*CMsgTFFreeTrialConvertedToPremium) ProtoMessage() {}
 
 func (x *CMsgTFFreeTrialConvertedToPremium) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[16]
+	mi := &file_tf_gcmessages_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3671,7 +3850,7 @@ func (x *CMsgTFFreeTrialConvertedToPremium) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use CMsgTFFreeTrialConvertedToPremium.ProtoReflect.Descriptor instead.
 func (*CMsgTFFreeTrialConvertedToPremium) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{16}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{17}
 }
 
 // k_EMsgGCSaxxy_Awarded
@@ -3685,7 +3864,7 @@ type CMsgSaxxyAwarded struct {
 
 func (x *CMsgSaxxyAwarded) Reset() {
 	*x = CMsgSaxxyAwarded{}
-	mi := &file_tf_gcmessages_proto_msgTypes[17]
+	mi := &file_tf_gcmessages_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3697,7 +3876,7 @@ func (x *CMsgSaxxyAwarded) String() string {
 func (*CMsgSaxxyAwarded) ProtoMessage() {}
 
 func (x *CMsgSaxxyAwarded) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[17]
+	mi := &file_tf_gcmessages_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3710,7 +3889,7 @@ func (x *CMsgSaxxyAwarded) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgSaxxyAwarded.ProtoReflect.Descriptor instead.
 func (*CMsgSaxxyAwarded) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{17}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *CMsgSaxxyAwarded) GetCategory() uint32 {
@@ -3738,7 +3917,7 @@ type CMsgReplaySubmitContestEntry struct {
 
 func (x *CMsgReplaySubmitContestEntry) Reset() {
 	*x = CMsgReplaySubmitContestEntry{}
-	mi := &file_tf_gcmessages_proto_msgTypes[18]
+	mi := &file_tf_gcmessages_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3750,7 +3929,7 @@ func (x *CMsgReplaySubmitContestEntry) String() string {
 func (*CMsgReplaySubmitContestEntry) ProtoMessage() {}
 
 func (x *CMsgReplaySubmitContestEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[18]
+	mi := &file_tf_gcmessages_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3763,7 +3942,7 @@ func (x *CMsgReplaySubmitContestEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgReplaySubmitContestEntry.ProtoReflect.Descriptor instead.
 func (*CMsgReplaySubmitContestEntry) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{18}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *CMsgReplaySubmitContestEntry) GetYoutubeUrl() string {
@@ -3790,7 +3969,7 @@ type CMsgReplaySubmitContestEntryResponse struct {
 
 func (x *CMsgReplaySubmitContestEntryResponse) Reset() {
 	*x = CMsgReplaySubmitContestEntryResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[19]
+	mi := &file_tf_gcmessages_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3802,7 +3981,7 @@ func (x *CMsgReplaySubmitContestEntryResponse) String() string {
 func (*CMsgReplaySubmitContestEntryResponse) ProtoMessage() {}
 
 func (x *CMsgReplaySubmitContestEntryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[19]
+	mi := &file_tf_gcmessages_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3815,7 +3994,7 @@ func (x *CMsgReplaySubmitContestEntryResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use CMsgReplaySubmitContestEntryResponse.ProtoReflect.Descriptor instead.
 func (*CMsgReplaySubmitContestEntryResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{19}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *CMsgReplaySubmitContestEntryResponse) GetSuccess() bool {
@@ -3840,7 +4019,7 @@ type CReplayCachedContestData struct {
 
 func (x *CReplayCachedContestData) Reset() {
 	*x = CReplayCachedContestData{}
-	mi := &file_tf_gcmessages_proto_msgTypes[20]
+	mi := &file_tf_gcmessages_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3852,7 +4031,7 @@ func (x *CReplayCachedContestData) String() string {
 func (*CReplayCachedContestData) ProtoMessage() {}
 
 func (x *CReplayCachedContestData) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[20]
+	mi := &file_tf_gcmessages_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3865,7 +4044,7 @@ func (x *CReplayCachedContestData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CReplayCachedContestData.ProtoReflect.Descriptor instead.
 func (*CReplayCachedContestData) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{20}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *CReplayCachedContestData) GetTimestamp() uint32 {
@@ -3905,7 +4084,7 @@ type CMsgTFCoaching_AddToCoaches struct {
 
 func (x *CMsgTFCoaching_AddToCoaches) Reset() {
 	*x = CMsgTFCoaching_AddToCoaches{}
-	mi := &file_tf_gcmessages_proto_msgTypes[21]
+	mi := &file_tf_gcmessages_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3917,7 +4096,7 @@ func (x *CMsgTFCoaching_AddToCoaches) String() string {
 func (*CMsgTFCoaching_AddToCoaches) ProtoMessage() {}
 
 func (x *CMsgTFCoaching_AddToCoaches) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[21]
+	mi := &file_tf_gcmessages_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3930,7 +4109,7 @@ func (x *CMsgTFCoaching_AddToCoaches) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgTFCoaching_AddToCoaches.ProtoReflect.Descriptor instead.
 func (*CMsgTFCoaching_AddToCoaches) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{21}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{22}
 }
 
 // k_EMsgGCCoaching_RemoveFromCoaches
@@ -3942,7 +4121,7 @@ type CMsgTFCoaching_RemoveFromCoaches struct {
 
 func (x *CMsgTFCoaching_RemoveFromCoaches) Reset() {
 	*x = CMsgTFCoaching_RemoveFromCoaches{}
-	mi := &file_tf_gcmessages_proto_msgTypes[22]
+	mi := &file_tf_gcmessages_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3954,7 +4133,7 @@ func (x *CMsgTFCoaching_RemoveFromCoaches) String() string {
 func (*CMsgTFCoaching_RemoveFromCoaches) ProtoMessage() {}
 
 func (x *CMsgTFCoaching_RemoveFromCoaches) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[22]
+	mi := &file_tf_gcmessages_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3967,7 +4146,7 @@ func (x *CMsgTFCoaching_RemoveFromCoaches) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgTFCoaching_RemoveFromCoaches.ProtoReflect.Descriptor instead.
 func (*CMsgTFCoaching_RemoveFromCoaches) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{22}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{23}
 }
 
 // k_EMsgGCCoaching_FindCoach
@@ -3980,7 +4159,7 @@ type CMsgTFCoaching_FindCoach struct {
 
 func (x *CMsgTFCoaching_FindCoach) Reset() {
 	*x = CMsgTFCoaching_FindCoach{}
-	mi := &file_tf_gcmessages_proto_msgTypes[23]
+	mi := &file_tf_gcmessages_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3992,7 +4171,7 @@ func (x *CMsgTFCoaching_FindCoach) String() string {
 func (*CMsgTFCoaching_FindCoach) ProtoMessage() {}
 
 func (x *CMsgTFCoaching_FindCoach) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[23]
+	mi := &file_tf_gcmessages_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4005,7 +4184,7 @@ func (x *CMsgTFCoaching_FindCoach) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgTFCoaching_FindCoach.ProtoReflect.Descriptor instead.
 func (*CMsgTFCoaching_FindCoach) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{23}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *CMsgTFCoaching_FindCoach) GetAccountIdFriendAsCoach() uint32 {
@@ -4027,7 +4206,7 @@ type CMsgTFCoaching_FindCoachResponse struct {
 
 func (x *CMsgTFCoaching_FindCoachResponse) Reset() {
 	*x = CMsgTFCoaching_FindCoachResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[24]
+	mi := &file_tf_gcmessages_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4039,7 +4218,7 @@ func (x *CMsgTFCoaching_FindCoachResponse) String() string {
 func (*CMsgTFCoaching_FindCoachResponse) ProtoMessage() {}
 
 func (x *CMsgTFCoaching_FindCoachResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[24]
+	mi := &file_tf_gcmessages_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4052,7 +4231,7 @@ func (x *CMsgTFCoaching_FindCoachResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgTFCoaching_FindCoachResponse.ProtoReflect.Descriptor instead.
 func (*CMsgTFCoaching_FindCoachResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{24}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *CMsgTFCoaching_FindCoachResponse) GetFoundCoach() bool {
@@ -4087,7 +4266,7 @@ type CMsgTFCoaching_AskCoach struct {
 
 func (x *CMsgTFCoaching_AskCoach) Reset() {
 	*x = CMsgTFCoaching_AskCoach{}
-	mi := &file_tf_gcmessages_proto_msgTypes[25]
+	mi := &file_tf_gcmessages_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4099,7 +4278,7 @@ func (x *CMsgTFCoaching_AskCoach) String() string {
 func (*CMsgTFCoaching_AskCoach) ProtoMessage() {}
 
 func (x *CMsgTFCoaching_AskCoach) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[25]
+	mi := &file_tf_gcmessages_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4112,7 +4291,7 @@ func (x *CMsgTFCoaching_AskCoach) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgTFCoaching_AskCoach.ProtoReflect.Descriptor instead.
 func (*CMsgTFCoaching_AskCoach) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{25}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *CMsgTFCoaching_AskCoach) GetAccountIdStudent() uint32 {
@@ -4139,7 +4318,7 @@ type CMsgTFCoaching_AskCoachResponse struct {
 
 func (x *CMsgTFCoaching_AskCoachResponse) Reset() {
 	*x = CMsgTFCoaching_AskCoachResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[26]
+	mi := &file_tf_gcmessages_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4151,7 +4330,7 @@ func (x *CMsgTFCoaching_AskCoachResponse) String() string {
 func (*CMsgTFCoaching_AskCoachResponse) ProtoMessage() {}
 
 func (x *CMsgTFCoaching_AskCoachResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[26]
+	mi := &file_tf_gcmessages_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4164,7 +4343,7 @@ func (x *CMsgTFCoaching_AskCoachResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgTFCoaching_AskCoachResponse.ProtoReflect.Descriptor instead.
 func (*CMsgTFCoaching_AskCoachResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{26}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *CMsgTFCoaching_AskCoachResponse) GetAcceptCoachingAssignment() bool {
@@ -4187,7 +4366,7 @@ type CMsgTFCoaching_CoachJoinGame struct {
 
 func (x *CMsgTFCoaching_CoachJoinGame) Reset() {
 	*x = CMsgTFCoaching_CoachJoinGame{}
-	mi := &file_tf_gcmessages_proto_msgTypes[27]
+	mi := &file_tf_gcmessages_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4199,7 +4378,7 @@ func (x *CMsgTFCoaching_CoachJoinGame) String() string {
 func (*CMsgTFCoaching_CoachJoinGame) ProtoMessage() {}
 
 func (x *CMsgTFCoaching_CoachJoinGame) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[27]
+	mi := &file_tf_gcmessages_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4212,7 +4391,7 @@ func (x *CMsgTFCoaching_CoachJoinGame) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgTFCoaching_CoachJoinGame.ProtoReflect.Descriptor instead.
 func (*CMsgTFCoaching_CoachJoinGame) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{27}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *CMsgTFCoaching_CoachJoinGame) GetJoinGame() bool {
@@ -4254,7 +4433,7 @@ type CMsgTFCoaching_CoachJoining struct {
 
 func (x *CMsgTFCoaching_CoachJoining) Reset() {
 	*x = CMsgTFCoaching_CoachJoining{}
-	mi := &file_tf_gcmessages_proto_msgTypes[28]
+	mi := &file_tf_gcmessages_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4266,7 +4445,7 @@ func (x *CMsgTFCoaching_CoachJoining) String() string {
 func (*CMsgTFCoaching_CoachJoining) ProtoMessage() {}
 
 func (x *CMsgTFCoaching_CoachJoining) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[28]
+	mi := &file_tf_gcmessages_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4279,7 +4458,7 @@ func (x *CMsgTFCoaching_CoachJoining) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgTFCoaching_CoachJoining.ProtoReflect.Descriptor instead.
 func (*CMsgTFCoaching_CoachJoining) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{28}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *CMsgTFCoaching_CoachJoining) GetAccountIdCoach() uint32 {
@@ -4306,7 +4485,7 @@ type CMsgTFCoaching_CoachJoined struct {
 
 func (x *CMsgTFCoaching_CoachJoined) Reset() {
 	*x = CMsgTFCoaching_CoachJoined{}
-	mi := &file_tf_gcmessages_proto_msgTypes[29]
+	mi := &file_tf_gcmessages_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4318,7 +4497,7 @@ func (x *CMsgTFCoaching_CoachJoined) String() string {
 func (*CMsgTFCoaching_CoachJoined) ProtoMessage() {}
 
 func (x *CMsgTFCoaching_CoachJoined) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[29]
+	mi := &file_tf_gcmessages_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4331,7 +4510,7 @@ func (x *CMsgTFCoaching_CoachJoined) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgTFCoaching_CoachJoined.ProtoReflect.Descriptor instead.
 func (*CMsgTFCoaching_CoachJoined) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{29}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *CMsgTFCoaching_CoachJoined) GetAccountIdCoach() uint32 {
@@ -4351,7 +4530,7 @@ type CMsgTFCoaching_LikeCurrentCoach struct {
 
 func (x *CMsgTFCoaching_LikeCurrentCoach) Reset() {
 	*x = CMsgTFCoaching_LikeCurrentCoach{}
-	mi := &file_tf_gcmessages_proto_msgTypes[30]
+	mi := &file_tf_gcmessages_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4363,7 +4542,7 @@ func (x *CMsgTFCoaching_LikeCurrentCoach) String() string {
 func (*CMsgTFCoaching_LikeCurrentCoach) ProtoMessage() {}
 
 func (x *CMsgTFCoaching_LikeCurrentCoach) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[30]
+	mi := &file_tf_gcmessages_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4376,7 +4555,7 @@ func (x *CMsgTFCoaching_LikeCurrentCoach) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgTFCoaching_LikeCurrentCoach.ProtoReflect.Descriptor instead.
 func (*CMsgTFCoaching_LikeCurrentCoach) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{30}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *CMsgTFCoaching_LikeCurrentCoach) GetLikeCoach() bool {
@@ -4396,7 +4575,7 @@ type CMsgTFCoaching_RemoveCurrentCoach struct {
 
 func (x *CMsgTFCoaching_RemoveCurrentCoach) Reset() {
 	*x = CMsgTFCoaching_RemoveCurrentCoach{}
-	mi := &file_tf_gcmessages_proto_msgTypes[31]
+	mi := &file_tf_gcmessages_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4408,7 +4587,7 @@ func (x *CMsgTFCoaching_RemoveCurrentCoach) String() string {
 func (*CMsgTFCoaching_RemoveCurrentCoach) ProtoMessage() {}
 
 func (x *CMsgTFCoaching_RemoveCurrentCoach) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[31]
+	mi := &file_tf_gcmessages_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4421,7 +4600,7 @@ func (x *CMsgTFCoaching_RemoveCurrentCoach) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use CMsgTFCoaching_RemoveCurrentCoach.ProtoReflect.Descriptor instead.
 func (*CMsgTFCoaching_RemoveCurrentCoach) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{31}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *CMsgTFCoaching_RemoveCurrentCoach) GetAccountIdCoach() uint32 {
@@ -4441,7 +4620,7 @@ type CMsgTFQuickplay_ScoreServers struct {
 
 func (x *CMsgTFQuickplay_ScoreServers) Reset() {
 	*x = CMsgTFQuickplay_ScoreServers{}
-	mi := &file_tf_gcmessages_proto_msgTypes[32]
+	mi := &file_tf_gcmessages_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4453,7 +4632,7 @@ func (x *CMsgTFQuickplay_ScoreServers) String() string {
 func (*CMsgTFQuickplay_ScoreServers) ProtoMessage() {}
 
 func (x *CMsgTFQuickplay_ScoreServers) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[32]
+	mi := &file_tf_gcmessages_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4466,7 +4645,7 @@ func (x *CMsgTFQuickplay_ScoreServers) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgTFQuickplay_ScoreServers.ProtoReflect.Descriptor instead.
 func (*CMsgTFQuickplay_ScoreServers) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{32}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *CMsgTFQuickplay_ScoreServers) GetServers() []*CMsgTFQuickplay_ScoreServers_ServerInfo {
@@ -4486,7 +4665,7 @@ type CMsgTFQuickplay_ScoreServersResponse struct {
 
 func (x *CMsgTFQuickplay_ScoreServersResponse) Reset() {
 	*x = CMsgTFQuickplay_ScoreServersResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[33]
+	mi := &file_tf_gcmessages_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4498,7 +4677,7 @@ func (x *CMsgTFQuickplay_ScoreServersResponse) String() string {
 func (*CMsgTFQuickplay_ScoreServersResponse) ProtoMessage() {}
 
 func (x *CMsgTFQuickplay_ScoreServersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[33]
+	mi := &file_tf_gcmessages_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4511,7 +4690,7 @@ func (x *CMsgTFQuickplay_ScoreServersResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use CMsgTFQuickplay_ScoreServersResponse.ProtoReflect.Descriptor instead.
 func (*CMsgTFQuickplay_ScoreServersResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{33}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *CMsgTFQuickplay_ScoreServersResponse) GetServers() []*CMsgTFQuickplay_ScoreServersResponse_ServerInfo {
@@ -4531,7 +4710,7 @@ type CMsgTFQuickplay_PlayerJoining struct {
 
 func (x *CMsgTFQuickplay_PlayerJoining) Reset() {
 	*x = CMsgTFQuickplay_PlayerJoining{}
-	mi := &file_tf_gcmessages_proto_msgTypes[34]
+	mi := &file_tf_gcmessages_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4543,7 +4722,7 @@ func (x *CMsgTFQuickplay_PlayerJoining) String() string {
 func (*CMsgTFQuickplay_PlayerJoining) ProtoMessage() {}
 
 func (x *CMsgTFQuickplay_PlayerJoining) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[34]
+	mi := &file_tf_gcmessages_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4556,7 +4735,7 @@ func (x *CMsgTFQuickplay_PlayerJoining) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgTFQuickplay_PlayerJoining.ProtoReflect.Descriptor instead.
 func (*CMsgTFQuickplay_PlayerJoining) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{34}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *CMsgTFQuickplay_PlayerJoining) GetAccountId() uint32 {
@@ -4577,7 +4756,7 @@ type CMsgGC_GameServer_LevelInfo struct {
 
 func (x *CMsgGC_GameServer_LevelInfo) Reset() {
 	*x = CMsgGC_GameServer_LevelInfo{}
-	mi := &file_tf_gcmessages_proto_msgTypes[35]
+	mi := &file_tf_gcmessages_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4589,7 +4768,7 @@ func (x *CMsgGC_GameServer_LevelInfo) String() string {
 func (*CMsgGC_GameServer_LevelInfo) ProtoMessage() {}
 
 func (x *CMsgGC_GameServer_LevelInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[35]
+	mi := &file_tf_gcmessages_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4602,7 +4781,7 @@ func (x *CMsgGC_GameServer_LevelInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGC_GameServer_LevelInfo.ProtoReflect.Descriptor instead.
 func (*CMsgGC_GameServer_LevelInfo) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{35}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *CMsgGC_GameServer_LevelInfo) GetLevelLoaded() bool {
@@ -4630,7 +4809,7 @@ type CMsgGC_GameServer_AuthChallenge struct {
 
 func (x *CMsgGC_GameServer_AuthChallenge) Reset() {
 	*x = CMsgGC_GameServer_AuthChallenge{}
-	mi := &file_tf_gcmessages_proto_msgTypes[36]
+	mi := &file_tf_gcmessages_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4642,7 +4821,7 @@ func (x *CMsgGC_GameServer_AuthChallenge) String() string {
 func (*CMsgGC_GameServer_AuthChallenge) ProtoMessage() {}
 
 func (x *CMsgGC_GameServer_AuthChallenge) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[36]
+	mi := &file_tf_gcmessages_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4655,7 +4834,7 @@ func (x *CMsgGC_GameServer_AuthChallenge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGC_GameServer_AuthChallenge.ProtoReflect.Descriptor instead.
 func (*CMsgGC_GameServer_AuthChallenge) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{36}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *CMsgGC_GameServer_AuthChallenge) GetChallengeString() string {
@@ -4679,7 +4858,7 @@ type CMsgGC_GameServer_AuthResult struct {
 
 func (x *CMsgGC_GameServer_AuthResult) Reset() {
 	*x = CMsgGC_GameServer_AuthResult{}
-	mi := &file_tf_gcmessages_proto_msgTypes[37]
+	mi := &file_tf_gcmessages_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4691,7 +4870,7 @@ func (x *CMsgGC_GameServer_AuthResult) String() string {
 func (*CMsgGC_GameServer_AuthResult) ProtoMessage() {}
 
 func (x *CMsgGC_GameServer_AuthResult) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[37]
+	mi := &file_tf_gcmessages_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4704,7 +4883,7 @@ func (x *CMsgGC_GameServer_AuthResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGC_GameServer_AuthResult.ProtoReflect.Descriptor instead.
 func (*CMsgGC_GameServer_AuthResult) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{37}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *CMsgGC_GameServer_AuthResult) GetAuthenticated() bool {
@@ -4753,7 +4932,7 @@ type CMsgGC_GameServer_AuthChallengeResponse struct {
 
 func (x *CMsgGC_GameServer_AuthChallengeResponse) Reset() {
 	*x = CMsgGC_GameServer_AuthChallengeResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[38]
+	mi := &file_tf_gcmessages_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4765,7 +4944,7 @@ func (x *CMsgGC_GameServer_AuthChallengeResponse) String() string {
 func (*CMsgGC_GameServer_AuthChallengeResponse) ProtoMessage() {}
 
 func (x *CMsgGC_GameServer_AuthChallengeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[38]
+	mi := &file_tf_gcmessages_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4778,7 +4957,7 @@ func (x *CMsgGC_GameServer_AuthChallengeResponse) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use CMsgGC_GameServer_AuthChallengeResponse.ProtoReflect.Descriptor instead.
 func (*CMsgGC_GameServer_AuthChallengeResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{38}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *CMsgGC_GameServer_AuthChallengeResponse) GetGameServerAccountId() uint32 {
@@ -4805,7 +4984,7 @@ type CMsgGC_GameServer_CreateIdentity struct {
 
 func (x *CMsgGC_GameServer_CreateIdentity) Reset() {
 	*x = CMsgGC_GameServer_CreateIdentity{}
-	mi := &file_tf_gcmessages_proto_msgTypes[39]
+	mi := &file_tf_gcmessages_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4817,7 +4996,7 @@ func (x *CMsgGC_GameServer_CreateIdentity) String() string {
 func (*CMsgGC_GameServer_CreateIdentity) ProtoMessage() {}
 
 func (x *CMsgGC_GameServer_CreateIdentity) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[39]
+	mi := &file_tf_gcmessages_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4830,7 +5009,7 @@ func (x *CMsgGC_GameServer_CreateIdentity) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGC_GameServer_CreateIdentity.ProtoReflect.Descriptor instead.
 func (*CMsgGC_GameServer_CreateIdentity) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{39}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *CMsgGC_GameServer_CreateIdentity) GetAccountId() uint32 {
@@ -4853,7 +5032,7 @@ type CMsgGC_GameServer_CreateIdentityResponse struct {
 
 func (x *CMsgGC_GameServer_CreateIdentityResponse) Reset() {
 	*x = CMsgGC_GameServer_CreateIdentityResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[40]
+	mi := &file_tf_gcmessages_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4865,7 +5044,7 @@ func (x *CMsgGC_GameServer_CreateIdentityResponse) String() string {
 func (*CMsgGC_GameServer_CreateIdentityResponse) ProtoMessage() {}
 
 func (x *CMsgGC_GameServer_CreateIdentityResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[40]
+	mi := &file_tf_gcmessages_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4878,7 +5057,7 @@ func (x *CMsgGC_GameServer_CreateIdentityResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use CMsgGC_GameServer_CreateIdentityResponse.ProtoReflect.Descriptor instead.
 func (*CMsgGC_GameServer_CreateIdentityResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{40}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *CMsgGC_GameServer_CreateIdentityResponse) GetAccountCreated() bool {
@@ -4919,7 +5098,7 @@ type CMsgGC_GameServer_List struct {
 
 func (x *CMsgGC_GameServer_List) Reset() {
 	*x = CMsgGC_GameServer_List{}
-	mi := &file_tf_gcmessages_proto_msgTypes[41]
+	mi := &file_tf_gcmessages_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4931,7 +5110,7 @@ func (x *CMsgGC_GameServer_List) String() string {
 func (*CMsgGC_GameServer_List) ProtoMessage() {}
 
 func (x *CMsgGC_GameServer_List) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[41]
+	mi := &file_tf_gcmessages_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4944,7 +5123,7 @@ func (x *CMsgGC_GameServer_List) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGC_GameServer_List.ProtoReflect.Descriptor instead.
 func (*CMsgGC_GameServer_List) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{41}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *CMsgGC_GameServer_List) GetAccountId() uint32 {
@@ -4964,7 +5143,7 @@ type CMsgGC_GameServer_ListResponse struct {
 
 func (x *CMsgGC_GameServer_ListResponse) Reset() {
 	*x = CMsgGC_GameServer_ListResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[42]
+	mi := &file_tf_gcmessages_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4976,7 +5155,7 @@ func (x *CMsgGC_GameServer_ListResponse) String() string {
 func (*CMsgGC_GameServer_ListResponse) ProtoMessage() {}
 
 func (x *CMsgGC_GameServer_ListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[42]
+	mi := &file_tf_gcmessages_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4989,7 +5168,7 @@ func (x *CMsgGC_GameServer_ListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGC_GameServer_ListResponse.ProtoReflect.Descriptor instead.
 func (*CMsgGC_GameServer_ListResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{42}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *CMsgGC_GameServer_ListResponse) GetOwnedGameServers() []*CMsgGC_GameServer_ListResponse_GameServerIdentity {
@@ -5009,7 +5188,7 @@ type CMsgGC_GameServer_ResetIdentity struct {
 
 func (x *CMsgGC_GameServer_ResetIdentity) Reset() {
 	*x = CMsgGC_GameServer_ResetIdentity{}
-	mi := &file_tf_gcmessages_proto_msgTypes[43]
+	mi := &file_tf_gcmessages_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5021,7 +5200,7 @@ func (x *CMsgGC_GameServer_ResetIdentity) String() string {
 func (*CMsgGC_GameServer_ResetIdentity) ProtoMessage() {}
 
 func (x *CMsgGC_GameServer_ResetIdentity) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[43]
+	mi := &file_tf_gcmessages_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5034,7 +5213,7 @@ func (x *CMsgGC_GameServer_ResetIdentity) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGC_GameServer_ResetIdentity.ProtoReflect.Descriptor instead.
 func (*CMsgGC_GameServer_ResetIdentity) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{43}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *CMsgGC_GameServer_ResetIdentity) GetGameServerAccountId() uint32 {
@@ -5056,7 +5235,7 @@ type CMsgGC_GameServer_ResetIdentityResponse struct {
 
 func (x *CMsgGC_GameServer_ResetIdentityResponse) Reset() {
 	*x = CMsgGC_GameServer_ResetIdentityResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[44]
+	mi := &file_tf_gcmessages_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5068,7 +5247,7 @@ func (x *CMsgGC_GameServer_ResetIdentityResponse) String() string {
 func (*CMsgGC_GameServer_ResetIdentityResponse) ProtoMessage() {}
 
 func (x *CMsgGC_GameServer_ResetIdentityResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[44]
+	mi := &file_tf_gcmessages_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5081,7 +5260,7 @@ func (x *CMsgGC_GameServer_ResetIdentityResponse) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use CMsgGC_GameServer_ResetIdentityResponse.ProtoReflect.Descriptor instead.
 func (*CMsgGC_GameServer_ResetIdentityResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{44}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *CMsgGC_GameServer_ResetIdentityResponse) GetGameServerIdentityTokenReset() bool {
@@ -5114,7 +5293,7 @@ type CMsgGC_GameServer_AckPolicy struct {
 
 func (x *CMsgGC_GameServer_AckPolicy) Reset() {
 	*x = CMsgGC_GameServer_AckPolicy{}
-	mi := &file_tf_gcmessages_proto_msgTypes[45]
+	mi := &file_tf_gcmessages_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5126,7 +5305,7 @@ func (x *CMsgGC_GameServer_AckPolicy) String() string {
 func (*CMsgGC_GameServer_AckPolicy) ProtoMessage() {}
 
 func (x *CMsgGC_GameServer_AckPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[45]
+	mi := &file_tf_gcmessages_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5139,7 +5318,7 @@ func (x *CMsgGC_GameServer_AckPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGC_GameServer_AckPolicy.ProtoReflect.Descriptor instead.
 func (*CMsgGC_GameServer_AckPolicy) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{45}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{46}
 }
 
 // k_EMsgGC_GameServer_AckPolicyResponse
@@ -5153,7 +5332,7 @@ type CMsgGC_GameServer_AckPolicyResponse struct {
 
 func (x *CMsgGC_GameServer_AckPolicyResponse) Reset() {
 	*x = CMsgGC_GameServer_AckPolicyResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[46]
+	mi := &file_tf_gcmessages_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5165,7 +5344,7 @@ func (x *CMsgGC_GameServer_AckPolicyResponse) String() string {
 func (*CMsgGC_GameServer_AckPolicyResponse) ProtoMessage() {}
 
 func (x *CMsgGC_GameServer_AckPolicyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[46]
+	mi := &file_tf_gcmessages_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5178,7 +5357,7 @@ func (x *CMsgGC_GameServer_AckPolicyResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use CMsgGC_GameServer_AckPolicyResponse.ProtoReflect.Descriptor instead.
 func (*CMsgGC_GameServer_AckPolicyResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{46}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *CMsgGC_GameServer_AckPolicyResponse) GetResult() uint32 {
@@ -5205,7 +5384,7 @@ type CMsgGC_Client_UseServerModificationItem struct {
 
 func (x *CMsgGC_Client_UseServerModificationItem) Reset() {
 	*x = CMsgGC_Client_UseServerModificationItem{}
-	mi := &file_tf_gcmessages_proto_msgTypes[47]
+	mi := &file_tf_gcmessages_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5217,7 +5396,7 @@ func (x *CMsgGC_Client_UseServerModificationItem) String() string {
 func (*CMsgGC_Client_UseServerModificationItem) ProtoMessage() {}
 
 func (x *CMsgGC_Client_UseServerModificationItem) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[47]
+	mi := &file_tf_gcmessages_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5230,7 +5409,7 @@ func (x *CMsgGC_Client_UseServerModificationItem) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use CMsgGC_Client_UseServerModificationItem.ProtoReflect.Descriptor instead.
 func (*CMsgGC_Client_UseServerModificationItem) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{47}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *CMsgGC_Client_UseServerModificationItem) GetItemId() uint64 {
@@ -5250,7 +5429,7 @@ type CMsgGC_Client_UseServerModificationItem_Response struct {
 
 func (x *CMsgGC_Client_UseServerModificationItem_Response) Reset() {
 	*x = CMsgGC_Client_UseServerModificationItem_Response{}
-	mi := &file_tf_gcmessages_proto_msgTypes[48]
+	mi := &file_tf_gcmessages_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5262,7 +5441,7 @@ func (x *CMsgGC_Client_UseServerModificationItem_Response) String() string {
 func (*CMsgGC_Client_UseServerModificationItem_Response) ProtoMessage() {}
 
 func (x *CMsgGC_Client_UseServerModificationItem_Response) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[48]
+	mi := &file_tf_gcmessages_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5275,7 +5454,7 @@ func (x *CMsgGC_Client_UseServerModificationItem_Response) ProtoReflect() protor
 
 // Deprecated: Use CMsgGC_Client_UseServerModificationItem_Response.ProtoReflect.Descriptor instead.
 func (*CMsgGC_Client_UseServerModificationItem_Response) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{48}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *CMsgGC_Client_UseServerModificationItem_Response) GetResponseCode() CMsgGC_Client_UseServerModificationItem_Response_EServerModificationItemResponse {
@@ -5295,7 +5474,7 @@ type CMsgGC_GameServer_UseServerModificationItem struct {
 
 func (x *CMsgGC_GameServer_UseServerModificationItem) Reset() {
 	*x = CMsgGC_GameServer_UseServerModificationItem{}
-	mi := &file_tf_gcmessages_proto_msgTypes[49]
+	mi := &file_tf_gcmessages_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5307,7 +5486,7 @@ func (x *CMsgGC_GameServer_UseServerModificationItem) String() string {
 func (*CMsgGC_GameServer_UseServerModificationItem) ProtoMessage() {}
 
 func (x *CMsgGC_GameServer_UseServerModificationItem) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[49]
+	mi := &file_tf_gcmessages_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5320,7 +5499,7 @@ func (x *CMsgGC_GameServer_UseServerModificationItem) ProtoReflect() protoreflec
 
 // Deprecated: Use CMsgGC_GameServer_UseServerModificationItem.ProtoReflect.Descriptor instead.
 func (*CMsgGC_GameServer_UseServerModificationItem) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{49}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *CMsgGC_GameServer_UseServerModificationItem) GetModificationType() EServerModificationItemType {
@@ -5341,7 +5520,7 @@ type CMsgGC_GameServer_UseServerModificationItem_Response struct {
 
 func (x *CMsgGC_GameServer_UseServerModificationItem_Response) Reset() {
 	*x = CMsgGC_GameServer_UseServerModificationItem_Response{}
-	mi := &file_tf_gcmessages_proto_msgTypes[50]
+	mi := &file_tf_gcmessages_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5353,7 +5532,7 @@ func (x *CMsgGC_GameServer_UseServerModificationItem_Response) String() string {
 func (*CMsgGC_GameServer_UseServerModificationItem_Response) ProtoMessage() {}
 
 func (x *CMsgGC_GameServer_UseServerModificationItem_Response) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[50]
+	mi := &file_tf_gcmessages_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5366,7 +5545,7 @@ func (x *CMsgGC_GameServer_UseServerModificationItem_Response) ProtoReflect() pr
 
 // Deprecated: Use CMsgGC_GameServer_UseServerModificationItem_Response.ProtoReflect.Descriptor instead.
 func (*CMsgGC_GameServer_UseServerModificationItem_Response) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{50}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *CMsgGC_GameServer_UseServerModificationItem_Response) GetModificationType() EServerModificationItemType {
@@ -5393,7 +5572,7 @@ type CMsgGC_GameServer_ServerModificationItemExpired struct {
 
 func (x *CMsgGC_GameServer_ServerModificationItemExpired) Reset() {
 	*x = CMsgGC_GameServer_ServerModificationItemExpired{}
-	mi := &file_tf_gcmessages_proto_msgTypes[51]
+	mi := &file_tf_gcmessages_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5405,7 +5584,7 @@ func (x *CMsgGC_GameServer_ServerModificationItemExpired) String() string {
 func (*CMsgGC_GameServer_ServerModificationItemExpired) ProtoMessage() {}
 
 func (x *CMsgGC_GameServer_ServerModificationItemExpired) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[51]
+	mi := &file_tf_gcmessages_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5418,7 +5597,7 @@ func (x *CMsgGC_GameServer_ServerModificationItemExpired) ProtoReflect() protore
 
 // Deprecated: Use CMsgGC_GameServer_ServerModificationItemExpired.ProtoReflect.Descriptor instead.
 func (*CMsgGC_GameServer_ServerModificationItemExpired) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{51}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *CMsgGC_GameServer_ServerModificationItemExpired) GetModificationType() EServerModificationItemType {
@@ -5439,7 +5618,7 @@ type CMsgGC_GameServer_ServerModificationItem struct {
 
 func (x *CMsgGC_GameServer_ServerModificationItem) Reset() {
 	*x = CMsgGC_GameServer_ServerModificationItem{}
-	mi := &file_tf_gcmessages_proto_msgTypes[52]
+	mi := &file_tf_gcmessages_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5451,7 +5630,7 @@ func (x *CMsgGC_GameServer_ServerModificationItem) String() string {
 func (*CMsgGC_GameServer_ServerModificationItem) ProtoMessage() {}
 
 func (x *CMsgGC_GameServer_ServerModificationItem) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[52]
+	mi := &file_tf_gcmessages_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5464,7 +5643,7 @@ func (x *CMsgGC_GameServer_ServerModificationItem) ProtoReflect() protoreflect.M
 
 // Deprecated: Use CMsgGC_GameServer_ServerModificationItem.ProtoReflect.Descriptor instead.
 func (*CMsgGC_GameServer_ServerModificationItem) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{52}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *CMsgGC_GameServer_ServerModificationItem) GetModificationType() EServerModificationItemType {
@@ -5496,7 +5675,7 @@ type CMsgGC_Halloween_ReservedItem struct {
 
 func (x *CMsgGC_Halloween_ReservedItem) Reset() {
 	*x = CMsgGC_Halloween_ReservedItem{}
-	mi := &file_tf_gcmessages_proto_msgTypes[53]
+	mi := &file_tf_gcmessages_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5508,7 +5687,7 @@ func (x *CMsgGC_Halloween_ReservedItem) String() string {
 func (*CMsgGC_Halloween_ReservedItem) ProtoMessage() {}
 
 func (x *CMsgGC_Halloween_ReservedItem) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[53]
+	mi := &file_tf_gcmessages_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5521,7 +5700,7 @@ func (x *CMsgGC_Halloween_ReservedItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGC_Halloween_ReservedItem.ProtoReflect.Descriptor instead.
 func (*CMsgGC_Halloween_ReservedItem) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{53}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *CMsgGC_Halloween_ReservedItem) GetX() []float32 {
@@ -5564,7 +5743,7 @@ type CMsgGC_Halloween_GrantItem struct {
 
 func (x *CMsgGC_Halloween_GrantItem) Reset() {
 	*x = CMsgGC_Halloween_GrantItem{}
-	mi := &file_tf_gcmessages_proto_msgTypes[54]
+	mi := &file_tf_gcmessages_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5576,7 +5755,7 @@ func (x *CMsgGC_Halloween_GrantItem) String() string {
 func (*CMsgGC_Halloween_GrantItem) ProtoMessage() {}
 
 func (x *CMsgGC_Halloween_GrantItem) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[54]
+	mi := &file_tf_gcmessages_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5589,7 +5768,7 @@ func (x *CMsgGC_Halloween_GrantItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGC_Halloween_GrantItem.ProtoReflect.Descriptor instead.
 func (*CMsgGC_Halloween_GrantItem) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{54}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *CMsgGC_Halloween_GrantItem) GetRecipientAccountId() uint32 {
@@ -5623,7 +5802,7 @@ type CMsgGC_Halloween_GrantItemResponse struct {
 
 func (x *CMsgGC_Halloween_GrantItemResponse) Reset() {
 	*x = CMsgGC_Halloween_GrantItemResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[55]
+	mi := &file_tf_gcmessages_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5635,7 +5814,7 @@ func (x *CMsgGC_Halloween_GrantItemResponse) String() string {
 func (*CMsgGC_Halloween_GrantItemResponse) ProtoMessage() {}
 
 func (x *CMsgGC_Halloween_GrantItemResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[55]
+	mi := &file_tf_gcmessages_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5648,7 +5827,7 @@ func (x *CMsgGC_Halloween_GrantItemResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use CMsgGC_Halloween_GrantItemResponse.ProtoReflect.Descriptor instead.
 func (*CMsgGC_Halloween_GrantItemResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{55}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *CMsgGC_Halloween_GrantItemResponse) GetRecipientAccountId() uint32 {
@@ -5667,7 +5846,7 @@ type CMsgGC_Halloween_ItemClaimed struct {
 
 func (x *CMsgGC_Halloween_ItemClaimed) Reset() {
 	*x = CMsgGC_Halloween_ItemClaimed{}
-	mi := &file_tf_gcmessages_proto_msgTypes[56]
+	mi := &file_tf_gcmessages_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5679,7 +5858,7 @@ func (x *CMsgGC_Halloween_ItemClaimed) String() string {
 func (*CMsgGC_Halloween_ItemClaimed) ProtoMessage() {}
 
 func (x *CMsgGC_Halloween_ItemClaimed) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[56]
+	mi := &file_tf_gcmessages_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5692,7 +5871,7 @@ func (x *CMsgGC_Halloween_ItemClaimed) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGC_Halloween_ItemClaimed.ProtoReflect.Descriptor instead.
 func (*CMsgGC_Halloween_ItemClaimed) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{56}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{57}
 }
 
 // k_EMsgGC_PickupItemEligibility_Query
@@ -5706,7 +5885,7 @@ type CMsgGC_PickupItemEligibility_Query struct {
 
 func (x *CMsgGC_PickupItemEligibility_Query) Reset() {
 	*x = CMsgGC_PickupItemEligibility_Query{}
-	mi := &file_tf_gcmessages_proto_msgTypes[57]
+	mi := &file_tf_gcmessages_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5718,7 +5897,7 @@ func (x *CMsgGC_PickupItemEligibility_Query) String() string {
 func (*CMsgGC_PickupItemEligibility_Query) ProtoMessage() {}
 
 func (x *CMsgGC_PickupItemEligibility_Query) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[57]
+	mi := &file_tf_gcmessages_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5731,7 +5910,7 @@ func (x *CMsgGC_PickupItemEligibility_Query) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use CMsgGC_PickupItemEligibility_Query.ProtoReflect.Descriptor instead.
 func (*CMsgGC_PickupItemEligibility_Query) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{57}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *CMsgGC_PickupItemEligibility_Query) GetAccountId() uint32 {
@@ -5759,7 +5938,7 @@ type CMsgGC_PickupItemEligibility_QueryResponse struct {
 
 func (x *CMsgGC_PickupItemEligibility_QueryResponse) Reset() {
 	*x = CMsgGC_PickupItemEligibility_QueryResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[58]
+	mi := &file_tf_gcmessages_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5771,7 +5950,7 @@ func (x *CMsgGC_PickupItemEligibility_QueryResponse) String() string {
 func (*CMsgGC_PickupItemEligibility_QueryResponse) ProtoMessage() {}
 
 func (x *CMsgGC_PickupItemEligibility_QueryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[58]
+	mi := &file_tf_gcmessages_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5784,7 +5963,7 @@ func (x *CMsgGC_PickupItemEligibility_QueryResponse) ProtoReflect() protoreflect
 
 // Deprecated: Use CMsgGC_PickupItemEligibility_QueryResponse.ProtoReflect.Descriptor instead.
 func (*CMsgGC_PickupItemEligibility_QueryResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{58}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *CMsgGC_PickupItemEligibility_QueryResponse) GetAccountId() uint32 {
@@ -5836,7 +6015,7 @@ type CSOTFPartyMember struct {
 
 func (x *CSOTFPartyMember) Reset() {
 	*x = CSOTFPartyMember{}
-	mi := &file_tf_gcmessages_proto_msgTypes[59]
+	mi := &file_tf_gcmessages_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5848,7 +6027,7 @@ func (x *CSOTFPartyMember) String() string {
 func (*CSOTFPartyMember) ProtoMessage() {}
 
 func (x *CSOTFPartyMember) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[59]
+	mi := &file_tf_gcmessages_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5861,7 +6040,7 @@ func (x *CSOTFPartyMember) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CSOTFPartyMember.ProtoReflect.Descriptor instead.
 func (*CSOTFPartyMember) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{59}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *CSOTFPartyMember) GetOwnsTicket() bool {
@@ -5967,7 +6146,7 @@ const (
 
 func (x *TFPendingPartyMember) Reset() {
 	*x = TFPendingPartyMember{}
-	mi := &file_tf_gcmessages_proto_msgTypes[60]
+	mi := &file_tf_gcmessages_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5979,7 +6158,7 @@ func (x *TFPendingPartyMember) String() string {
 func (*TFPendingPartyMember) ProtoMessage() {}
 
 func (x *TFPendingPartyMember) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[60]
+	mi := &file_tf_gcmessages_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5992,7 +6171,7 @@ func (x *TFPendingPartyMember) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TFPendingPartyMember.ProtoReflect.Descriptor instead.
 func (*TFPendingPartyMember) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{60}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *TFPendingPartyMember) GetSteamid() uint64 {
@@ -6032,7 +6211,7 @@ const (
 
 func (x *TFSyncedMMUIState) Reset() {
 	*x = TFSyncedMMUIState{}
-	mi := &file_tf_gcmessages_proto_msgTypes[61]
+	mi := &file_tf_gcmessages_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6044,7 +6223,7 @@ func (x *TFSyncedMMUIState) String() string {
 func (*TFSyncedMMUIState) ProtoMessage() {}
 
 func (x *TFSyncedMMUIState) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[61]
+	mi := &file_tf_gcmessages_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6057,7 +6236,7 @@ func (x *TFSyncedMMUIState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TFSyncedMMUIState.ProtoReflect.Descriptor instead.
 func (*TFSyncedMMUIState) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{61}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *TFSyncedMMUIState) GetMenuStep() ETFSyncedMMMenuStep {
@@ -6099,7 +6278,7 @@ const (
 
 func (x *CTFGroupMatchCriteriaProto) Reset() {
 	*x = CTFGroupMatchCriteriaProto{}
-	mi := &file_tf_gcmessages_proto_msgTypes[62]
+	mi := &file_tf_gcmessages_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6111,7 +6290,7 @@ func (x *CTFGroupMatchCriteriaProto) String() string {
 func (*CTFGroupMatchCriteriaProto) ProtoMessage() {}
 
 func (x *CTFGroupMatchCriteriaProto) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[62]
+	mi := &file_tf_gcmessages_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6124,7 +6303,7 @@ func (x *CTFGroupMatchCriteriaProto) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CTFGroupMatchCriteriaProto.ProtoReflect.Descriptor instead.
 func (*CTFGroupMatchCriteriaProto) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{62}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *CTFGroupMatchCriteriaProto) GetLateJoinOk() bool {
@@ -6181,7 +6360,7 @@ type CTFCasualMatchCriteria struct {
 
 func (x *CTFCasualMatchCriteria) Reset() {
 	*x = CTFCasualMatchCriteria{}
-	mi := &file_tf_gcmessages_proto_msgTypes[63]
+	mi := &file_tf_gcmessages_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6193,7 +6372,7 @@ func (x *CTFCasualMatchCriteria) String() string {
 func (*CTFCasualMatchCriteria) ProtoMessage() {}
 
 func (x *CTFCasualMatchCriteria) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[63]
+	mi := &file_tf_gcmessages_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6206,7 +6385,7 @@ func (x *CTFCasualMatchCriteria) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CTFCasualMatchCriteria.ProtoReflect.Descriptor instead.
 func (*CTFCasualMatchCriteria) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{63}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *CTFCasualMatchCriteria) GetSelectedMapsBits() []uint32 {
@@ -6228,7 +6407,7 @@ type CTFPerPlayerMatchCriteriaProto struct {
 
 func (x *CTFPerPlayerMatchCriteriaProto) Reset() {
 	*x = CTFPerPlayerMatchCriteriaProto{}
-	mi := &file_tf_gcmessages_proto_msgTypes[64]
+	mi := &file_tf_gcmessages_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6240,7 +6419,7 @@ func (x *CTFPerPlayerMatchCriteriaProto) String() string {
 func (*CTFPerPlayerMatchCriteriaProto) ProtoMessage() {}
 
 func (x *CTFPerPlayerMatchCriteriaProto) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[64]
+	mi := &file_tf_gcmessages_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6253,7 +6432,7 @@ func (x *CTFPerPlayerMatchCriteriaProto) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CTFPerPlayerMatchCriteriaProto.ProtoReflect.Descriptor instead.
 func (*CTFPerPlayerMatchCriteriaProto) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{64}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *CTFPerPlayerMatchCriteriaProto) GetMvmSquadSurplus() bool {
@@ -6283,7 +6462,7 @@ type CTFPartyOptions struct {
 
 func (x *CTFPartyOptions) Reset() {
 	*x = CTFPartyOptions{}
-	mi := &file_tf_gcmessages_proto_msgTypes[65]
+	mi := &file_tf_gcmessages_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6295,7 +6474,7 @@ func (x *CTFPartyOptions) String() string {
 func (*CTFPartyOptions) ProtoMessage() {}
 
 func (x *CTFPartyOptions) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[65]
+	mi := &file_tf_gcmessages_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6308,7 +6487,7 @@ func (x *CTFPartyOptions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CTFPartyOptions.ProtoReflect.Descriptor instead.
 func (*CTFPartyOptions) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{65}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *CTFPartyOptions) GetOverwriteExisting() bool {
@@ -6354,7 +6533,7 @@ type CMsgPartySetOptions struct {
 
 func (x *CMsgPartySetOptions) Reset() {
 	*x = CMsgPartySetOptions{}
-	mi := &file_tf_gcmessages_proto_msgTypes[66]
+	mi := &file_tf_gcmessages_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6366,7 +6545,7 @@ func (x *CMsgPartySetOptions) String() string {
 func (*CMsgPartySetOptions) ProtoMessage() {}
 
 func (x *CMsgPartySetOptions) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[66]
+	mi := &file_tf_gcmessages_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6379,7 +6558,7 @@ func (x *CMsgPartySetOptions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgPartySetOptions.ProtoReflect.Descriptor instead.
 func (*CMsgPartySetOptions) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{66}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *CMsgPartySetOptions) GetPartyId() uint64 {
@@ -6405,7 +6584,7 @@ type CMsgPartySetOptionsResponse struct {
 
 func (x *CMsgPartySetOptionsResponse) Reset() {
 	*x = CMsgPartySetOptionsResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[67]
+	mi := &file_tf_gcmessages_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6417,7 +6596,7 @@ func (x *CMsgPartySetOptionsResponse) String() string {
 func (*CMsgPartySetOptionsResponse) ProtoMessage() {}
 
 func (x *CMsgPartySetOptionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[67]
+	mi := &file_tf_gcmessages_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6430,7 +6609,7 @@ func (x *CMsgPartySetOptionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgPartySetOptionsResponse.ProtoReflect.Descriptor instead.
 func (*CMsgPartySetOptionsResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{67}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{68}
 }
 
 type CMsgPartyQueueForMatch struct {
@@ -6444,7 +6623,7 @@ type CMsgPartyQueueForMatch struct {
 
 func (x *CMsgPartyQueueForMatch) Reset() {
 	*x = CMsgPartyQueueForMatch{}
-	mi := &file_tf_gcmessages_proto_msgTypes[68]
+	mi := &file_tf_gcmessages_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6456,7 +6635,7 @@ func (x *CMsgPartyQueueForMatch) String() string {
 func (*CMsgPartyQueueForMatch) ProtoMessage() {}
 
 func (x *CMsgPartyQueueForMatch) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[68]
+	mi := &file_tf_gcmessages_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6469,7 +6648,7 @@ func (x *CMsgPartyQueueForMatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgPartyQueueForMatch.ProtoReflect.Descriptor instead.
 func (*CMsgPartyQueueForMatch) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{68}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *CMsgPartyQueueForMatch) GetPartyId() uint64 {
@@ -6502,7 +6681,7 @@ type CMsgPartyQueueForMatchResponse struct {
 
 func (x *CMsgPartyQueueForMatchResponse) Reset() {
 	*x = CMsgPartyQueueForMatchResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[69]
+	mi := &file_tf_gcmessages_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6514,7 +6693,7 @@ func (x *CMsgPartyQueueForMatchResponse) String() string {
 func (*CMsgPartyQueueForMatchResponse) ProtoMessage() {}
 
 func (x *CMsgPartyQueueForMatchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[69]
+	mi := &file_tf_gcmessages_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6527,7 +6706,7 @@ func (x *CMsgPartyQueueForMatchResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgPartyQueueForMatchResponse.ProtoReflect.Descriptor instead.
 func (*CMsgPartyQueueForMatchResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{69}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{70}
 }
 
 type CMsgPartyQueueForStandby struct {
@@ -6542,7 +6721,7 @@ type CMsgPartyQueueForStandby struct {
 
 func (x *CMsgPartyQueueForStandby) Reset() {
 	*x = CMsgPartyQueueForStandby{}
-	mi := &file_tf_gcmessages_proto_msgTypes[70]
+	mi := &file_tf_gcmessages_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6554,7 +6733,7 @@ func (x *CMsgPartyQueueForStandby) String() string {
 func (*CMsgPartyQueueForStandby) ProtoMessage() {}
 
 func (x *CMsgPartyQueueForStandby) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[70]
+	mi := &file_tf_gcmessages_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6567,7 +6746,7 @@ func (x *CMsgPartyQueueForStandby) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgPartyQueueForStandby.ProtoReflect.Descriptor instead.
 func (*CMsgPartyQueueForStandby) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{70}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *CMsgPartyQueueForStandby) GetPartyId() uint64 {
@@ -6593,7 +6772,7 @@ type CMsgPartyQueueForStandbyResponse struct {
 
 func (x *CMsgPartyQueueForStandbyResponse) Reset() {
 	*x = CMsgPartyQueueForStandbyResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[71]
+	mi := &file_tf_gcmessages_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6605,7 +6784,7 @@ func (x *CMsgPartyQueueForStandbyResponse) String() string {
 func (*CMsgPartyQueueForStandbyResponse) ProtoMessage() {}
 
 func (x *CMsgPartyQueueForStandbyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[71]
+	mi := &file_tf_gcmessages_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6618,7 +6797,7 @@ func (x *CMsgPartyQueueForStandbyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgPartyQueueForStandbyResponse.ProtoReflect.Descriptor instead.
 func (*CMsgPartyQueueForStandbyResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{71}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{72}
 }
 
 type CMsgPartyRemoveFromQueue struct {
@@ -6631,7 +6810,7 @@ type CMsgPartyRemoveFromQueue struct {
 
 func (x *CMsgPartyRemoveFromQueue) Reset() {
 	*x = CMsgPartyRemoveFromQueue{}
-	mi := &file_tf_gcmessages_proto_msgTypes[72]
+	mi := &file_tf_gcmessages_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6643,7 +6822,7 @@ func (x *CMsgPartyRemoveFromQueue) String() string {
 func (*CMsgPartyRemoveFromQueue) ProtoMessage() {}
 
 func (x *CMsgPartyRemoveFromQueue) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[72]
+	mi := &file_tf_gcmessages_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6656,7 +6835,7 @@ func (x *CMsgPartyRemoveFromQueue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgPartyRemoveFromQueue.ProtoReflect.Descriptor instead.
 func (*CMsgPartyRemoveFromQueue) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{72}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *CMsgPartyRemoveFromQueue) GetPartyId() uint64 {
@@ -6682,7 +6861,7 @@ type CMsgPartyRemoveFromQueueResponse struct {
 
 func (x *CMsgPartyRemoveFromQueueResponse) Reset() {
 	*x = CMsgPartyRemoveFromQueueResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[73]
+	mi := &file_tf_gcmessages_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6694,7 +6873,7 @@ func (x *CMsgPartyRemoveFromQueueResponse) String() string {
 func (*CMsgPartyRemoveFromQueueResponse) ProtoMessage() {}
 
 func (x *CMsgPartyRemoveFromQueueResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[73]
+	mi := &file_tf_gcmessages_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6707,7 +6886,7 @@ func (x *CMsgPartyRemoveFromQueueResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgPartyRemoveFromQueueResponse.ProtoReflect.Descriptor instead.
 func (*CMsgPartyRemoveFromQueueResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{73}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{74}
 }
 
 type CMsgPartyRemoveFromStandbyQueue struct {
@@ -6719,7 +6898,7 @@ type CMsgPartyRemoveFromStandbyQueue struct {
 
 func (x *CMsgPartyRemoveFromStandbyQueue) Reset() {
 	*x = CMsgPartyRemoveFromStandbyQueue{}
-	mi := &file_tf_gcmessages_proto_msgTypes[74]
+	mi := &file_tf_gcmessages_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6731,7 +6910,7 @@ func (x *CMsgPartyRemoveFromStandbyQueue) String() string {
 func (*CMsgPartyRemoveFromStandbyQueue) ProtoMessage() {}
 
 func (x *CMsgPartyRemoveFromStandbyQueue) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[74]
+	mi := &file_tf_gcmessages_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6744,7 +6923,7 @@ func (x *CMsgPartyRemoveFromStandbyQueue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgPartyRemoveFromStandbyQueue.ProtoReflect.Descriptor instead.
 func (*CMsgPartyRemoveFromStandbyQueue) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{74}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *CMsgPartyRemoveFromStandbyQueue) GetPartyId() uint64 {
@@ -6763,7 +6942,7 @@ type CMsgPartyRemoveFromStandbyQueueResponse struct {
 
 func (x *CMsgPartyRemoveFromStandbyQueueResponse) Reset() {
 	*x = CMsgPartyRemoveFromStandbyQueueResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[75]
+	mi := &file_tf_gcmessages_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6775,7 +6954,7 @@ func (x *CMsgPartyRemoveFromStandbyQueueResponse) String() string {
 func (*CMsgPartyRemoveFromStandbyQueueResponse) ProtoMessage() {}
 
 func (x *CMsgPartyRemoveFromStandbyQueueResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[75]
+	mi := &file_tf_gcmessages_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6788,7 +6967,7 @@ func (x *CMsgPartyRemoveFromStandbyQueueResponse) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use CMsgPartyRemoveFromStandbyQueueResponse.ProtoReflect.Descriptor instead.
 func (*CMsgPartyRemoveFromStandbyQueueResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{75}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{76}
 }
 
 // k_EMsgGCParty_InvitePlayer
@@ -6812,7 +6991,7 @@ type CMsgPartyInvitePlayer struct {
 
 func (x *CMsgPartyInvitePlayer) Reset() {
 	*x = CMsgPartyInvitePlayer{}
-	mi := &file_tf_gcmessages_proto_msgTypes[76]
+	mi := &file_tf_gcmessages_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6824,7 +7003,7 @@ func (x *CMsgPartyInvitePlayer) String() string {
 func (*CMsgPartyInvitePlayer) ProtoMessage() {}
 
 func (x *CMsgPartyInvitePlayer) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[76]
+	mi := &file_tf_gcmessages_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6837,7 +7016,7 @@ func (x *CMsgPartyInvitePlayer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgPartyInvitePlayer.ProtoReflect.Descriptor instead.
 func (*CMsgPartyInvitePlayer) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{76}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *CMsgPartyInvitePlayer) GetPartyId() uint64 {
@@ -6880,7 +7059,7 @@ type CMsgPartyRequestJoinPlayer struct {
 
 func (x *CMsgPartyRequestJoinPlayer) Reset() {
 	*x = CMsgPartyRequestJoinPlayer{}
-	mi := &file_tf_gcmessages_proto_msgTypes[77]
+	mi := &file_tf_gcmessages_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6892,7 +7071,7 @@ func (x *CMsgPartyRequestJoinPlayer) String() string {
 func (*CMsgPartyRequestJoinPlayer) ProtoMessage() {}
 
 func (x *CMsgPartyRequestJoinPlayer) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[77]
+	mi := &file_tf_gcmessages_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6905,7 +7084,7 @@ func (x *CMsgPartyRequestJoinPlayer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgPartyRequestJoinPlayer.ProtoReflect.Descriptor instead.
 func (*CMsgPartyRequestJoinPlayer) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{77}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *CMsgPartyRequestJoinPlayer) GetCurrentPartyId() uint64 {
@@ -6949,7 +7128,7 @@ type CMsgPartyClearPendingPlayer struct {
 
 func (x *CMsgPartyClearPendingPlayer) Reset() {
 	*x = CMsgPartyClearPendingPlayer{}
-	mi := &file_tf_gcmessages_proto_msgTypes[78]
+	mi := &file_tf_gcmessages_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6961,7 +7140,7 @@ func (x *CMsgPartyClearPendingPlayer) String() string {
 func (*CMsgPartyClearPendingPlayer) ProtoMessage() {}
 
 func (x *CMsgPartyClearPendingPlayer) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[78]
+	mi := &file_tf_gcmessages_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6974,7 +7153,7 @@ func (x *CMsgPartyClearPendingPlayer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgPartyClearPendingPlayer.ProtoReflect.Descriptor instead.
 func (*CMsgPartyClearPendingPlayer) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{78}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *CMsgPartyClearPendingPlayer) GetPartyId() uint64 {
@@ -7003,7 +7182,7 @@ type CMsgPartyMMError struct {
 
 func (x *CMsgPartyMMError) Reset() {
 	*x = CMsgPartyMMError{}
-	mi := &file_tf_gcmessages_proto_msgTypes[79]
+	mi := &file_tf_gcmessages_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7015,7 +7194,7 @@ func (x *CMsgPartyMMError) String() string {
 func (*CMsgPartyMMError) ProtoMessage() {}
 
 func (x *CMsgPartyMMError) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[79]
+	mi := &file_tf_gcmessages_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7028,7 +7207,7 @@ func (x *CMsgPartyMMError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgPartyMMError.ProtoReflect.Descriptor instead.
 func (*CMsgPartyMMError) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{79}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *CMsgPartyMMError) GetType() CMsgPartyMMError_Type {
@@ -7049,7 +7228,7 @@ type CMsgPartyClearPendingPlayerResponse struct {
 
 func (x *CMsgPartyClearPendingPlayerResponse) Reset() {
 	*x = CMsgPartyClearPendingPlayerResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[80]
+	mi := &file_tf_gcmessages_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7061,7 +7240,7 @@ func (x *CMsgPartyClearPendingPlayerResponse) String() string {
 func (*CMsgPartyClearPendingPlayerResponse) ProtoMessage() {}
 
 func (x *CMsgPartyClearPendingPlayerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[80]
+	mi := &file_tf_gcmessages_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7074,7 +7253,7 @@ func (x *CMsgPartyClearPendingPlayerResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use CMsgPartyClearPendingPlayerResponse.ProtoReflect.Descriptor instead.
 func (*CMsgPartyClearPendingPlayerResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{80}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{81}
 }
 
 // k_EMsgGCParty_ClearOtherPartyRequest
@@ -7087,7 +7266,7 @@ type CMsgPartyClearOtherPartyRequest struct {
 
 func (x *CMsgPartyClearOtherPartyRequest) Reset() {
 	*x = CMsgPartyClearOtherPartyRequest{}
-	mi := &file_tf_gcmessages_proto_msgTypes[81]
+	mi := &file_tf_gcmessages_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7099,7 +7278,7 @@ func (x *CMsgPartyClearOtherPartyRequest) String() string {
 func (*CMsgPartyClearOtherPartyRequest) ProtoMessage() {}
 
 func (x *CMsgPartyClearOtherPartyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[81]
+	mi := &file_tf_gcmessages_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7112,7 +7291,7 @@ func (x *CMsgPartyClearOtherPartyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgPartyClearOtherPartyRequest.ProtoReflect.Descriptor instead.
 func (*CMsgPartyClearOtherPartyRequest) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{81}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *CMsgPartyClearOtherPartyRequest) GetOtherPartyId() uint64 {
@@ -7131,7 +7310,7 @@ type CMsgPartyClearOtherPartyRequestResponse struct {
 
 func (x *CMsgPartyClearOtherPartyRequestResponse) Reset() {
 	*x = CMsgPartyClearOtherPartyRequestResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[82]
+	mi := &file_tf_gcmessages_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7143,7 +7322,7 @@ func (x *CMsgPartyClearOtherPartyRequestResponse) String() string {
 func (*CMsgPartyClearOtherPartyRequestResponse) ProtoMessage() {}
 
 func (x *CMsgPartyClearOtherPartyRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[82]
+	mi := &file_tf_gcmessages_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7156,7 +7335,7 @@ func (x *CMsgPartyClearOtherPartyRequestResponse) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use CMsgPartyClearOtherPartyRequestResponse.ProtoReflect.Descriptor instead.
 func (*CMsgPartyClearOtherPartyRequestResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{82}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{83}
 }
 
 // k_EMsgGCParty_PromoteToLeader
@@ -7170,7 +7349,7 @@ type CMsgPartyPromoteToLeader struct {
 
 func (x *CMsgPartyPromoteToLeader) Reset() {
 	*x = CMsgPartyPromoteToLeader{}
-	mi := &file_tf_gcmessages_proto_msgTypes[83]
+	mi := &file_tf_gcmessages_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7182,7 +7361,7 @@ func (x *CMsgPartyPromoteToLeader) String() string {
 func (*CMsgPartyPromoteToLeader) ProtoMessage() {}
 
 func (x *CMsgPartyPromoteToLeader) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[83]
+	mi := &file_tf_gcmessages_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7195,7 +7374,7 @@ func (x *CMsgPartyPromoteToLeader) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgPartyPromoteToLeader.ProtoReflect.Descriptor instead.
 func (*CMsgPartyPromoteToLeader) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{83}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *CMsgPartyPromoteToLeader) GetPartyId() uint64 {
@@ -7222,7 +7401,7 @@ type CMsgPartyKickMember struct {
 
 func (x *CMsgPartyKickMember) Reset() {
 	*x = CMsgPartyKickMember{}
-	mi := &file_tf_gcmessages_proto_msgTypes[84]
+	mi := &file_tf_gcmessages_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7234,7 +7413,7 @@ func (x *CMsgPartyKickMember) String() string {
 func (*CMsgPartyKickMember) ProtoMessage() {}
 
 func (x *CMsgPartyKickMember) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[84]
+	mi := &file_tf_gcmessages_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7247,7 +7426,7 @@ func (x *CMsgPartyKickMember) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgPartyKickMember.ProtoReflect.Descriptor instead.
 func (*CMsgPartyKickMember) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{84}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *CMsgPartyKickMember) GetPartyId() uint64 {
@@ -7275,7 +7454,7 @@ type CMsgPartySendChat struct {
 
 func (x *CMsgPartySendChat) Reset() {
 	*x = CMsgPartySendChat{}
-	mi := &file_tf_gcmessages_proto_msgTypes[85]
+	mi := &file_tf_gcmessages_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7287,7 +7466,7 @@ func (x *CMsgPartySendChat) String() string {
 func (*CMsgPartySendChat) ProtoMessage() {}
 
 func (x *CMsgPartySendChat) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[85]
+	mi := &file_tf_gcmessages_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7300,7 +7479,7 @@ func (x *CMsgPartySendChat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgPartySendChat.ProtoReflect.Descriptor instead.
 func (*CMsgPartySendChat) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{85}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *CMsgPartySendChat) GetPartyId() uint64 {
@@ -7330,7 +7509,7 @@ type CMsgPartyChatMsg struct {
 
 func (x *CMsgPartyChatMsg) Reset() {
 	*x = CMsgPartyChatMsg{}
-	mi := &file_tf_gcmessages_proto_msgTypes[86]
+	mi := &file_tf_gcmessages_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7342,7 +7521,7 @@ func (x *CMsgPartyChatMsg) String() string {
 func (*CMsgPartyChatMsg) ProtoMessage() {}
 
 func (x *CMsgPartyChatMsg) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[86]
+	mi := &file_tf_gcmessages_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7355,7 +7534,7 @@ func (x *CMsgPartyChatMsg) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgPartyChatMsg.ProtoReflect.Descriptor instead.
 func (*CMsgPartyChatMsg) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{86}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{87}
 }
 
 func (x *CMsgPartyChatMsg) GetType() ETFPartyChatType {
@@ -7414,7 +7593,7 @@ type CSOTFParty struct {
 
 func (x *CSOTFParty) Reset() {
 	*x = CSOTFParty{}
-	mi := &file_tf_gcmessages_proto_msgTypes[87]
+	mi := &file_tf_gcmessages_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7426,7 +7605,7 @@ func (x *CSOTFParty) String() string {
 func (*CSOTFParty) ProtoMessage() {}
 
 func (x *CSOTFParty) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[87]
+	mi := &file_tf_gcmessages_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7439,7 +7618,7 @@ func (x *CSOTFParty) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CSOTFParty.ProtoReflect.Descriptor instead.
 func (*CSOTFParty) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{87}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{88}
 }
 
 func (x *CSOTFParty) GetPartyId() uint64 {
@@ -7556,7 +7735,7 @@ type CSOTFPartyInvite struct {
 
 func (x *CSOTFPartyInvite) Reset() {
 	*x = CSOTFPartyInvite{}
-	mi := &file_tf_gcmessages_proto_msgTypes[88]
+	mi := &file_tf_gcmessages_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7568,7 +7747,7 @@ func (x *CSOTFPartyInvite) String() string {
 func (*CSOTFPartyInvite) ProtoMessage() {}
 
 func (x *CSOTFPartyInvite) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[88]
+	mi := &file_tf_gcmessages_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7581,7 +7760,7 @@ func (x *CSOTFPartyInvite) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CSOTFPartyInvite.ProtoReflect.Descriptor instead.
 func (*CSOTFPartyInvite) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{88}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{89}
 }
 
 func (x *CSOTFPartyInvite) GetGroupId() uint64 {
@@ -7646,7 +7825,7 @@ type CTFLobbyPlayerProto struct {
 
 func (x *CTFLobbyPlayerProto) Reset() {
 	*x = CTFLobbyPlayerProto{}
-	mi := &file_tf_gcmessages_proto_msgTypes[89]
+	mi := &file_tf_gcmessages_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7658,7 +7837,7 @@ func (x *CTFLobbyPlayerProto) String() string {
 func (*CTFLobbyPlayerProto) ProtoMessage() {}
 
 func (x *CTFLobbyPlayerProto) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[89]
+	mi := &file_tf_gcmessages_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7671,7 +7850,7 @@ func (x *CTFLobbyPlayerProto) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CTFLobbyPlayerProto.ProtoReflect.Descriptor instead.
 func (*CTFLobbyPlayerProto) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{89}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{90}
 }
 
 func (x *CTFLobbyPlayerProto) GetId() uint64 {
@@ -7775,7 +7954,7 @@ type CTFLobbyInviteProto struct {
 
 func (x *CTFLobbyInviteProto) Reset() {
 	*x = CTFLobbyInviteProto{}
-	mi := &file_tf_gcmessages_proto_msgTypes[90]
+	mi := &file_tf_gcmessages_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7787,7 +7966,7 @@ func (x *CTFLobbyInviteProto) String() string {
 func (*CTFLobbyInviteProto) ProtoMessage() {}
 
 func (x *CTFLobbyInviteProto) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[90]
+	mi := &file_tf_gcmessages_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7800,7 +7979,7 @@ func (x *CTFLobbyInviteProto) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CTFLobbyInviteProto.ProtoReflect.Descriptor instead.
 func (*CTFLobbyInviteProto) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{90}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{91}
 }
 
 func (x *CTFLobbyInviteProto) GetLobbyId() uint64 {
@@ -7925,7 +8104,7 @@ const (
 
 func (x *CSOTFGameServerLobby) Reset() {
 	*x = CSOTFGameServerLobby{}
-	mi := &file_tf_gcmessages_proto_msgTypes[91]
+	mi := &file_tf_gcmessages_proto_msgTypes[92]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7937,7 +8116,7 @@ func (x *CSOTFGameServerLobby) String() string {
 func (*CSOTFGameServerLobby) ProtoMessage() {}
 
 func (x *CSOTFGameServerLobby) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[91]
+	mi := &file_tf_gcmessages_proto_msgTypes[92]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7950,7 +8129,7 @@ func (x *CSOTFGameServerLobby) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CSOTFGameServerLobby.ProtoReflect.Descriptor instead.
 func (*CSOTFGameServerLobby) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{91}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{92}
 }
 
 func (x *CSOTFGameServerLobby) GetLobbyId() uint64 {
@@ -8107,7 +8286,7 @@ type CMsgExitMatchmaking struct {
 
 func (x *CMsgExitMatchmaking) Reset() {
 	*x = CMsgExitMatchmaking{}
-	mi := &file_tf_gcmessages_proto_msgTypes[92]
+	mi := &file_tf_gcmessages_proto_msgTypes[93]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8119,7 +8298,7 @@ func (x *CMsgExitMatchmaking) String() string {
 func (*CMsgExitMatchmaking) ProtoMessage() {}
 
 func (x *CMsgExitMatchmaking) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[92]
+	mi := &file_tf_gcmessages_proto_msgTypes[93]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8132,7 +8311,7 @@ func (x *CMsgExitMatchmaking) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgExitMatchmaking.ProtoReflect.Descriptor instead.
 func (*CMsgExitMatchmaking) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{92}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *CMsgExitMatchmaking) GetExplicitAbandon() bool {
@@ -8184,7 +8363,7 @@ type CMsgAcceptLobbyInvite struct {
 
 func (x *CMsgAcceptLobbyInvite) Reset() {
 	*x = CMsgAcceptLobbyInvite{}
-	mi := &file_tf_gcmessages_proto_msgTypes[93]
+	mi := &file_tf_gcmessages_proto_msgTypes[94]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8196,7 +8375,7 @@ func (x *CMsgAcceptLobbyInvite) String() string {
 func (*CMsgAcceptLobbyInvite) ProtoMessage() {}
 
 func (x *CMsgAcceptLobbyInvite) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[93]
+	mi := &file_tf_gcmessages_proto_msgTypes[94]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8209,7 +8388,7 @@ func (x *CMsgAcceptLobbyInvite) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgAcceptLobbyInvite.ProtoReflect.Descriptor instead.
 func (*CMsgAcceptLobbyInvite) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{93}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{94}
 }
 
 func (x *CMsgAcceptLobbyInvite) GetInvitedLobbyId() uint64 {
@@ -8242,7 +8421,7 @@ type CMsgAcceptLobbyInviteReply struct {
 
 func (x *CMsgAcceptLobbyInviteReply) Reset() {
 	*x = CMsgAcceptLobbyInviteReply{}
-	mi := &file_tf_gcmessages_proto_msgTypes[94]
+	mi := &file_tf_gcmessages_proto_msgTypes[95]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8254,7 +8433,7 @@ func (x *CMsgAcceptLobbyInviteReply) String() string {
 func (*CMsgAcceptLobbyInviteReply) ProtoMessage() {}
 
 func (x *CMsgAcceptLobbyInviteReply) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[94]
+	mi := &file_tf_gcmessages_proto_msgTypes[95]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8267,7 +8446,7 @@ func (x *CMsgAcceptLobbyInviteReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgAcceptLobbyInviteReply.ProtoReflect.Descriptor instead.
 func (*CMsgAcceptLobbyInviteReply) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{94}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{95}
 }
 
 // request how many people are searching in each matchgroup
@@ -8279,7 +8458,7 @@ type CMsgMatchmakingSearchCountRequest struct {
 
 func (x *CMsgMatchmakingSearchCountRequest) Reset() {
 	*x = CMsgMatchmakingSearchCountRequest{}
-	mi := &file_tf_gcmessages_proto_msgTypes[95]
+	mi := &file_tf_gcmessages_proto_msgTypes[96]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8291,7 +8470,7 @@ func (x *CMsgMatchmakingSearchCountRequest) String() string {
 func (*CMsgMatchmakingSearchCountRequest) ProtoMessage() {}
 
 func (x *CMsgMatchmakingSearchCountRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[95]
+	mi := &file_tf_gcmessages_proto_msgTypes[96]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8304,7 +8483,7 @@ func (x *CMsgMatchmakingSearchCountRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use CMsgMatchmakingSearchCountRequest.ProtoReflect.Descriptor instead.
 func (*CMsgMatchmakingSearchCountRequest) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{95}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{96}
 }
 
 type CMsgMatchmakingSearchCountResponse struct {
@@ -8316,7 +8495,7 @@ type CMsgMatchmakingSearchCountResponse struct {
 
 func (x *CMsgMatchmakingSearchCountResponse) Reset() {
 	*x = CMsgMatchmakingSearchCountResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[96]
+	mi := &file_tf_gcmessages_proto_msgTypes[97]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8328,7 +8507,7 @@ func (x *CMsgMatchmakingSearchCountResponse) String() string {
 func (*CMsgMatchmakingSearchCountResponse) ProtoMessage() {}
 
 func (x *CMsgMatchmakingSearchCountResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[96]
+	mi := &file_tf_gcmessages_proto_msgTypes[97]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8341,7 +8520,7 @@ func (x *CMsgMatchmakingSearchCountResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use CMsgMatchmakingSearchCountResponse.ProtoReflect.Descriptor instead.
 func (*CMsgMatchmakingSearchCountResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{96}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{97}
 }
 
 func (x *CMsgMatchmakingSearchCountResponse) GetSearchingPlayersByGroup() []uint32 {
@@ -8359,7 +8538,7 @@ type CMsgKickedFromMatchmakingQueue struct {
 
 func (x *CMsgKickedFromMatchmakingQueue) Reset() {
 	*x = CMsgKickedFromMatchmakingQueue{}
-	mi := &file_tf_gcmessages_proto_msgTypes[97]
+	mi := &file_tf_gcmessages_proto_msgTypes[98]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8371,7 +8550,7 @@ func (x *CMsgKickedFromMatchmakingQueue) String() string {
 func (*CMsgKickedFromMatchmakingQueue) ProtoMessage() {}
 
 func (x *CMsgKickedFromMatchmakingQueue) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[97]
+	mi := &file_tf_gcmessages_proto_msgTypes[98]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8384,7 +8563,7 @@ func (x *CMsgKickedFromMatchmakingQueue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgKickedFromMatchmakingQueue.ProtoReflect.Descriptor instead.
 func (*CMsgKickedFromMatchmakingQueue) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{97}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{98}
 }
 
 // CMsgGameServerMatchmakingStatus - server status and connected players
@@ -8417,8 +8596,12 @@ type CMsgGameServerMatchmakingStatus struct {
 	// Echo the last lobby version back with our heartbeat. GC uses this to reason about the last update we had a chance
 	// to respond to.
 	LobbyMmVersion *uint32 `protobuf:"varint,24,opt,name=lobby_mm_version,json=lobbyMmVersion" json:"lobby_mm_version,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Team Frontress: the server runs an Easy Anti-Cheat protected session
+	// (frontress_anticheat_server.h). A GC that requires anti-cheat only
+	// hands matches to servers that say so.
+	AnticheatProtected *bool `protobuf:"varint,40,opt,name=anticheat_protected,json=anticheatProtected" json:"anticheat_protected,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 // Default values for CMsgGameServerMatchmakingStatus fields.
@@ -8431,7 +8614,7 @@ const (
 
 func (x *CMsgGameServerMatchmakingStatus) Reset() {
 	*x = CMsgGameServerMatchmakingStatus{}
-	mi := &file_tf_gcmessages_proto_msgTypes[98]
+	mi := &file_tf_gcmessages_proto_msgTypes[99]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8443,7 +8626,7 @@ func (x *CMsgGameServerMatchmakingStatus) String() string {
 func (*CMsgGameServerMatchmakingStatus) ProtoMessage() {}
 
 func (x *CMsgGameServerMatchmakingStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[98]
+	mi := &file_tf_gcmessages_proto_msgTypes[99]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8456,7 +8639,7 @@ func (x *CMsgGameServerMatchmakingStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGameServerMatchmakingStatus.ProtoReflect.Descriptor instead.
 func (*CMsgGameServerMatchmakingStatus) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{98}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{99}
 }
 
 func (x *CMsgGameServerMatchmakingStatus) GetServerVersion() uint32 {
@@ -8613,6 +8796,13 @@ func (x *CMsgGameServerMatchmakingStatus) GetLobbyMmVersion() uint32 {
 	return 0
 }
 
+func (x *CMsgGameServerMatchmakingStatus) GetAnticheatProtected() bool {
+	if x != nil && x.AnticheatProtected != nil {
+		return *x.AnticheatProtected
+	}
+	return false
+}
+
 // k_EMsgGCMatchmakingProgress
 // Server is sending party estimate of wait times, etc
 type CMsgMatchmakingProgress struct {
@@ -8639,7 +8829,7 @@ type CMsgMatchmakingProgress struct {
 
 func (x *CMsgMatchmakingProgress) Reset() {
 	*x = CMsgMatchmakingProgress{}
-	mi := &file_tf_gcmessages_proto_msgTypes[99]
+	mi := &file_tf_gcmessages_proto_msgTypes[100]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8651,7 +8841,7 @@ func (x *CMsgMatchmakingProgress) String() string {
 func (*CMsgMatchmakingProgress) ProtoMessage() {}
 
 func (x *CMsgMatchmakingProgress) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[99]
+	mi := &file_tf_gcmessages_proto_msgTypes[100]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8664,7 +8854,7 @@ func (x *CMsgMatchmakingProgress) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgMatchmakingProgress.ProtoReflect.Descriptor instead.
 func (*CMsgMatchmakingProgress) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{99}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{100}
 }
 
 func (x *CMsgMatchmakingProgress) GetAvgWaitTimeNew() uint32 {
@@ -8793,7 +8983,7 @@ type CMsgMvMVictoryInfo struct {
 
 func (x *CMsgMvMVictoryInfo) Reset() {
 	*x = CMsgMvMVictoryInfo{}
-	mi := &file_tf_gcmessages_proto_msgTypes[100]
+	mi := &file_tf_gcmessages_proto_msgTypes[101]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8805,7 +8995,7 @@ func (x *CMsgMvMVictoryInfo) String() string {
 func (*CMsgMvMVictoryInfo) ProtoMessage() {}
 
 func (x *CMsgMvMVictoryInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[100]
+	mi := &file_tf_gcmessages_proto_msgTypes[101]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8818,7 +9008,7 @@ func (x *CMsgMvMVictoryInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgMvMVictoryInfo.ProtoReflect.Descriptor instead.
 func (*CMsgMvMVictoryInfo) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{100}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *CMsgMvMVictoryInfo) GetPlayers() []*CMsgMvMVictoryInfo_Player {
@@ -8854,7 +9044,7 @@ type CGCMsgTFHelloResponse struct {
 
 func (x *CGCMsgTFHelloResponse) Reset() {
 	*x = CGCMsgTFHelloResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[101]
+	mi := &file_tf_gcmessages_proto_msgTypes[102]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8866,7 +9056,7 @@ func (x *CGCMsgTFHelloResponse) String() string {
 func (*CGCMsgTFHelloResponse) ProtoMessage() {}
 
 func (x *CGCMsgTFHelloResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[101]
+	mi := &file_tf_gcmessages_proto_msgTypes[102]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8879,7 +9069,7 @@ func (x *CGCMsgTFHelloResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CGCMsgTFHelloResponse.ProtoReflect.Descriptor instead.
 func (*CGCMsgTFHelloResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{101}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{102}
 }
 
 func (x *CGCMsgTFHelloResponse) GetVersionCheck() uint32 {
@@ -8917,7 +9107,7 @@ type CGCMsgTFSync struct {
 
 func (x *CGCMsgTFSync) Reset() {
 	*x = CGCMsgTFSync{}
-	mi := &file_tf_gcmessages_proto_msgTypes[102]
+	mi := &file_tf_gcmessages_proto_msgTypes[103]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8929,7 +9119,7 @@ func (x *CGCMsgTFSync) String() string {
 func (*CGCMsgTFSync) ProtoMessage() {}
 
 func (x *CGCMsgTFSync) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[102]
+	mi := &file_tf_gcmessages_proto_msgTypes[103]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8942,7 +9132,7 @@ func (x *CGCMsgTFSync) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CGCMsgTFSync.ProtoReflect.Descriptor instead.
 func (*CGCMsgTFSync) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{102}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{103}
 }
 
 func (x *CGCMsgTFSync) GetVersionChecksum() []byte {
@@ -8992,7 +9182,7 @@ type CGCMsgTFSyncEx struct {
 
 func (x *CGCMsgTFSyncEx) Reset() {
 	*x = CGCMsgTFSyncEx{}
-	mi := &file_tf_gcmessages_proto_msgTypes[103]
+	mi := &file_tf_gcmessages_proto_msgTypes[104]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9004,7 +9194,7 @@ func (x *CGCMsgTFSyncEx) String() string {
 func (*CGCMsgTFSyncEx) ProtoMessage() {}
 
 func (x *CGCMsgTFSyncEx) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[103]
+	mi := &file_tf_gcmessages_proto_msgTypes[104]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9017,7 +9207,7 @@ func (x *CGCMsgTFSyncEx) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CGCMsgTFSyncEx.ProtoReflect.Descriptor instead.
 func (*CGCMsgTFSyncEx) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{103}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{104}
 }
 
 func (x *CGCMsgTFSyncEx) GetVersionChecksum() string {
@@ -9056,7 +9246,7 @@ type CMsgMvMVictory struct {
 
 func (x *CMsgMvMVictory) Reset() {
 	*x = CMsgMvMVictory{}
-	mi := &file_tf_gcmessages_proto_msgTypes[104]
+	mi := &file_tf_gcmessages_proto_msgTypes[105]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9068,7 +9258,7 @@ func (x *CMsgMvMVictory) String() string {
 func (*CMsgMvMVictory) ProtoMessage() {}
 
 func (x *CMsgMvMVictory) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[104]
+	mi := &file_tf_gcmessages_proto_msgTypes[105]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9081,7 +9271,7 @@ func (x *CMsgMvMVictory) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgMvMVictory.ProtoReflect.Descriptor instead.
 func (*CMsgMvMVictory) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{104}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{105}
 }
 
 func (x *CMsgMvMVictory) GetLegacyMissionIndex() uint32 {
@@ -9135,7 +9325,7 @@ type CMsgMvMMannUpVictoryReply struct {
 
 func (x *CMsgMvMMannUpVictoryReply) Reset() {
 	*x = CMsgMvMMannUpVictoryReply{}
-	mi := &file_tf_gcmessages_proto_msgTypes[105]
+	mi := &file_tf_gcmessages_proto_msgTypes[106]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9147,7 +9337,7 @@ func (x *CMsgMvMMannUpVictoryReply) String() string {
 func (*CMsgMvMMannUpVictoryReply) ProtoMessage() {}
 
 func (x *CMsgMvMMannUpVictoryReply) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[105]
+	mi := &file_tf_gcmessages_proto_msgTypes[106]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9160,7 +9350,7 @@ func (x *CMsgMvMMannUpVictoryReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgMvMMannUpVictoryReply.ProtoReflect.Descriptor instead.
 func (*CMsgMvMMannUpVictoryReply) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{105}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{106}
 }
 
 // Game server is letting us know that it is booting the lobby off of the server
@@ -9178,7 +9368,7 @@ type CMsgGameServerKickingLobby struct {
 
 func (x *CMsgGameServerKickingLobby) Reset() {
 	*x = CMsgGameServerKickingLobby{}
-	mi := &file_tf_gcmessages_proto_msgTypes[106]
+	mi := &file_tf_gcmessages_proto_msgTypes[107]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9190,7 +9380,7 @@ func (x *CMsgGameServerKickingLobby) String() string {
 func (*CMsgGameServerKickingLobby) ProtoMessage() {}
 
 func (x *CMsgGameServerKickingLobby) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[106]
+	mi := &file_tf_gcmessages_proto_msgTypes[107]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9203,7 +9393,7 @@ func (x *CMsgGameServerKickingLobby) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGameServerKickingLobby.ProtoReflect.Descriptor instead.
 func (*CMsgGameServerKickingLobby) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{106}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{107}
 }
 
 func (x *CMsgGameServerKickingLobby) GetLobbyId() uint64 {
@@ -9229,7 +9419,7 @@ type CMsgGameServerKickingLobbyResponse struct {
 
 func (x *CMsgGameServerKickingLobbyResponse) Reset() {
 	*x = CMsgGameServerKickingLobbyResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[107]
+	mi := &file_tf_gcmessages_proto_msgTypes[108]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9241,7 +9431,7 @@ func (x *CMsgGameServerKickingLobbyResponse) String() string {
 func (*CMsgGameServerKickingLobbyResponse) ProtoMessage() {}
 
 func (x *CMsgGameServerKickingLobbyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[107]
+	mi := &file_tf_gcmessages_proto_msgTypes[108]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9254,7 +9444,7 @@ func (x *CMsgGameServerKickingLobbyResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use CMsgGameServerKickingLobbyResponse.ProtoReflect.Descriptor instead.
 func (*CMsgGameServerKickingLobbyResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{107}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{108}
 }
 
 // GC -> client: Leave your current game; I am about to put you into a party
@@ -9267,7 +9457,7 @@ type CMsgLeaveGameAndPrepareToJoinParty struct {
 
 func (x *CMsgLeaveGameAndPrepareToJoinParty) Reset() {
 	*x = CMsgLeaveGameAndPrepareToJoinParty{}
-	mi := &file_tf_gcmessages_proto_msgTypes[108]
+	mi := &file_tf_gcmessages_proto_msgTypes[109]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9279,7 +9469,7 @@ func (x *CMsgLeaveGameAndPrepareToJoinParty) String() string {
 func (*CMsgLeaveGameAndPrepareToJoinParty) ProtoMessage() {}
 
 func (x *CMsgLeaveGameAndPrepareToJoinParty) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[108]
+	mi := &file_tf_gcmessages_proto_msgTypes[109]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9292,7 +9482,7 @@ func (x *CMsgLeaveGameAndPrepareToJoinParty) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use CMsgLeaveGameAndPrepareToJoinParty.ProtoReflect.Descriptor instead.
 func (*CMsgLeaveGameAndPrepareToJoinParty) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{108}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{109}
 }
 
 func (x *CMsgLeaveGameAndPrepareToJoinParty) GetPartyId() uint64 {
@@ -9317,7 +9507,7 @@ type CMsgPlayerLeftMatch struct {
 
 func (x *CMsgPlayerLeftMatch) Reset() {
 	*x = CMsgPlayerLeftMatch{}
-	mi := &file_tf_gcmessages_proto_msgTypes[109]
+	mi := &file_tf_gcmessages_proto_msgTypes[110]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9329,7 +9519,7 @@ func (x *CMsgPlayerLeftMatch) String() string {
 func (*CMsgPlayerLeftMatch) ProtoMessage() {}
 
 func (x *CMsgPlayerLeftMatch) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[109]
+	mi := &file_tf_gcmessages_proto_msgTypes[110]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9342,7 +9532,7 @@ func (x *CMsgPlayerLeftMatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgPlayerLeftMatch.ProtoReflect.Descriptor instead.
 func (*CMsgPlayerLeftMatch) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{109}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{110}
 }
 
 func (x *CMsgPlayerLeftMatch) GetSteamId() uint64 {
@@ -9396,7 +9586,7 @@ type CMsgPlayerLeftMatchResponse struct {
 
 func (x *CMsgPlayerLeftMatchResponse) Reset() {
 	*x = CMsgPlayerLeftMatchResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[110]
+	mi := &file_tf_gcmessages_proto_msgTypes[111]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9408,7 +9598,7 @@ func (x *CMsgPlayerLeftMatchResponse) String() string {
 func (*CMsgPlayerLeftMatchResponse) ProtoMessage() {}
 
 func (x *CMsgPlayerLeftMatchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[110]
+	mi := &file_tf_gcmessages_proto_msgTypes[111]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9421,7 +9611,7 @@ func (x *CMsgPlayerLeftMatchResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgPlayerLeftMatchResponse.ProtoReflect.Descriptor instead.
 func (*CMsgPlayerLeftMatchResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{110}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{111}
 }
 
 // Server -> GC : Inform GC of a vote-kick and request a decision
@@ -9441,7 +9631,7 @@ type CMsgProcessMatchVoteKick struct {
 
 func (x *CMsgProcessMatchVoteKick) Reset() {
 	*x = CMsgProcessMatchVoteKick{}
-	mi := &file_tf_gcmessages_proto_msgTypes[111]
+	mi := &file_tf_gcmessages_proto_msgTypes[112]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9453,7 +9643,7 @@ func (x *CMsgProcessMatchVoteKick) String() string {
 func (*CMsgProcessMatchVoteKick) ProtoMessage() {}
 
 func (x *CMsgProcessMatchVoteKick) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[111]
+	mi := &file_tf_gcmessages_proto_msgTypes[112]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9466,7 +9656,7 @@ func (x *CMsgProcessMatchVoteKick) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgProcessMatchVoteKick.ProtoReflect.Descriptor instead.
 func (*CMsgProcessMatchVoteKick) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{111}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{112}
 }
 
 func (x *CMsgProcessMatchVoteKick) GetMatchId() uint64 {
@@ -9523,7 +9713,7 @@ type CMsgProcessMatchVoteKickResponse struct {
 
 func (x *CMsgProcessMatchVoteKickResponse) Reset() {
 	*x = CMsgProcessMatchVoteKickResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[112]
+	mi := &file_tf_gcmessages_proto_msgTypes[113]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9535,7 +9725,7 @@ func (x *CMsgProcessMatchVoteKickResponse) String() string {
 func (*CMsgProcessMatchVoteKickResponse) ProtoMessage() {}
 
 func (x *CMsgProcessMatchVoteKickResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[112]
+	mi := &file_tf_gcmessages_proto_msgTypes[113]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9548,7 +9738,7 @@ func (x *CMsgProcessMatchVoteKickResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgProcessMatchVoteKickResponse.ProtoReflect.Descriptor instead.
 func (*CMsgProcessMatchVoteKickResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{112}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{113}
 }
 
 func (x *CMsgProcessMatchVoteKickResponse) GetRip() bool {
@@ -9574,7 +9764,7 @@ type CMsgHalloween_ServerBossEvent struct {
 
 func (x *CMsgHalloween_ServerBossEvent) Reset() {
 	*x = CMsgHalloween_ServerBossEvent{}
-	mi := &file_tf_gcmessages_proto_msgTypes[113]
+	mi := &file_tf_gcmessages_proto_msgTypes[114]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9586,7 +9776,7 @@ func (x *CMsgHalloween_ServerBossEvent) String() string {
 func (*CMsgHalloween_ServerBossEvent) ProtoMessage() {}
 
 func (x *CMsgHalloween_ServerBossEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[113]
+	mi := &file_tf_gcmessages_proto_msgTypes[114]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9599,7 +9789,7 @@ func (x *CMsgHalloween_ServerBossEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgHalloween_ServerBossEvent.ProtoReflect.Descriptor instead.
 func (*CMsgHalloween_ServerBossEvent) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{113}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{114}
 }
 
 func (x *CMsgHalloween_ServerBossEvent) GetEventCounter() uint32 {
@@ -9690,7 +9880,7 @@ type CMsgHalloween_Merasmus2012 struct {
 
 func (x *CMsgHalloween_Merasmus2012) Reset() {
 	*x = CMsgHalloween_Merasmus2012{}
-	mi := &file_tf_gcmessages_proto_msgTypes[114]
+	mi := &file_tf_gcmessages_proto_msgTypes[115]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9702,7 +9892,7 @@ func (x *CMsgHalloween_Merasmus2012) String() string {
 func (*CMsgHalloween_Merasmus2012) ProtoMessage() {}
 
 func (x *CMsgHalloween_Merasmus2012) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[114]
+	mi := &file_tf_gcmessages_proto_msgTypes[115]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9715,7 +9905,7 @@ func (x *CMsgHalloween_Merasmus2012) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgHalloween_Merasmus2012.ProtoReflect.Descriptor instead.
 func (*CMsgHalloween_Merasmus2012) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{114}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{115}
 }
 
 func (x *CMsgHalloween_Merasmus2012) GetEventCounter() uint32 {
@@ -9940,7 +10130,7 @@ type CMsgUpdateHalloweenMerasmusLootLevel struct {
 
 func (x *CMsgUpdateHalloweenMerasmusLootLevel) Reset() {
 	*x = CMsgUpdateHalloweenMerasmusLootLevel{}
-	mi := &file_tf_gcmessages_proto_msgTypes[115]
+	mi := &file_tf_gcmessages_proto_msgTypes[116]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9952,7 +10142,7 @@ func (x *CMsgUpdateHalloweenMerasmusLootLevel) String() string {
 func (*CMsgUpdateHalloweenMerasmusLootLevel) ProtoMessage() {}
 
 func (x *CMsgUpdateHalloweenMerasmusLootLevel) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[115]
+	mi := &file_tf_gcmessages_proto_msgTypes[116]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9965,7 +10155,7 @@ func (x *CMsgUpdateHalloweenMerasmusLootLevel) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use CMsgUpdateHalloweenMerasmusLootLevel.ProtoReflect.Descriptor instead.
 func (*CMsgUpdateHalloweenMerasmusLootLevel) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{115}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{116}
 }
 
 func (x *CMsgUpdateHalloweenMerasmusLootLevel) GetPlayers() []*CMsgUpdateHalloweenMerasmusLootLevel_Player {
@@ -9991,7 +10181,7 @@ type CAttribute_String struct {
 
 func (x *CAttribute_String) Reset() {
 	*x = CAttribute_String{}
-	mi := &file_tf_gcmessages_proto_msgTypes[116]
+	mi := &file_tf_gcmessages_proto_msgTypes[117]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10003,7 +10193,7 @@ func (x *CAttribute_String) String() string {
 func (*CAttribute_String) ProtoMessage() {}
 
 func (x *CAttribute_String) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[116]
+	mi := &file_tf_gcmessages_proto_msgTypes[117]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10016,7 +10206,7 @@ func (x *CAttribute_String) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CAttribute_String.ProtoReflect.Descriptor instead.
 func (*CAttribute_String) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{116}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{117}
 }
 
 func (x *CAttribute_String) GetValue() string {
@@ -10040,7 +10230,7 @@ type CAttribute_DynamicRecipeComponent struct {
 
 func (x *CAttribute_DynamicRecipeComponent) Reset() {
 	*x = CAttribute_DynamicRecipeComponent{}
-	mi := &file_tf_gcmessages_proto_msgTypes[117]
+	mi := &file_tf_gcmessages_proto_msgTypes[118]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10052,7 +10242,7 @@ func (x *CAttribute_DynamicRecipeComponent) String() string {
 func (*CAttribute_DynamicRecipeComponent) ProtoMessage() {}
 
 func (x *CAttribute_DynamicRecipeComponent) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[117]
+	mi := &file_tf_gcmessages_proto_msgTypes[118]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10065,7 +10255,7 @@ func (x *CAttribute_DynamicRecipeComponent) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use CAttribute_DynamicRecipeComponent.ProtoReflect.Descriptor instead.
 func (*CAttribute_DynamicRecipeComponent) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{117}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{118}
 }
 
 func (x *CAttribute_DynamicRecipeComponent) GetDefIndex() uint32 {
@@ -10128,7 +10318,7 @@ type CAttribute_DynamicRecipeComponent_COMPAT_NEVER_SERIALIZE_THIS_OUT struct {
 
 func (x *CAttribute_DynamicRecipeComponent_COMPAT_NEVER_SERIALIZE_THIS_OUT) Reset() {
 	*x = CAttribute_DynamicRecipeComponent_COMPAT_NEVER_SERIALIZE_THIS_OUT{}
-	mi := &file_tf_gcmessages_proto_msgTypes[118]
+	mi := &file_tf_gcmessages_proto_msgTypes[119]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10140,7 +10330,7 @@ func (x *CAttribute_DynamicRecipeComponent_COMPAT_NEVER_SERIALIZE_THIS_OUT) Stri
 func (*CAttribute_DynamicRecipeComponent_COMPAT_NEVER_SERIALIZE_THIS_OUT) ProtoMessage() {}
 
 func (x *CAttribute_DynamicRecipeComponent_COMPAT_NEVER_SERIALIZE_THIS_OUT) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[118]
+	mi := &file_tf_gcmessages_proto_msgTypes[119]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10153,7 +10343,7 @@ func (x *CAttribute_DynamicRecipeComponent_COMPAT_NEVER_SERIALIZE_THIS_OUT) Prot
 
 // Deprecated: Use CAttribute_DynamicRecipeComponent_COMPAT_NEVER_SERIALIZE_THIS_OUT.ProtoReflect.Descriptor instead.
 func (*CAttribute_DynamicRecipeComponent_COMPAT_NEVER_SERIALIZE_THIS_OUT) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{118}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{119}
 }
 
 func (x *CAttribute_DynamicRecipeComponent_COMPAT_NEVER_SERIALIZE_THIS_OUT) GetDefIndex() uint32 {
@@ -10235,7 +10425,7 @@ type CAttribute_ItemSlotCriteria struct {
 
 func (x *CAttribute_ItemSlotCriteria) Reset() {
 	*x = CAttribute_ItemSlotCriteria{}
-	mi := &file_tf_gcmessages_proto_msgTypes[119]
+	mi := &file_tf_gcmessages_proto_msgTypes[120]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10247,7 +10437,7 @@ func (x *CAttribute_ItemSlotCriteria) String() string {
 func (*CAttribute_ItemSlotCriteria) ProtoMessage() {}
 
 func (x *CAttribute_ItemSlotCriteria) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[119]
+	mi := &file_tf_gcmessages_proto_msgTypes[120]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10260,7 +10450,7 @@ func (x *CAttribute_ItemSlotCriteria) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CAttribute_ItemSlotCriteria.ProtoReflect.Descriptor instead.
 func (*CAttribute_ItemSlotCriteria) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{119}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{120}
 }
 
 func (x *CAttribute_ItemSlotCriteria) GetTags() string {
@@ -10281,7 +10471,7 @@ type CMsgSetItemSlotAttribute struct {
 
 func (x *CMsgSetItemSlotAttribute) Reset() {
 	*x = CMsgSetItemSlotAttribute{}
-	mi := &file_tf_gcmessages_proto_msgTypes[120]
+	mi := &file_tf_gcmessages_proto_msgTypes[121]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10293,7 +10483,7 @@ func (x *CMsgSetItemSlotAttribute) String() string {
 func (*CMsgSetItemSlotAttribute) ProtoMessage() {}
 
 func (x *CMsgSetItemSlotAttribute) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[120]
+	mi := &file_tf_gcmessages_proto_msgTypes[121]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10306,7 +10496,7 @@ func (x *CMsgSetItemSlotAttribute) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgSetItemSlotAttribute.ProtoReflect.Descriptor instead.
 func (*CMsgSetItemSlotAttribute) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{120}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{121}
 }
 
 func (x *CMsgSetItemSlotAttribute) GetItemId() uint64 {
@@ -10343,7 +10533,7 @@ type CSOWarData struct {
 
 func (x *CSOWarData) Reset() {
 	*x = CSOWarData{}
-	mi := &file_tf_gcmessages_proto_msgTypes[121]
+	mi := &file_tf_gcmessages_proto_msgTypes[122]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10355,7 +10545,7 @@ func (x *CSOWarData) String() string {
 func (*CSOWarData) ProtoMessage() {}
 
 func (x *CSOWarData) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[121]
+	mi := &file_tf_gcmessages_proto_msgTypes[122]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10368,7 +10558,7 @@ func (x *CSOWarData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CSOWarData.ProtoReflect.Descriptor instead.
 func (*CSOWarData) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{121}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{122}
 }
 
 func (x *CSOWarData) GetAccountId() uint32 {
@@ -10411,7 +10601,7 @@ type CGCMsgGC_War_IndividualUpdate struct {
 
 func (x *CGCMsgGC_War_IndividualUpdate) Reset() {
 	*x = CGCMsgGC_War_IndividualUpdate{}
-	mi := &file_tf_gcmessages_proto_msgTypes[122]
+	mi := &file_tf_gcmessages_proto_msgTypes[123]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10423,7 +10613,7 @@ func (x *CGCMsgGC_War_IndividualUpdate) String() string {
 func (*CGCMsgGC_War_IndividualUpdate) ProtoMessage() {}
 
 func (x *CGCMsgGC_War_IndividualUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[122]
+	mi := &file_tf_gcmessages_proto_msgTypes[123]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10436,7 +10626,7 @@ func (x *CGCMsgGC_War_IndividualUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CGCMsgGC_War_IndividualUpdate.ProtoReflect.Descriptor instead.
 func (*CGCMsgGC_War_IndividualUpdate) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{122}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{123}
 }
 
 func (x *CGCMsgGC_War_IndividualUpdate) GetSteamId() uint64 {
@@ -10471,7 +10661,7 @@ type CGCMsgGC_War_JoinWar struct {
 
 func (x *CGCMsgGC_War_JoinWar) Reset() {
 	*x = CGCMsgGC_War_JoinWar{}
-	mi := &file_tf_gcmessages_proto_msgTypes[123]
+	mi := &file_tf_gcmessages_proto_msgTypes[124]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10483,7 +10673,7 @@ func (x *CGCMsgGC_War_JoinWar) String() string {
 func (*CGCMsgGC_War_JoinWar) ProtoMessage() {}
 
 func (x *CGCMsgGC_War_JoinWar) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[123]
+	mi := &file_tf_gcmessages_proto_msgTypes[124]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10496,7 +10686,7 @@ func (x *CGCMsgGC_War_JoinWar) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CGCMsgGC_War_JoinWar.ProtoReflect.Descriptor instead.
 func (*CGCMsgGC_War_JoinWar) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{123}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{124}
 }
 
 func (x *CGCMsgGC_War_JoinWar) GetAffiliation() uint32 {
@@ -10523,7 +10713,7 @@ type CGCMsgGC_War_RequestGlobalStats struct {
 
 func (x *CGCMsgGC_War_RequestGlobalStats) Reset() {
 	*x = CGCMsgGC_War_RequestGlobalStats{}
-	mi := &file_tf_gcmessages_proto_msgTypes[124]
+	mi := &file_tf_gcmessages_proto_msgTypes[125]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10535,7 +10725,7 @@ func (x *CGCMsgGC_War_RequestGlobalStats) String() string {
 func (*CGCMsgGC_War_RequestGlobalStats) ProtoMessage() {}
 
 func (x *CGCMsgGC_War_RequestGlobalStats) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[124]
+	mi := &file_tf_gcmessages_proto_msgTypes[125]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10548,7 +10738,7 @@ func (x *CGCMsgGC_War_RequestGlobalStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CGCMsgGC_War_RequestGlobalStats.ProtoReflect.Descriptor instead.
 func (*CGCMsgGC_War_RequestGlobalStats) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{124}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{125}
 }
 
 func (x *CGCMsgGC_War_RequestGlobalStats) GetWarId() uint32 {
@@ -10569,7 +10759,7 @@ type CGCMsgGC_War_GlobalStatsResponse struct {
 
 func (x *CGCMsgGC_War_GlobalStatsResponse) Reset() {
 	*x = CGCMsgGC_War_GlobalStatsResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[125]
+	mi := &file_tf_gcmessages_proto_msgTypes[126]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10581,7 +10771,7 @@ func (x *CGCMsgGC_War_GlobalStatsResponse) String() string {
 func (*CGCMsgGC_War_GlobalStatsResponse) ProtoMessage() {}
 
 func (x *CGCMsgGC_War_GlobalStatsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[125]
+	mi := &file_tf_gcmessages_proto_msgTypes[126]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10594,7 +10784,7 @@ func (x *CGCMsgGC_War_GlobalStatsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CGCMsgGC_War_GlobalStatsResponse.ProtoReflect.Descriptor instead.
 func (*CGCMsgGC_War_GlobalStatsResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{125}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{126}
 }
 
 func (x *CGCMsgGC_War_GlobalStatsResponse) GetSideScores() []*CGCMsgGC_War_GlobalStatsResponse_SideScore {
@@ -10625,7 +10815,7 @@ type CGCMsgGC_PlayerDuckLeaderboard_IndividualUpdate struct {
 
 func (x *CGCMsgGC_PlayerDuckLeaderboard_IndividualUpdate) Reset() {
 	*x = CGCMsgGC_PlayerDuckLeaderboard_IndividualUpdate{}
-	mi := &file_tf_gcmessages_proto_msgTypes[126]
+	mi := &file_tf_gcmessages_proto_msgTypes[127]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10637,7 +10827,7 @@ func (x *CGCMsgGC_PlayerDuckLeaderboard_IndividualUpdate) String() string {
 func (*CGCMsgGC_PlayerDuckLeaderboard_IndividualUpdate) ProtoMessage() {}
 
 func (x *CGCMsgGC_PlayerDuckLeaderboard_IndividualUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[126]
+	mi := &file_tf_gcmessages_proto_msgTypes[127]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10650,7 +10840,7 @@ func (x *CGCMsgGC_PlayerDuckLeaderboard_IndividualUpdate) ProtoReflect() protore
 
 // Deprecated: Use CGCMsgGC_PlayerDuckLeaderboard_IndividualUpdate.ProtoReflect.Descriptor instead.
 func (*CGCMsgGC_PlayerDuckLeaderboard_IndividualUpdate) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{126}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{127}
 }
 
 func (x *CGCMsgGC_PlayerDuckLeaderboard_IndividualUpdate) GetScore() uint32 {
@@ -10697,7 +10887,7 @@ type CAttribute_WorldItemPlacement struct {
 
 func (x *CAttribute_WorldItemPlacement) Reset() {
 	*x = CAttribute_WorldItemPlacement{}
-	mi := &file_tf_gcmessages_proto_msgTypes[127]
+	mi := &file_tf_gcmessages_proto_msgTypes[128]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10709,7 +10899,7 @@ func (x *CAttribute_WorldItemPlacement) String() string {
 func (*CAttribute_WorldItemPlacement) ProtoMessage() {}
 
 func (x *CAttribute_WorldItemPlacement) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[127]
+	mi := &file_tf_gcmessages_proto_msgTypes[128]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10722,7 +10912,7 @@ func (x *CAttribute_WorldItemPlacement) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CAttribute_WorldItemPlacement.ProtoReflect.Descriptor instead.
 func (*CAttribute_WorldItemPlacement) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{127}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{128}
 }
 
 func (x *CAttribute_WorldItemPlacement) GetOriginalItemId() uint64 {
@@ -10792,7 +10982,7 @@ type CGCMsg_WorldItemPlacement_Update struct {
 
 func (x *CGCMsg_WorldItemPlacement_Update) Reset() {
 	*x = CGCMsg_WorldItemPlacement_Update{}
-	mi := &file_tf_gcmessages_proto_msgTypes[128]
+	mi := &file_tf_gcmessages_proto_msgTypes[129]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10804,7 +10994,7 @@ func (x *CGCMsg_WorldItemPlacement_Update) String() string {
 func (*CGCMsg_WorldItemPlacement_Update) ProtoMessage() {}
 
 func (x *CGCMsg_WorldItemPlacement_Update) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[128]
+	mi := &file_tf_gcmessages_proto_msgTypes[129]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10817,7 +11007,7 @@ func (x *CGCMsg_WorldItemPlacement_Update) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CGCMsg_WorldItemPlacement_Update.ProtoReflect.Descriptor instead.
 func (*CGCMsg_WorldItemPlacement_Update) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{128}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{129}
 }
 
 func (x *CGCMsg_WorldItemPlacement_Update) GetOriginalItemId() uint64 {
@@ -10895,7 +11085,7 @@ type CMsgAcknowledgeXP struct {
 
 func (x *CMsgAcknowledgeXP) Reset() {
 	*x = CMsgAcknowledgeXP{}
-	mi := &file_tf_gcmessages_proto_msgTypes[129]
+	mi := &file_tf_gcmessages_proto_msgTypes[130]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10907,7 +11097,7 @@ func (x *CMsgAcknowledgeXP) String() string {
 func (*CMsgAcknowledgeXP) ProtoMessage() {}
 
 func (x *CMsgAcknowledgeXP) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[129]
+	mi := &file_tf_gcmessages_proto_msgTypes[130]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10920,7 +11110,7 @@ func (x *CMsgAcknowledgeXP) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgAcknowledgeXP.ProtoReflect.Descriptor instead.
 func (*CMsgAcknowledgeXP) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{129}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{130}
 }
 
 func (x *CMsgAcknowledgeXP) GetMatchGroup() int32 {
@@ -10951,7 +11141,7 @@ type CMsgTFXPSource struct {
 
 func (x *CMsgTFXPSource) Reset() {
 	*x = CMsgTFXPSource{}
-	mi := &file_tf_gcmessages_proto_msgTypes[130]
+	mi := &file_tf_gcmessages_proto_msgTypes[131]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10963,7 +11153,7 @@ func (x *CMsgTFXPSource) String() string {
 func (*CMsgTFXPSource) ProtoMessage() {}
 
 func (x *CMsgTFXPSource) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[130]
+	mi := &file_tf_gcmessages_proto_msgTypes[131]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10976,7 +11166,7 @@ func (x *CMsgTFXPSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgTFXPSource.ProtoReflect.Descriptor instead.
 func (*CMsgTFXPSource) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{130}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{131}
 }
 
 func (x *CMsgTFXPSource) GetType() CMsgTFXPSource_XPSourceType {
@@ -11023,7 +11213,7 @@ type CMsgTFXPSourceBreakdown struct {
 
 func (x *CMsgTFXPSourceBreakdown) Reset() {
 	*x = CMsgTFXPSourceBreakdown{}
-	mi := &file_tf_gcmessages_proto_msgTypes[131]
+	mi := &file_tf_gcmessages_proto_msgTypes[132]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11035,7 +11225,7 @@ func (x *CMsgTFXPSourceBreakdown) String() string {
 func (*CMsgTFXPSourceBreakdown) ProtoMessage() {}
 
 func (x *CMsgTFXPSourceBreakdown) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[131]
+	mi := &file_tf_gcmessages_proto_msgTypes[132]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11048,7 +11238,7 @@ func (x *CMsgTFXPSourceBreakdown) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgTFXPSourceBreakdown.ProtoReflect.Descriptor instead.
 func (*CMsgTFXPSourceBreakdown) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{131}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{132}
 }
 
 func (x *CMsgTFXPSourceBreakdown) GetSources() []*CMsgTFXPSource {
@@ -11070,7 +11260,7 @@ type CMsgTFClientInit struct {
 
 func (x *CMsgTFClientInit) Reset() {
 	*x = CMsgTFClientInit{}
-	mi := &file_tf_gcmessages_proto_msgTypes[132]
+	mi := &file_tf_gcmessages_proto_msgTypes[133]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11082,7 +11272,7 @@ func (x *CMsgTFClientInit) String() string {
 func (*CMsgTFClientInit) ProtoMessage() {}
 
 func (x *CMsgTFClientInit) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[132]
+	mi := &file_tf_gcmessages_proto_msgTypes[133]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11095,7 +11285,7 @@ func (x *CMsgTFClientInit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgTFClientInit.ProtoReflect.Descriptor instead.
 func (*CMsgTFClientInit) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{132}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{133}
 }
 
 func (x *CMsgTFClientInit) GetClientVersion() uint32 {
@@ -11132,7 +11322,7 @@ const (
 
 func (x *CMsgGCNotification) Reset() {
 	*x = CMsgGCNotification{}
-	mi := &file_tf_gcmessages_proto_msgTypes[133]
+	mi := &file_tf_gcmessages_proto_msgTypes[134]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11144,7 +11334,7 @@ func (x *CMsgGCNotification) String() string {
 func (*CMsgGCNotification) ProtoMessage() {}
 
 func (x *CMsgGCNotification) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[133]
+	mi := &file_tf_gcmessages_proto_msgTypes[134]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11157,7 +11347,7 @@ func (x *CMsgGCNotification) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGCNotification.ProtoReflect.Descriptor instead.
 func (*CMsgGCNotification) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{133}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{134}
 }
 
 func (x *CMsgGCNotification) GetNotificationId() uint64 {
@@ -11204,7 +11394,7 @@ type CMsgGCNotificationQueue struct {
 
 func (x *CMsgGCNotificationQueue) Reset() {
 	*x = CMsgGCNotificationQueue{}
-	mi := &file_tf_gcmessages_proto_msgTypes[134]
+	mi := &file_tf_gcmessages_proto_msgTypes[135]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11216,7 +11406,7 @@ func (x *CMsgGCNotificationQueue) String() string {
 func (*CMsgGCNotificationQueue) ProtoMessage() {}
 
 func (x *CMsgGCNotificationQueue) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[134]
+	mi := &file_tf_gcmessages_proto_msgTypes[135]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11229,7 +11419,7 @@ func (x *CMsgGCNotificationQueue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGCNotificationQueue.ProtoReflect.Descriptor instead.
 func (*CMsgGCNotificationQueue) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{134}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{135}
 }
 
 func (x *CMsgGCNotificationQueue) GetNotifications() []*CMsgGCNotification {
@@ -11251,7 +11441,7 @@ type CMsgNotificationAcknowledge struct {
 
 func (x *CMsgNotificationAcknowledge) Reset() {
 	*x = CMsgNotificationAcknowledge{}
-	mi := &file_tf_gcmessages_proto_msgTypes[135]
+	mi := &file_tf_gcmessages_proto_msgTypes[136]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11263,7 +11453,7 @@ func (x *CMsgNotificationAcknowledge) String() string {
 func (*CMsgNotificationAcknowledge) ProtoMessage() {}
 
 func (x *CMsgNotificationAcknowledge) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[135]
+	mi := &file_tf_gcmessages_proto_msgTypes[136]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11276,7 +11466,7 @@ func (x *CMsgNotificationAcknowledge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgNotificationAcknowledge.ProtoReflect.Descriptor instead.
 func (*CMsgNotificationAcknowledge) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{135}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{136}
 }
 
 func (x *CMsgNotificationAcknowledge) GetAccountId() uint32 {
@@ -11302,7 +11492,7 @@ type CMsgNotificationAcknowledgeReply struct {
 
 func (x *CMsgNotificationAcknowledgeReply) Reset() {
 	*x = CMsgNotificationAcknowledgeReply{}
-	mi := &file_tf_gcmessages_proto_msgTypes[136]
+	mi := &file_tf_gcmessages_proto_msgTypes[137]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11314,7 +11504,7 @@ func (x *CMsgNotificationAcknowledgeReply) String() string {
 func (*CMsgNotificationAcknowledgeReply) ProtoMessage() {}
 
 func (x *CMsgNotificationAcknowledgeReply) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[136]
+	mi := &file_tf_gcmessages_proto_msgTypes[137]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11327,7 +11517,7 @@ func (x *CMsgNotificationAcknowledgeReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgNotificationAcknowledgeReply.ProtoReflect.Descriptor instead.
 func (*CMsgNotificationAcknowledgeReply) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{136}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{137}
 }
 
 // k_EMsgGC_Match_Result
@@ -11364,7 +11554,7 @@ const (
 
 func (x *CMsgGC_Match_Result) Reset() {
 	*x = CMsgGC_Match_Result{}
-	mi := &file_tf_gcmessages_proto_msgTypes[137]
+	mi := &file_tf_gcmessages_proto_msgTypes[138]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11376,7 +11566,7 @@ func (x *CMsgGC_Match_Result) String() string {
 func (*CMsgGC_Match_Result) ProtoMessage() {}
 
 func (x *CMsgGC_Match_Result) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[137]
+	mi := &file_tf_gcmessages_proto_msgTypes[138]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11389,7 +11579,7 @@ func (x *CMsgGC_Match_Result) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGC_Match_Result.ProtoReflect.Descriptor instead.
 func (*CMsgGC_Match_Result) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{137}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{138}
 }
 
 func (x *CMsgGC_Match_Result) GetMatchId() uint64 {
@@ -11498,7 +11688,7 @@ type CMsgGC_Match_ResultResponse struct {
 
 func (x *CMsgGC_Match_ResultResponse) Reset() {
 	*x = CMsgGC_Match_ResultResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[138]
+	mi := &file_tf_gcmessages_proto_msgTypes[139]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11510,7 +11700,7 @@ func (x *CMsgGC_Match_ResultResponse) String() string {
 func (*CMsgGC_Match_ResultResponse) ProtoMessage() {}
 
 func (x *CMsgGC_Match_ResultResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[138]
+	mi := &file_tf_gcmessages_proto_msgTypes[139]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11523,7 +11713,7 @@ func (x *CMsgGC_Match_ResultResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGC_Match_ResultResponse.ProtoReflect.Descriptor instead.
 func (*CMsgGC_Match_ResultResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{138}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{139}
 }
 
 // Data structure holding information for item preview
@@ -11536,7 +11726,7 @@ type CEconItemPreviewDataBlock struct {
 
 func (x *CEconItemPreviewDataBlock) Reset() {
 	*x = CEconItemPreviewDataBlock{}
-	mi := &file_tf_gcmessages_proto_msgTypes[139]
+	mi := &file_tf_gcmessages_proto_msgTypes[140]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11548,7 +11738,7 @@ func (x *CEconItemPreviewDataBlock) String() string {
 func (*CEconItemPreviewDataBlock) ProtoMessage() {}
 
 func (x *CEconItemPreviewDataBlock) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[139]
+	mi := &file_tf_gcmessages_proto_msgTypes[140]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11561,7 +11751,7 @@ func (x *CEconItemPreviewDataBlock) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CEconItemPreviewDataBlock.ProtoReflect.Descriptor instead.
 func (*CEconItemPreviewDataBlock) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{139}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{140}
 }
 
 func (x *CEconItemPreviewDataBlock) GetEconitem() *CSOEconItem {
@@ -11585,7 +11775,7 @@ type CMsgGC_Client2GCEconPreviewDataBlockRequest struct {
 
 func (x *CMsgGC_Client2GCEconPreviewDataBlockRequest) Reset() {
 	*x = CMsgGC_Client2GCEconPreviewDataBlockRequest{}
-	mi := &file_tf_gcmessages_proto_msgTypes[140]
+	mi := &file_tf_gcmessages_proto_msgTypes[141]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11597,7 +11787,7 @@ func (x *CMsgGC_Client2GCEconPreviewDataBlockRequest) String() string {
 func (*CMsgGC_Client2GCEconPreviewDataBlockRequest) ProtoMessage() {}
 
 func (x *CMsgGC_Client2GCEconPreviewDataBlockRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[140]
+	mi := &file_tf_gcmessages_proto_msgTypes[141]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11610,7 +11800,7 @@ func (x *CMsgGC_Client2GCEconPreviewDataBlockRequest) ProtoReflect() protoreflec
 
 // Deprecated: Use CMsgGC_Client2GCEconPreviewDataBlockRequest.ProtoReflect.Descriptor instead.
 func (*CMsgGC_Client2GCEconPreviewDataBlockRequest) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{140}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{141}
 }
 
 func (x *CMsgGC_Client2GCEconPreviewDataBlockRequest) GetParamS() uint64 {
@@ -11651,7 +11841,7 @@ type CMsgGC_Client2GCEconPreviewDataBlockResponse struct {
 
 func (x *CMsgGC_Client2GCEconPreviewDataBlockResponse) Reset() {
 	*x = CMsgGC_Client2GCEconPreviewDataBlockResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[141]
+	mi := &file_tf_gcmessages_proto_msgTypes[142]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11663,7 +11853,7 @@ func (x *CMsgGC_Client2GCEconPreviewDataBlockResponse) String() string {
 func (*CMsgGC_Client2GCEconPreviewDataBlockResponse) ProtoMessage() {}
 
 func (x *CMsgGC_Client2GCEconPreviewDataBlockResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[141]
+	mi := &file_tf_gcmessages_proto_msgTypes[142]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11676,7 +11866,7 @@ func (x *CMsgGC_Client2GCEconPreviewDataBlockResponse) ProtoReflect() protorefle
 
 // Deprecated: Use CMsgGC_Client2GCEconPreviewDataBlockResponse.ProtoReflect.Descriptor instead.
 func (*CMsgGC_Client2GCEconPreviewDataBlockResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{141}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{142}
 }
 
 func (x *CMsgGC_Client2GCEconPreviewDataBlockResponse) GetIteminfo() *CEconItemPreviewDataBlock {
@@ -11726,7 +11916,7 @@ type CSOTFLadderPlayerStats struct {
 
 func (x *CSOTFLadderPlayerStats) Reset() {
 	*x = CSOTFLadderPlayerStats{}
-	mi := &file_tf_gcmessages_proto_msgTypes[142]
+	mi := &file_tf_gcmessages_proto_msgTypes[143]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11738,7 +11928,7 @@ func (x *CSOTFLadderPlayerStats) String() string {
 func (*CSOTFLadderPlayerStats) ProtoMessage() {}
 
 func (x *CSOTFLadderPlayerStats) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[142]
+	mi := &file_tf_gcmessages_proto_msgTypes[143]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11751,7 +11941,7 @@ func (x *CSOTFLadderPlayerStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CSOTFLadderPlayerStats.ProtoReflect.Descriptor instead.
 func (*CSOTFLadderPlayerStats) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{142}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{143}
 }
 
 func (x *CSOTFLadderPlayerStats) GetAccountId() uint32 {
@@ -11946,7 +12136,7 @@ type CSOTFRatingData struct {
 
 func (x *CSOTFRatingData) Reset() {
 	*x = CSOTFRatingData{}
-	mi := &file_tf_gcmessages_proto_msgTypes[143]
+	mi := &file_tf_gcmessages_proto_msgTypes[144]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11958,7 +12148,7 @@ func (x *CSOTFRatingData) String() string {
 func (*CSOTFRatingData) ProtoMessage() {}
 
 func (x *CSOTFRatingData) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[143]
+	mi := &file_tf_gcmessages_proto_msgTypes[144]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11971,7 +12161,7 @@ func (x *CSOTFRatingData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CSOTFRatingData.ProtoReflect.Descriptor instead.
 func (*CSOTFRatingData) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{143}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{144}
 }
 
 func (x *CSOTFRatingData) GetAccountId() uint32 {
@@ -12025,7 +12215,7 @@ type CMsgGC_TFVoteKickPlayerRequest struct {
 
 func (x *CMsgGC_TFVoteKickPlayerRequest) Reset() {
 	*x = CMsgGC_TFVoteKickPlayerRequest{}
-	mi := &file_tf_gcmessages_proto_msgTypes[144]
+	mi := &file_tf_gcmessages_proto_msgTypes[145]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12037,7 +12227,7 @@ func (x *CMsgGC_TFVoteKickPlayerRequest) String() string {
 func (*CMsgGC_TFVoteKickPlayerRequest) ProtoMessage() {}
 
 func (x *CMsgGC_TFVoteKickPlayerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[144]
+	mi := &file_tf_gcmessages_proto_msgTypes[145]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12050,7 +12240,7 @@ func (x *CMsgGC_TFVoteKickPlayerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGC_TFVoteKickPlayerRequest.ProtoReflect.Descriptor instead.
 func (*CMsgGC_TFVoteKickPlayerRequest) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{144}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{145}
 }
 
 func (x *CMsgGC_TFVoteKickPlayerRequest) GetTargetId() uint64 {
@@ -12096,7 +12286,7 @@ type CMsgGC_VoteKickPlayerRequestResponse struct {
 
 func (x *CMsgGC_VoteKickPlayerRequestResponse) Reset() {
 	*x = CMsgGC_VoteKickPlayerRequestResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[145]
+	mi := &file_tf_gcmessages_proto_msgTypes[146]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12108,7 +12298,7 @@ func (x *CMsgGC_VoteKickPlayerRequestResponse) String() string {
 func (*CMsgGC_VoteKickPlayerRequestResponse) ProtoMessage() {}
 
 func (x *CMsgGC_VoteKickPlayerRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[145]
+	mi := &file_tf_gcmessages_proto_msgTypes[146]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12121,7 +12311,7 @@ func (x *CMsgGC_VoteKickPlayerRequestResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use CMsgGC_VoteKickPlayerRequestResponse.ProtoReflect.Descriptor instead.
 func (*CMsgGC_VoteKickPlayerRequestResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{145}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{146}
 }
 
 func (x *CMsgGC_VoteKickPlayerRequestResponse) GetAllowed() bool {
@@ -12154,7 +12344,7 @@ type CMsgGC_DailyCompetitiveStatsRollup struct {
 
 func (x *CMsgGC_DailyCompetitiveStatsRollup) Reset() {
 	*x = CMsgGC_DailyCompetitiveStatsRollup{}
-	mi := &file_tf_gcmessages_proto_msgTypes[146]
+	mi := &file_tf_gcmessages_proto_msgTypes[147]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12166,7 +12356,7 @@ func (x *CMsgGC_DailyCompetitiveStatsRollup) String() string {
 func (*CMsgGC_DailyCompetitiveStatsRollup) ProtoMessage() {}
 
 func (x *CMsgGC_DailyCompetitiveStatsRollup) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[146]
+	mi := &file_tf_gcmessages_proto_msgTypes[147]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12179,7 +12369,7 @@ func (x *CMsgGC_DailyCompetitiveStatsRollup) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use CMsgGC_DailyCompetitiveStatsRollup.ProtoReflect.Descriptor instead.
 func (*CMsgGC_DailyCompetitiveStatsRollup) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{146}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{147}
 }
 
 // k_EMsgGC_DailyCompetitiveStatsRollup_Response
@@ -12192,7 +12382,7 @@ type CMsgGC_DailyCompetitiveStatsRollup_Response struct {
 
 func (x *CMsgGC_DailyCompetitiveStatsRollup_Response) Reset() {
 	*x = CMsgGC_DailyCompetitiveStatsRollup_Response{}
-	mi := &file_tf_gcmessages_proto_msgTypes[147]
+	mi := &file_tf_gcmessages_proto_msgTypes[148]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12204,7 +12394,7 @@ func (x *CMsgGC_DailyCompetitiveStatsRollup_Response) String() string {
 func (*CMsgGC_DailyCompetitiveStatsRollup_Response) ProtoMessage() {}
 
 func (x *CMsgGC_DailyCompetitiveStatsRollup_Response) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[147]
+	mi := &file_tf_gcmessages_proto_msgTypes[148]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12217,7 +12407,7 @@ func (x *CMsgGC_DailyCompetitiveStatsRollup_Response) ProtoReflect() protoreflec
 
 // Deprecated: Use CMsgGC_DailyCompetitiveStatsRollup_Response.ProtoReflect.Descriptor instead.
 func (*CMsgGC_DailyCompetitiveStatsRollup_Response) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{147}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{148}
 }
 
 func (x *CMsgGC_DailyCompetitiveStatsRollup_Response) GetRankdata() []*CMsgGC_DailyCompetitiveStatsRollup_Response_RankBucketEntry {
@@ -12238,7 +12428,7 @@ type CMsgGC_ReportPlayer struct {
 
 func (x *CMsgGC_ReportPlayer) Reset() {
 	*x = CMsgGC_ReportPlayer{}
-	mi := &file_tf_gcmessages_proto_msgTypes[148]
+	mi := &file_tf_gcmessages_proto_msgTypes[149]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12250,7 +12440,7 @@ func (x *CMsgGC_ReportPlayer) String() string {
 func (*CMsgGC_ReportPlayer) ProtoMessage() {}
 
 func (x *CMsgGC_ReportPlayer) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[148]
+	mi := &file_tf_gcmessages_proto_msgTypes[149]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12263,7 +12453,7 @@ func (x *CMsgGC_ReportPlayer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGC_ReportPlayer.ProtoReflect.Descriptor instead.
 func (*CMsgGC_ReportPlayer) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{148}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{149}
 }
 
 func (x *CMsgGC_ReportPlayer) GetAccountIdTarget() uint32 {
@@ -12317,7 +12507,7 @@ type CSOTFMatchResultPlayerStats struct {
 
 func (x *CSOTFMatchResultPlayerStats) Reset() {
 	*x = CSOTFMatchResultPlayerStats{}
-	mi := &file_tf_gcmessages_proto_msgTypes[149]
+	mi := &file_tf_gcmessages_proto_msgTypes[150]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12329,7 +12519,7 @@ func (x *CSOTFMatchResultPlayerStats) String() string {
 func (*CSOTFMatchResultPlayerStats) ProtoMessage() {}
 
 func (x *CSOTFMatchResultPlayerStats) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[149]
+	mi := &file_tf_gcmessages_proto_msgTypes[150]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12342,7 +12532,7 @@ func (x *CSOTFMatchResultPlayerStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CSOTFMatchResultPlayerStats.ProtoReflect.Descriptor instead.
 func (*CSOTFMatchResultPlayerStats) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{149}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{150}
 }
 
 func (x *CSOTFMatchResultPlayerStats) GetMatchId() uint64 {
@@ -12543,7 +12733,7 @@ type CMsgGCRequestMatchMakerStats struct {
 
 func (x *CMsgGCRequestMatchMakerStats) Reset() {
 	*x = CMsgGCRequestMatchMakerStats{}
-	mi := &file_tf_gcmessages_proto_msgTypes[150]
+	mi := &file_tf_gcmessages_proto_msgTypes[151]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12555,7 +12745,7 @@ func (x *CMsgGCRequestMatchMakerStats) String() string {
 func (*CMsgGCRequestMatchMakerStats) ProtoMessage() {}
 
 func (x *CMsgGCRequestMatchMakerStats) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[150]
+	mi := &file_tf_gcmessages_proto_msgTypes[151]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12568,7 +12758,7 @@ func (x *CMsgGCRequestMatchMakerStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGCRequestMatchMakerStats.ProtoReflect.Descriptor instead.
 func (*CMsgGCRequestMatchMakerStats) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{150}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{151}
 }
 
 type CMsgGCDataCenterPopulation struct {
@@ -12581,7 +12771,7 @@ type CMsgGCDataCenterPopulation struct {
 
 func (x *CMsgGCDataCenterPopulation) Reset() {
 	*x = CMsgGCDataCenterPopulation{}
-	mi := &file_tf_gcmessages_proto_msgTypes[151]
+	mi := &file_tf_gcmessages_proto_msgTypes[152]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12593,7 +12783,7 @@ func (x *CMsgGCDataCenterPopulation) String() string {
 func (*CMsgGCDataCenterPopulation) ProtoMessage() {}
 
 func (x *CMsgGCDataCenterPopulation) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[151]
+	mi := &file_tf_gcmessages_proto_msgTypes[152]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12606,7 +12796,7 @@ func (x *CMsgGCDataCenterPopulation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGCDataCenterPopulation.ProtoReflect.Descriptor instead.
 func (*CMsgGCDataCenterPopulation) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{151}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{152}
 }
 
 func (x *CMsgGCDataCenterPopulation) GetName() string {
@@ -12632,7 +12822,7 @@ type CMsgGCMatchGroupDataCenterPopulation struct {
 
 func (x *CMsgGCMatchGroupDataCenterPopulation) Reset() {
 	*x = CMsgGCMatchGroupDataCenterPopulation{}
-	mi := &file_tf_gcmessages_proto_msgTypes[152]
+	mi := &file_tf_gcmessages_proto_msgTypes[153]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12644,7 +12834,7 @@ func (x *CMsgGCMatchGroupDataCenterPopulation) String() string {
 func (*CMsgGCMatchGroupDataCenterPopulation) ProtoMessage() {}
 
 func (x *CMsgGCMatchGroupDataCenterPopulation) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[152]
+	mi := &file_tf_gcmessages_proto_msgTypes[153]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12657,7 +12847,7 @@ func (x *CMsgGCMatchGroupDataCenterPopulation) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use CMsgGCMatchGroupDataCenterPopulation.ProtoReflect.Descriptor instead.
 func (*CMsgGCMatchGroupDataCenterPopulation) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{152}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{153}
 }
 
 func (x *CMsgGCMatchGroupDataCenterPopulation) GetDataCenterPopulation() []*CMsgGCDataCenterPopulation {
@@ -12678,7 +12868,7 @@ type CMsgGCMatchMakerStatsResponse struct {
 
 func (x *CMsgGCMatchMakerStatsResponse) Reset() {
 	*x = CMsgGCMatchMakerStatsResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[153]
+	mi := &file_tf_gcmessages_proto_msgTypes[154]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12690,7 +12880,7 @@ func (x *CMsgGCMatchMakerStatsResponse) String() string {
 func (*CMsgGCMatchMakerStatsResponse) ProtoMessage() {}
 
 func (x *CMsgGCMatchMakerStatsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[153]
+	mi := &file_tf_gcmessages_proto_msgTypes[154]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12703,7 +12893,7 @@ func (x *CMsgGCMatchMakerStatsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGCMatchMakerStatsResponse.ProtoReflect.Descriptor instead.
 func (*CMsgGCMatchMakerStatsResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{153}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{154}
 }
 
 func (x *CMsgGCMatchMakerStatsResponse) GetMapCount() []uint32 {
@@ -12735,7 +12925,7 @@ const (
 
 func (x *CMsgGCMatchHistoryLoad) Reset() {
 	*x = CMsgGCMatchHistoryLoad{}
-	mi := &file_tf_gcmessages_proto_msgTypes[154]
+	mi := &file_tf_gcmessages_proto_msgTypes[155]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12747,7 +12937,7 @@ func (x *CMsgGCMatchHistoryLoad) String() string {
 func (*CMsgGCMatchHistoryLoad) ProtoMessage() {}
 
 func (x *CMsgGCMatchHistoryLoad) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[154]
+	mi := &file_tf_gcmessages_proto_msgTypes[155]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12760,7 +12950,7 @@ func (x *CMsgGCMatchHistoryLoad) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGCMatchHistoryLoad.ProtoReflect.Descriptor instead.
 func (*CMsgGCMatchHistoryLoad) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{154}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{155}
 }
 
 func (x *CMsgGCMatchHistoryLoad) GetMatchGroup() ETFMatchGroup {
@@ -12780,7 +12970,7 @@ type CMsgGCDataCenterPing_Update struct {
 
 func (x *CMsgGCDataCenterPing_Update) Reset() {
 	*x = CMsgGCDataCenterPing_Update{}
-	mi := &file_tf_gcmessages_proto_msgTypes[155]
+	mi := &file_tf_gcmessages_proto_msgTypes[156]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12792,7 +12982,7 @@ func (x *CMsgGCDataCenterPing_Update) String() string {
 func (*CMsgGCDataCenterPing_Update) ProtoMessage() {}
 
 func (x *CMsgGCDataCenterPing_Update) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[155]
+	mi := &file_tf_gcmessages_proto_msgTypes[156]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12805,7 +12995,7 @@ func (x *CMsgGCDataCenterPing_Update) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGCDataCenterPing_Update.ProtoReflect.Descriptor instead.
 func (*CMsgGCDataCenterPing_Update) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{155}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{156}
 }
 
 func (x *CMsgGCDataCenterPing_Update) GetPingdata() []*CMsgGCDataCenterPing_Update_PingEntry {
@@ -12825,7 +13015,7 @@ type CMsgGC_KickPlayerFromLobby struct {
 
 func (x *CMsgGC_KickPlayerFromLobby) Reset() {
 	*x = CMsgGC_KickPlayerFromLobby{}
-	mi := &file_tf_gcmessages_proto_msgTypes[156]
+	mi := &file_tf_gcmessages_proto_msgTypes[157]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12837,7 +13027,7 @@ func (x *CMsgGC_KickPlayerFromLobby) String() string {
 func (*CMsgGC_KickPlayerFromLobby) ProtoMessage() {}
 
 func (x *CMsgGC_KickPlayerFromLobby) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[156]
+	mi := &file_tf_gcmessages_proto_msgTypes[157]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12850,7 +13040,7 @@ func (x *CMsgGC_KickPlayerFromLobby) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGC_KickPlayerFromLobby.ProtoReflect.Descriptor instead.
 func (*CMsgGC_KickPlayerFromLobby) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{156}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{157}
 }
 
 func (x *CMsgGC_KickPlayerFromLobby) GetTargetID() uint64 {
@@ -12871,7 +13061,7 @@ type CMsgGCSurveyRequest struct {
 
 func (x *CMsgGCSurveyRequest) Reset() {
 	*x = CMsgGCSurveyRequest{}
-	mi := &file_tf_gcmessages_proto_msgTypes[157]
+	mi := &file_tf_gcmessages_proto_msgTypes[158]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12883,7 +13073,7 @@ func (x *CMsgGCSurveyRequest) String() string {
 func (*CMsgGCSurveyRequest) ProtoMessage() {}
 
 func (x *CMsgGCSurveyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[157]
+	mi := &file_tf_gcmessages_proto_msgTypes[158]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12896,7 +13086,7 @@ func (x *CMsgGCSurveyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGCSurveyRequest.ProtoReflect.Descriptor instead.
 func (*CMsgGCSurveyRequest) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{157}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{158}
 }
 
 func (x *CMsgGCSurveyRequest) GetQuestionType() SurveyQuestionType {
@@ -12925,7 +13115,7 @@ type CMsgGCSurveyResponse struct {
 
 func (x *CMsgGCSurveyResponse) Reset() {
 	*x = CMsgGCSurveyResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[158]
+	mi := &file_tf_gcmessages_proto_msgTypes[159]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12937,7 +13127,7 @@ func (x *CMsgGCSurveyResponse) String() string {
 func (*CMsgGCSurveyResponse) ProtoMessage() {}
 
 func (x *CMsgGCSurveyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[158]
+	mi := &file_tf_gcmessages_proto_msgTypes[159]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12950,7 +13140,7 @@ func (x *CMsgGCSurveyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGCSurveyResponse.ProtoReflect.Descriptor instead.
 func (*CMsgGCSurveyResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{158}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{159}
 }
 
 func (x *CMsgGCSurveyResponse) GetQuestionType() SurveyQuestionType {
@@ -13000,7 +13190,7 @@ const (
 
 func (x *CSOQuestMapNode) Reset() {
 	*x = CSOQuestMapNode{}
-	mi := &file_tf_gcmessages_proto_msgTypes[159]
+	mi := &file_tf_gcmessages_proto_msgTypes[160]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13012,7 +13202,7 @@ func (x *CSOQuestMapNode) String() string {
 func (*CSOQuestMapNode) ProtoMessage() {}
 
 func (x *CSOQuestMapNode) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[159]
+	mi := &file_tf_gcmessages_proto_msgTypes[160]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13025,7 +13215,7 @@ func (x *CSOQuestMapNode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CSOQuestMapNode.ProtoReflect.Descriptor instead.
 func (*CSOQuestMapNode) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{159}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{160}
 }
 
 func (x *CSOQuestMapNode) GetAccountId() uint32 {
@@ -13113,7 +13303,7 @@ const (
 
 func (x *CSOQuest) Reset() {
 	*x = CSOQuest{}
-	mi := &file_tf_gcmessages_proto_msgTypes[160]
+	mi := &file_tf_gcmessages_proto_msgTypes[161]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13125,7 +13315,7 @@ func (x *CSOQuest) String() string {
 func (*CSOQuest) ProtoMessage() {}
 
 func (x *CSOQuest) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[160]
+	mi := &file_tf_gcmessages_proto_msgTypes[161]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13138,7 +13328,7 @@ func (x *CSOQuest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CSOQuest.ProtoReflect.Descriptor instead.
 func (*CSOQuest) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{160}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{161}
 }
 
 func (x *CSOQuest) GetAccountId() uint32 {
@@ -13217,7 +13407,7 @@ type CSOQuestMapRewardPurchase struct {
 
 func (x *CSOQuestMapRewardPurchase) Reset() {
 	*x = CSOQuestMapRewardPurchase{}
-	mi := &file_tf_gcmessages_proto_msgTypes[161]
+	mi := &file_tf_gcmessages_proto_msgTypes[162]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13229,7 +13419,7 @@ func (x *CSOQuestMapRewardPurchase) String() string {
 func (*CSOQuestMapRewardPurchase) ProtoMessage() {}
 
 func (x *CSOQuestMapRewardPurchase) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[161]
+	mi := &file_tf_gcmessages_proto_msgTypes[162]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13242,7 +13432,7 @@ func (x *CSOQuestMapRewardPurchase) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CSOQuestMapRewardPurchase.ProtoReflect.Descriptor instead.
 func (*CSOQuestMapRewardPurchase) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{161}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{162}
 }
 
 func (x *CSOQuestMapRewardPurchase) GetAccountId() uint32 {
@@ -13290,7 +13480,7 @@ type CMsgGCQuestIdentify struct {
 
 func (x *CMsgGCQuestIdentify) Reset() {
 	*x = CMsgGCQuestIdentify{}
-	mi := &file_tf_gcmessages_proto_msgTypes[162]
+	mi := &file_tf_gcmessages_proto_msgTypes[163]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13302,7 +13492,7 @@ func (x *CMsgGCQuestIdentify) String() string {
 func (*CMsgGCQuestIdentify) ProtoMessage() {}
 
 func (x *CMsgGCQuestIdentify) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[162]
+	mi := &file_tf_gcmessages_proto_msgTypes[163]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13315,7 +13505,7 @@ func (x *CMsgGCQuestIdentify) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGCQuestIdentify.ProtoReflect.Descriptor instead.
 func (*CMsgGCQuestIdentify) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{162}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{163}
 }
 
 func (x *CMsgGCQuestIdentify) GetQuestId() uint64 {
@@ -13335,7 +13525,7 @@ type CMsgGCQuestDevGive struct {
 
 func (x *CMsgGCQuestDevGive) Reset() {
 	*x = CMsgGCQuestDevGive{}
-	mi := &file_tf_gcmessages_proto_msgTypes[163]
+	mi := &file_tf_gcmessages_proto_msgTypes[164]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13347,7 +13537,7 @@ func (x *CMsgGCQuestDevGive) String() string {
 func (*CMsgGCQuestDevGive) ProtoMessage() {}
 
 func (x *CMsgGCQuestDevGive) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[163]
+	mi := &file_tf_gcmessages_proto_msgTypes[164]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13360,7 +13550,7 @@ func (x *CMsgGCQuestDevGive) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGCQuestDevGive.ProtoReflect.Descriptor instead.
 func (*CMsgGCQuestDevGive) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{163}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{164}
 }
 
 func (x *CMsgGCQuestDevGive) GetQuestDefIndex() uint32 {
@@ -13380,7 +13570,7 @@ type CMsgGCQuestNodeTurnIn struct {
 
 func (x *CMsgGCQuestNodeTurnIn) Reset() {
 	*x = CMsgGCQuestNodeTurnIn{}
-	mi := &file_tf_gcmessages_proto_msgTypes[164]
+	mi := &file_tf_gcmessages_proto_msgTypes[165]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13392,7 +13582,7 @@ func (x *CMsgGCQuestNodeTurnIn) String() string {
 func (*CMsgGCQuestNodeTurnIn) ProtoMessage() {}
 
 func (x *CMsgGCQuestNodeTurnIn) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[164]
+	mi := &file_tf_gcmessages_proto_msgTypes[165]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13405,7 +13595,7 @@ func (x *CMsgGCQuestNodeTurnIn) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGCQuestNodeTurnIn.ProtoReflect.Descriptor instead.
 func (*CMsgGCQuestNodeTurnIn) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{164}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{165}
 }
 
 func (x *CMsgGCQuestNodeTurnIn) GetNodeDefindex() uint32 {
@@ -13426,7 +13616,7 @@ type CMsgGCQuestMapUnlockNode struct {
 
 func (x *CMsgGCQuestMapUnlockNode) Reset() {
 	*x = CMsgGCQuestMapUnlockNode{}
-	mi := &file_tf_gcmessages_proto_msgTypes[165]
+	mi := &file_tf_gcmessages_proto_msgTypes[166]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13438,7 +13628,7 @@ func (x *CMsgGCQuestMapUnlockNode) String() string {
 func (*CMsgGCQuestMapUnlockNode) ProtoMessage() {}
 
 func (x *CMsgGCQuestMapUnlockNode) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[165]
+	mi := &file_tf_gcmessages_proto_msgTypes[166]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13451,7 +13641,7 @@ func (x *CMsgGCQuestMapUnlockNode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGCQuestMapUnlockNode.ProtoReflect.Descriptor instead.
 func (*CMsgGCQuestMapUnlockNode) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{165}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{166}
 }
 
 func (x *CMsgGCQuestMapUnlockNode) GetNodeDefindex() uint32 {
@@ -13480,7 +13670,7 @@ type CMsgGCNewMatchForLobbyRequest struct {
 
 func (x *CMsgGCNewMatchForLobbyRequest) Reset() {
 	*x = CMsgGCNewMatchForLobbyRequest{}
-	mi := &file_tf_gcmessages_proto_msgTypes[166]
+	mi := &file_tf_gcmessages_proto_msgTypes[167]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13492,7 +13682,7 @@ func (x *CMsgGCNewMatchForLobbyRequest) String() string {
 func (*CMsgGCNewMatchForLobbyRequest) ProtoMessage() {}
 
 func (x *CMsgGCNewMatchForLobbyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[166]
+	mi := &file_tf_gcmessages_proto_msgTypes[167]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13505,7 +13695,7 @@ func (x *CMsgGCNewMatchForLobbyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGCNewMatchForLobbyRequest.ProtoReflect.Descriptor instead.
 func (*CMsgGCNewMatchForLobbyRequest) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{166}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{167}
 }
 
 func (x *CMsgGCNewMatchForLobbyRequest) GetCurrentMatchId() uint64 {
@@ -13539,7 +13729,7 @@ type CMsgGCNewMatchForLobbyResponse struct {
 
 func (x *CMsgGCNewMatchForLobbyResponse) Reset() {
 	*x = CMsgGCNewMatchForLobbyResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[167]
+	mi := &file_tf_gcmessages_proto_msgTypes[168]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13551,7 +13741,7 @@ func (x *CMsgGCNewMatchForLobbyResponse) String() string {
 func (*CMsgGCNewMatchForLobbyResponse) ProtoMessage() {}
 
 func (x *CMsgGCNewMatchForLobbyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[167]
+	mi := &file_tf_gcmessages_proto_msgTypes[168]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13564,7 +13754,7 @@ func (x *CMsgGCNewMatchForLobbyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGCNewMatchForLobbyResponse.ProtoReflect.Descriptor instead.
 func (*CMsgGCNewMatchForLobbyResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{167}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{168}
 }
 
 func (x *CMsgGCNewMatchForLobbyResponse) GetSuccess() bool {
@@ -13586,7 +13776,7 @@ type CMsgGCChangeMatchPlayerTeamsRequest struct {
 
 func (x *CMsgGCChangeMatchPlayerTeamsRequest) Reset() {
 	*x = CMsgGCChangeMatchPlayerTeamsRequest{}
-	mi := &file_tf_gcmessages_proto_msgTypes[168]
+	mi := &file_tf_gcmessages_proto_msgTypes[169]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13598,7 +13788,7 @@ func (x *CMsgGCChangeMatchPlayerTeamsRequest) String() string {
 func (*CMsgGCChangeMatchPlayerTeamsRequest) ProtoMessage() {}
 
 func (x *CMsgGCChangeMatchPlayerTeamsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[168]
+	mi := &file_tf_gcmessages_proto_msgTypes[169]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13611,7 +13801,7 @@ func (x *CMsgGCChangeMatchPlayerTeamsRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use CMsgGCChangeMatchPlayerTeamsRequest.ProtoReflect.Descriptor instead.
 func (*CMsgGCChangeMatchPlayerTeamsRequest) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{168}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{169}
 }
 
 func (x *CMsgGCChangeMatchPlayerTeamsRequest) GetMatchId() uint64 {
@@ -13645,7 +13835,7 @@ type CMsgGCChangeMatchPlayerTeamsResponse struct {
 
 func (x *CMsgGCChangeMatchPlayerTeamsResponse) Reset() {
 	*x = CMsgGCChangeMatchPlayerTeamsResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[169]
+	mi := &file_tf_gcmessages_proto_msgTypes[170]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13657,7 +13847,7 @@ func (x *CMsgGCChangeMatchPlayerTeamsResponse) String() string {
 func (*CMsgGCChangeMatchPlayerTeamsResponse) ProtoMessage() {}
 
 func (x *CMsgGCChangeMatchPlayerTeamsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[169]
+	mi := &file_tf_gcmessages_proto_msgTypes[170]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13670,7 +13860,7 @@ func (x *CMsgGCChangeMatchPlayerTeamsResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use CMsgGCChangeMatchPlayerTeamsResponse.ProtoReflect.Descriptor instead.
 func (*CMsgGCChangeMatchPlayerTeamsResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{169}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{170}
 }
 
 func (x *CMsgGCChangeMatchPlayerTeamsResponse) GetSuccess() bool {
@@ -13691,7 +13881,7 @@ type CMsgGCQuestComplete_Debug struct {
 
 func (x *CMsgGCQuestComplete_Debug) Reset() {
 	*x = CMsgGCQuestComplete_Debug{}
-	mi := &file_tf_gcmessages_proto_msgTypes[170]
+	mi := &file_tf_gcmessages_proto_msgTypes[171]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13703,7 +13893,7 @@ func (x *CMsgGCQuestComplete_Debug) String() string {
 func (*CMsgGCQuestComplete_Debug) ProtoMessage() {}
 
 func (x *CMsgGCQuestComplete_Debug) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[170]
+	mi := &file_tf_gcmessages_proto_msgTypes[171]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13716,7 +13906,7 @@ func (x *CMsgGCQuestComplete_Debug) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGCQuestComplete_Debug.ProtoReflect.Descriptor instead.
 func (*CMsgGCQuestComplete_Debug) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{170}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{171}
 }
 
 func (x *CMsgGCQuestComplete_Debug) GetQuestId() uint64 {
@@ -13745,7 +13935,7 @@ type CMsgGCQuestMap_Debug struct {
 
 func (x *CMsgGCQuestMap_Debug) Reset() {
 	*x = CMsgGCQuestMap_Debug{}
-	mi := &file_tf_gcmessages_proto_msgTypes[171]
+	mi := &file_tf_gcmessages_proto_msgTypes[172]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13757,7 +13947,7 @@ func (x *CMsgGCQuestMap_Debug) String() string {
 func (*CMsgGCQuestMap_Debug) ProtoMessage() {}
 
 func (x *CMsgGCQuestMap_Debug) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[171]
+	mi := &file_tf_gcmessages_proto_msgTypes[172]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13770,7 +13960,7 @@ func (x *CMsgGCQuestMap_Debug) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGCQuestMap_Debug.ProtoReflect.Descriptor instead.
 func (*CMsgGCQuestMap_Debug) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{171}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{172}
 }
 
 func (x *CMsgGCQuestMap_Debug) GetResetOperation() uint32 {
@@ -13804,7 +13994,7 @@ type CMsgGCQuestMapPurchaseReward struct {
 
 func (x *CMsgGCQuestMapPurchaseReward) Reset() {
 	*x = CMsgGCQuestMapPurchaseReward{}
-	mi := &file_tf_gcmessages_proto_msgTypes[172]
+	mi := &file_tf_gcmessages_proto_msgTypes[173]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13816,7 +14006,7 @@ func (x *CMsgGCQuestMapPurchaseReward) String() string {
 func (*CMsgGCQuestMapPurchaseReward) ProtoMessage() {}
 
 func (x *CMsgGCQuestMapPurchaseReward) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[172]
+	mi := &file_tf_gcmessages_proto_msgTypes[173]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13829,7 +14019,7 @@ func (x *CMsgGCQuestMapPurchaseReward) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGCQuestMapPurchaseReward.ProtoReflect.Descriptor instead.
 func (*CMsgGCQuestMapPurchaseReward) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{172}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{173}
 }
 
 func (x *CMsgGCQuestMapPurchaseReward) GetStoreItemDefindex() uint32 {
@@ -13853,7 +14043,7 @@ const (
 
 func (x *CMsgGCQuestResponse) Reset() {
 	*x = CMsgGCQuestResponse{}
-	mi := &file_tf_gcmessages_proto_msgTypes[173]
+	mi := &file_tf_gcmessages_proto_msgTypes[174]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13865,7 +14055,7 @@ func (x *CMsgGCQuestResponse) String() string {
 func (*CMsgGCQuestResponse) ProtoMessage() {}
 
 func (x *CMsgGCQuestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[173]
+	mi := &file_tf_gcmessages_proto_msgTypes[174]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13878,7 +14068,7 @@ func (x *CMsgGCQuestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGCQuestResponse.ProtoReflect.Descriptor instead.
 func (*CMsgGCQuestResponse) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{173}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{174}
 }
 
 func (x *CMsgGCQuestResponse) GetSuccess() bool {
@@ -13898,7 +14088,7 @@ type CMsgGCSetDisablePartyQuestProgress struct {
 
 func (x *CMsgGCSetDisablePartyQuestProgress) Reset() {
 	*x = CMsgGCSetDisablePartyQuestProgress{}
-	mi := &file_tf_gcmessages_proto_msgTypes[174]
+	mi := &file_tf_gcmessages_proto_msgTypes[175]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13910,7 +14100,7 @@ func (x *CMsgGCSetDisablePartyQuestProgress) String() string {
 func (*CMsgGCSetDisablePartyQuestProgress) ProtoMessage() {}
 
 func (x *CMsgGCSetDisablePartyQuestProgress) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[174]
+	mi := &file_tf_gcmessages_proto_msgTypes[175]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13923,7 +14113,7 @@ func (x *CMsgGCSetDisablePartyQuestProgress) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use CMsgGCSetDisablePartyQuestProgress.ProtoReflect.Descriptor instead.
 func (*CMsgGCSetDisablePartyQuestProgress) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{174}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{175}
 }
 
 func (x *CMsgGCSetDisablePartyQuestProgress) GetState() bool {
@@ -13949,7 +14139,7 @@ type CMsgQuestProgressReport struct {
 
 func (x *CMsgQuestProgressReport) Reset() {
 	*x = CMsgQuestProgressReport{}
-	mi := &file_tf_gcmessages_proto_msgTypes[175]
+	mi := &file_tf_gcmessages_proto_msgTypes[176]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13961,7 +14151,7 @@ func (x *CMsgQuestProgressReport) String() string {
 func (*CMsgQuestProgressReport) ProtoMessage() {}
 
 func (x *CMsgQuestProgressReport) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[175]
+	mi := &file_tf_gcmessages_proto_msgTypes[176]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13974,7 +14164,7 @@ func (x *CMsgQuestProgressReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgQuestProgressReport.ProtoReflect.Descriptor instead.
 func (*CMsgQuestProgressReport) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{175}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{176}
 }
 
 func (x *CMsgQuestProgressReport) GetQuestId() uint64 {
@@ -14037,7 +14227,7 @@ type CMsgConsumePaintkit struct {
 
 func (x *CMsgConsumePaintkit) Reset() {
 	*x = CMsgConsumePaintkit{}
-	mi := &file_tf_gcmessages_proto_msgTypes[176]
+	mi := &file_tf_gcmessages_proto_msgTypes[177]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14049,7 +14239,7 @@ func (x *CMsgConsumePaintkit) String() string {
 func (*CMsgConsumePaintkit) ProtoMessage() {}
 
 func (x *CMsgConsumePaintkit) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[176]
+	mi := &file_tf_gcmessages_proto_msgTypes[177]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14062,7 +14252,7 @@ func (x *CMsgConsumePaintkit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgConsumePaintkit.ProtoReflect.Descriptor instead.
 func (*CMsgConsumePaintkit) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{176}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{177}
 }
 
 func (x *CMsgConsumePaintkit) GetSourceId() uint64 {
@@ -14091,7 +14281,7 @@ type CMsgPainkitDevGrant struct {
 
 func (x *CMsgPainkitDevGrant) Reset() {
 	*x = CMsgPainkitDevGrant{}
-	mi := &file_tf_gcmessages_proto_msgTypes[177]
+	mi := &file_tf_gcmessages_proto_msgTypes[178]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14103,7 +14293,7 @@ func (x *CMsgPainkitDevGrant) String() string {
 func (*CMsgPainkitDevGrant) ProtoMessage() {}
 
 func (x *CMsgPainkitDevGrant) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[177]
+	mi := &file_tf_gcmessages_proto_msgTypes[178]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14116,7 +14306,7 @@ func (x *CMsgPainkitDevGrant) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgPainkitDevGrant.ProtoReflect.Descriptor instead.
 func (*CMsgPainkitDevGrant) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{177}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{178}
 }
 
 func (x *CMsgPainkitDevGrant) GetPaintkitDefindex() uint32 {
@@ -14153,7 +14343,7 @@ type GCQuestStrangeEvent struct {
 
 func (x *GCQuestStrangeEvent) Reset() {
 	*x = GCQuestStrangeEvent{}
-	mi := &file_tf_gcmessages_proto_msgTypes[178]
+	mi := &file_tf_gcmessages_proto_msgTypes[179]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14165,7 +14355,7 @@ func (x *GCQuestStrangeEvent) String() string {
 func (*GCQuestStrangeEvent) ProtoMessage() {}
 
 func (x *GCQuestStrangeEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[178]
+	mi := &file_tf_gcmessages_proto_msgTypes[179]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14178,7 +14368,7 @@ func (x *GCQuestStrangeEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GCQuestStrangeEvent.ProtoReflect.Descriptor instead.
 func (*GCQuestStrangeEvent) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{178}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{179}
 }
 
 func (x *GCQuestStrangeEvent) GetOwnerAccountId() uint32 {
@@ -14226,7 +14416,7 @@ type CMsgSDRTicket struct {
 
 func (x *CMsgSDRTicket) Reset() {
 	*x = CMsgSDRTicket{}
-	mi := &file_tf_gcmessages_proto_msgTypes[179]
+	mi := &file_tf_gcmessages_proto_msgTypes[180]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14238,7 +14428,7 @@ func (x *CMsgSDRTicket) String() string {
 func (*CMsgSDRTicket) ProtoMessage() {}
 
 func (x *CMsgSDRTicket) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[179]
+	mi := &file_tf_gcmessages_proto_msgTypes[180]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14251,7 +14441,7 @@ func (x *CMsgSDRTicket) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgSDRTicket.ProtoReflect.Descriptor instead.
 func (*CMsgSDRTicket) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{179}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{180}
 }
 
 func (x *CMsgSDRTicket) GetSerializedTicket() []byte {
@@ -14271,7 +14461,7 @@ type CMsgAuthorizeServerItemRetrieval struct {
 
 func (x *CMsgAuthorizeServerItemRetrieval) Reset() {
 	*x = CMsgAuthorizeServerItemRetrieval{}
-	mi := &file_tf_gcmessages_proto_msgTypes[180]
+	mi := &file_tf_gcmessages_proto_msgTypes[181]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14283,7 +14473,7 @@ func (x *CMsgAuthorizeServerItemRetrieval) String() string {
 func (*CMsgAuthorizeServerItemRetrieval) ProtoMessage() {}
 
 func (x *CMsgAuthorizeServerItemRetrieval) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[180]
+	mi := &file_tf_gcmessages_proto_msgTypes[181]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14296,7 +14486,7 @@ func (x *CMsgAuthorizeServerItemRetrieval) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgAuthorizeServerItemRetrieval.ProtoReflect.Descriptor instead.
 func (*CMsgAuthorizeServerItemRetrieval) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{180}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{181}
 }
 
 func (x *CMsgAuthorizeServerItemRetrieval) GetItemId() []uint64 {
@@ -14318,7 +14508,7 @@ type CMsgGCToGCSendAccountBannedNotifications struct {
 
 func (x *CMsgGCToGCSendAccountBannedNotifications) Reset() {
 	*x = CMsgGCToGCSendAccountBannedNotifications{}
-	mi := &file_tf_gcmessages_proto_msgTypes[181]
+	mi := &file_tf_gcmessages_proto_msgTypes[182]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14330,7 +14520,7 @@ func (x *CMsgGCToGCSendAccountBannedNotifications) String() string {
 func (*CMsgGCToGCSendAccountBannedNotifications) ProtoMessage() {}
 
 func (x *CMsgGCToGCSendAccountBannedNotifications) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[181]
+	mi := &file_tf_gcmessages_proto_msgTypes[182]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14343,7 +14533,7 @@ func (x *CMsgGCToGCSendAccountBannedNotifications) ProtoReflect() protoreflect.M
 
 // Deprecated: Use CMsgGCToGCSendAccountBannedNotifications.ProtoReflect.Descriptor instead.
 func (*CMsgGCToGCSendAccountBannedNotifications) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{181}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{182}
 }
 
 func (x *CMsgGCToGCSendAccountBannedNotifications) GetBannedAccountid() uint32 {
@@ -14378,7 +14568,7 @@ type CMsgGCToGCSendNotification struct {
 
 func (x *CMsgGCToGCSendNotification) Reset() {
 	*x = CMsgGCToGCSendNotification{}
-	mi := &file_tf_gcmessages_proto_msgTypes[182]
+	mi := &file_tf_gcmessages_proto_msgTypes[183]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14390,7 +14580,7 @@ func (x *CMsgGCToGCSendNotification) String() string {
 func (*CMsgGCToGCSendNotification) ProtoMessage() {}
 
 func (x *CMsgGCToGCSendNotification) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[182]
+	mi := &file_tf_gcmessages_proto_msgTypes[183]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14403,7 +14593,7 @@ func (x *CMsgGCToGCSendNotification) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGCToGCSendNotification.ProtoReflect.Descriptor instead.
 func (*CMsgGCToGCSendNotification) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{182}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{183}
 }
 
 func (x *CMsgGCToGCSendNotification) GetNotification() *CMsgGCNotification {
@@ -14422,7 +14612,7 @@ type CMsgGameServerData_Player struct {
 
 func (x *CMsgGameServerData_Player) Reset() {
 	*x = CMsgGameServerData_Player{}
-	mi := &file_tf_gcmessages_proto_msgTypes[183]
+	mi := &file_tf_gcmessages_proto_msgTypes[184]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14434,7 +14624,7 @@ func (x *CMsgGameServerData_Player) String() string {
 func (*CMsgGameServerData_Player) ProtoMessage() {}
 
 func (x *CMsgGameServerData_Player) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[183]
+	mi := &file_tf_gcmessages_proto_msgTypes[184]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14471,7 +14661,7 @@ type CMsgTFQuickplay_ScoreServers_ServerInfo struct {
 
 func (x *CMsgTFQuickplay_ScoreServers_ServerInfo) Reset() {
 	*x = CMsgTFQuickplay_ScoreServers_ServerInfo{}
-	mi := &file_tf_gcmessages_proto_msgTypes[184]
+	mi := &file_tf_gcmessages_proto_msgTypes[185]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14483,7 +14673,7 @@ func (x *CMsgTFQuickplay_ScoreServers_ServerInfo) String() string {
 func (*CMsgTFQuickplay_ScoreServers_ServerInfo) ProtoMessage() {}
 
 func (x *CMsgTFQuickplay_ScoreServers_ServerInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[184]
+	mi := &file_tf_gcmessages_proto_msgTypes[185]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14496,7 +14686,7 @@ func (x *CMsgTFQuickplay_ScoreServers_ServerInfo) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use CMsgTFQuickplay_ScoreServers_ServerInfo.ProtoReflect.Descriptor instead.
 func (*CMsgTFQuickplay_ScoreServers_ServerInfo) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{32, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{33, 0}
 }
 
 func (x *CMsgTFQuickplay_ScoreServers_ServerInfo) GetServerAddress() uint32 {
@@ -14554,7 +14744,7 @@ type CMsgTFQuickplay_ScoreServersResponse_ServerInfo struct {
 
 func (x *CMsgTFQuickplay_ScoreServersResponse_ServerInfo) Reset() {
 	*x = CMsgTFQuickplay_ScoreServersResponse_ServerInfo{}
-	mi := &file_tf_gcmessages_proto_msgTypes[185]
+	mi := &file_tf_gcmessages_proto_msgTypes[186]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14566,7 +14756,7 @@ func (x *CMsgTFQuickplay_ScoreServersResponse_ServerInfo) String() string {
 func (*CMsgTFQuickplay_ScoreServersResponse_ServerInfo) ProtoMessage() {}
 
 func (x *CMsgTFQuickplay_ScoreServersResponse_ServerInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[185]
+	mi := &file_tf_gcmessages_proto_msgTypes[186]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14579,7 +14769,7 @@ func (x *CMsgTFQuickplay_ScoreServersResponse_ServerInfo) ProtoReflect() protore
 
 // Deprecated: Use CMsgTFQuickplay_ScoreServersResponse_ServerInfo.ProtoReflect.Descriptor instead.
 func (*CMsgTFQuickplay_ScoreServersResponse_ServerInfo) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{33, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{34, 0}
 }
 
 func (x *CMsgTFQuickplay_ScoreServersResponse_ServerInfo) GetServerAddress() uint32 {
@@ -14629,7 +14819,7 @@ type CMsgGC_GameServer_ListResponse_GameServerIdentity struct {
 
 func (x *CMsgGC_GameServer_ListResponse_GameServerIdentity) Reset() {
 	*x = CMsgGC_GameServer_ListResponse_GameServerIdentity{}
-	mi := &file_tf_gcmessages_proto_msgTypes[186]
+	mi := &file_tf_gcmessages_proto_msgTypes[187]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14641,7 +14831,7 @@ func (x *CMsgGC_GameServer_ListResponse_GameServerIdentity) String() string {
 func (*CMsgGC_GameServer_ListResponse_GameServerIdentity) ProtoMessage() {}
 
 func (x *CMsgGC_GameServer_ListResponse_GameServerIdentity) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[186]
+	mi := &file_tf_gcmessages_proto_msgTypes[187]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14654,7 +14844,7 @@ func (x *CMsgGC_GameServer_ListResponse_GameServerIdentity) ProtoReflect() proto
 
 // Deprecated: Use CMsgGC_GameServer_ListResponse_GameServerIdentity.ProtoReflect.Descriptor instead.
 func (*CMsgGC_GameServer_ListResponse_GameServerIdentity) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{42, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{43, 0}
 }
 
 func (x *CMsgGC_GameServer_ListResponse_GameServerIdentity) GetGameServerAccountId() uint32 {
@@ -14703,7 +14893,7 @@ type CSOTFPartyMember_Activity struct {
 
 func (x *CSOTFPartyMember_Activity) Reset() {
 	*x = CSOTFPartyMember_Activity{}
-	mi := &file_tf_gcmessages_proto_msgTypes[187]
+	mi := &file_tf_gcmessages_proto_msgTypes[188]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14715,7 +14905,7 @@ func (x *CSOTFPartyMember_Activity) String() string {
 func (*CSOTFPartyMember_Activity) ProtoMessage() {}
 
 func (x *CSOTFPartyMember_Activity) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[187]
+	mi := &file_tf_gcmessages_proto_msgTypes[188]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14728,7 +14918,7 @@ func (x *CSOTFPartyMember_Activity) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CSOTFPartyMember_Activity.ProtoReflect.Descriptor instead.
 func (*CSOTFPartyMember_Activity) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{59, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{60, 0}
 }
 
 func (x *CSOTFPartyMember_Activity) GetLobbyId() uint64 {
@@ -14777,7 +14967,7 @@ type CSOTFParty_QueueEntry struct {
 
 func (x *CSOTFParty_QueueEntry) Reset() {
 	*x = CSOTFParty_QueueEntry{}
-	mi := &file_tf_gcmessages_proto_msgTypes[188]
+	mi := &file_tf_gcmessages_proto_msgTypes[189]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14789,7 +14979,7 @@ func (x *CSOTFParty_QueueEntry) String() string {
 func (*CSOTFParty_QueueEntry) ProtoMessage() {}
 
 func (x *CSOTFParty_QueueEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[188]
+	mi := &file_tf_gcmessages_proto_msgTypes[189]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14802,7 +14992,7 @@ func (x *CSOTFParty_QueueEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CSOTFParty_QueueEntry.ProtoReflect.Descriptor instead.
 func (*CSOTFParty_QueueEntry) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{87, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{88, 0}
 }
 
 func (x *CSOTFParty_QueueEntry) GetMatchGroup() ETFMatchGroup {
@@ -14831,7 +15021,7 @@ type CSOTFPartyInvite_PartyMember struct {
 
 func (x *CSOTFPartyInvite_PartyMember) Reset() {
 	*x = CSOTFPartyInvite_PartyMember{}
-	mi := &file_tf_gcmessages_proto_msgTypes[189]
+	mi := &file_tf_gcmessages_proto_msgTypes[190]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14843,7 +15033,7 @@ func (x *CSOTFPartyInvite_PartyMember) String() string {
 func (*CSOTFPartyInvite_PartyMember) ProtoMessage() {}
 
 func (x *CSOTFPartyInvite_PartyMember) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[189]
+	mi := &file_tf_gcmessages_proto_msgTypes[190]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14856,7 +15046,7 @@ func (x *CSOTFPartyInvite_PartyMember) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CSOTFPartyInvite_PartyMember.ProtoReflect.Descriptor instead.
 func (*CSOTFPartyInvite_PartyMember) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{88, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{89, 0}
 }
 
 func (x *CSOTFPartyInvite_PartyMember) GetSteamid() uint64 {
@@ -14876,7 +15066,7 @@ type CMsgGameServerMatchmakingStatus_Player struct {
 
 func (x *CMsgGameServerMatchmakingStatus_Player) Reset() {
 	*x = CMsgGameServerMatchmakingStatus_Player{}
-	mi := &file_tf_gcmessages_proto_msgTypes[190]
+	mi := &file_tf_gcmessages_proto_msgTypes[191]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14888,7 +15078,7 @@ func (x *CMsgGameServerMatchmakingStatus_Player) String() string {
 func (*CMsgGameServerMatchmakingStatus_Player) ProtoMessage() {}
 
 func (x *CMsgGameServerMatchmakingStatus_Player) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[190]
+	mi := &file_tf_gcmessages_proto_msgTypes[191]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14901,7 +15091,7 @@ func (x *CMsgGameServerMatchmakingStatus_Player) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use CMsgGameServerMatchmakingStatus_Player.ProtoReflect.Descriptor instead.
 func (*CMsgGameServerMatchmakingStatus_Player) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{98, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{99, 0}
 }
 
 func (x *CMsgGameServerMatchmakingStatus_Player) GetSteamId() uint64 {
@@ -14929,7 +15119,7 @@ type CMsgMvMVictoryInfo_Item struct {
 
 func (x *CMsgMvMVictoryInfo_Item) Reset() {
 	*x = CMsgMvMVictoryInfo_Item{}
-	mi := &file_tf_gcmessages_proto_msgTypes[191]
+	mi := &file_tf_gcmessages_proto_msgTypes[192]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14941,7 +15131,7 @@ func (x *CMsgMvMVictoryInfo_Item) String() string {
 func (*CMsgMvMVictoryInfo_Item) ProtoMessage() {}
 
 func (x *CMsgMvMVictoryInfo_Item) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[191]
+	mi := &file_tf_gcmessages_proto_msgTypes[192]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14954,7 +15144,7 @@ func (x *CMsgMvMVictoryInfo_Item) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgMvMVictoryInfo_Item.ProtoReflect.Descriptor instead.
 func (*CMsgMvMVictoryInfo_Item) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{100, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{101, 0}
 }
 
 func (x *CMsgMvMVictoryInfo_Item) GetGrantReason() CMsgMvMVictoryInfo_GrantReason {
@@ -14995,7 +15185,7 @@ type CMsgMvMVictoryInfo_Player struct {
 
 func (x *CMsgMvMVictoryInfo_Player) Reset() {
 	*x = CMsgMvMVictoryInfo_Player{}
-	mi := &file_tf_gcmessages_proto_msgTypes[192]
+	mi := &file_tf_gcmessages_proto_msgTypes[193]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15007,7 +15197,7 @@ func (x *CMsgMvMVictoryInfo_Player) String() string {
 func (*CMsgMvMVictoryInfo_Player) ProtoMessage() {}
 
 func (x *CMsgMvMVictoryInfo_Player) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[192]
+	mi := &file_tf_gcmessages_proto_msgTypes[193]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15020,7 +15210,7 @@ func (x *CMsgMvMVictoryInfo_Player) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgMvMVictoryInfo_Player.ProtoReflect.Descriptor instead.
 func (*CMsgMvMVictoryInfo_Player) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{100, 1}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{101, 1}
 }
 
 func (x *CMsgMvMVictoryInfo_Player) GetSteamId() uint64 {
@@ -15096,7 +15286,7 @@ type CMsgMvMVictory_Player struct {
 
 func (x *CMsgMvMVictory_Player) Reset() {
 	*x = CMsgMvMVictory_Player{}
-	mi := &file_tf_gcmessages_proto_msgTypes[193]
+	mi := &file_tf_gcmessages_proto_msgTypes[194]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15108,7 +15298,7 @@ func (x *CMsgMvMVictory_Player) String() string {
 func (*CMsgMvMVictory_Player) ProtoMessage() {}
 
 func (x *CMsgMvMVictory_Player) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[193]
+	mi := &file_tf_gcmessages_proto_msgTypes[194]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15121,7 +15311,7 @@ func (x *CMsgMvMVictory_Player) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgMvMVictory_Player.ProtoReflect.Descriptor instead.
 func (*CMsgMvMVictory_Player) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{104, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{105, 0}
 }
 
 func (x *CMsgMvMVictory_Player) GetSteamId() uint64 {
@@ -15148,7 +15338,7 @@ type CMsgProcessMatchVoteKick_Vote struct {
 
 func (x *CMsgProcessMatchVoteKick_Vote) Reset() {
 	*x = CMsgProcessMatchVoteKick_Vote{}
-	mi := &file_tf_gcmessages_proto_msgTypes[194]
+	mi := &file_tf_gcmessages_proto_msgTypes[195]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15160,7 +15350,7 @@ func (x *CMsgProcessMatchVoteKick_Vote) String() string {
 func (*CMsgProcessMatchVoteKick_Vote) ProtoMessage() {}
 
 func (x *CMsgProcessMatchVoteKick_Vote) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[194]
+	mi := &file_tf_gcmessages_proto_msgTypes[195]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15173,7 +15363,7 @@ func (x *CMsgProcessMatchVoteKick_Vote) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgProcessMatchVoteKick_Vote.ProtoReflect.Descriptor instead.
 func (*CMsgProcessMatchVoteKick_Vote) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{111, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{112, 0}
 }
 
 func (x *CMsgProcessMatchVoteKick_Vote) GetSteamId() uint64 {
@@ -15199,7 +15389,7 @@ type CMsgUpdateHalloweenMerasmusLootLevel_Player struct {
 
 func (x *CMsgUpdateHalloweenMerasmusLootLevel_Player) Reset() {
 	*x = CMsgUpdateHalloweenMerasmusLootLevel_Player{}
-	mi := &file_tf_gcmessages_proto_msgTypes[195]
+	mi := &file_tf_gcmessages_proto_msgTypes[196]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15211,7 +15401,7 @@ func (x *CMsgUpdateHalloweenMerasmusLootLevel_Player) String() string {
 func (*CMsgUpdateHalloweenMerasmusLootLevel_Player) ProtoMessage() {}
 
 func (x *CMsgUpdateHalloweenMerasmusLootLevel_Player) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[195]
+	mi := &file_tf_gcmessages_proto_msgTypes[196]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15224,7 +15414,7 @@ func (x *CMsgUpdateHalloweenMerasmusLootLevel_Player) ProtoReflect() protoreflec
 
 // Deprecated: Use CMsgUpdateHalloweenMerasmusLootLevel_Player.ProtoReflect.Descriptor instead.
 func (*CMsgUpdateHalloweenMerasmusLootLevel_Player) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{115, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{116, 0}
 }
 
 func (x *CMsgUpdateHalloweenMerasmusLootLevel_Player) GetSteamId() uint64 {
@@ -15244,7 +15434,7 @@ type CGCMsgGC_War_GlobalStatsResponse_SideScore struct {
 
 func (x *CGCMsgGC_War_GlobalStatsResponse_SideScore) Reset() {
 	*x = CGCMsgGC_War_GlobalStatsResponse_SideScore{}
-	mi := &file_tf_gcmessages_proto_msgTypes[196]
+	mi := &file_tf_gcmessages_proto_msgTypes[197]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15256,7 +15446,7 @@ func (x *CGCMsgGC_War_GlobalStatsResponse_SideScore) String() string {
 func (*CGCMsgGC_War_GlobalStatsResponse_SideScore) ProtoMessage() {}
 
 func (x *CGCMsgGC_War_GlobalStatsResponse_SideScore) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[196]
+	mi := &file_tf_gcmessages_proto_msgTypes[197]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15269,7 +15459,7 @@ func (x *CGCMsgGC_War_GlobalStatsResponse_SideScore) ProtoReflect() protoreflect
 
 // Deprecated: Use CGCMsgGC_War_GlobalStatsResponse_SideScore.ProtoReflect.Descriptor instead.
 func (*CGCMsgGC_War_GlobalStatsResponse_SideScore) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{125, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{126, 0}
 }
 
 func (x *CGCMsgGC_War_GlobalStatsResponse_SideScore) GetSide() uint32 {
@@ -15320,7 +15510,7 @@ type CMsgGC_Match_Result_Player struct {
 
 func (x *CMsgGC_Match_Result_Player) Reset() {
 	*x = CMsgGC_Match_Result_Player{}
-	mi := &file_tf_gcmessages_proto_msgTypes[197]
+	mi := &file_tf_gcmessages_proto_msgTypes[198]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15332,7 +15522,7 @@ func (x *CMsgGC_Match_Result_Player) String() string {
 func (*CMsgGC_Match_Result_Player) ProtoMessage() {}
 
 func (x *CMsgGC_Match_Result_Player) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[197]
+	mi := &file_tf_gcmessages_proto_msgTypes[198]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15345,7 +15535,7 @@ func (x *CMsgGC_Match_Result_Player) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGC_Match_Result_Player.ProtoReflect.Descriptor instead.
 func (*CMsgGC_Match_Result_Player) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{137, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{138, 0}
 }
 
 func (x *CMsgGC_Match_Result_Player) GetSteamId() uint64 {
@@ -15541,7 +15731,7 @@ const (
 
 func (x *CMsgGC_Match_Result_EventInfo) Reset() {
 	*x = CMsgGC_Match_Result_EventInfo{}
-	mi := &file_tf_gcmessages_proto_msgTypes[198]
+	mi := &file_tf_gcmessages_proto_msgTypes[199]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15553,7 +15743,7 @@ func (x *CMsgGC_Match_Result_EventInfo) String() string {
 func (*CMsgGC_Match_Result_EventInfo) ProtoMessage() {}
 
 func (x *CMsgGC_Match_Result_EventInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[198]
+	mi := &file_tf_gcmessages_proto_msgTypes[199]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15566,7 +15756,7 @@ func (x *CMsgGC_Match_Result_EventInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CMsgGC_Match_Result_EventInfo.ProtoReflect.Descriptor instead.
 func (*CMsgGC_Match_Result_EventInfo) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{137, 1}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{138, 1}
 }
 
 func (x *CMsgGC_Match_Result_EventInfo) GetEventType() CMsgGC_Match_Result_EventInfo_EventType {
@@ -15624,7 +15814,7 @@ type CMsgGC_DailyCompetitiveStatsRollup_Response_RankBucketEntry struct {
 
 func (x *CMsgGC_DailyCompetitiveStatsRollup_Response_RankBucketEntry) Reset() {
 	*x = CMsgGC_DailyCompetitiveStatsRollup_Response_RankBucketEntry{}
-	mi := &file_tf_gcmessages_proto_msgTypes[199]
+	mi := &file_tf_gcmessages_proto_msgTypes[200]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15636,7 +15826,7 @@ func (x *CMsgGC_DailyCompetitiveStatsRollup_Response_RankBucketEntry) String() s
 func (*CMsgGC_DailyCompetitiveStatsRollup_Response_RankBucketEntry) ProtoMessage() {}
 
 func (x *CMsgGC_DailyCompetitiveStatsRollup_Response_RankBucketEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[199]
+	mi := &file_tf_gcmessages_proto_msgTypes[200]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15649,7 +15839,7 @@ func (x *CMsgGC_DailyCompetitiveStatsRollup_Response_RankBucketEntry) ProtoRefle
 
 // Deprecated: Use CMsgGC_DailyCompetitiveStatsRollup_Response_RankBucketEntry.ProtoReflect.Descriptor instead.
 func (*CMsgGC_DailyCompetitiveStatsRollup_Response_RankBucketEntry) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{147, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{148, 0}
 }
 
 func (x *CMsgGC_DailyCompetitiveStatsRollup_Response_RankBucketEntry) GetRank() uint32 {
@@ -15753,7 +15943,7 @@ const (
 
 func (x *CMsgGCDataCenterPing_Update_PingEntry) Reset() {
 	*x = CMsgGCDataCenterPing_Update_PingEntry{}
-	mi := &file_tf_gcmessages_proto_msgTypes[200]
+	mi := &file_tf_gcmessages_proto_msgTypes[201]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15765,7 +15955,7 @@ func (x *CMsgGCDataCenterPing_Update_PingEntry) String() string {
 func (*CMsgGCDataCenterPing_Update_PingEntry) ProtoMessage() {}
 
 func (x *CMsgGCDataCenterPing_Update_PingEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[200]
+	mi := &file_tf_gcmessages_proto_msgTypes[201]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15778,7 +15968,7 @@ func (x *CMsgGCDataCenterPing_Update_PingEntry) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use CMsgGCDataCenterPing_Update_PingEntry.ProtoReflect.Descriptor instead.
 func (*CMsgGCDataCenterPing_Update_PingEntry) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{155, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{156, 0}
 }
 
 func (x *CMsgGCDataCenterPing_Update_PingEntry) GetName() string {
@@ -15817,7 +16007,7 @@ const (
 
 func (x *CMsgGCChangeMatchPlayerTeamsRequest_Member) Reset() {
 	*x = CMsgGCChangeMatchPlayerTeamsRequest_Member{}
-	mi := &file_tf_gcmessages_proto_msgTypes[201]
+	mi := &file_tf_gcmessages_proto_msgTypes[202]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15829,7 +16019,7 @@ func (x *CMsgGCChangeMatchPlayerTeamsRequest_Member) String() string {
 func (*CMsgGCChangeMatchPlayerTeamsRequest_Member) ProtoMessage() {}
 
 func (x *CMsgGCChangeMatchPlayerTeamsRequest_Member) ProtoReflect() protoreflect.Message {
-	mi := &file_tf_gcmessages_proto_msgTypes[201]
+	mi := &file_tf_gcmessages_proto_msgTypes[202]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15842,7 +16032,7 @@ func (x *CMsgGCChangeMatchPlayerTeamsRequest_Member) ProtoReflect() protoreflect
 
 // Deprecated: Use CMsgGCChangeMatchPlayerTeamsRequest_Member.ProtoReflect.Descriptor instead.
 func (*CMsgGCChangeMatchPlayerTeamsRequest_Member) Descriptor() ([]byte, []int) {
-	return file_tf_gcmessages_proto_rawDescGZIP(), []int{168, 0}
+	return file_tf_gcmessages_proto_rawDescGZIP(), []int{169, 0}
 }
 
 func (x *CMsgGCChangeMatchPlayerTeamsRequest_Member) GetMemberId() uint64 {
@@ -15896,7 +16086,24 @@ const file_tf_gcmessages_proto_rawDesc = "" +
 	"\x03map\x18\x15 \x01(\tR\x03map\x12*\n" +
 	"\x11game_server_token\x18\x1f \x01(\tR\x0fgameServerToken\x1a#\n" +
 	"\x06Player\x12\x19\n" +
-	"\bsteam_id\x18\x01 \x01(\x06R\asteamId\"]\n" +
+	"\bsteam_id\x18\x01 \x01(\x06R\asteamId\"\xee\x03\n" +
+	"\x1fCMsgGC_Frontress_AntiCheatEvent\x12\x19\n" +
+	"\bsteam_id\x18\x01 \x01(\x06R\asteamId\x12&\n" +
+	"\x0fproduct_user_id\x18\x02 \x01(\tR\rproductUserId\x12M\n" +
+	"\x05event\x18\x03 \x01(\x0e2'.CMsgGC_Frontress_AntiCheatEvent.EEvent:\x0ekEvent_INVALIDR\x05event\x12#\n" +
+	"\raction_reason\x18\x04 \x01(\rR\factionReason\x12\x18\n" +
+	"\adetails\x18\x05 \x01(\tR\adetails\x12\x19\n" +
+	"\bmatch_id\x18\x06 \x01(\x04R\amatchId\x12\x1a\n" +
+	"\benforced\x18\a \x01(\bR\benforced\"\xc2\x01\n" +
+	"\x06EEvent\x12\x12\n" +
+	"\x0ekEvent_INVALID\x10\x00\x12\x13\n" +
+	"\x0fkEvent_VERIFIED\x10\x01\x12\x11\n" +
+	"\rkEvent_KICKED\x10\x02\x12\x18\n" +
+	"\x14kEvent_NOT_PROTECTED\x10\x03\x12\x1c\n" +
+	"\x18kEvent_IDENTITY_MISMATCH\x10\x04\x12\x14\n" +
+	"\x10kEvent_VIOLATION\x10\x05\x12\x16\n" +
+	"\x12kEvent_TEMP_BANNED\x10\x06\x12\x16\n" +
+	"\x12kEvent_PERM_BANNED\x10\a\"]\n" +
 	"\x11CMsgGSUserPlaying\x12\x19\n" +
 	"\bsteam_id\x18\x01 \x01(\x06R\asteamId\x12\x17\n" +
 	"\afake_ip\x18\x02 \x01(\aR\x06fakeIp\x12\x14\n" +
@@ -16332,7 +16539,7 @@ const file_tf_gcmessages_proto_rawDesc = "" +
 	"!CMsgMatchmakingSearchCountRequest\"a\n" +
 	"\"CMsgMatchmakingSearchCountResponse\x12;\n" +
 	"\x1asearching_players_by_group\x18\x01 \x03(\rR\x17searchingPlayersByGroup\" \n" +
-	"\x1eCMsgKickedFromMatchmakingQueue\"\xba\t\n" +
+	"\x1eCMsgKickedFromMatchmakingQueue\"\xeb\t\n" +
 	"\x1fCMsgGameServerMatchmakingStatus\x12+\n" +
 	"\x0eserver_version\x18\x10 \x01(\r:\x041225R\rserverVersion\x12d\n" +
 	"\x11matchmaking_state\x18\x01 \x01(\x0e2\x17.ServerMatchmakingState:\x1eServerMatchmakingState_INVALIDR\x10matchmakingState\x12\x10\n" +
@@ -16360,7 +16567,8 @@ const file_tf_gcmessages_proto_rawDesc = "" +
 	"\x13mvm_credits_dropped\x18\x14 \x01(\rR\x11mvmCreditsDropped\x12#\n" +
 	"\vmatch_group\x18\x17 \x01(\x11:\x02-1R\n" +
 	"matchGroup\x12(\n" +
-	"\x10lobby_mm_version\x18\x18 \x01(\rR\x0elobbyMmVersion\x1a}\n" +
+	"\x10lobby_mm_version\x18\x18 \x01(\rR\x0elobbyMmVersion\x12/\n" +
+	"\x13anticheat_protected\x18( \x01(\bR\x12anticheatProtected\x1a}\n" +
 	"\x06Player\x12\x19\n" +
 	"\bsteam_id\x18\x01 \x01(\x06R\asteamId\x12X\n" +
 	"\rconnect_state\x18\x02 \x01(\x0e23.CMsgGameServerMatchmakingStatus.PlayerConnectStateR\fconnectState\">\n" +
@@ -16980,7 +17188,7 @@ const file_tf_gcmessages_proto_rawDesc = "" +
 	"\x13report_period_begin\x18\x02 \x01(\rR\x11reportPeriodBegin\x12*\n" +
 	"\x11report_period_end\x18\x03 \x01(\rR\x0freportPeriodEnd\"U\n" +
 	"\x1aCMsgGCToGCSendNotification\x127\n" +
-	"\fnotification\x18\x01 \x01(\v2\x13.CMsgGCNotificationR\fnotification*\x994\n" +
+	"\fnotification\x18\x01 \x01(\v2\x13.CMsgGCNotificationR\fnotification*\xc14\n" +
 	"\bETFGCMsg\x12\x1a\n" +
 	"\x15k_EMsgGCReportWarKill\x10\x89'\x12\"\n" +
 	"\x1dk_EMsgGCKickPlayer_DEPRECATED\x10\x9c'\x12'\n" +
@@ -17149,7 +17357,8 @@ const file_tf_gcmessages_proto_rawDesc = "" +
 	"+k_EMsgGCToGC_SendAccountBannedNotifications\x10\xb83\x12\"\n" +
 	"\x1dk_EMsgGCToGC_SendNotification\x10\xb93\x12\x1a\n" +
 	"\x15k_EMsgGCParty_MMError\x10\xba3\x12#\n" +
-	"\x1ek_EMsgGC_GameServer_UpdateData\x10\xbb3\x12\x1d\n" +
+	"\x1ek_EMsgGC_GameServer_UpdateData\x10\xbb3\x12&\n" +
+	"!k_EMsgGC_Frontress_AntiCheatEvent\x10\xbe3\x12\x1d\n" +
 	"\x18k_EMsgGCDev_GrantWarKill\x10\x91N*H\n" +
 	"\x1bEServerModificationItemType\x12)\n" +
 	"%kGameServerModificationItem_Halloween\x10\x01*\x9b\x02\n" +
@@ -17247,337 +17456,340 @@ func file_tf_gcmessages_proto_rawDescGZIP() []byte {
 	return file_tf_gcmessages_proto_rawDescData
 }
 
-var file_tf_gcmessages_proto_enumTypes = make([]protoimpl.EnumInfo, 30)
-var file_tf_gcmessages_proto_msgTypes = make([]protoimpl.MessageInfo, 202)
+var file_tf_gcmessages_proto_enumTypes = make([]protoimpl.EnumInfo, 31)
+var file_tf_gcmessages_proto_msgTypes = make([]protoimpl.MessageInfo, 203)
 var file_tf_gcmessages_proto_goTypes = []any{
-	(ETFGCMsg)(0),                    // 0: ETFGCMsg
-	(EServerModificationItemType)(0), // 1: EServerModificationItemType
-	(ETFSyncedMMMenuStep)(0),         // 2: ETFSyncedMMMenuStep
-	(ETFMatchGroup)(0),               // 3: ETFMatchGroup
-	(ETFPartyChatType)(0),            // 4: ETFPartyChatType
-	(TF_GC_GameState)(0),             // 5: TF_GC_GameState
-	(TF_GC_TEAM)(0),                  // 6: TF_GC_TEAM
-	(TFMatchLeaveReason)(0),          // 7: TFMatchLeaveReason
-	(TFVoteKickReason)(0),            // 8: TFVoteKickReason
-	(ServerMatchmakingState)(0),      // 9: ServerMatchmakingState
-	(SurveyQuestionType)(0),          // 10: SurveyQuestionType
-	(CMsgGC_GameServer_CreateIdentityResponse_EStatus)(0),                                           // 11: CMsgGC_GameServer_CreateIdentityResponse.EStatus
-	(CMsgGC_Client_UseServerModificationItem_Response_EServerModificationItemResponse)(0),           // 12: CMsgGC_Client_UseServerModificationItem_Response.EServerModificationItemResponse
-	(CMsgGC_GameServer_UseServerModificationItem_Response_EServerModificationItemServerResponse)(0), // 13: CMsgGC_GameServer_UseServerModificationItem_Response.EServerModificationItemServerResponse
-	(TFPendingPartyMember_EType)(0),                                                                 // 14: TFPendingPartyMember.EType
-	(CMsgPartyMMError_Type)(0),                                                                      // 15: CMsgPartyMMError.Type
-	(CSOTFPartyInvite_Type)(0),                                                                      // 16: CSOTFPartyInvite.Type
-	(CTFLobbyPlayerProto_ConnectState)(0),                                                           // 17: CTFLobbyPlayerProto.ConnectState
-	(CTFLobbyPlayerProto_Type)(0),                                                                   // 18: CTFLobbyPlayerProto.Type
-	(CSOTFGameServerLobby_State)(0),                                                                 // 19: CSOTFGameServerLobby.State
-	(CSOTFGameServerLobby_WarMatch)(0),                                                              // 20: CSOTFGameServerLobby.WarMatch
-	(CMsgGameServerMatchmakingStatus_PlayerConnectState)(0),                                         // 21: CMsgGameServerMatchmakingStatus.PlayerConnectState
-	(CMsgGameServerMatchmakingStatus_Event)(0),                                                      // 22: CMsgGameServerMatchmakingStatus.Event
-	(CMsgMvMVictoryInfo_GrantReason)(0),                                                             // 23: CMsgMvMVictoryInfo.GrantReason
-	(CMsgTFXPSource_XPSourceType)(0),                                                                // 24: CMsgTFXPSource.XPSourceType
-	(CMsgGCNotification_NotificationType)(0),                                                        // 25: CMsgGCNotification.NotificationType
-	(CMsgGC_Match_Result_Status)(0),                                                                 // 26: CMsgGC_Match_Result.Status
-	(CMsgGC_Match_Result_EventInfo_EventType)(0),                                                    // 27: CMsgGC_Match_Result.EventInfo.EventType
-	(CMsgGC_ReportPlayer_EReason)(0),                                                                // 28: CMsgGC_ReportPlayer.EReason
-	(CMsgGCDataCenterPing_Update_Status)(0),                                                         // 29: CMsgGCDataCenterPing_Update.Status
-	(*CMsgGameServerData)(nil),                                                                      // 30: CMsgGameServerData
-	(*CMsgGSUserPlaying)(nil),                                                                       // 31: CMsgGSUserPlaying
-	(*CMsgGSDisconnectNotice)(nil),                                                                  // 32: CMsgGSDisconnectNotice
-	(*CMsgTFGoldenWrenchBroadcast)(nil),                                                             // 33: CMsgTFGoldenWrenchBroadcast
-	(*CMsgTFSaxxyBroadcast)(nil),                                                                    // 34: CMsgTFSaxxyBroadcast
-	(*CMsgGCTFSpecificItemBroadcast)(nil),                                                           // 35: CMsgGCTFSpecificItemBroadcast
-	(*CMsgTFWorldStatus)(nil),                                                                       // 36: CMsgTFWorldStatus
-	(*CSOTFDuelSummary)(nil),                                                                        // 37: CSOTFDuelSummary
-	(*CMsgTrackedStat)(nil),                                                                         // 38: CMsgTrackedStat
-	(*CSOTFMapContribution)(nil),                                                                    // 39: CSOTFMapContribution
-	(*CMsgTFFreeTrialChooseMostHelpfulFriend)(nil),                                                  // 40: CMsgTFFreeTrialChooseMostHelpfulFriend
-	(*CMsgTFRequestTF2Friends)(nil),                                                                 // 41: CMsgTFRequestTF2Friends
-	(*CMsgTFRequestTF2FriendsResponse)(nil),                                                         // 42: CMsgTFRequestTF2FriendsResponse
-	(*CSOTFPlayerInfo)(nil),                                                                         // 43: CSOTFPlayerInfo
-	(*CMsgTFThankedBySomeone)(nil),                                                                  // 44: CMsgTFThankedBySomeone
-	(*CMsgTFThankedSomeone)(nil),                                                                    // 45: CMsgTFThankedSomeone
-	(*CMsgTFFreeTrialConvertedToPremium)(nil),                                                       // 46: CMsgTFFreeTrialConvertedToPremium
-	(*CMsgSaxxyAwarded)(nil),                                                                        // 47: CMsgSaxxyAwarded
-	(*CMsgReplaySubmitContestEntry)(nil),                                                            // 48: CMsgReplaySubmitContestEntry
-	(*CMsgReplaySubmitContestEntryResponse)(nil),                                                    // 49: CMsgReplaySubmitContestEntryResponse
-	(*CReplayCachedContestData)(nil),                                                                // 50: CReplayCachedContestData
-	(*CMsgTFCoaching_AddToCoaches)(nil),                                                             // 51: CMsgTFCoaching_AddToCoaches
-	(*CMsgTFCoaching_RemoveFromCoaches)(nil),                                                        // 52: CMsgTFCoaching_RemoveFromCoaches
-	(*CMsgTFCoaching_FindCoach)(nil),                                                                // 53: CMsgTFCoaching_FindCoach
-	(*CMsgTFCoaching_FindCoachResponse)(nil),                                                        // 54: CMsgTFCoaching_FindCoachResponse
-	(*CMsgTFCoaching_AskCoach)(nil),                                                                 // 55: CMsgTFCoaching_AskCoach
-	(*CMsgTFCoaching_AskCoachResponse)(nil),                                                         // 56: CMsgTFCoaching_AskCoachResponse
-	(*CMsgTFCoaching_CoachJoinGame)(nil),                                                            // 57: CMsgTFCoaching_CoachJoinGame
-	(*CMsgTFCoaching_CoachJoining)(nil),                                                             // 58: CMsgTFCoaching_CoachJoining
-	(*CMsgTFCoaching_CoachJoined)(nil),                                                              // 59: CMsgTFCoaching_CoachJoined
-	(*CMsgTFCoaching_LikeCurrentCoach)(nil),                                                         // 60: CMsgTFCoaching_LikeCurrentCoach
-	(*CMsgTFCoaching_RemoveCurrentCoach)(nil),                                                       // 61: CMsgTFCoaching_RemoveCurrentCoach
-	(*CMsgTFQuickplay_ScoreServers)(nil),                                                            // 62: CMsgTFQuickplay_ScoreServers
-	(*CMsgTFQuickplay_ScoreServersResponse)(nil),                                                    // 63: CMsgTFQuickplay_ScoreServersResponse
-	(*CMsgTFQuickplay_PlayerJoining)(nil),                                                           // 64: CMsgTFQuickplay_PlayerJoining
-	(*CMsgGC_GameServer_LevelInfo)(nil),                                                             // 65: CMsgGC_GameServer_LevelInfo
-	(*CMsgGC_GameServer_AuthChallenge)(nil),                                                         // 66: CMsgGC_GameServer_AuthChallenge
-	(*CMsgGC_GameServer_AuthResult)(nil),                                                            // 67: CMsgGC_GameServer_AuthResult
-	(*CMsgGC_GameServer_AuthChallengeResponse)(nil),                                                 // 68: CMsgGC_GameServer_AuthChallengeResponse
-	(*CMsgGC_GameServer_CreateIdentity)(nil),                                                        // 69: CMsgGC_GameServer_CreateIdentity
-	(*CMsgGC_GameServer_CreateIdentityResponse)(nil),                                                // 70: CMsgGC_GameServer_CreateIdentityResponse
-	(*CMsgGC_GameServer_List)(nil),                                                                  // 71: CMsgGC_GameServer_List
-	(*CMsgGC_GameServer_ListResponse)(nil),                                                          // 72: CMsgGC_GameServer_ListResponse
-	(*CMsgGC_GameServer_ResetIdentity)(nil),                                                         // 73: CMsgGC_GameServer_ResetIdentity
-	(*CMsgGC_GameServer_ResetIdentityResponse)(nil),                                                 // 74: CMsgGC_GameServer_ResetIdentityResponse
-	(*CMsgGC_GameServer_AckPolicy)(nil),                                                             // 75: CMsgGC_GameServer_AckPolicy
-	(*CMsgGC_GameServer_AckPolicyResponse)(nil),                                                     // 76: CMsgGC_GameServer_AckPolicyResponse
-	(*CMsgGC_Client_UseServerModificationItem)(nil),                                                 // 77: CMsgGC_Client_UseServerModificationItem
-	(*CMsgGC_Client_UseServerModificationItem_Response)(nil),                                        // 78: CMsgGC_Client_UseServerModificationItem_Response
-	(*CMsgGC_GameServer_UseServerModificationItem)(nil),                                             // 79: CMsgGC_GameServer_UseServerModificationItem
-	(*CMsgGC_GameServer_UseServerModificationItem_Response)(nil),                                    // 80: CMsgGC_GameServer_UseServerModificationItem_Response
-	(*CMsgGC_GameServer_ServerModificationItemExpired)(nil),                                         // 81: CMsgGC_GameServer_ServerModificationItemExpired
-	(*CMsgGC_GameServer_ServerModificationItem)(nil),                                                // 82: CMsgGC_GameServer_ServerModificationItem
-	(*CMsgGC_Halloween_ReservedItem)(nil),                                                           // 83: CMsgGC_Halloween_ReservedItem
-	(*CMsgGC_Halloween_GrantItem)(nil),                                                              // 84: CMsgGC_Halloween_GrantItem
-	(*CMsgGC_Halloween_GrantItemResponse)(nil),                                                      // 85: CMsgGC_Halloween_GrantItemResponse
-	(*CMsgGC_Halloween_ItemClaimed)(nil),                                                            // 86: CMsgGC_Halloween_ItemClaimed
-	(*CMsgGC_PickupItemEligibility_Query)(nil),                                                      // 87: CMsgGC_PickupItemEligibility_Query
-	(*CMsgGC_PickupItemEligibility_QueryResponse)(nil),                                              // 88: CMsgGC_PickupItemEligibility_QueryResponse
-	(*CSOTFPartyMember)(nil),                                                                        // 89: CSOTFPartyMember
-	(*TFPendingPartyMember)(nil),                                                                    // 90: TFPendingPartyMember
-	(*TFSyncedMMUIState)(nil),                                                                       // 91: TFSyncedMMUIState
-	(*CTFGroupMatchCriteriaProto)(nil),                                                              // 92: CTFGroupMatchCriteriaProto
-	(*CTFCasualMatchCriteria)(nil),                                                                  // 93: CTFCasualMatchCriteria
-	(*CTFPerPlayerMatchCriteriaProto)(nil),                                                          // 94: CTFPerPlayerMatchCriteriaProto
-	(*CTFPartyOptions)(nil),                                                                         // 95: CTFPartyOptions
-	(*CMsgPartySetOptions)(nil),                                                                     // 96: CMsgPartySetOptions
-	(*CMsgPartySetOptionsResponse)(nil),                                                             // 97: CMsgPartySetOptionsResponse
-	(*CMsgPartyQueueForMatch)(nil),                                                                  // 98: CMsgPartyQueueForMatch
-	(*CMsgPartyQueueForMatchResponse)(nil),                                                          // 99: CMsgPartyQueueForMatchResponse
-	(*CMsgPartyQueueForStandby)(nil),                                                                // 100: CMsgPartyQueueForStandby
-	(*CMsgPartyQueueForStandbyResponse)(nil),                                                        // 101: CMsgPartyQueueForStandbyResponse
-	(*CMsgPartyRemoveFromQueue)(nil),                                                                // 102: CMsgPartyRemoveFromQueue
-	(*CMsgPartyRemoveFromQueueResponse)(nil),                                                        // 103: CMsgPartyRemoveFromQueueResponse
-	(*CMsgPartyRemoveFromStandbyQueue)(nil),                                                         // 104: CMsgPartyRemoveFromStandbyQueue
-	(*CMsgPartyRemoveFromStandbyQueueResponse)(nil),                                                 // 105: CMsgPartyRemoveFromStandbyQueueResponse
-	(*CMsgPartyInvitePlayer)(nil),                                                                   // 106: CMsgPartyInvitePlayer
-	(*CMsgPartyRequestJoinPlayer)(nil),                                                              // 107: CMsgPartyRequestJoinPlayer
-	(*CMsgPartyClearPendingPlayer)(nil),                                                             // 108: CMsgPartyClearPendingPlayer
-	(*CMsgPartyMMError)(nil),                                                                        // 109: CMsgPartyMMError
-	(*CMsgPartyClearPendingPlayerResponse)(nil),                                                     // 110: CMsgPartyClearPendingPlayerResponse
-	(*CMsgPartyClearOtherPartyRequest)(nil),                                                         // 111: CMsgPartyClearOtherPartyRequest
-	(*CMsgPartyClearOtherPartyRequestResponse)(nil),                                                 // 112: CMsgPartyClearOtherPartyRequestResponse
-	(*CMsgPartyPromoteToLeader)(nil),                                                                // 113: CMsgPartyPromoteToLeader
-	(*CMsgPartyKickMember)(nil),                                                                     // 114: CMsgPartyKickMember
-	(*CMsgPartySendChat)(nil),                                                                       // 115: CMsgPartySendChat
-	(*CMsgPartyChatMsg)(nil),                                                                        // 116: CMsgPartyChatMsg
-	(*CSOTFParty)(nil),                                                                              // 117: CSOTFParty
-	(*CSOTFPartyInvite)(nil),                                                                        // 118: CSOTFPartyInvite
-	(*CTFLobbyPlayerProto)(nil),                                                                     // 119: CTFLobbyPlayerProto
-	(*CTFLobbyInviteProto)(nil),                                                                     // 120: CTFLobbyInviteProto
-	(*CSOTFGameServerLobby)(nil),                                                                    // 121: CSOTFGameServerLobby
-	(*CMsgExitMatchmaking)(nil),                                                                     // 122: CMsgExitMatchmaking
-	(*CMsgAcceptLobbyInvite)(nil),                                                                   // 123: CMsgAcceptLobbyInvite
-	(*CMsgAcceptLobbyInviteReply)(nil),                                                              // 124: CMsgAcceptLobbyInviteReply
-	(*CMsgMatchmakingSearchCountRequest)(nil),                                                       // 125: CMsgMatchmakingSearchCountRequest
-	(*CMsgMatchmakingSearchCountResponse)(nil),                                                      // 126: CMsgMatchmakingSearchCountResponse
-	(*CMsgKickedFromMatchmakingQueue)(nil),                                                          // 127: CMsgKickedFromMatchmakingQueue
-	(*CMsgGameServerMatchmakingStatus)(nil),                                                         // 128: CMsgGameServerMatchmakingStatus
-	(*CMsgMatchmakingProgress)(nil),                                                                 // 129: CMsgMatchmakingProgress
-	(*CMsgMvMVictoryInfo)(nil),                                                                      // 130: CMsgMvMVictoryInfo
-	(*CGCMsgTFHelloResponse)(nil),                                                                   // 131: CGCMsgTFHelloResponse
-	(*CGCMsgTFSync)(nil),                                                                            // 132: CGCMsgTFSync
-	(*CGCMsgTFSyncEx)(nil),                                                                          // 133: CGCMsgTFSyncEx
-	(*CMsgMvMVictory)(nil),                                                                          // 134: CMsgMvMVictory
-	(*CMsgMvMMannUpVictoryReply)(nil),                                                               // 135: CMsgMvMMannUpVictoryReply
-	(*CMsgGameServerKickingLobby)(nil),                                                              // 136: CMsgGameServerKickingLobby
-	(*CMsgGameServerKickingLobbyResponse)(nil),                                                      // 137: CMsgGameServerKickingLobbyResponse
-	(*CMsgLeaveGameAndPrepareToJoinParty)(nil),                                                      // 138: CMsgLeaveGameAndPrepareToJoinParty
-	(*CMsgPlayerLeftMatch)(nil),                                                                     // 139: CMsgPlayerLeftMatch
-	(*CMsgPlayerLeftMatchResponse)(nil),                                                             // 140: CMsgPlayerLeftMatchResponse
-	(*CMsgProcessMatchVoteKick)(nil),                                                                // 141: CMsgProcessMatchVoteKick
-	(*CMsgProcessMatchVoteKickResponse)(nil),                                                        // 142: CMsgProcessMatchVoteKickResponse
-	(*CMsgHalloween_ServerBossEvent)(nil),                                                           // 143: CMsgHalloween_ServerBossEvent
-	(*CMsgHalloween_Merasmus2012)(nil),                                                              // 144: CMsgHalloween_Merasmus2012
-	(*CMsgUpdateHalloweenMerasmusLootLevel)(nil),                                                    // 145: CMsgUpdateHalloweenMerasmusLootLevel
-	(*CAttribute_String)(nil),                                                                       // 146: CAttribute_String
-	(*CAttribute_DynamicRecipeComponent)(nil),                                                       // 147: CAttribute_DynamicRecipeComponent
-	(*CAttribute_DynamicRecipeComponent_COMPAT_NEVER_SERIALIZE_THIS_OUT)(nil),                       // 148: CAttribute_DynamicRecipeComponent_COMPAT_NEVER_SERIALIZE_THIS_OUT
-	(*CAttribute_ItemSlotCriteria)(nil),                                                             // 149: CAttribute_ItemSlotCriteria
-	(*CMsgSetItemSlotAttribute)(nil),                                                                // 150: CMsgSetItemSlotAttribute
-	(*CSOWarData)(nil),                                                                              // 151: CSOWarData
-	(*CGCMsgGC_War_IndividualUpdate)(nil),                                                           // 152: CGCMsgGC_War_IndividualUpdate
-	(*CGCMsgGC_War_JoinWar)(nil),                                                                    // 153: CGCMsgGC_War_JoinWar
-	(*CGCMsgGC_War_RequestGlobalStats)(nil),                                                         // 154: CGCMsgGC_War_RequestGlobalStats
-	(*CGCMsgGC_War_GlobalStatsResponse)(nil),                                                        // 155: CGCMsgGC_War_GlobalStatsResponse
-	(*CGCMsgGC_PlayerDuckLeaderboard_IndividualUpdate)(nil),                                         // 156: CGCMsgGC_PlayerDuckLeaderboard_IndividualUpdate
-	(*CAttribute_WorldItemPlacement)(nil),                                                           // 157: CAttribute_WorldItemPlacement
-	(*CGCMsg_WorldItemPlacement_Update)(nil),                                                        // 158: CGCMsg_WorldItemPlacement_Update
-	(*CMsgAcknowledgeXP)(nil),                                                                       // 159: CMsgAcknowledgeXP
-	(*CMsgTFXPSource)(nil),                                                                          // 160: CMsgTFXPSource
-	(*CMsgTFXPSourceBreakdown)(nil),                                                                 // 161: CMsgTFXPSourceBreakdown
-	(*CMsgTFClientInit)(nil),                                                                        // 162: CMsgTFClientInit
-	(*CMsgGCNotification)(nil),                                                                      // 163: CMsgGCNotification
-	(*CMsgGCNotificationQueue)(nil),                                                                 // 164: CMsgGCNotificationQueue
-	(*CMsgNotificationAcknowledge)(nil),                                                             // 165: CMsgNotificationAcknowledge
-	(*CMsgNotificationAcknowledgeReply)(nil),                                                        // 166: CMsgNotificationAcknowledgeReply
-	(*CMsgGC_Match_Result)(nil),                                                                     // 167: CMsgGC_Match_Result
-	(*CMsgGC_Match_ResultResponse)(nil),                                                             // 168: CMsgGC_Match_ResultResponse
-	(*CEconItemPreviewDataBlock)(nil),                                                               // 169: CEconItemPreviewDataBlock
-	(*CMsgGC_Client2GCEconPreviewDataBlockRequest)(nil),                                             // 170: CMsgGC_Client2GCEconPreviewDataBlockRequest
-	(*CMsgGC_Client2GCEconPreviewDataBlockResponse)(nil),                                            // 171: CMsgGC_Client2GCEconPreviewDataBlockResponse
-	(*CSOTFLadderPlayerStats)(nil),                                                                  // 172: CSOTFLadderPlayerStats
-	(*CSOTFRatingData)(nil),                                                                         // 173: CSOTFRatingData
-	(*CMsgGC_TFVoteKickPlayerRequest)(nil),                                                          // 174: CMsgGC_TFVoteKickPlayerRequest
-	(*CMsgGC_VoteKickPlayerRequestResponse)(nil),                                                    // 175: CMsgGC_VoteKickPlayerRequestResponse
-	(*CMsgGC_DailyCompetitiveStatsRollup)(nil),                                                      // 176: CMsgGC_DailyCompetitiveStatsRollup
-	(*CMsgGC_DailyCompetitiveStatsRollup_Response)(nil),                                             // 177: CMsgGC_DailyCompetitiveStatsRollup_Response
-	(*CMsgGC_ReportPlayer)(nil),                                                                     // 178: CMsgGC_ReportPlayer
-	(*CSOTFMatchResultPlayerStats)(nil),                                                             // 179: CSOTFMatchResultPlayerStats
-	(*CMsgGCRequestMatchMakerStats)(nil),                                                            // 180: CMsgGCRequestMatchMakerStats
-	(*CMsgGCDataCenterPopulation)(nil),                                                              // 181: CMsgGCDataCenterPopulation
-	(*CMsgGCMatchGroupDataCenterPopulation)(nil),                                                    // 182: CMsgGCMatchGroupDataCenterPopulation
-	(*CMsgGCMatchMakerStatsResponse)(nil),                                                           // 183: CMsgGCMatchMakerStatsResponse
-	(*CMsgGCMatchHistoryLoad)(nil),                                                                  // 184: CMsgGCMatchHistoryLoad
-	(*CMsgGCDataCenterPing_Update)(nil),                                                             // 185: CMsgGCDataCenterPing_Update
-	(*CMsgGC_KickPlayerFromLobby)(nil),                                                              // 186: CMsgGC_KickPlayerFromLobby
-	(*CMsgGCSurveyRequest)(nil),                                                                     // 187: CMsgGCSurveyRequest
-	(*CMsgGCSurveyResponse)(nil),                                                                    // 188: CMsgGCSurveyResponse
-	(*CSOQuestMapNode)(nil),                                                                         // 189: CSOQuestMapNode
-	(*CSOQuest)(nil),                                                                                // 190: CSOQuest
-	(*CSOQuestMapRewardPurchase)(nil),                                                               // 191: CSOQuestMapRewardPurchase
-	(*CMsgGCQuestIdentify)(nil),                                                                     // 192: CMsgGCQuestIdentify
-	(*CMsgGCQuestDevGive)(nil),                                                                      // 193: CMsgGCQuestDevGive
-	(*CMsgGCQuestNodeTurnIn)(nil),                                                                   // 194: CMsgGCQuestNodeTurnIn
-	(*CMsgGCQuestMapUnlockNode)(nil),                                                                // 195: CMsgGCQuestMapUnlockNode
-	(*CMsgGCNewMatchForLobbyRequest)(nil),                                                           // 196: CMsgGCNewMatchForLobbyRequest
-	(*CMsgGCNewMatchForLobbyResponse)(nil),                                                          // 197: CMsgGCNewMatchForLobbyResponse
-	(*CMsgGCChangeMatchPlayerTeamsRequest)(nil),                                                     // 198: CMsgGCChangeMatchPlayerTeamsRequest
-	(*CMsgGCChangeMatchPlayerTeamsResponse)(nil),                                                    // 199: CMsgGCChangeMatchPlayerTeamsResponse
-	(*CMsgGCQuestComplete_Debug)(nil),                                                               // 200: CMsgGCQuestComplete_Debug
-	(*CMsgGCQuestMap_Debug)(nil),                                                                    // 201: CMsgGCQuestMap_Debug
-	(*CMsgGCQuestMapPurchaseReward)(nil),                                                            // 202: CMsgGCQuestMapPurchaseReward
-	(*CMsgGCQuestResponse)(nil),                                                                     // 203: CMsgGCQuestResponse
-	(*CMsgGCSetDisablePartyQuestProgress)(nil),                                                      // 204: CMsgGCSetDisablePartyQuestProgress
-	(*CMsgQuestProgressReport)(nil),                                                                 // 205: CMsgQuestProgressReport
-	(*CMsgConsumePaintkit)(nil),                                                                     // 206: CMsgConsumePaintkit
-	(*CMsgPainkitDevGrant)(nil),                                                                     // 207: CMsgPainkitDevGrant
-	(*GCQuestStrangeEvent)(nil),                                                                     // 208: GCQuestStrangeEvent
-	(*CMsgSDRTicket)(nil),                                                                           // 209: CMsgSDRTicket
-	(*CMsgAuthorizeServerItemRetrieval)(nil),                                                        // 210: CMsgAuthorizeServerItemRetrieval
-	(*CMsgGCToGCSendAccountBannedNotifications)(nil),                                                // 211: CMsgGCToGCSendAccountBannedNotifications
-	(*CMsgGCToGCSendNotification)(nil),                                                              // 212: CMsgGCToGCSendNotification
-	(*CMsgGameServerData_Player)(nil),                                                               // 213: CMsgGameServerData.Player
-	(*CMsgTFQuickplay_ScoreServers_ServerInfo)(nil),                                                 // 214: CMsgTFQuickplay_ScoreServers.ServerInfo
-	(*CMsgTFQuickplay_ScoreServersResponse_ServerInfo)(nil),                                         // 215: CMsgTFQuickplay_ScoreServersResponse.ServerInfo
-	(*CMsgGC_GameServer_ListResponse_GameServerIdentity)(nil),                                       // 216: CMsgGC_GameServer_ListResponse.GameServerIdentity
-	(*CSOTFPartyMember_Activity)(nil),                                                               // 217: CSOTFPartyMember.Activity
-	(*CSOTFParty_QueueEntry)(nil),                                                                   // 218: CSOTFParty.QueueEntry
-	(*CSOTFPartyInvite_PartyMember)(nil),                                                            // 219: CSOTFPartyInvite.PartyMember
-	(*CMsgGameServerMatchmakingStatus_Player)(nil),                                                  // 220: CMsgGameServerMatchmakingStatus.Player
-	(*CMsgMvMVictoryInfo_Item)(nil),                                                                 // 221: CMsgMvMVictoryInfo.Item
-	(*CMsgMvMVictoryInfo_Player)(nil),                                                               // 222: CMsgMvMVictoryInfo.Player
-	(*CMsgMvMVictory_Player)(nil),                                                                   // 223: CMsgMvMVictory.Player
-	(*CMsgProcessMatchVoteKick_Vote)(nil),                                                           // 224: CMsgProcessMatchVoteKick.Vote
-	(*CMsgUpdateHalloweenMerasmusLootLevel_Player)(nil),                                             // 225: CMsgUpdateHalloweenMerasmusLootLevel.Player
-	(*CGCMsgGC_War_GlobalStatsResponse_SideScore)(nil),                                              // 226: CGCMsgGC_War_GlobalStatsResponse.SideScore
-	(*CMsgGC_Match_Result_Player)(nil),                                                              // 227: CMsgGC_Match_Result.Player
-	(*CMsgGC_Match_Result_EventInfo)(nil),                                                           // 228: CMsgGC_Match_Result.EventInfo
-	(*CMsgGC_DailyCompetitiveStatsRollup_Response_RankBucketEntry)(nil),                             // 229: CMsgGC_DailyCompetitiveStatsRollup_Response.RankBucketEntry
-	(*CMsgGCDataCenterPing_Update_PingEntry)(nil),                                                   // 230: CMsgGCDataCenterPing_Update.PingEntry
-	(*CMsgGCChangeMatchPlayerTeamsRequest_Member)(nil),                                              // 231: CMsgGCChangeMatchPlayerTeamsRequest.Member
-	(*CSOEconItem)(nil),                                                                             // 232: CSOEconItem
+	(ETFGCMsg)(0),                                         // 0: ETFGCMsg
+	(EServerModificationItemType)(0),                      // 1: EServerModificationItemType
+	(ETFSyncedMMMenuStep)(0),                              // 2: ETFSyncedMMMenuStep
+	(ETFMatchGroup)(0),                                    // 3: ETFMatchGroup
+	(ETFPartyChatType)(0),                                 // 4: ETFPartyChatType
+	(TF_GC_GameState)(0),                                  // 5: TF_GC_GameState
+	(TF_GC_TEAM)(0),                                       // 6: TF_GC_TEAM
+	(TFMatchLeaveReason)(0),                               // 7: TFMatchLeaveReason
+	(TFVoteKickReason)(0),                                 // 8: TFVoteKickReason
+	(ServerMatchmakingState)(0),                           // 9: ServerMatchmakingState
+	(SurveyQuestionType)(0),                               // 10: SurveyQuestionType
+	(CMsgGC_Frontress_AntiCheatEvent_EEvent)(0),           // 11: CMsgGC_Frontress_AntiCheatEvent.EEvent
+	(CMsgGC_GameServer_CreateIdentityResponse_EStatus)(0), // 12: CMsgGC_GameServer_CreateIdentityResponse.EStatus
+	(CMsgGC_Client_UseServerModificationItem_Response_EServerModificationItemResponse)(0),           // 13: CMsgGC_Client_UseServerModificationItem_Response.EServerModificationItemResponse
+	(CMsgGC_GameServer_UseServerModificationItem_Response_EServerModificationItemServerResponse)(0), // 14: CMsgGC_GameServer_UseServerModificationItem_Response.EServerModificationItemServerResponse
+	(TFPendingPartyMember_EType)(0),                                           // 15: TFPendingPartyMember.EType
+	(CMsgPartyMMError_Type)(0),                                                // 16: CMsgPartyMMError.Type
+	(CSOTFPartyInvite_Type)(0),                                                // 17: CSOTFPartyInvite.Type
+	(CTFLobbyPlayerProto_ConnectState)(0),                                     // 18: CTFLobbyPlayerProto.ConnectState
+	(CTFLobbyPlayerProto_Type)(0),                                             // 19: CTFLobbyPlayerProto.Type
+	(CSOTFGameServerLobby_State)(0),                                           // 20: CSOTFGameServerLobby.State
+	(CSOTFGameServerLobby_WarMatch)(0),                                        // 21: CSOTFGameServerLobby.WarMatch
+	(CMsgGameServerMatchmakingStatus_PlayerConnectState)(0),                   // 22: CMsgGameServerMatchmakingStatus.PlayerConnectState
+	(CMsgGameServerMatchmakingStatus_Event)(0),                                // 23: CMsgGameServerMatchmakingStatus.Event
+	(CMsgMvMVictoryInfo_GrantReason)(0),                                       // 24: CMsgMvMVictoryInfo.GrantReason
+	(CMsgTFXPSource_XPSourceType)(0),                                          // 25: CMsgTFXPSource.XPSourceType
+	(CMsgGCNotification_NotificationType)(0),                                  // 26: CMsgGCNotification.NotificationType
+	(CMsgGC_Match_Result_Status)(0),                                           // 27: CMsgGC_Match_Result.Status
+	(CMsgGC_Match_Result_EventInfo_EventType)(0),                              // 28: CMsgGC_Match_Result.EventInfo.EventType
+	(CMsgGC_ReportPlayer_EReason)(0),                                          // 29: CMsgGC_ReportPlayer.EReason
+	(CMsgGCDataCenterPing_Update_Status)(0),                                   // 30: CMsgGCDataCenterPing_Update.Status
+	(*CMsgGameServerData)(nil),                                                // 31: CMsgGameServerData
+	(*CMsgGC_Frontress_AntiCheatEvent)(nil),                                   // 32: CMsgGC_Frontress_AntiCheatEvent
+	(*CMsgGSUserPlaying)(nil),                                                 // 33: CMsgGSUserPlaying
+	(*CMsgGSDisconnectNotice)(nil),                                            // 34: CMsgGSDisconnectNotice
+	(*CMsgTFGoldenWrenchBroadcast)(nil),                                       // 35: CMsgTFGoldenWrenchBroadcast
+	(*CMsgTFSaxxyBroadcast)(nil),                                              // 36: CMsgTFSaxxyBroadcast
+	(*CMsgGCTFSpecificItemBroadcast)(nil),                                     // 37: CMsgGCTFSpecificItemBroadcast
+	(*CMsgTFWorldStatus)(nil),                                                 // 38: CMsgTFWorldStatus
+	(*CSOTFDuelSummary)(nil),                                                  // 39: CSOTFDuelSummary
+	(*CMsgTrackedStat)(nil),                                                   // 40: CMsgTrackedStat
+	(*CSOTFMapContribution)(nil),                                              // 41: CSOTFMapContribution
+	(*CMsgTFFreeTrialChooseMostHelpfulFriend)(nil),                            // 42: CMsgTFFreeTrialChooseMostHelpfulFriend
+	(*CMsgTFRequestTF2Friends)(nil),                                           // 43: CMsgTFRequestTF2Friends
+	(*CMsgTFRequestTF2FriendsResponse)(nil),                                   // 44: CMsgTFRequestTF2FriendsResponse
+	(*CSOTFPlayerInfo)(nil),                                                   // 45: CSOTFPlayerInfo
+	(*CMsgTFThankedBySomeone)(nil),                                            // 46: CMsgTFThankedBySomeone
+	(*CMsgTFThankedSomeone)(nil),                                              // 47: CMsgTFThankedSomeone
+	(*CMsgTFFreeTrialConvertedToPremium)(nil),                                 // 48: CMsgTFFreeTrialConvertedToPremium
+	(*CMsgSaxxyAwarded)(nil),                                                  // 49: CMsgSaxxyAwarded
+	(*CMsgReplaySubmitContestEntry)(nil),                                      // 50: CMsgReplaySubmitContestEntry
+	(*CMsgReplaySubmitContestEntryResponse)(nil),                              // 51: CMsgReplaySubmitContestEntryResponse
+	(*CReplayCachedContestData)(nil),                                          // 52: CReplayCachedContestData
+	(*CMsgTFCoaching_AddToCoaches)(nil),                                       // 53: CMsgTFCoaching_AddToCoaches
+	(*CMsgTFCoaching_RemoveFromCoaches)(nil),                                  // 54: CMsgTFCoaching_RemoveFromCoaches
+	(*CMsgTFCoaching_FindCoach)(nil),                                          // 55: CMsgTFCoaching_FindCoach
+	(*CMsgTFCoaching_FindCoachResponse)(nil),                                  // 56: CMsgTFCoaching_FindCoachResponse
+	(*CMsgTFCoaching_AskCoach)(nil),                                           // 57: CMsgTFCoaching_AskCoach
+	(*CMsgTFCoaching_AskCoachResponse)(nil),                                   // 58: CMsgTFCoaching_AskCoachResponse
+	(*CMsgTFCoaching_CoachJoinGame)(nil),                                      // 59: CMsgTFCoaching_CoachJoinGame
+	(*CMsgTFCoaching_CoachJoining)(nil),                                       // 60: CMsgTFCoaching_CoachJoining
+	(*CMsgTFCoaching_CoachJoined)(nil),                                        // 61: CMsgTFCoaching_CoachJoined
+	(*CMsgTFCoaching_LikeCurrentCoach)(nil),                                   // 62: CMsgTFCoaching_LikeCurrentCoach
+	(*CMsgTFCoaching_RemoveCurrentCoach)(nil),                                 // 63: CMsgTFCoaching_RemoveCurrentCoach
+	(*CMsgTFQuickplay_ScoreServers)(nil),                                      // 64: CMsgTFQuickplay_ScoreServers
+	(*CMsgTFQuickplay_ScoreServersResponse)(nil),                              // 65: CMsgTFQuickplay_ScoreServersResponse
+	(*CMsgTFQuickplay_PlayerJoining)(nil),                                     // 66: CMsgTFQuickplay_PlayerJoining
+	(*CMsgGC_GameServer_LevelInfo)(nil),                                       // 67: CMsgGC_GameServer_LevelInfo
+	(*CMsgGC_GameServer_AuthChallenge)(nil),                                   // 68: CMsgGC_GameServer_AuthChallenge
+	(*CMsgGC_GameServer_AuthResult)(nil),                                      // 69: CMsgGC_GameServer_AuthResult
+	(*CMsgGC_GameServer_AuthChallengeResponse)(nil),                           // 70: CMsgGC_GameServer_AuthChallengeResponse
+	(*CMsgGC_GameServer_CreateIdentity)(nil),                                  // 71: CMsgGC_GameServer_CreateIdentity
+	(*CMsgGC_GameServer_CreateIdentityResponse)(nil),                          // 72: CMsgGC_GameServer_CreateIdentityResponse
+	(*CMsgGC_GameServer_List)(nil),                                            // 73: CMsgGC_GameServer_List
+	(*CMsgGC_GameServer_ListResponse)(nil),                                    // 74: CMsgGC_GameServer_ListResponse
+	(*CMsgGC_GameServer_ResetIdentity)(nil),                                   // 75: CMsgGC_GameServer_ResetIdentity
+	(*CMsgGC_GameServer_ResetIdentityResponse)(nil),                           // 76: CMsgGC_GameServer_ResetIdentityResponse
+	(*CMsgGC_GameServer_AckPolicy)(nil),                                       // 77: CMsgGC_GameServer_AckPolicy
+	(*CMsgGC_GameServer_AckPolicyResponse)(nil),                               // 78: CMsgGC_GameServer_AckPolicyResponse
+	(*CMsgGC_Client_UseServerModificationItem)(nil),                           // 79: CMsgGC_Client_UseServerModificationItem
+	(*CMsgGC_Client_UseServerModificationItem_Response)(nil),                  // 80: CMsgGC_Client_UseServerModificationItem_Response
+	(*CMsgGC_GameServer_UseServerModificationItem)(nil),                       // 81: CMsgGC_GameServer_UseServerModificationItem
+	(*CMsgGC_GameServer_UseServerModificationItem_Response)(nil),              // 82: CMsgGC_GameServer_UseServerModificationItem_Response
+	(*CMsgGC_GameServer_ServerModificationItemExpired)(nil),                   // 83: CMsgGC_GameServer_ServerModificationItemExpired
+	(*CMsgGC_GameServer_ServerModificationItem)(nil),                          // 84: CMsgGC_GameServer_ServerModificationItem
+	(*CMsgGC_Halloween_ReservedItem)(nil),                                     // 85: CMsgGC_Halloween_ReservedItem
+	(*CMsgGC_Halloween_GrantItem)(nil),                                        // 86: CMsgGC_Halloween_GrantItem
+	(*CMsgGC_Halloween_GrantItemResponse)(nil),                                // 87: CMsgGC_Halloween_GrantItemResponse
+	(*CMsgGC_Halloween_ItemClaimed)(nil),                                      // 88: CMsgGC_Halloween_ItemClaimed
+	(*CMsgGC_PickupItemEligibility_Query)(nil),                                // 89: CMsgGC_PickupItemEligibility_Query
+	(*CMsgGC_PickupItemEligibility_QueryResponse)(nil),                        // 90: CMsgGC_PickupItemEligibility_QueryResponse
+	(*CSOTFPartyMember)(nil),                                                  // 91: CSOTFPartyMember
+	(*TFPendingPartyMember)(nil),                                              // 92: TFPendingPartyMember
+	(*TFSyncedMMUIState)(nil),                                                 // 93: TFSyncedMMUIState
+	(*CTFGroupMatchCriteriaProto)(nil),                                        // 94: CTFGroupMatchCriteriaProto
+	(*CTFCasualMatchCriteria)(nil),                                            // 95: CTFCasualMatchCriteria
+	(*CTFPerPlayerMatchCriteriaProto)(nil),                                    // 96: CTFPerPlayerMatchCriteriaProto
+	(*CTFPartyOptions)(nil),                                                   // 97: CTFPartyOptions
+	(*CMsgPartySetOptions)(nil),                                               // 98: CMsgPartySetOptions
+	(*CMsgPartySetOptionsResponse)(nil),                                       // 99: CMsgPartySetOptionsResponse
+	(*CMsgPartyQueueForMatch)(nil),                                            // 100: CMsgPartyQueueForMatch
+	(*CMsgPartyQueueForMatchResponse)(nil),                                    // 101: CMsgPartyQueueForMatchResponse
+	(*CMsgPartyQueueForStandby)(nil),                                          // 102: CMsgPartyQueueForStandby
+	(*CMsgPartyQueueForStandbyResponse)(nil),                                  // 103: CMsgPartyQueueForStandbyResponse
+	(*CMsgPartyRemoveFromQueue)(nil),                                          // 104: CMsgPartyRemoveFromQueue
+	(*CMsgPartyRemoveFromQueueResponse)(nil),                                  // 105: CMsgPartyRemoveFromQueueResponse
+	(*CMsgPartyRemoveFromStandbyQueue)(nil),                                   // 106: CMsgPartyRemoveFromStandbyQueue
+	(*CMsgPartyRemoveFromStandbyQueueResponse)(nil),                           // 107: CMsgPartyRemoveFromStandbyQueueResponse
+	(*CMsgPartyInvitePlayer)(nil),                                             // 108: CMsgPartyInvitePlayer
+	(*CMsgPartyRequestJoinPlayer)(nil),                                        // 109: CMsgPartyRequestJoinPlayer
+	(*CMsgPartyClearPendingPlayer)(nil),                                       // 110: CMsgPartyClearPendingPlayer
+	(*CMsgPartyMMError)(nil),                                                  // 111: CMsgPartyMMError
+	(*CMsgPartyClearPendingPlayerResponse)(nil),                               // 112: CMsgPartyClearPendingPlayerResponse
+	(*CMsgPartyClearOtherPartyRequest)(nil),                                   // 113: CMsgPartyClearOtherPartyRequest
+	(*CMsgPartyClearOtherPartyRequestResponse)(nil),                           // 114: CMsgPartyClearOtherPartyRequestResponse
+	(*CMsgPartyPromoteToLeader)(nil),                                          // 115: CMsgPartyPromoteToLeader
+	(*CMsgPartyKickMember)(nil),                                               // 116: CMsgPartyKickMember
+	(*CMsgPartySendChat)(nil),                                                 // 117: CMsgPartySendChat
+	(*CMsgPartyChatMsg)(nil),                                                  // 118: CMsgPartyChatMsg
+	(*CSOTFParty)(nil),                                                        // 119: CSOTFParty
+	(*CSOTFPartyInvite)(nil),                                                  // 120: CSOTFPartyInvite
+	(*CTFLobbyPlayerProto)(nil),                                               // 121: CTFLobbyPlayerProto
+	(*CTFLobbyInviteProto)(nil),                                               // 122: CTFLobbyInviteProto
+	(*CSOTFGameServerLobby)(nil),                                              // 123: CSOTFGameServerLobby
+	(*CMsgExitMatchmaking)(nil),                                               // 124: CMsgExitMatchmaking
+	(*CMsgAcceptLobbyInvite)(nil),                                             // 125: CMsgAcceptLobbyInvite
+	(*CMsgAcceptLobbyInviteReply)(nil),                                        // 126: CMsgAcceptLobbyInviteReply
+	(*CMsgMatchmakingSearchCountRequest)(nil),                                 // 127: CMsgMatchmakingSearchCountRequest
+	(*CMsgMatchmakingSearchCountResponse)(nil),                                // 128: CMsgMatchmakingSearchCountResponse
+	(*CMsgKickedFromMatchmakingQueue)(nil),                                    // 129: CMsgKickedFromMatchmakingQueue
+	(*CMsgGameServerMatchmakingStatus)(nil),                                   // 130: CMsgGameServerMatchmakingStatus
+	(*CMsgMatchmakingProgress)(nil),                                           // 131: CMsgMatchmakingProgress
+	(*CMsgMvMVictoryInfo)(nil),                                                // 132: CMsgMvMVictoryInfo
+	(*CGCMsgTFHelloResponse)(nil),                                             // 133: CGCMsgTFHelloResponse
+	(*CGCMsgTFSync)(nil),                                                      // 134: CGCMsgTFSync
+	(*CGCMsgTFSyncEx)(nil),                                                    // 135: CGCMsgTFSyncEx
+	(*CMsgMvMVictory)(nil),                                                    // 136: CMsgMvMVictory
+	(*CMsgMvMMannUpVictoryReply)(nil),                                         // 137: CMsgMvMMannUpVictoryReply
+	(*CMsgGameServerKickingLobby)(nil),                                        // 138: CMsgGameServerKickingLobby
+	(*CMsgGameServerKickingLobbyResponse)(nil),                                // 139: CMsgGameServerKickingLobbyResponse
+	(*CMsgLeaveGameAndPrepareToJoinParty)(nil),                                // 140: CMsgLeaveGameAndPrepareToJoinParty
+	(*CMsgPlayerLeftMatch)(nil),                                               // 141: CMsgPlayerLeftMatch
+	(*CMsgPlayerLeftMatchResponse)(nil),                                       // 142: CMsgPlayerLeftMatchResponse
+	(*CMsgProcessMatchVoteKick)(nil),                                          // 143: CMsgProcessMatchVoteKick
+	(*CMsgProcessMatchVoteKickResponse)(nil),                                  // 144: CMsgProcessMatchVoteKickResponse
+	(*CMsgHalloween_ServerBossEvent)(nil),                                     // 145: CMsgHalloween_ServerBossEvent
+	(*CMsgHalloween_Merasmus2012)(nil),                                        // 146: CMsgHalloween_Merasmus2012
+	(*CMsgUpdateHalloweenMerasmusLootLevel)(nil),                              // 147: CMsgUpdateHalloweenMerasmusLootLevel
+	(*CAttribute_String)(nil),                                                 // 148: CAttribute_String
+	(*CAttribute_DynamicRecipeComponent)(nil),                                 // 149: CAttribute_DynamicRecipeComponent
+	(*CAttribute_DynamicRecipeComponent_COMPAT_NEVER_SERIALIZE_THIS_OUT)(nil), // 150: CAttribute_DynamicRecipeComponent_COMPAT_NEVER_SERIALIZE_THIS_OUT
+	(*CAttribute_ItemSlotCriteria)(nil),                                       // 151: CAttribute_ItemSlotCriteria
+	(*CMsgSetItemSlotAttribute)(nil),                                          // 152: CMsgSetItemSlotAttribute
+	(*CSOWarData)(nil),                                                        // 153: CSOWarData
+	(*CGCMsgGC_War_IndividualUpdate)(nil),                                     // 154: CGCMsgGC_War_IndividualUpdate
+	(*CGCMsgGC_War_JoinWar)(nil),                                              // 155: CGCMsgGC_War_JoinWar
+	(*CGCMsgGC_War_RequestGlobalStats)(nil),                                   // 156: CGCMsgGC_War_RequestGlobalStats
+	(*CGCMsgGC_War_GlobalStatsResponse)(nil),                                  // 157: CGCMsgGC_War_GlobalStatsResponse
+	(*CGCMsgGC_PlayerDuckLeaderboard_IndividualUpdate)(nil),                   // 158: CGCMsgGC_PlayerDuckLeaderboard_IndividualUpdate
+	(*CAttribute_WorldItemPlacement)(nil),                                     // 159: CAttribute_WorldItemPlacement
+	(*CGCMsg_WorldItemPlacement_Update)(nil),                                  // 160: CGCMsg_WorldItemPlacement_Update
+	(*CMsgAcknowledgeXP)(nil),                                                 // 161: CMsgAcknowledgeXP
+	(*CMsgTFXPSource)(nil),                                                    // 162: CMsgTFXPSource
+	(*CMsgTFXPSourceBreakdown)(nil),                                           // 163: CMsgTFXPSourceBreakdown
+	(*CMsgTFClientInit)(nil),                                                  // 164: CMsgTFClientInit
+	(*CMsgGCNotification)(nil),                                                // 165: CMsgGCNotification
+	(*CMsgGCNotificationQueue)(nil),                                           // 166: CMsgGCNotificationQueue
+	(*CMsgNotificationAcknowledge)(nil),                                       // 167: CMsgNotificationAcknowledge
+	(*CMsgNotificationAcknowledgeReply)(nil),                                  // 168: CMsgNotificationAcknowledgeReply
+	(*CMsgGC_Match_Result)(nil),                                               // 169: CMsgGC_Match_Result
+	(*CMsgGC_Match_ResultResponse)(nil),                                       // 170: CMsgGC_Match_ResultResponse
+	(*CEconItemPreviewDataBlock)(nil),                                         // 171: CEconItemPreviewDataBlock
+	(*CMsgGC_Client2GCEconPreviewDataBlockRequest)(nil),                       // 172: CMsgGC_Client2GCEconPreviewDataBlockRequest
+	(*CMsgGC_Client2GCEconPreviewDataBlockResponse)(nil),                      // 173: CMsgGC_Client2GCEconPreviewDataBlockResponse
+	(*CSOTFLadderPlayerStats)(nil),                                            // 174: CSOTFLadderPlayerStats
+	(*CSOTFRatingData)(nil),                                                   // 175: CSOTFRatingData
+	(*CMsgGC_TFVoteKickPlayerRequest)(nil),                                    // 176: CMsgGC_TFVoteKickPlayerRequest
+	(*CMsgGC_VoteKickPlayerRequestResponse)(nil),                              // 177: CMsgGC_VoteKickPlayerRequestResponse
+	(*CMsgGC_DailyCompetitiveStatsRollup)(nil),                                // 178: CMsgGC_DailyCompetitiveStatsRollup
+	(*CMsgGC_DailyCompetitiveStatsRollup_Response)(nil),                       // 179: CMsgGC_DailyCompetitiveStatsRollup_Response
+	(*CMsgGC_ReportPlayer)(nil),                                               // 180: CMsgGC_ReportPlayer
+	(*CSOTFMatchResultPlayerStats)(nil),                                       // 181: CSOTFMatchResultPlayerStats
+	(*CMsgGCRequestMatchMakerStats)(nil),                                      // 182: CMsgGCRequestMatchMakerStats
+	(*CMsgGCDataCenterPopulation)(nil),                                        // 183: CMsgGCDataCenterPopulation
+	(*CMsgGCMatchGroupDataCenterPopulation)(nil),                              // 184: CMsgGCMatchGroupDataCenterPopulation
+	(*CMsgGCMatchMakerStatsResponse)(nil),                                     // 185: CMsgGCMatchMakerStatsResponse
+	(*CMsgGCMatchHistoryLoad)(nil),                                            // 186: CMsgGCMatchHistoryLoad
+	(*CMsgGCDataCenterPing_Update)(nil),                                       // 187: CMsgGCDataCenterPing_Update
+	(*CMsgGC_KickPlayerFromLobby)(nil),                                        // 188: CMsgGC_KickPlayerFromLobby
+	(*CMsgGCSurveyRequest)(nil),                                               // 189: CMsgGCSurveyRequest
+	(*CMsgGCSurveyResponse)(nil),                                              // 190: CMsgGCSurveyResponse
+	(*CSOQuestMapNode)(nil),                                                   // 191: CSOQuestMapNode
+	(*CSOQuest)(nil),                                                          // 192: CSOQuest
+	(*CSOQuestMapRewardPurchase)(nil),                                         // 193: CSOQuestMapRewardPurchase
+	(*CMsgGCQuestIdentify)(nil),                                               // 194: CMsgGCQuestIdentify
+	(*CMsgGCQuestDevGive)(nil),                                                // 195: CMsgGCQuestDevGive
+	(*CMsgGCQuestNodeTurnIn)(nil),                                             // 196: CMsgGCQuestNodeTurnIn
+	(*CMsgGCQuestMapUnlockNode)(nil),                                          // 197: CMsgGCQuestMapUnlockNode
+	(*CMsgGCNewMatchForLobbyRequest)(nil),                                     // 198: CMsgGCNewMatchForLobbyRequest
+	(*CMsgGCNewMatchForLobbyResponse)(nil),                                    // 199: CMsgGCNewMatchForLobbyResponse
+	(*CMsgGCChangeMatchPlayerTeamsRequest)(nil),                               // 200: CMsgGCChangeMatchPlayerTeamsRequest
+	(*CMsgGCChangeMatchPlayerTeamsResponse)(nil),                              // 201: CMsgGCChangeMatchPlayerTeamsResponse
+	(*CMsgGCQuestComplete_Debug)(nil),                                         // 202: CMsgGCQuestComplete_Debug
+	(*CMsgGCQuestMap_Debug)(nil),                                              // 203: CMsgGCQuestMap_Debug
+	(*CMsgGCQuestMapPurchaseReward)(nil),                                      // 204: CMsgGCQuestMapPurchaseReward
+	(*CMsgGCQuestResponse)(nil),                                               // 205: CMsgGCQuestResponse
+	(*CMsgGCSetDisablePartyQuestProgress)(nil),                                // 206: CMsgGCSetDisablePartyQuestProgress
+	(*CMsgQuestProgressReport)(nil),                                           // 207: CMsgQuestProgressReport
+	(*CMsgConsumePaintkit)(nil),                                               // 208: CMsgConsumePaintkit
+	(*CMsgPainkitDevGrant)(nil),                                               // 209: CMsgPainkitDevGrant
+	(*GCQuestStrangeEvent)(nil),                                               // 210: GCQuestStrangeEvent
+	(*CMsgSDRTicket)(nil),                                                     // 211: CMsgSDRTicket
+	(*CMsgAuthorizeServerItemRetrieval)(nil),                                  // 212: CMsgAuthorizeServerItemRetrieval
+	(*CMsgGCToGCSendAccountBannedNotifications)(nil),                          // 213: CMsgGCToGCSendAccountBannedNotifications
+	(*CMsgGCToGCSendNotification)(nil),                                        // 214: CMsgGCToGCSendNotification
+	(*CMsgGameServerData_Player)(nil),                                         // 215: CMsgGameServerData.Player
+	(*CMsgTFQuickplay_ScoreServers_ServerInfo)(nil),                           // 216: CMsgTFQuickplay_ScoreServers.ServerInfo
+	(*CMsgTFQuickplay_ScoreServersResponse_ServerInfo)(nil),                   // 217: CMsgTFQuickplay_ScoreServersResponse.ServerInfo
+	(*CMsgGC_GameServer_ListResponse_GameServerIdentity)(nil),                 // 218: CMsgGC_GameServer_ListResponse.GameServerIdentity
+	(*CSOTFPartyMember_Activity)(nil),                                         // 219: CSOTFPartyMember.Activity
+	(*CSOTFParty_QueueEntry)(nil),                                             // 220: CSOTFParty.QueueEntry
+	(*CSOTFPartyInvite_PartyMember)(nil),                                      // 221: CSOTFPartyInvite.PartyMember
+	(*CMsgGameServerMatchmakingStatus_Player)(nil),                            // 222: CMsgGameServerMatchmakingStatus.Player
+	(*CMsgMvMVictoryInfo_Item)(nil),                                           // 223: CMsgMvMVictoryInfo.Item
+	(*CMsgMvMVictoryInfo_Player)(nil),                                         // 224: CMsgMvMVictoryInfo.Player
+	(*CMsgMvMVictory_Player)(nil),                                             // 225: CMsgMvMVictory.Player
+	(*CMsgProcessMatchVoteKick_Vote)(nil),                                     // 226: CMsgProcessMatchVoteKick.Vote
+	(*CMsgUpdateHalloweenMerasmusLootLevel_Player)(nil),                       // 227: CMsgUpdateHalloweenMerasmusLootLevel.Player
+	(*CGCMsgGC_War_GlobalStatsResponse_SideScore)(nil),                        // 228: CGCMsgGC_War_GlobalStatsResponse.SideScore
+	(*CMsgGC_Match_Result_Player)(nil),                                        // 229: CMsgGC_Match_Result.Player
+	(*CMsgGC_Match_Result_EventInfo)(nil),                                     // 230: CMsgGC_Match_Result.EventInfo
+	(*CMsgGC_DailyCompetitiveStatsRollup_Response_RankBucketEntry)(nil),       // 231: CMsgGC_DailyCompetitiveStatsRollup_Response.RankBucketEntry
+	(*CMsgGCDataCenterPing_Update_PingEntry)(nil),                             // 232: CMsgGCDataCenterPing_Update.PingEntry
+	(*CMsgGCChangeMatchPlayerTeamsRequest_Member)(nil),                        // 233: CMsgGCChangeMatchPlayerTeamsRequest.Member
+	(*CSOEconItem)(nil),                                                       // 234: CSOEconItem
 }
 var file_tf_gcmessages_proto_depIdxs = []int32{
-	213, // 0: CMsgGameServerData.players:type_name -> CMsgGameServerData.Player
-	3,   // 1: CMsgTFWorldStatus.event_match_group:type_name -> ETFMatchGroup
-	3,   // 2: CMsgTFWorldStatus.disabled_match_groups:type_name -> ETFMatchGroup
-	214, // 3: CMsgTFQuickplay_ScoreServers.servers:type_name -> CMsgTFQuickplay_ScoreServers.ServerInfo
-	215, // 4: CMsgTFQuickplay_ScoreServersResponse.servers:type_name -> CMsgTFQuickplay_ScoreServersResponse.ServerInfo
-	11,  // 5: CMsgGC_GameServer_CreateIdentityResponse.status:type_name -> CMsgGC_GameServer_CreateIdentityResponse.EStatus
-	216, // 6: CMsgGC_GameServer_ListResponse.owned_game_servers:type_name -> CMsgGC_GameServer_ListResponse.GameServerIdentity
-	12,  // 7: CMsgGC_Client_UseServerModificationItem_Response.response_code:type_name -> CMsgGC_Client_UseServerModificationItem_Response.EServerModificationItemResponse
-	1,   // 8: CMsgGC_GameServer_UseServerModificationItem.modification_type:type_name -> EServerModificationItemType
-	1,   // 9: CMsgGC_GameServer_UseServerModificationItem_Response.modification_type:type_name -> EServerModificationItemType
-	13,  // 10: CMsgGC_GameServer_UseServerModificationItem_Response.server_response_code:type_name -> CMsgGC_GameServer_UseServerModificationItem_Response.EServerModificationItemServerResponse
-	1,   // 11: CMsgGC_GameServer_ServerModificationItemExpired.modification_type:type_name -> EServerModificationItemType
-	1,   // 12: CMsgGC_GameServer_ServerModificationItem.modification_type:type_name -> EServerModificationItemType
-	94,  // 13: CSOTFPartyMember.player_criteria:type_name -> CTFPerPlayerMatchCriteriaProto
-	217, // 14: CSOTFPartyMember.activity:type_name -> CSOTFPartyMember.Activity
-	14,  // 15: TFPendingPartyMember.type:type_name -> TFPendingPartyMember.EType
-	2,   // 16: TFSyncedMMUIState.menu_step:type_name -> ETFSyncedMMMenuStep
-	3,   // 17: TFSyncedMMUIState.match_group:type_name -> ETFMatchGroup
-	93,  // 18: CTFGroupMatchCriteriaProto.casual_criteria:type_name -> CTFCasualMatchCriteria
-	92,  // 19: CTFPartyOptions.group_criteria:type_name -> CTFGroupMatchCriteriaProto
-	94,  // 20: CTFPartyOptions.player_criteria:type_name -> CTFPerPlayerMatchCriteriaProto
-	91,  // 21: CTFPartyOptions.player_uistate:type_name -> TFSyncedMMUIState
-	95,  // 22: CMsgPartySetOptions.options:type_name -> CTFPartyOptions
-	95,  // 23: CMsgPartyQueueForMatch.final_options:type_name -> CTFPartyOptions
-	3,   // 24: CMsgPartyQueueForMatch.match_group:type_name -> ETFMatchGroup
-	3,   // 25: CMsgPartyRemoveFromQueue.match_group:type_name -> ETFMatchGroup
-	15,  // 26: CMsgPartyMMError.type:type_name -> CMsgPartyMMError.Type
-	4,   // 27: CMsgPartyChatMsg.type:type_name -> ETFPartyChatType
-	89,  // 28: CSOTFParty.members:type_name -> CSOTFPartyMember
-	3,   // 29: CSOTFParty.associated_lobby_match_group:type_name -> ETFMatchGroup
-	218, // 30: CSOTFParty.matchmaking_queues:type_name -> CSOTFParty.QueueEntry
-	92,  // 31: CSOTFParty.group_criteria:type_name -> CTFGroupMatchCriteriaProto
-	91,  // 32: CSOTFParty.leader_ui_state:type_name -> TFSyncedMMUIState
-	90,  // 33: CSOTFParty.pending_members:type_name -> TFPendingPartyMember
-	219, // 34: CSOTFPartyInvite.members:type_name -> CSOTFPartyInvite.PartyMember
-	16,  // 35: CSOTFPartyInvite.type:type_name -> CSOTFPartyInvite.Type
-	6,   // 36: CTFLobbyPlayerProto.team:type_name -> TF_GC_TEAM
-	17,  // 37: CTFLobbyPlayerProto.connect_state:type_name -> CTFLobbyPlayerProto.ConnectState
-	18,  // 38: CTFLobbyPlayerProto.type:type_name -> CTFLobbyPlayerProto.Type
-	3,   // 39: CTFLobbyInviteProto.match_group:type_name -> ETFMatchGroup
-	119, // 40: CSOTFGameServerLobby.members:type_name -> CTFLobbyPlayerProto
-	19,  // 41: CSOTFGameServerLobby.state:type_name -> CSOTFGameServerLobby.State
-	5,   // 42: CSOTFGameServerLobby.game_state:type_name -> TF_GC_GameState
-	20,  // 43: CSOTFGameServerLobby.is_war_match:type_name -> CSOTFGameServerLobby.WarMatch
-	119, // 44: CSOTFGameServerLobby.pending_members:type_name -> CTFLobbyPlayerProto
-	9,   // 45: CMsgGameServerMatchmakingStatus.matchmaking_state:type_name -> ServerMatchmakingState
-	220, // 46: CMsgGameServerMatchmakingStatus.players:type_name -> CMsgGameServerMatchmakingStatus.Player
-	5,   // 47: CMsgGameServerMatchmakingStatus.game_state:type_name -> TF_GC_GameState
-	22,  // 48: CMsgGameServerMatchmakingStatus.event:type_name -> CMsgGameServerMatchmakingStatus.Event
-	222, // 49: CMsgMvMVictoryInfo.players:type_name -> CMsgMvMVictoryInfo.Player
-	223, // 50: CMsgMvMVictory.players:type_name -> CMsgMvMVictory.Player
-	7,   // 51: CMsgPlayerLeftMatch.leave_reason:type_name -> TFMatchLeaveReason
-	160, // 52: CMsgPlayerLeftMatch.xp_breakdown:type_name -> CMsgTFXPSource
-	8,   // 53: CMsgProcessMatchVoteKick.reason:type_name -> TFVoteKickReason
-	224, // 54: CMsgProcessMatchVoteKick.votes:type_name -> CMsgProcessMatchVoteKick.Vote
-	225, // 55: CMsgUpdateHalloweenMerasmusLootLevel.players:type_name -> CMsgUpdateHalloweenMerasmusLootLevel.Player
-	226, // 56: CGCMsgGC_War_GlobalStatsResponse.side_scores:type_name -> CGCMsgGC_War_GlobalStatsResponse.SideScore
-	24,  // 57: CMsgTFXPSource.type:type_name -> CMsgTFXPSource.XPSourceType
-	160, // 58: CMsgTFXPSourceBreakdown.sources:type_name -> CMsgTFXPSource
-	25,  // 59: CMsgGCNotification.type:type_name -> CMsgGCNotification.NotificationType
-	163, // 60: CMsgGCNotificationQueue.notifications:type_name -> CMsgGCNotification
-	26,  // 61: CMsgGC_Match_Result.status:type_name -> CMsgGC_Match_Result.Status
-	227, // 62: CMsgGC_Match_Result.players:type_name -> CMsgGC_Match_Result.Player
-	228, // 63: CMsgGC_Match_Result.events:type_name -> CMsgGC_Match_Result.EventInfo
-	232, // 64: CEconItemPreviewDataBlock.econitem:type_name -> CSOEconItem
-	169, // 65: CMsgGC_Client2GCEconPreviewDataBlockResponse.iteminfo:type_name -> CEconItemPreviewDataBlock
-	8,   // 66: CMsgGC_TFVoteKickPlayerRequest.reason:type_name -> TFVoteKickReason
-	229, // 67: CMsgGC_DailyCompetitiveStatsRollup_Response.rankdata:type_name -> CMsgGC_DailyCompetitiveStatsRollup_Response.RankBucketEntry
-	28,  // 68: CMsgGC_ReportPlayer.reason:type_name -> CMsgGC_ReportPlayer.EReason
-	181, // 69: CMsgGCMatchGroupDataCenterPopulation.data_center_population:type_name -> CMsgGCDataCenterPopulation
-	182, // 70: CMsgGCMatchMakerStatsResponse.matchgroup_data_center_population:type_name -> CMsgGCMatchGroupDataCenterPopulation
-	3,   // 71: CMsgGCMatchHistoryLoad.match_group:type_name -> ETFMatchGroup
-	230, // 72: CMsgGCDataCenterPing_Update.pingdata:type_name -> CMsgGCDataCenterPing_Update.PingEntry
-	10,  // 73: CMsgGCSurveyRequest.question_type:type_name -> SurveyQuestionType
-	10,  // 74: CMsgGCSurveyResponse.question_type:type_name -> SurveyQuestionType
-	231, // 75: CMsgGCChangeMatchPlayerTeamsRequest.member:type_name -> CMsgGCChangeMatchPlayerTeamsRequest.Member
-	195, // 76: CMsgGCQuestMap_Debug.unlock_node:type_name -> CMsgGCQuestMapUnlockNode
-	163, // 77: CMsgGCToGCSendNotification.notification:type_name -> CMsgGCNotification
-	3,   // 78: CSOTFPartyMember.Activity.lobby_match_group:type_name -> ETFMatchGroup
-	3,   // 79: CSOTFParty.QueueEntry.match_group:type_name -> ETFMatchGroup
-	21,  // 80: CMsgGameServerMatchmakingStatus.Player.connect_state:type_name -> CMsgGameServerMatchmakingStatus.PlayerConnectState
-	23,  // 81: CMsgMvMVictoryInfo.Item.grant_reason:type_name -> CMsgMvMVictoryInfo.GrantReason
-	221, // 82: CMsgMvMVictoryInfo.Player.items:type_name -> CMsgMvMVictoryInfo.Item
-	160, // 83: CMsgGC_Match_Result.Player.xp_breakdown:type_name -> CMsgTFXPSource
-	7,   // 84: CMsgGC_Match_Result.Player.leave_reason:type_name -> TFMatchLeaveReason
-	27,  // 85: CMsgGC_Match_Result.EventInfo.event_type:type_name -> CMsgGC_Match_Result.EventInfo.EventType
-	29,  // 86: CMsgGCDataCenterPing_Update.PingEntry.ping_status:type_name -> CMsgGCDataCenterPing_Update.Status
-	6,   // 87: CMsgGCChangeMatchPlayerTeamsRequest.Member.new_team:type_name -> TF_GC_TEAM
-	88,  // [88:88] is the sub-list for method output_type
-	88,  // [88:88] is the sub-list for method input_type
-	88,  // [88:88] is the sub-list for extension type_name
-	88,  // [88:88] is the sub-list for extension extendee
-	0,   // [0:88] is the sub-list for field type_name
+	215, // 0: CMsgGameServerData.players:type_name -> CMsgGameServerData.Player
+	11,  // 1: CMsgGC_Frontress_AntiCheatEvent.event:type_name -> CMsgGC_Frontress_AntiCheatEvent.EEvent
+	3,   // 2: CMsgTFWorldStatus.event_match_group:type_name -> ETFMatchGroup
+	3,   // 3: CMsgTFWorldStatus.disabled_match_groups:type_name -> ETFMatchGroup
+	216, // 4: CMsgTFQuickplay_ScoreServers.servers:type_name -> CMsgTFQuickplay_ScoreServers.ServerInfo
+	217, // 5: CMsgTFQuickplay_ScoreServersResponse.servers:type_name -> CMsgTFQuickplay_ScoreServersResponse.ServerInfo
+	12,  // 6: CMsgGC_GameServer_CreateIdentityResponse.status:type_name -> CMsgGC_GameServer_CreateIdentityResponse.EStatus
+	218, // 7: CMsgGC_GameServer_ListResponse.owned_game_servers:type_name -> CMsgGC_GameServer_ListResponse.GameServerIdentity
+	13,  // 8: CMsgGC_Client_UseServerModificationItem_Response.response_code:type_name -> CMsgGC_Client_UseServerModificationItem_Response.EServerModificationItemResponse
+	1,   // 9: CMsgGC_GameServer_UseServerModificationItem.modification_type:type_name -> EServerModificationItemType
+	1,   // 10: CMsgGC_GameServer_UseServerModificationItem_Response.modification_type:type_name -> EServerModificationItemType
+	14,  // 11: CMsgGC_GameServer_UseServerModificationItem_Response.server_response_code:type_name -> CMsgGC_GameServer_UseServerModificationItem_Response.EServerModificationItemServerResponse
+	1,   // 12: CMsgGC_GameServer_ServerModificationItemExpired.modification_type:type_name -> EServerModificationItemType
+	1,   // 13: CMsgGC_GameServer_ServerModificationItem.modification_type:type_name -> EServerModificationItemType
+	96,  // 14: CSOTFPartyMember.player_criteria:type_name -> CTFPerPlayerMatchCriteriaProto
+	219, // 15: CSOTFPartyMember.activity:type_name -> CSOTFPartyMember.Activity
+	15,  // 16: TFPendingPartyMember.type:type_name -> TFPendingPartyMember.EType
+	2,   // 17: TFSyncedMMUIState.menu_step:type_name -> ETFSyncedMMMenuStep
+	3,   // 18: TFSyncedMMUIState.match_group:type_name -> ETFMatchGroup
+	95,  // 19: CTFGroupMatchCriteriaProto.casual_criteria:type_name -> CTFCasualMatchCriteria
+	94,  // 20: CTFPartyOptions.group_criteria:type_name -> CTFGroupMatchCriteriaProto
+	96,  // 21: CTFPartyOptions.player_criteria:type_name -> CTFPerPlayerMatchCriteriaProto
+	93,  // 22: CTFPartyOptions.player_uistate:type_name -> TFSyncedMMUIState
+	97,  // 23: CMsgPartySetOptions.options:type_name -> CTFPartyOptions
+	97,  // 24: CMsgPartyQueueForMatch.final_options:type_name -> CTFPartyOptions
+	3,   // 25: CMsgPartyQueueForMatch.match_group:type_name -> ETFMatchGroup
+	3,   // 26: CMsgPartyRemoveFromQueue.match_group:type_name -> ETFMatchGroup
+	16,  // 27: CMsgPartyMMError.type:type_name -> CMsgPartyMMError.Type
+	4,   // 28: CMsgPartyChatMsg.type:type_name -> ETFPartyChatType
+	91,  // 29: CSOTFParty.members:type_name -> CSOTFPartyMember
+	3,   // 30: CSOTFParty.associated_lobby_match_group:type_name -> ETFMatchGroup
+	220, // 31: CSOTFParty.matchmaking_queues:type_name -> CSOTFParty.QueueEntry
+	94,  // 32: CSOTFParty.group_criteria:type_name -> CTFGroupMatchCriteriaProto
+	93,  // 33: CSOTFParty.leader_ui_state:type_name -> TFSyncedMMUIState
+	92,  // 34: CSOTFParty.pending_members:type_name -> TFPendingPartyMember
+	221, // 35: CSOTFPartyInvite.members:type_name -> CSOTFPartyInvite.PartyMember
+	17,  // 36: CSOTFPartyInvite.type:type_name -> CSOTFPartyInvite.Type
+	6,   // 37: CTFLobbyPlayerProto.team:type_name -> TF_GC_TEAM
+	18,  // 38: CTFLobbyPlayerProto.connect_state:type_name -> CTFLobbyPlayerProto.ConnectState
+	19,  // 39: CTFLobbyPlayerProto.type:type_name -> CTFLobbyPlayerProto.Type
+	3,   // 40: CTFLobbyInviteProto.match_group:type_name -> ETFMatchGroup
+	121, // 41: CSOTFGameServerLobby.members:type_name -> CTFLobbyPlayerProto
+	20,  // 42: CSOTFGameServerLobby.state:type_name -> CSOTFGameServerLobby.State
+	5,   // 43: CSOTFGameServerLobby.game_state:type_name -> TF_GC_GameState
+	21,  // 44: CSOTFGameServerLobby.is_war_match:type_name -> CSOTFGameServerLobby.WarMatch
+	121, // 45: CSOTFGameServerLobby.pending_members:type_name -> CTFLobbyPlayerProto
+	9,   // 46: CMsgGameServerMatchmakingStatus.matchmaking_state:type_name -> ServerMatchmakingState
+	222, // 47: CMsgGameServerMatchmakingStatus.players:type_name -> CMsgGameServerMatchmakingStatus.Player
+	5,   // 48: CMsgGameServerMatchmakingStatus.game_state:type_name -> TF_GC_GameState
+	23,  // 49: CMsgGameServerMatchmakingStatus.event:type_name -> CMsgGameServerMatchmakingStatus.Event
+	224, // 50: CMsgMvMVictoryInfo.players:type_name -> CMsgMvMVictoryInfo.Player
+	225, // 51: CMsgMvMVictory.players:type_name -> CMsgMvMVictory.Player
+	7,   // 52: CMsgPlayerLeftMatch.leave_reason:type_name -> TFMatchLeaveReason
+	162, // 53: CMsgPlayerLeftMatch.xp_breakdown:type_name -> CMsgTFXPSource
+	8,   // 54: CMsgProcessMatchVoteKick.reason:type_name -> TFVoteKickReason
+	226, // 55: CMsgProcessMatchVoteKick.votes:type_name -> CMsgProcessMatchVoteKick.Vote
+	227, // 56: CMsgUpdateHalloweenMerasmusLootLevel.players:type_name -> CMsgUpdateHalloweenMerasmusLootLevel.Player
+	228, // 57: CGCMsgGC_War_GlobalStatsResponse.side_scores:type_name -> CGCMsgGC_War_GlobalStatsResponse.SideScore
+	25,  // 58: CMsgTFXPSource.type:type_name -> CMsgTFXPSource.XPSourceType
+	162, // 59: CMsgTFXPSourceBreakdown.sources:type_name -> CMsgTFXPSource
+	26,  // 60: CMsgGCNotification.type:type_name -> CMsgGCNotification.NotificationType
+	165, // 61: CMsgGCNotificationQueue.notifications:type_name -> CMsgGCNotification
+	27,  // 62: CMsgGC_Match_Result.status:type_name -> CMsgGC_Match_Result.Status
+	229, // 63: CMsgGC_Match_Result.players:type_name -> CMsgGC_Match_Result.Player
+	230, // 64: CMsgGC_Match_Result.events:type_name -> CMsgGC_Match_Result.EventInfo
+	234, // 65: CEconItemPreviewDataBlock.econitem:type_name -> CSOEconItem
+	171, // 66: CMsgGC_Client2GCEconPreviewDataBlockResponse.iteminfo:type_name -> CEconItemPreviewDataBlock
+	8,   // 67: CMsgGC_TFVoteKickPlayerRequest.reason:type_name -> TFVoteKickReason
+	231, // 68: CMsgGC_DailyCompetitiveStatsRollup_Response.rankdata:type_name -> CMsgGC_DailyCompetitiveStatsRollup_Response.RankBucketEntry
+	29,  // 69: CMsgGC_ReportPlayer.reason:type_name -> CMsgGC_ReportPlayer.EReason
+	183, // 70: CMsgGCMatchGroupDataCenterPopulation.data_center_population:type_name -> CMsgGCDataCenterPopulation
+	184, // 71: CMsgGCMatchMakerStatsResponse.matchgroup_data_center_population:type_name -> CMsgGCMatchGroupDataCenterPopulation
+	3,   // 72: CMsgGCMatchHistoryLoad.match_group:type_name -> ETFMatchGroup
+	232, // 73: CMsgGCDataCenterPing_Update.pingdata:type_name -> CMsgGCDataCenterPing_Update.PingEntry
+	10,  // 74: CMsgGCSurveyRequest.question_type:type_name -> SurveyQuestionType
+	10,  // 75: CMsgGCSurveyResponse.question_type:type_name -> SurveyQuestionType
+	233, // 76: CMsgGCChangeMatchPlayerTeamsRequest.member:type_name -> CMsgGCChangeMatchPlayerTeamsRequest.Member
+	197, // 77: CMsgGCQuestMap_Debug.unlock_node:type_name -> CMsgGCQuestMapUnlockNode
+	165, // 78: CMsgGCToGCSendNotification.notification:type_name -> CMsgGCNotification
+	3,   // 79: CSOTFPartyMember.Activity.lobby_match_group:type_name -> ETFMatchGroup
+	3,   // 80: CSOTFParty.QueueEntry.match_group:type_name -> ETFMatchGroup
+	22,  // 81: CMsgGameServerMatchmakingStatus.Player.connect_state:type_name -> CMsgGameServerMatchmakingStatus.PlayerConnectState
+	24,  // 82: CMsgMvMVictoryInfo.Item.grant_reason:type_name -> CMsgMvMVictoryInfo.GrantReason
+	223, // 83: CMsgMvMVictoryInfo.Player.items:type_name -> CMsgMvMVictoryInfo.Item
+	162, // 84: CMsgGC_Match_Result.Player.xp_breakdown:type_name -> CMsgTFXPSource
+	7,   // 85: CMsgGC_Match_Result.Player.leave_reason:type_name -> TFMatchLeaveReason
+	28,  // 86: CMsgGC_Match_Result.EventInfo.event_type:type_name -> CMsgGC_Match_Result.EventInfo.EventType
+	30,  // 87: CMsgGCDataCenterPing_Update.PingEntry.ping_status:type_name -> CMsgGCDataCenterPing_Update.Status
+	6,   // 88: CMsgGCChangeMatchPlayerTeamsRequest.Member.new_team:type_name -> TF_GC_TEAM
+	89,  // [89:89] is the sub-list for method output_type
+	89,  // [89:89] is the sub-list for method input_type
+	89,  // [89:89] is the sub-list for extension type_name
+	89,  // [89:89] is the sub-list for extension extendee
+	0,   // [0:89] is the sub-list for field type_name
 }
 
 func init() { file_tf_gcmessages_proto_init() }
@@ -17592,8 +17804,8 @@ func file_tf_gcmessages_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_tf_gcmessages_proto_rawDesc), len(file_tf_gcmessages_proto_rawDesc)),
-			NumEnums:      30,
-			NumMessages:   202,
+			NumEnums:      31,
+			NumMessages:   203,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

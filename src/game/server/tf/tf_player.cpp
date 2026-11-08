@@ -9,6 +9,7 @@
 #include "tf_player.h"
 #include "tf_gamerules.h"
 #include "tf_gamestats.h"
+#include "frontress/frontress_anticheat_server.h"
 #include "KeyValues.h"
 #include "viewport_panel_names.h"
 #include "client.h"
@@ -7032,6 +7033,14 @@ bool CTFPlayer::ShouldForceAutoTeam( void )
 //-----------------------------------------------------------------------------
 void CTFPlayer::HandleCommand_JoinTeam( const char *pTeamName )
 {
+	// Nobody plays on a protected server before Easy Anti-Cheat has
+	// authenticated them; the team menu comes back once it has.
+	if ( !FrontressAC_Server_CanPlay( this ) && V_stricmp( pTeamName, "spectate" ) )
+	{
+		ClientPrint( this, HUD_PRINTCENTER, "#Frontress_EAC_Waiting" );
+		return;
+	}
+
 	if ( GTFGCClientSystem() && GTFGCClientSystem()->GetMatch() )
 	{
 		CSteamID id;

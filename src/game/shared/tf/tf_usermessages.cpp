@@ -131,6 +131,8 @@ void RegisterUserMessages()
 
 	usermessages->Register( "TC2SpawnNodeList", -1 ); // TC2: Send spawn node list to client for spawn-anywhere UI
 
+	usermessages->Register( "FrontressAC", -1 ); // Easy Anti-Cheat traffic, server -> client (frontress_anticheat_shared.h)
+
 	// NVNT register haptic user messages
 	RegisterHapticMessages();
 	RegisterScriptMessages();

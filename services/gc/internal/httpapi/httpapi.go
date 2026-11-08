@@ -64,6 +64,9 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/matches/{id}", a.matchDetail)
 	mux.HandleFunc("GET /admin/v1/payments", a.adminPayments)
 	mux.HandleFunc("POST /admin/v1/payments/operations", a.adminPaymentOperation)
+	mux.HandleFunc("GET /admin/v1/anticheat", a.adminAntiCheatSanctions)
+	mux.HandleFunc("GET /admin/v1/anticheat/{steamid}", a.adminAntiCheatPlayer)
+	mux.HandleFunc("POST /admin/v1/anticheat/{steamid}", a.adminAntiCheatAction)
 	mux.HandleFunc("GET /v1/war", a.war)
 	mux.HandleFunc("GET /v1/player/{steamid}", a.playerRecord)
 	mux.HandleFunc("GET /v1/player/{steamid}/quests", a.playerQuests)
@@ -148,6 +151,7 @@ func (a *API) session(w http.ResponseWriter, r *http.Request) {
 		s := a.gc.Sessions().Open(session.Server, steamID, func(s *session.Session) {
 			s.ServerName = firstNonEmpty(r.PostForm.Get("name"), key.Name)
 			s.CommunityID = key.Community
+			s.AntiCheatAuthority = key.AntiCheatAuthority
 			s.Region = firstNonEmpty(r.PostForm.Get("region"), key.Region)
 			s.Connect = r.PostForm.Get("connect")
 		})

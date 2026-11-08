@@ -12,10 +12,16 @@
     "identity": "frontress-gc"
   },
 
-  "//server_keys": "Dedicated servers connect with one of these (tf_gc_server_key, or $GC_SECRET). Give every community that runs servers its own.",
+  "//server_keys": "Dedicated servers connect with one of these (tf_gc_server_key, or $GC_SECRET). Give every community that runs servers its own. anticheat_authority: Easy Anti-Cheat bans this key's servers report keep players out of matchmaking -- only for servers you run.",
   "server_keys": [
-    { "name": "frontress", "key": "change-me-a-long-random-server-key", "community": "frontress" }
+    { "name": "frontress", "key": "change-me-a-long-random-server-key", "community": "frontress", "anticheat_authority": true }
   ],
+
+  "//anticheat": "Easy Anti-Cheat. require_protected_servers: matches only go to servers running a protected session. temp_ban_hours: how long an EAC temporary ban keeps a player out of matchmaking.",
+  "anticheat": {
+    "require_protected_servers": false,
+    "temp_ban_hours": 24
+  },
 
   "match_groups": [
     {

@@ -102,6 +102,28 @@ jobs:
           } >> "$GITHUB_ENV"
           brew install --quiet ninja sdl2 sdl3 glslang freetype fontconfig libpng jpeg-turbo > /dev/null
 
+      # Easy Anti-Cheat, as in build.yml: the EOS SDK comes from a private
+      # location when the secrets are set. FRONTRESS_EAC=1 then switches the
+      # game build (buildallprojects_osx) and the depot (package_macos.sh).
+      - name: Stage the EOS SDK (Easy Anti-Cheat)
+        env:
+          EOS_SDK_URL: ${{ secrets.EOS_SDK_URL }}
+          EOS_SDK_TOKEN: ${{ secrets.EOS_SDK_TOKEN }}
+          EOS_SDK_SHA256: ${{ vars.EOS_SDK_SHA256 }}
+          FRONTRESS_EOS_PRODUCT_ID: ${{ vars.EOS_PRODUCT_ID || 'a626b6da0c3747dcb4481023976760d6' }}
+          FRONTRESS_EOS_SANDBOX_ID: ${{ vars.EOS_SANDBOX_ID }}
+          FRONTRESS_EOS_DEPLOYMENT_ID: ${{ vars.EOS_DEPLOYMENT_ID }}
+          FRONTRESS_EOS_CLIENT_ID: ${{ vars.EOS_CLIENT_ID }}
+          FRONTRESS_EOS_CLIENT_SECRET: ${{ secrets.EOS_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${EOS_SDK_URL}" ]; then
+            echo "::warning::EOS_SDK_URL is not set: this macOS build has no Easy Anti-Cheat, and protected servers will refuse it."
+            exit 0
+          fi
+          bash "$GAME/tools/eac/stage_eos_sdk.sh" > /dev/null
+          echo "FRONTRESS_EAC=1" >> "$GITHUB_ENV"
+
       - name: Build engine
         run: '"$ENGINE/scripts/frontress/ci_quiet.sh" engine "$ENGINE/scripts/frontress/build.sh" release "$GAME"'
 
@@ -115,6 +137,12 @@ jobs:
         run: '"$ENGINE/scripts/frontress/ci_quiet.sh" game "$GAME/src/buildallprojects_osx" release'
 
       - name: Package depot
+        env:
+          FRONTRESS_EOS_PRODUCT_ID: ${{ vars.EOS_PRODUCT_ID || 'a626b6da0c3747dcb4481023976760d6' }}
+          FRONTRESS_EOS_SANDBOX_ID: ${{ vars.EOS_SANDBOX_ID }}
+          FRONTRESS_EOS_DEPLOYMENT_ID: ${{ vars.EOS_DEPLOYMENT_ID }}
+          EAC_INTEGRITY_PRIVATE_KEY_B64: ${{ secrets.EAC_INTEGRITY_PRIVATE_KEY_B64 }}
+          EAC_INTEGRITY_PUBLIC_CERT_B64: ${{ secrets.EAC_INTEGRITY_PUBLIC_CERT_B64 }}
         run: |
           set -euo pipefail
           "$ENGINE/scripts/frontress/ci_quiet.sh" package \
@@ -166,7 +194,7 @@ jobs:
       # The runner is discarded anyway; a self-hosted one is not.
       - name: Remove engine files
         if: always()
-        run: rm -rf "$GITHUB_WORKSPACE/engine" "$GITHUB_WORKSPACE/d9mt" "$RUNNER_TEMP/depot-macos" "$RUNNER_TEMP/logs.tar.gz" "${FRONTRESS_LOG_DIR:-/nonexistent}"
+        run: rm -rf "$GITHUB_WORKSPACE/engine" "$GITHUB_WORKSPACE/d9mt" "$GITHUB_WORKSPACE/game/src/thirdparty/eos_sdk" "$RUNNER_TEMP/depot-macos" "$RUNNER_TEMP/logs.tar.gz" "${FRONTRESS_LOG_DIR:-/nonexistent}"
 
   publish-steam:
     name: Steam / private macOS branch

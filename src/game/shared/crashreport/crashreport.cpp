@@ -46,6 +46,16 @@ bool CCrashReporter::Init()
 	if ( CommandLine()->FindParm( "-nosentry" ) )
 		return true;
 
+#if defined( CLIENT_DLL ) && defined( FRONTRESS_EAC ) && defined( _WIN32 )
+	// crashpad_handler opens the game process with full access the moment it
+	// starts. Easy Anti-Cheat only lets a crash reporter do that after a
+	// crash, so under the anti-cheat the game would hang and then be killed.
+	// Protected Windows clients report crashes through Windows Error
+	// Reporting instead; -sentry turns crashpad back on for unprotected runs.
+	if ( !CommandLine()->FindParm( "-sentry" ) )
+		return true;
+#endif
+
 	if ( m_bInit )
 		return true;
 

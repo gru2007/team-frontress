@@ -561,6 +561,12 @@ func (g *GC) admissible(p *Party, grp config.MatchGroupConfig) error {
 		if pl == nil || !pl.Online {
 			return fmt.Errorf("everybody in the party has to be online")
 		}
+		if why := g.antiCheatBlocked(id); why != "" {
+			if len(p.Members) == 1 {
+				return fmt.Errorf("you are %s", why)
+			}
+			return fmt.Errorf("a member of the party is %s", why)
+		}
 		if g.lobbyOf(id) != nil {
 			return fmt.Errorf("somebody in the party is still in a match")
 		}

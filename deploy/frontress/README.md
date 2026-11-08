@@ -60,6 +60,24 @@ AppID identifies the download. For manual launches, an explicit
 `+sv_setsteamaccount <token>` before `+map` takes precedence over `GSLT`.
 Keep the token command out of `server.cfg` because it runs on every match map.
 
+### Easy Anti-Cheat
+
+Easy Anti-Cheat replaces VAC (`start_dedicated_tc2.sh` adds `-insecure`).
+The anti-cheat runs inside `server.so` and needs the server's own EOS
+credentials -- the `TrustedServer` client from the EOS Developer Portal -- in the
+instance environment file, next to `GSLT`:
+
+```dotenv
+FRONTRESS_EOS_SERVER_CLIENT_ID=...
+FRONTRESS_EOS_SERVER_CLIENT_SECRET=...
+```
+
+Without them the server runs unprotected, says so in its log, and a GC with
+`anticheat.require_protected_servers` sends it no matches. `fr_eac_enforce 0`
+only logs who would have been removed (a soft rollout); community servers that
+do not hold the TrustedServer secret set `fr_eac_gameplay_data 0`. The full
+guide is [ANTICHEAT_EAC_RU.md](ANTICHEAT_EAC_RU.md).
+
 It connects, reports itself empty, and is handed matches as they form. A
 community that runs servers for this GC gets its own key, so its servers can be
 told apart and cut off on their own. `GET /v1/status` shows the pool

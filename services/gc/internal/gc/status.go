@@ -61,7 +61,7 @@ func (g *GC) publishStatus() {
 		perGroup[l.Group]++
 	}
 	for _, srv := range g.servers {
-		if srv.idle(g.now()) {
+		if g.serverEligible(srv, g.now()) {
 			st.FreeServers++
 		}
 	}

@@ -7,6 +7,7 @@
 #include "cbase.h"
 #include "tf_gamerules.h"
 #include "tf_gamestats.h"
+#include "frontress/frontress_anticheat_server.h"
 #include "tf_obj_sentrygun.h"
 #include "tf_obj_dispenser.h"
 #include "tf_obj_sapper.h"
@@ -636,6 +637,8 @@ void CTFGameStats::Event_PlayerChangedClass( CTFPlayer *pPlayer, int iOldClass, 
 //-----------------------------------------------------------------------------
 void CTFGameStats::Event_PlayerSpawned( CTFPlayer *pPlayer )
 {	
+	FrontressAC_Server_OnPlayerSpawned( pPlayer );
+
 	// if player is spawning as a member of valid team, increase the spawn count for his class
 	int iTeam = pPlayer->GetTeamNumber();
 	int iClass = pPlayer->GetPlayerClass()->GetClassIndex();
@@ -1007,6 +1010,8 @@ void CTFGameStats::Event_PlayerUsedTeleport( CTFPlayer *pTeleportOwner, CTFPlaye
 //-----------------------------------------------------------------------------
 void CTFGameStats::Event_PlayerFiredWeapon( CTFPlayer *pPlayer, bool bCritical ) 
 {
+	FrontressAC_Server_OnWeaponFired( pPlayer );
+
 	// If normal gameplay state, track weapon stats. 
 	if ( TFGameRules()->State_Get() == GR_STATE_RND_RUNNING )
 	{
@@ -1057,6 +1062,8 @@ void CTFGameStats::Event_PlayerDamage( CBasePlayer *pBasePlayer, const CTakeDama
 	}
 	if ( ( iDamageTaken < 0 ) || ( iDamageTaken > INSANE_PLAYER_DAMAGE ) )
 		return;
+
+	FrontressAC_Server_OnPlayerDamaged( pBasePlayer, info, iDamageTaken );
 
 	CObjectSentrygun *pSentry = NULL;
 	CTFPlayer *pTarget = ToTFPlayer( pBasePlayer );
@@ -1371,6 +1378,7 @@ void CTFGameStats::Event_KillDetail( CTFPlayer* pKiller, CTFPlayer* pVictim, CTF
 //-----------------------------------------------------------------------------
 void CTFGameStats::Event_RoundStart()
 {
+	FrontressAC_Server_OnRoundStart();
 	m_iGameEndReason = 0;
 	m_currentRoundRed.Reset();
 	m_currentRoundBlue.Reset();
@@ -1388,6 +1396,8 @@ void CTFGameStats::Event_RoundStart()
 //-----------------------------------------------------------------------------
 void CTFGameStats::Event_RoundEnd( int iWinningTeam, bool bFullRound, float flRoundTime, bool bWasSuddenDeathWin )
 {
+	FrontressAC_Server_OnRoundEnd( iWinningTeam );
+
 	TF_Gamestats_LevelStats_t *map = m_reportedStats.m_pCurrentGame;
 	Assert( map );
 	if ( !map )
@@ -1563,6 +1573,8 @@ void CTFGameStats::Event_PlayerRevenge( CTFPlayer *pAttacker )
 //-----------------------------------------------------------------------------
 void CTFGameStats::Event_PlayerKilled( CBasePlayer *pPlayer, const CTakeDamageInfo &info )
 {
+	FrontressAC_Server_OnPlayerKilled( pPlayer );
+
 	Assert( pPlayer );
 	CTFPlayer *pTFPlayer = ToTFPlayer( pPlayer );
 

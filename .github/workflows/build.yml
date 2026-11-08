@@ -180,6 +180,40 @@ jobs:
           persist-credentials: false
           submodules: recursive
 
+      # Easy Anti-Cheat. The EOS SDK is Epic's licensed software and never in
+      # this public repository: it is staged from a private location when the
+      # secrets are set (tools/eac/README.md). A release must be protected;
+      # vars.EAC_REQUIRED=false is the escape hatch.
+      - name: Stage the EOS SDK (Easy Anti-Cheat)
+        id: eac
+        shell: bash
+        env:
+          EOS_SDK_URL: ${{ secrets.EOS_SDK_URL }}
+          EOS_SDK_TOKEN: ${{ secrets.EOS_SDK_TOKEN }}
+          EOS_SDK_SHA256: ${{ vars.EOS_SDK_SHA256 }}
+          FRONTRESS_EOS_PRODUCT_ID: ${{ vars.EOS_PRODUCT_ID || 'a626b6da0c3747dcb4481023976760d6' }}
+          FRONTRESS_EOS_SANDBOX_ID: ${{ vars.EOS_SANDBOX_ID }}
+          FRONTRESS_EOS_DEPLOYMENT_ID: ${{ vars.EOS_DEPLOYMENT_ID }}
+          FRONTRESS_EOS_CLIENT_ID: ${{ vars.EOS_CLIENT_ID }}
+          FRONTRESS_EOS_CLIENT_SECRET: ${{ secrets.EOS_CLIENT_SECRET }}
+          EAC_REQUIRED: ${{ startsWith(github.ref, 'refs/tags/release/') && vars.EAC_REQUIRED != 'false' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${EOS_SDK_URL}" ]; then
+            if [ "${EAC_REQUIRED}" = "true" ]; then
+              echo "::error::A release must ship with Easy Anti-Cheat: set the EOS_SDK_URL secret (or vars.EAC_REQUIRED=false)."
+              exit 1
+            fi
+            echo "::warning::EOS_SDK_URL is not set: this build has no Easy Anti-Cheat, and protected servers will refuse it."
+            echo "enabled=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          bash tools/eac/stage_eos_sdk.sh
+          echo "enabled=1" >> "$GITHUB_OUTPUT"
+          # Read by buildallprojects (Linux) and createallprojects.bat (Windows).
+          echo "VPC_EXTRA_ARGS=/define:FRONTRESS_EAC" >> "$GITHUB_ENV"
+          echo "VPC_NINJA_EXTRA_SUFFIX=eac_" >> "$GITHUB_ENV"
+
       - name: Free disk space
         if: matrix.target == 'linux'
         run: |
@@ -226,6 +260,25 @@ jobs:
           test -f game_dist/tc2/bin/linux64/server.so
           touch game_dist/STEAM_READY
 
+      # Bootstrapper, EasyAntiCheat/, EOS runtime, and the integrity catalog
+      # signed with the product key. The key lives only in secrets and a
+      # temporary folder; tools/eac/package_eac.py verifies the result.
+      - name: Protect the Linux client with Easy Anti-Cheat
+        if: matrix.target == 'linux' && steps.eac.outputs.enabled == '1'
+        shell: bash
+        env:
+          FRONTRESS_EOS_PRODUCT_ID: ${{ vars.EOS_PRODUCT_ID || 'a626b6da0c3747dcb4481023976760d6' }}
+          FRONTRESS_EOS_SANDBOX_ID: ${{ vars.EOS_SANDBOX_ID }}
+          FRONTRESS_EOS_DEPLOYMENT_ID: ${{ vars.EOS_DEPLOYMENT_ID }}
+          EAC_INTEGRITY_PRIVATE_KEY_B64: ${{ secrets.EAC_INTEGRITY_PRIVATE_KEY_B64 }}
+          EAC_INTEGRITY_PUBLIC_CERT_B64: ${{ secrets.EAC_INTEGRITY_PUBLIC_CERT_B64 }}
+        run: |
+          set -euo pipefail
+          PY="$(command -v python3 || command -v python)"
+          "$PY" tools/eac/package_eac.py --dist game_dist --platform linux
+          test -f game_dist/EasyAntiCheat/Certificates/base.bin
+          test -f game_dist/start_protected_game
+
       # Packaging only: copy_server.sh derives game_server_dist from the
       # game_dist the step above just produced.
       - name: Package the Linux dedicated server
@@ -240,6 +293,10 @@ jobs:
              = "$(sed -n 's/^appID=//p' game_server_dist/tc2/steam.inf | tr -d '\r')"
           test -f game_server_dist/tc2/bin/linux64/server.so
           test ! -f game_server_dist/tc2/bin/linux64/client.so
+          if [ "${{ steps.eac.outputs.enabled }}" = "1" ]; then
+            test -f game_server_dist/bin/linux64/libEOSSDK-Linux-Shipping.so
+            test ! -e game_server_dist/EasyAntiCheat
+          fi
           test -s game_server_dist/VERSION
           test -s frontress-dedicated-linux.tar.gz
           touch game_server_dist/STEAM_READY
@@ -297,7 +354,7 @@ jobs:
           # -- .ci-bootstrap among them, since it is re-checked-out every run and
           # survives into this step only when the cache was already warm.
           bash .github/scripts/artifact-cache.sh pack workspace.tar . \
-            ./workspace.tar ./.ci-bootstrap \
+            ./workspace.tar ./.ci-bootstrap ./src/thirdparty/eos_sdk \
             ./game_dist ./game_dist_debug ./steam_build \
             './game/tc2/pak1*.vpk'
 
@@ -322,6 +379,25 @@ jobs:
           test -f game_dist/tc2/bin/x64/client.dll
           test -f game_dist/tc2/bin/x64/server.dll
           touch game_dist/STEAM_READY
+
+      # Bootstrapper, EasyAntiCheat/, EOS runtime, and the integrity catalog
+      # signed with the product key. The key lives only in secrets and a
+      # temporary folder; tools/eac/package_eac.py verifies the result.
+      - name: Protect the Windows client with Easy Anti-Cheat
+        if: matrix.target == 'windows' && steps.eac.outputs.enabled == '1'
+        shell: bash
+        env:
+          FRONTRESS_EOS_PRODUCT_ID: ${{ vars.EOS_PRODUCT_ID || 'a626b6da0c3747dcb4481023976760d6' }}
+          FRONTRESS_EOS_SANDBOX_ID: ${{ vars.EOS_SANDBOX_ID }}
+          FRONTRESS_EOS_DEPLOYMENT_ID: ${{ vars.EOS_DEPLOYMENT_ID }}
+          EAC_INTEGRITY_PRIVATE_KEY_B64: ${{ secrets.EAC_INTEGRITY_PRIVATE_KEY_B64 }}
+          EAC_INTEGRITY_PUBLIC_CERT_B64: ${{ secrets.EAC_INTEGRITY_PUBLIC_CERT_B64 }}
+        run: |
+          set -euo pipefail
+          PY="$(command -v python3 || command -v python)"
+          "$PY" tools/eac/package_eac.py --dist game_dist --platform win
+          test -f game_dist/EasyAntiCheat/Certificates/base.bin
+          test -f game_dist/start_protected_game.exe
 
       # compression-level 1 throughout: the payloads are already-compressed vpk
       # and stripped binaries, so the default level 6 buys almost nothing and
@@ -378,7 +454,7 @@ jobs:
         if: ${{ always() && matrix.target == 'linux' }}
         continue-on-error: true
         run: |
-          rm -rf game_dist game_dist_debug game_server_dist steam_build steam_build_server
+          rm -rf game_dist game_dist_debug game_server_dist steam_build steam_build_server src/thirdparty/eos_sdk
           rm -f frontress-dedicated-linux.tar.gz frontress-dedicated-linux.tar.gz.sha256 ccache.tar
           git clean -xfd -- game src
 
@@ -455,7 +531,7 @@ jobs:
           fi
 
           rm -f "${WIN_DIR}/STEAM_READY" "${LINUX_DIR}/STEAM_READY"
-          chmod +x "${LINUX_DIR}"/*.sh "${LINUX_DIR}/tc2_linux64" "${LINUX_DIR}/srcds_run_64" 2>/dev/null || true
+          chmod +x "${LINUX_DIR}"/*.sh "${LINUX_DIR}/tc2_linux64" "${LINUX_DIR}/srcds_run_64" "${LINUX_DIR}/start_protected_game" 2>/dev/null || true
 
           {
             echo "CLIENT_READY=1"

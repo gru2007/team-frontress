@@ -43,7 +43,21 @@ if [ -n "${GSLT:-}" ]; then
     esac
 fi
 
-./tc2.sh -console -dedicated -nosteamclient -gatherdedi "${STEAM_ACCOUNT[@]}" "$@" "${PURE_DEFAULT[@]}"
+# Easy Anti-Cheat replaces VAC. -insecure keeps Steam from advertising the
+# server as VAC-secured; Steam still authenticates every player. The anti-cheat
+# itself runs inside server.so and needs this server's EOS credentials:
+#   FRONTRESS_EOS_SERVER_CLIENT_ID / FRONTRESS_EOS_SERVER_CLIENT_SECRET
+# Without them the server runs unprotected and the GC sends it no matches
+# that require anti-cheat. Pass -secure to keep VAC instead.
+VAC_DEFAULT=(-insecure)
+case " $* " in
+  *" -secure "*|*" -insecure "*) VAC_DEFAULT=() ;;
+esac
+if [ -z "${FRONTRESS_EOS_SERVER_CLIENT_ID:-}" ] || [ -z "${FRONTRESS_EOS_SERVER_CLIENT_SECRET:-}" ]; then
+    echo "WARNING: FRONTRESS_EOS_SERVER_CLIENT_ID/SECRET are not set; Easy Anti-Cheat is off on this server." >&2
+fi
+
+./tc2.sh -console -dedicated -nosteamclient -gatherdedi "${VAC_DEFAULT[@]}" "${STEAM_ACCOUNT[@]}" "$@" "${PURE_DEFAULT[@]}"
 
 mv tc2/gameinfo_client.txt tc2/gameinfo.txt
 

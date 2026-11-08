@@ -328,7 +328,7 @@ func (g *GC) assignServer(l *Lobby) {
 	grp, _ := g.cfg.Group(l.Group)
 	var best *Server
 	for _, srv := range g.servers {
-		if !srv.idle(g.now()) || (grp.Region != "" && srv.Region != grp.Region) {
+		if !g.serverEligible(srv, g.now()) || (grp.Region != "" && srv.Region != grp.Region) {
 			continue
 		}
 		if best == nil || srv.SteamID < best.SteamID {

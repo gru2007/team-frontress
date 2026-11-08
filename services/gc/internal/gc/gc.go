@@ -23,6 +23,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	"github.com/gru2007/team-frontress/services/gc/internal/anticheat"
 	"github.com/gru2007/team-frontress/services/gc/internal/clans"
 	"github.com/gru2007/team-frontress/services/gc/internal/config"
 	"github.com/gru2007/team-frontress/services/gc/internal/gcpb"
@@ -40,21 +41,22 @@ import (
 
 // GC is the coordinator.
 type GC struct {
-	cfg      config.Config
-	log      *slog.Logger
-	sessions *session.Manager
-	so       *socache.Store
-	players  *players.Store
-	war      *war.Engine
-	store    *state.Store
-	history  *history.Store
-	reports  *reports.Store
-	hooks    *sink.Webhooks
-	clans    *clans.Store
-	book     *support.Book
-	steam    support.Steam
-	commerce *support.Admin
-	now      func() time.Time
+	cfg       config.Config
+	log       *slog.Logger
+	sessions  *session.Manager
+	so        *socache.Store
+	players   *players.Store
+	war       *war.Engine
+	store     *state.Store
+	history   *history.Store
+	reports   *reports.Store
+	anticheat *anticheat.Store
+	hooks     *sink.Webhooks
+	clans     *clans.Store
+	book      *support.Book
+	steam     support.Steam
+	commerce  *support.Admin
+	now       func() time.Time
 
 	loop chan func()
 
@@ -89,7 +91,9 @@ type Deps struct {
 	Store   *state.Store
 	History *history.Store
 	Reports *reports.Store
-	Hooks   *sink.Webhooks
+	// AntiCheat; nil keeps Easy Anti-Cheat records in memory.
+	AntiCheat *anticheat.Store
+	Hooks     *sink.Webhooks
 	// Clans; nil keeps them in memory.
 	Clans *clans.Store
 	// Support is the record of donations; Steam takes them. Both are needed
@@ -111,6 +115,7 @@ func New(d Deps) (*GC, error) {
 		store:      d.Store,
 		history:    d.History,
 		reports:    d.Reports,
+		anticheat:  d.AntiCheat,
 		hooks:      d.Hooks,
 		clans:      d.Clans,
 		book:       d.Support,
@@ -142,6 +147,9 @@ func New(d Deps) (*GC, error) {
 	}
 	if g.reports == nil {
 		g.reports, _ = reports.Open("")
+	}
+	if g.anticheat == nil {
+		g.anticheat, _ = anticheat.Open("")
 	}
 	if g.hooks == nil {
 		g.hooks = sink.New(nil, g.log)

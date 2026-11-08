@@ -15,6 +15,7 @@ $Include "$SRCDIR\game\client\client_base.vpc"
 $include "$SRCDIR\game\shared\tf\tf_gcmessages_include.vpc"
 $include "$SRCDIR\game\shared\tf\tf_proto_def_messages_include.vpc"
 $Include "$SRCDIR\game\client\client_econ_base.vpc"
+$Include "$SRCDIR\game\shared\frontress_eac.vpc"
 $Include "$SRCDIR\vpc_scripts\source_saxxyawards.vpc" [!$SOURCESDK]
 $Include "$SRCDIR\utils\itemtest_lib\itemtest_lib_support.vpc" [$WORKSHOP_IMPORT_ENABLE]
 
@@ -943,6 +944,9 @@ $Project "Client (TF)"
 				$File	"$SRCDIR\game\shared\tf\frontress_conditions.cpp"
 				$File	"$SRCDIR\game\client\tf\frontress\tf_gc_status.h"
 				$File	"$SRCDIR\game\client\tf\frontress\tf_gc_status.cpp"
+				// Easy Anti-Cheat, client half (see frontress_eac.vpc).
+				$File	"$SRCDIR\game\client\tf\frontress\frontress_anticheat_client.h"
+				$File	"$SRCDIR\game\client\tf\frontress\frontress_anticheat_client.cpp"
 			}
 
 			$Folder	"Frontress UI"

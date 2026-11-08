@@ -31,6 +31,11 @@ rm -f   "${SERVER_CLEAN_DIR}/tc2/bin/${PLAT_DIR}/client${DLL_EXT}"   "${SERVER_C
 # Client-only helper. Keep tc2_linux64 itself: it is also the dedicated launcher.
 rm -f "${SERVER_CLEAN_DIR}/hl2.sh"
 
+# Easy Anti-Cheat's client half: the bootstrapper and its signed catalog. A
+# server runs the anti-cheat's server half from server.so and only needs the
+# EOS runtime (bin/linux64/libEOSSDK-Linux-Shipping.so), which stays.
+rm -rf "${SERVER_CLEAN_DIR}/EasyAntiCheat" "${SERVER_CLEAN_DIR}/start_protected_game"
+
 # This legacy helper downloads an upstream TC2 release and can overwrite our
 # custom build. The Tool is updated with `app_update 5150320`; dependencies are
 # updated by steamcmd_update.sh.

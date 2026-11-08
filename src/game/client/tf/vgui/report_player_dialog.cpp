@@ -14,6 +14,7 @@
 #include "vgui_avatarimage.h"
 #include <vgui_controls/ImageList.h>
 #include "tf_gamerules.h"
+#include "tf/frontress/frontress_anticheat_client.h"
 
 using namespace vgui;
 
@@ -76,6 +77,8 @@ bool ReportPlayerAccount( CSteamID steamID, int nReason )
 	if ( !FrontressGC() || !FrontressGC()->BConnected() || !GCClientSystem()->BSendMessage( msg ) )
 		return false;
 	ConMsg( "Report submitted to the game coordinator.\n" );
+	// Easy Anti-Cheat reviews detections against player reports.
+	FrontressAC_Client_ReportPlayer( steamID, nReason );
 	return true;
 }
 

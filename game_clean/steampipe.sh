@@ -162,6 +162,10 @@ write_depot_script() {
 	"FileExclusion"	"*.pdb"
 	"FileExclusion"	"*.dbg"
 	"FileExclusion"	"steam_appid.txt"
+	// An Easy Anti-Cheat module test config forces a client module on whoever
+	// has it; Epic: never ship one.
+	"FileExclusion"	"*.eac"
+${INSTALLSCRIPT_LINE}
 }
 EOF
 }
@@ -169,12 +173,19 @@ EOF
 DEPOT_ENTRIES=""
 
 if [ -n "${WIN_DIR}" ]; then
+  # tools/eac/package_eac.py writes it: Steam installs and uninstalls the
+  # Easy Anti-Cheat service with the game (Windows only).
+  INSTALLSCRIPT_LINE=""
+  if [ -f "${WIN_DIR}/installscript.vdf" ]; then
+    INSTALLSCRIPT_LINE='	"InstallScript"	"installscript.vdf"'
+  fi
   write_depot_script "${STEAM_DEPOT_WIN}" "${WIN_DIR}"
   DEPOT_ENTRIES="${DEPOT_ENTRIES}		\"${STEAM_DEPOT_WIN}\"	\"$(script_path "${BUILD_DIR}/depot_${STEAM_DEPOT_WIN}.vdf")\"
 "
 fi
 
 if [ -n "${LINUX_DIR}" ]; then
+  INSTALLSCRIPT_LINE=""
   write_depot_script "${STEAM_DEPOT_LINUX}" "${LINUX_DIR}"
   DEPOT_ENTRIES="${DEPOT_ENTRIES}		\"${STEAM_DEPOT_LINUX}\"	\"$(script_path "${BUILD_DIR}/depot_${STEAM_DEPOT_LINUX}.vdf")\"
 "

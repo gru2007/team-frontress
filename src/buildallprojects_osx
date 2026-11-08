@@ -31,6 +31,16 @@ fi
 flags=()
 [ "$mode" = "debug" ] && flags+=(--debug)
 
+# Easy Anti-Cheat: FRONTRESS_EAC=1 builds against the EOS SDK staged by
+# tools/eac/stage_eos_sdk.sh (src/game/shared/frontress_eac.vpc).
+if [ "${FRONTRESS_EAC:-0}" = "1" ]; then
+	if [ ! -f thirdparty/eos_sdk/config/frontress_eos_config.h ]; then
+		echo "FRONTRESS_EAC=1, but the EOS SDK is not staged: run tools/eac/stage_eos_sdk.sh" >&2
+		exit 1
+	fi
+	flags+=(--define FRONTRESS_EAC)
+fi
+
 # ${a[@]+...}: macOS ships bash 3.2, where an empty array trips set -u.
 ninja_file="$(python3 devtools/vpc_osx.py ${flags[@]+"${flags[@]}"} "${targets[@]}")"
 # Leave memory for the editor and Steam on 8 GB development machines.

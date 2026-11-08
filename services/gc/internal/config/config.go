@@ -44,6 +44,54 @@ type Config struct {
 	MapIndex map[string]uint32 `json:"map_index,omitempty"`
 	Chat     ChatConfig        `json:"chat"`
 	Support  SupportConfig     `json:"support"`
+	// AntiCheat is how the GC acts on Easy Anti-Cheat.
+	AntiCheat AntiCheatConfig `json:"anticheat"`
+}
+
+// AntiCheatConfig is how the GC acts on what Easy Anti-Cheat reports.
+type AntiCheatConfig struct {
+	// RequireProtectedServers hands matches only to servers that run an
+	// Easy Anti-Cheat protected session (they say so in every heartbeat).
+	RequireProtectedServers bool `json:"require_protected_servers"`
+	// TempBanHours is how long an EAC temporary ban keeps a player out of
+	// matchmaking. EAC does not say when its own ends. Default 24.
+	TempBanHours int `json:"temp_ban_hours"`
+	// SteamGameBans puts bans on players' Steam profiles.
+	SteamGameBans SteamGameBansConfig `json:"steam_game_bans"`
+}
+
+// SteamGameBansConfig is how the GC issues Steam game bans
+// (ICheatReportingService) -- the "1 game ban on record" on a profile. They
+// need the publisher key (support.publisher_key / $STEAM_PUBLISHER_KEY) and
+// VAC support enabled for the app in Steamworks.
+type SteamGameBansConfig struct {
+	// Mode: "off" (default); "manual": an admin bans through the admin API;
+	// "auto": also every permanent Easy Anti-Cheat ban a server with
+	// anticheat_authority reports. EOS issues those only for sanctions your
+	// team activated in the EOS Developer Portal.
+	Mode string `json:"mode"`
+	// AppIDs to ban in. Default: auth.app_id and auth.app_ids.
+	AppIDs []uint32 `json:"app_ids,omitempty"`
+	// Immediate skips Valve's default ban delay. Leave it off: the delay
+	// keeps cheat sellers from learning which session got an account caught.
+	Immediate bool `json:"immediate"`
+	// ForwardPlayerReports files every in-game "cheating" report with Steam
+	// too (ReportPlayerCheating), where Steamworks lists them.
+	ForwardPlayerReports bool `json:"forward_player_reports"`
+}
+
+// Enabled reports whether any Steam ban may be issued.
+func (s SteamGameBansConfig) Enabled() bool { return s.Mode == "manual" || s.Mode == "auto" }
+
+// Auto reports whether EAC's permanent bans become Steam bans by themselves.
+func (s SteamGameBansConfig) Auto() bool { return s.Mode == "auto" }
+
+// TempBan is TempBanHours as a duration.
+func (a AntiCheatConfig) TempBan() time.Duration {
+	if a.TempBanHours <= 0 {
+		return 24 * time.Hour
+	}
+	return time.Duration(a.TempBanHours) * time.Hour
 }
 
 // ChatConfig is the global, clan and party chat in the main menu.
@@ -123,6 +171,10 @@ type ServerKey struct {
 	Key       string `json:"key"`
 	Community string `json:"community,omitempty"`
 	Region    string `json:"region,omitempty"`
+	// AntiCheatAuthority lets this key's servers sanction players: an EAC
+	// ban they report keeps the player out of matchmaking. Give it only to
+	// servers you run -- a community server could report anything.
+	AntiCheatAuthority bool `json:"anticheat_authority,omitempty"`
 }
 
 // Mode is what the GC may do with a match once it has formed.
@@ -313,7 +365,8 @@ func (c *Config) applyEnv() {
 	}
 	// GC_SERVER_KEY adds one key, for the container that is the whole fleet.
 	if v := os.Getenv("GC_SERVER_KEY"); v != "" {
-		c.ServerKeys = append(c.ServerKeys, ServerKey{Name: "env", Key: v})
+		// The operator's own fleet: its anti-cheat verdicts are trusted.
+		c.ServerKeys = append(c.ServerKeys, ServerKey{Name: "env", Key: v, AntiCheatAuthority: true})
 	}
 }
 
@@ -430,6 +483,23 @@ func (c *Config) Validate() error {
 	for i, w := range c.Webhooks {
 		if w.URL == "" {
 			return fmt.Errorf("webhooks[%d]: url is required", i)
+		}
+	}
+	sb := &c.AntiCheat.SteamGameBans
+	switch sb.Mode {
+	case "", "off", "manual", "auto":
+	default:
+		return fmt.Errorf("anticheat.steam_game_bans.mode must be off, manual or auto, not %q", sb.Mode)
+	}
+	if sb.Enabled() || sb.ForwardPlayerReports {
+		if c.Support.PublisherKey == "" {
+			return errors.New("anticheat.steam_game_bans needs the publisher key (support.publisher_key or $STEAM_PUBLISHER_KEY)")
+		}
+		if len(sb.AppIDs) == 0 {
+			sb.AppIDs = c.Auth.AppIDList()
+		}
+		if len(sb.AppIDs) == 0 {
+			return errors.New("anticheat.steam_game_bans needs app_ids (or auth.app_id)")
 		}
 	}
 	return nil

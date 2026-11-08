@@ -41,6 +41,7 @@
 #include "util_shared.h"
 #include "workshop/maps_workshop.h"
 #include "frontress_gc.h"
+#include "frontress/frontress_anticheat_server.h"
 #include <memory>
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -2931,7 +2932,9 @@ void CTFGCServerSystem::UpdateServerData( bool bShutdown )
 #endif
 
 	msg.Body().set_server_steamid( iSteamId );
-	msg.Body().set_secure( SteamGameServer() ? SteamGameServer()->BSecure() : false );
+	// "Secure" means Easy Anti-Cheat here, not VAC: the GC only trusts
+	// matches to servers that run a protected session.
+	msg.Body().set_secure( FrontressAC_Server_IsProtected() );
 	msg.Body().set_dedicated( engine->IsDedicatedServer() );
 	char szMapName[256];
 	msg.Body().set_map( bShutdown ? "" : GetCleanMapName( gpGlobals->mapname.ToCStr(), szMapName ) );
@@ -3810,6 +3813,7 @@ void CTFGCServerSystem::UpdateConnectedPlayersAndServerInfo( CMsgGameServerMatch
 		msg.Body().set_server_loadavg( GetCPUUsage() );
 		msg.Body().set_server_dedicated( engine->IsDedicatedServer() );
 		msg.Body().set_server_trusted( tf_mm_trusted.GetBool() );
+		msg.Body().set_anticheat_protected( FrontressAC_Server_IsProtected() );
 		msg.Body().set_map( sGameServerInfoMap );
 		msg.Body().set_game_state( gcState );
 		if ( pLobby && m_pMatchInfo && pLobby->GetMatchID() == m_pMatchInfo->m_nMatchID )

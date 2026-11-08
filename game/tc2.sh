@@ -53,6 +53,19 @@ esac
 #
 # Clients that want it add -enablefakeip to their Steam launch options; "$@"
 # carries it through to the binary.
-${SLR_SNIPER_PATH} --devel -- ./tc2_linux64 -steam -gathermod -particles 1 "$@" "${IP_DEFAULT[@]}"
+# Easy Anti-Cheat: a client starts through the anti-cheat bootstrapper, which
+# loads the anti-cheat and then runs tc2_linux64 itself (the "executable" in
+# EasyAntiCheat/Settings.json), passing every argument on. A dedicated server
+# is not a protected client and starts the binary directly, as does -noeac
+# (offline and modding; protected servers refuse such a client).
+GAME_EXE=./tc2_linux64
+if [ -x ./start_protected_game ]; then
+  case " $* " in
+    *" -dedicated "*|*" -noeac "*) ;;
+    *) GAME_EXE=./start_protected_game ;;
+  esac
+fi
+
+${SLR_SNIPER_PATH} --devel -- "${GAME_EXE}" -steam -gathermod -particles 1 "$@" "${IP_DEFAULT[@]}"
 
 popd > /dev/null

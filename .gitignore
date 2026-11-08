@@ -662,3 +662,10 @@ game/tc2/videoconfig_mac.cfg
 
 # Written by the GL shader backend at runtime.
 game/tc2/glshaders.cfg
+
+# Easy Anti-Cheat: the EOS SDK is Epic's licensed software and is staged by
+# tools/eac/stage_eos_sdk.sh, never committed. Neither are integrity keys or
+# per-machine client module test configs (<exe>.eac).
+/src/thirdparty/eos_sdk/
+base_private.key
+*.eac

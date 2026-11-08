@@ -338,6 +338,9 @@ enum ETFGCMsg
 
 	k_EMsgGC_GameServer_UpdateData				= 6587; // game server -> GC, report server data (CMsgGameServerData)
 
+	// Team Frontress
+	k_EMsgGC_Frontress_AntiCheatEvent			= 6590; // game server -> GC, an Easy Anti-Cheat verdict about a player (CMsgGC_Frontress_AntiCheatEvent)
+
 	// Development only messages
 	k_EMsgGCDev_GrantWarKill =					10001; //War kill tracking. No longer in use
 
@@ -380,6 +383,33 @@ message CMsgGameServerData {
 	optional string game_type = 20;
 	optional string map = 21;
 	optional string game_server_token = 31;
+}
+
+//
+// k_EMsgGC_Frontress_AntiCheatEvent
+//
+// What Easy Anti-Cheat decided about a player on a protected server. The GC
+// keeps these per player and keeps sanctioned players out of matchmaking.
+//
+message CMsgGC_Frontress_AntiCheatEvent {
+	enum EEvent {
+		kEvent_INVALID = 0;
+		kEvent_VERIFIED = 1;			// EAC authenticated the player; product_user_id is theirs
+		kEvent_KICKED = 2;				// removed for a reason that is not a verdict (timeouts, protocol)
+		kEvent_NOT_PROTECTED = 3;		// joined without working anti-cheat
+		kEvent_IDENTITY_MISMATCH = 4;	// EOS identity did not belong to the Steam account
+		kEvent_VIOLATION = 5;			// client or backend integrity violation
+		kEvent_TEMP_BANNED = 6;			// an active temporary EOS sanction
+		kEvent_PERM_BANNED = 7;			// an active permanent EOS sanction
+	}
+
+	optional fixed64 steam_id = 1;
+	optional string product_user_id = 2;
+	optional EEvent event = 3 [ default = kEvent_INVALID ];
+	optional uint32 action_reason = 4;	// EOS_EAntiCheatCommonClientActionReason
+	optional string details = 5;
+	optional uint64 match_id = 6;
+	optional bool enforced = 7;			// false: the server only logged it (fr_eac_enforce 0)
 }
 
 message CMsgGSUserPlaying {
@@ -2055,6 +2085,11 @@ message CMsgGameServerMatchmakingStatus
 	// Echo the last lobby version back with our heartbeat. GC uses this to reason about the last update we had a chance
 	// to respond to.
 	optional	uint32 lobby_mm_version = 24;
+
+	// Team Frontress: the server runs an Easy Anti-Cheat protected session
+	// (frontress_anticheat_server.h). A GC that requires anti-cheat only
+	// hands matches to servers that say so.
+	optional	bool anticheat_protected = 40;
 };
 
 ////

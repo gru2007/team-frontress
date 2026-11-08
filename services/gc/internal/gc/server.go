@@ -29,6 +29,9 @@ type Server struct {
 	LastStatus    time.Time
 	Map           string
 	LateJoinSlots int
+	// Protected: the server runs an Easy Anti-Cheat protected session, by
+	// its last heartbeat.
+	Protected bool
 	// RestUntil keeps a server that just finished a match out of the pool for
 	// a moment. Its game is still tearing the old match down, and a new lobby
 	// arriving in that window is one the stock server code refuses by
@@ -130,6 +133,10 @@ func (g *GC) handleServerStatus(s *session.Session, m *wire.Msg) {
 	firstHeartbeat := srv.LastStatus.IsZero()
 	srv.LastStatus = g.now()
 	srv.Map = msg.GetMap()
+	if protected := msg.GetAnticheatProtected(); protected != srv.Protected || firstHeartbeat {
+		srv.Protected = protected
+		g.log.Info("server anti-cheat", "server", srv.SteamID, "protected", protected)
+	}
 	// Empty, in matchmaking mode, and with no match of its own any more.
 	wasReady := srv.Ready
 	state := msg.GetMatchmakingState()
@@ -479,7 +486,7 @@ func (g *GC) poolSize() int {
 func (g *GC) freeServers(region string) int {
 	n := 0
 	for _, srv := range g.servers {
-		if srv.idle(g.now()) && (region == "" || srv.Region == region) {
+		if g.serverEligible(srv, g.now()) && (region == "" || srv.Region == region) {
 			n++
 		}
 	}

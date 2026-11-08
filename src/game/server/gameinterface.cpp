@@ -99,6 +99,7 @@
 #include "tf_gamerules.h"
 #include "player_vs_environment/tf_population_manager.h"
 #include "workshop/maps_workshop.h"
+#include "tf/frontress/frontress_anticheat_server.h"
 
 extern ConVar tf_mm_trusted;
 extern ConVar tf_mm_servermode;
@@ -2730,6 +2731,9 @@ void CServerGameClients::ClientActive( edict_t *pEdict, bool bLoadGame )
 					Log("WARNING: ClientActive, but we don't know his SteamID?\n");
 				}
 			}
+			// Fully in game and able to receive messages: the earliest the
+			// anti-cheat handshake can start without stalling a loading client.
+			FrontressAC_Server_ClientActive( pPlayer );
 		}
 	#endif
 }
@@ -2793,6 +2797,7 @@ void CServerGameClients::ClientDisconnect( edict_t *pEdict )
 		player->ClearPlayerSimulationList();
 #endif
 		#if defined( TF_DLL )
+			FrontressAC_Server_ClientDisconnect( player );
 			if ( !player->IsFakeClient() )
 			{
 				CSteamID steamID;
@@ -3223,6 +3228,12 @@ void CServerGameClients::ClientCommandKeyValues( edict_t *pEntity, KeyValues *pK
 {
 	if ( !pKeyValues )
 		return;
+
+#if defined( TF_DLL )
+	// Easy Anti-Cheat traffic never reaches the game rules.
+	if ( FrontressAC_Server_HandleKeyValues( pEntity, pKeyValues ) )
+		return;
+#endif
 
 	if ( g_pGameRules )
 	{
