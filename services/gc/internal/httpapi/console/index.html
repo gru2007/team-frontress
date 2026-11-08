@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Модерация жалоб</title>
+<link rel="stylesheet" href="console.css">
+<script src="console.js" defer></script>
+</head>
+<body>
+<header class="top">
+	<div class="brand"><span class="mark" aria-hidden="true"></span><div><b>Team Frontress</b><span>Жалобы и Easy Anti-Cheat</span></div></div>
+	<div class="who" id="who" hidden><span id="who-actor"></span><button type="button" class="ghost" id="logout">Выйти</button></div>
+</header>
+
+<section class="login" id="login">
+	<h1>Вход для модераторов</h1>
+	<p>Ключ администратора GC (<code>admin_key</code>) и ваш SteamID64 — он попадёт в журнал каждого решения. Ключ хранится только в этой вкладке.</p>
+	<label>Ключ администратора<input id="key" type="password" autocomplete="off" spellcheck="false"></label>
+	<label>Ваш SteamID64<input id="actor" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="7656119…"></label>
+	<button type="button" class="primary" id="enter">Войти</button>
+	<p class="err" id="login-err" role="alert"></p>
+</section>
+
+<main class="app" id="app" hidden>
+	<aside class="queue">
+		<div class="tabs" role="tablist">
+			<button type="button" role="tab" data-status="open" class="on">Открытые</button>
+			<button type="button" role="tab" data-status="closed">Закрытые</button>
+			<button type="button" role="tab" data-status="all">Все</button>
+			<button type="button" class="ghost refresh" id="refresh" title="Обновить">↻</button>
+		</div>
+		<div class="find"><input id="find" placeholder="Ник или SteamID64" spellcheck="false"></div>
+		<div class="stats" id="stats"></div>
+		<ol class="cases" id="cases"></ol>
+		<p class="empty" id="cases-empty" hidden>Жалоб нет.</p>
+	</aside>
+
+	<section class="case" id="case">
+		<div class="placeholder" id="placeholder">
+			<h2>Выберите дело слева</h2>
+			<p>Очередь отсортирована по приоритету. Жалобы от одного игрока или одной группы считаются один раз, с весом по точности прошлых жалоб автора. Нарушения Easy Anti-Cheat, кики голосованием за читы и прежние баны повышают приоритет. Жалобы сами никого не банят: решение за модератором или за EAC.</p>
+		</div>
+		<div id="detail" hidden>
+			<div class="case-head">
+				<div>
+					<div class="sev" id="d-sev"></div>
+					<h2 id="d-name"></h2>
+					<div class="ids"><span id="d-steamid"></span> · <a id="d-profile" target="_blank" rel="noopener noreferrer">профиль Steam</a></div>
+				</div>
+				<div class="score"><span id="d-score"></span><small>приоритет</small></div>
+			</div>
+			<div class="flags" id="d-flags"></div>
+
+			<div class="grid">
+				<div class="card">
+					<h3>Easy Anti-Cheat</h3>
+					<dl class="kv" id="d-eac"></dl>
+				</div>
+				<div class="card">
+					<h3>Что сообщают</h3>
+					<div class="bars" id="d-reasons"></div>
+					<div class="chips" id="d-details"></div>
+				</div>
+			</div>
+
+			<div class="card action" id="action">
+				<h3>Решение</h3>
+				<div class="act-row">
+					<label>Причина / заметка<input id="a-reason" maxlength="300" placeholder="Например: аимбот подтверждён по демо, раунд 3"></label>
+				</div>
+				<div class="act-row">
+					<label>Срок бана
+						<select id="a-hours">
+							<option value="24">24 часа</option>
+							<option value="72">3 дня</option>
+							<option value="168">7 дней</option>
+							<option value="720">30 дней</option>
+							<option value="0" selected>Навсегда</option>
+						</select>
+					</label>
+					<button type="button" class="danger" id="a-ban">Забанить в матчмейкинге</button>
+					<button type="button" class="ghost" id="a-dismiss">Отклонить жалобы</button>
+				</div>
+				<p class="hint">Бан закрывает дело как «приняты меры», и все авторы жалоб получат уведомление в игре (без имени нарушителя). Бан EAC на всех защищённых серверах выдаётся санкцией в EOS Developer Portal: Product User ID указан выше.</p>
+				<p class="err" id="a-err" role="alert"></p>
+			</div>
+
+			<div class="card">
+				<h3>Жалобы <span class="count" id="d-count"></span></h3>
+				<div class="table-wrap"><table class="reports">
+					<thead><tr><th>Когда</th><th>Автор</th><th>Причина</th><th>Комментарий</th><th>Где</th></tr></thead>
+					<tbody id="d-reports"></tbody>
+				</table></div>
+			</div>
+
+			<div class="grid">
+				<div class="card">
+					<h3>События античита</h3>
+					<ol class="timeline" id="d-events"></ol>
+				</div>
+				<div class="card">
+					<h3>Прошлые решения</h3>
+					<ol class="timeline" id="d-history"></ol>
+				</div>
+			</div>
+		</div>
+	</section>
+</main>
+</body>
+</html>

@@ -15,16 +15,23 @@
 
 #include "fui_social.h"
 #include "fui_tf.h"
+#include "fui_host.h"
 
 #include "frontress_gc.h"
 #include "tf_gc_client.h"
 #include "tf_party.h"
 #include "tf_partyclient.h"
 #include "vgui/report_player_dialog.h"
+#include "frontress_anticheat_client.h"
+#include "c_tf_playerresource.h"
+#include "tf_gcmessages.h"
+#include "voice_status.h"
+#include "ienginevgui.h"
 #include "steam/steam_api.h"
 #include "vgui/ILocalize.h"
 
 #include <time.h>
+#include <algorithm>
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -121,6 +128,7 @@ struct Social_t
 	double flSupportDeadline = 0.;
 	double flReportDeadline = 0.;
 	std::string reportTarget;
+	int nReportSource = 0;		// CMsgGC_ReportPlayer::ESource
 };
 
 Social_t &S()
@@ -413,15 +421,28 @@ void ApplyEvent( fui::Runtime &ui, const std::string &json )
 	{
 		const std::string target = Str( &ev, "target" );
 		ConfirmPlayerReport( CSteamID( V_atoui64( target.c_str() ) ) );
+		const Node *modal = ui.Get( "ui.modal" );
+		const bool bShown = modal && modal->AsString() == "report";
 		if ( target == s.reportTarget )
 		{
 			s.flReportDeadline = 0.;
 			ui.Set( "report.pending", Node( false ) );
-			const Node *modal = ui.Get( "ui.modal" );
-			if ( modal && modal->AsString() == "report" )
-				ui.Set( "ui.modal", Node( "" ) );
+			// The dialog says it itself, and offers to mute them.
+			ui.Set( "report.sent", Node( true ) );
 		}
-		FuiTF().Toast( "party", ui.Translate( "fui_report_title" ), ui.Translate( "fui_report_saved" ), "" );
+		if ( !bShown || target != s.reportTarget )
+			FuiTF().Toast( "party", ui.Translate( "fui_report_title" ), ui.Translate( "fui_report_saved" ), "" );
+	}
+	else if ( t == "report_feedback" )
+	{
+		// Never who: the coordinator does not say, so a cheater cannot learn
+		// who reported them.
+		const int n = (int)Num( &ev, "count", 1 );
+		std::string body = ui.Translate( n > 1 ? "fui_report_feedback_many" : "fui_report_feedback_one" );
+		const size_t at = body.find( "%1" );
+		if ( at != std::string::npos )
+			body.replace( at, 2, std::to_string( n ) );
+		FuiTF().Toast( "quest", ui.Translate( "fui_report_feedback_title" ), body, "" );
 	}
 	else if ( t == "error" )
 	{
@@ -499,6 +520,218 @@ std::string Path( fui::Runtime &ui, const char *pszPath )
 {
 	const Node *p = ui.Get( pszPath );
 	return p ? p->AsString() : std::string();
+}
+
+
+//-----------------------------------------------------------------------------
+// Reports. The dialog (shell.rml, ui.modal 'report') lists the players on the
+// server -- those who killed you first -- then asks why, what exactly, and
+// for your own words. The report goes to the coordinator, which puts it in
+// front of moderators next to what Easy Anti-Cheat recorded, and to EOS
+// Player Reports when you are logged in to EOS.
+//-----------------------------------------------------------------------------
+struct ReportDetail_t
+{
+	const char *pszID;
+	int nReason;
+	uint32 unBit;
+};
+const ReportDetail_t k_ReportDetails[] = {
+	{ "aimbot", CMsgGC_ReportPlayer_EReason_kReason_CHEATING, CMsgGC_ReportPlayer_EDetail_kDetail_AIMBOT },
+	{ "wallhack", CMsgGC_ReportPlayer_EReason_kReason_CHEATING, CMsgGC_ReportPlayer_EDetail_kDetail_WALLHACK },
+	{ "triggerbot", CMsgGC_ReportPlayer_EReason_kReason_CHEATING, CMsgGC_ReportPlayer_EDetail_kDetail_TRIGGERBOT },
+	{ "movement", CMsgGC_ReportPlayer_EReason_kReason_CHEATING, CMsgGC_ReportPlayer_EDetail_kDetail_MOVEMENT },
+	{ "exploit", CMsgGC_ReportPlayer_EReason_kReason_CHEATING, CMsgGC_ReportPlayer_EDetail_kDetail_EXPLOIT },
+	{ "chat", CMsgGC_ReportPlayer_EReason_kReason_HARASSMENT, CMsgGC_ReportPlayer_EDetail_kDetail_CHAT },
+	{ "voice", CMsgGC_ReportPlayer_EReason_kReason_HARASSMENT, CMsgGC_ReportPlayer_EDetail_kDetail_VOICE },
+	{ "name", CMsgGC_ReportPlayer_EReason_kReason_HARASSMENT, CMsgGC_ReportPlayer_EDetail_kDetail_NAME },
+};
+
+const char *ReportClassID( int iClass )
+{
+	static const char *s_rgpszIDs[] = { "", "scout", "sniper", "soldier", "demoman", "medic", "heavy", "pyro", "spy", "engineer" };
+	return ( iClass > TF_CLASS_UNDEFINED && iClass < (int)ARRAYSIZE( s_rgpszIDs ) ) ? s_rgpszIDs[ iClass ] : "";
+}
+
+int ReportPlayerIndex( const CSteamID &id )
+{
+	for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+	{
+		player_info_t info;
+		if ( engine->GetPlayerInfo( i, &info ) && !info.fakeplayer && info.friendsID == id.GetAccountID() )
+			return i;
+	}
+	return 0;
+}
+
+void ReportSelect( fui::Runtime &ui, const std::string &target )
+{
+	const CSteamID id( V_atoui64( target.c_str() ) );
+	const int iPlayer = id.IsValid() ? ReportPlayerIndex( id ) : 0;
+	std::string name;
+	player_info_t info;
+	if ( iPlayer && engine->GetPlayerInfo( iPlayer, &info ) )
+		name = info.name;
+	ui.Set( "report.target", Node( iPlayer ? target : std::string() ) );
+	ui.Set( "report.target_name", Node( name ) );
+	CVoiceStatus *pVoice = GetClientVoiceMgr();
+	ui.Set( "report.can_mute", Node( iPlayer && pVoice ) );
+	ui.Set( "report.muted", Node( iPlayer && pVoice && pVoice->IsPlayerBlocked( iPlayer ) ) );
+}
+
+void ReportResetDetails( fui::Runtime &ui )
+{
+	Node d;
+	for ( const ReportDetail_t &det : k_ReportDetails )
+		d[ det.pszID ] = false;
+	ui.Set( "report.d", std::move( d ) );
+}
+
+bool FuiReportCommand( fui::Runtime &ui, const std::string &name, const std::string &arg, const std::string &arg2 )
+{
+	Social_t &s = S();
+	if ( name == "open_report" )
+	{
+		// From the scoreboard or the console (fr_report) the menu may not be up.
+		if ( !enginevgui->IsGameUIVisible() )
+			engine->ClientCmd_Unrestricted( "gameui_activate\n" );
+		ui.Set( "ui.modal", Node( "report" ) );
+		if ( s.flReportDeadline > 0. )
+			return true;
+
+		const CSteamID me = Me();
+		const CSteamID lastKiller = FrontressReport_LastKiller();
+		const int iLocal = engine->GetLocalPlayer();
+		const int iMyTeam = g_PR ? g_PR->GetTeam( iLocal ) : TEAM_UNASSIGNED;
+		struct Row_t { Node node; int nKills; bool bEnemy; std::string name; };
+		std::vector< Row_t > rows;
+		for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+		{
+			player_info_t info;
+			if ( !engine->GetPlayerInfo( i, &info ) || !info.friendsID || info.fakeplayer )
+				continue;
+			const CSteamID id( info.friendsID, me.GetEUniverse(), k_EAccountTypeIndividual );
+			if ( id == me )
+				continue;
+			Row_t row;
+			const int iTeam = g_PR ? g_PR->GetTeam( i ) : TEAM_UNASSIGNED;
+			row.nKills = FrontressReport_KillsBy( id );
+			row.bEnemy = iTeam >= FIRST_GAME_TEAM && iMyTeam >= FIRST_GAME_TEAM && iTeam != iMyTeam;
+			row.name = info.name;
+			Node &p = row.node;
+			p[ "id" ] = std::to_string( id.ConvertToUint64() );
+			p[ "name" ] = info.name;
+			p[ "team" ] = iTeam == TF_TEAM_RED ? "red" : iTeam == TF_TEAM_BLUE ? "blu" : "spec";
+			p[ "cls" ] = g_TF_PR ? ReportClassID( g_TF_PR->GetPlayerClass( i ) ) : "";
+			p[ "score" ] = g_TF_PR ? g_TF_PR->GetTotalScore( i ) : 0;
+			p[ "kills" ] = row.nKills;
+			ISteamFriends *pFriends = steamapicontext ? steamapicontext->SteamFriends() : NULL;
+			p[ "avatar" ] = ( pFriends && pFriends->GetLargeFriendAvatar( id ) > 0 ) ? "avatar:" + std::to_string( id.ConvertToUint64() ) : std::string();
+			p[ "last_killer" ] = lastKiller.IsValid() && id == lastKiller;
+			p[ "reported" ] = !CanReportPlayer( id, false );
+			rows.push_back( std::move( row ) );
+		}
+		// Who killed you first, then the other team, then yours.
+		std::stable_sort( rows.begin(), rows.end(), []( const Row_t &a, const Row_t &b ) {
+			if ( a.nKills != b.nKills )
+				return a.nKills > b.nKills;
+			if ( a.bEnemy != b.bEnemy )
+				return a.bEnemy;
+			return V_stricmp( a.name.c_str(), b.name.c_str() ) < 0;
+		} );
+		Node players;
+		players.SetArray();
+		for ( Row_t &row : rows )
+			players.Append() = std::move( row.node );
+		ui.Set( "report.players", std::move( players ) );
+
+		const int nSource = V_atoi( arg2.c_str() );
+		s.nReportSource = CMsgGC_ReportPlayer_ESource_IsValid( nSource ) ? nSource : CMsgGC_ReportPlayer_ESource_kSource_MENU;
+		ReportSelect( ui, Digits( arg ) );
+		ui.Set( "report.reason", Node( 0 ) );
+		ui.Set( "report.comment", Node( "" ) );
+		ui.Set( "report.sent", Node( false ) );
+		ui.Set( "report.pending", Node( false ) );
+		ui.Set( "report.eac", Node( FrontressAC_Client_CanReport() ) );
+		ReportResetDetails( ui );
+		return true;
+	}
+	if ( name == "report_pick" )
+	{
+		if ( s.flReportDeadline <= 0. )
+			ReportSelect( ui, Digits( arg ) );
+		return true;
+	}
+	if ( name == "report_reason" )
+	{
+		const int nReason = V_atoi( arg.c_str() );
+		if ( nReason > CMsgGC_ReportPlayer_EReason_kReason_INVALID && nReason < CMsgGC_ReportPlayer_EReason_kReason_COUNT )
+		{
+			ui.Set( "report.reason", Node( nReason ) );
+			ReportResetDetails( ui );
+		}
+		return true;
+	}
+	if ( name == "report_detail" )
+	{
+		for ( const ReportDetail_t &det : k_ReportDetails )
+		{
+			if ( arg == det.pszID )
+			{
+				const std::string path = std::string( "report.d." ) + det.pszID;
+				const Node *on = ui.Get( path.c_str() );
+				ui.Set( path.c_str(), Node( !( on && on->AsBool() ) ) );
+			}
+		}
+		return true;
+	}
+	if ( name == "send_report" )
+	{
+		if ( s.flReportDeadline > 0. )
+			return true;
+		const std::string target = Path( ui, "report.target" );
+		const CSteamID id( V_atoui64( target.c_str() ) );
+		const Node *reason = ui.Get( "report.reason" );
+		const int nReason = reason ? (int)reason->AsNumber() : 0;
+		uint32 unDetail = 0;
+		for ( const ReportDetail_t &det : k_ReportDetails )
+		{
+			const Node *on = ui.Get( ( std::string( "report.d." ) + det.pszID ).c_str() );
+			if ( det.nReason == nReason && on && on->AsBool() )
+				unDetail |= det.unBit;
+		}
+		if ( !FrontressGC() || !FrontressGC()->BConnected() )
+			FuiTF().Toast( "error", ui.Translate( "fui_err_title" ), ui.Translate( "fui_gc_offline" ), "" );
+		else if ( ReportPlayerAccountEx( id, nReason, unDetail, Path( ui, "report.comment" ).c_str(), s.nReportSource ) )
+		{
+			s.reportTarget = target;
+			s.flReportDeadline = Plat_FloatTime() + 15.;
+			ui.Set( "report.pending", Node( true ) );
+		}
+		else
+			FuiTF().Toast( "error", ui.Translate( "fui_err_title" ), ui.Translate( "fui_report_failed" ), "" );
+		return true;
+	}
+	if ( name == "report_mute" )
+	{
+		const int iPlayer = ReportPlayerIndex( CSteamID( V_atoui64( Path( ui, "report.target" ).c_str() ) ) );
+		if ( CVoiceStatus *pVoice = GetClientVoiceMgr() )
+		{
+			if ( iPlayer )
+			{
+				pVoice->SetPlayerBlockedState( iPlayer, !pVoice->IsPlayerBlocked( iPlayer ) );
+				ui.Set( "report.muted", Node( pVoice->IsPlayerBlocked( iPlayer ) ) );
+			}
+		}
+		return true;
+	}
+	if ( name == "report_done" )
+	{
+		ui.Set( "ui.modal", Node( "" ) );
+		ui.Set( "report.sent", Node( false ) );
+		return true;
+	}
+	return false;
 }
 
 } // namespace
@@ -671,51 +904,9 @@ bool FuiSocialCommand( fui::Runtime &ui, const std::string &name, const std::vec
 			FuiTF().Toast( "error", ui.Translate( "fui_err_title" ), ui.Translate( "fui_gc_offline" ), "" );
 		return true;
 	}
-	if ( name == "open_report" )
-	{
-		if ( S().flReportDeadline > 0. )
-		{
-			ui.Set( "ui.modal", Node( "report" ) );
-			return true;
-		}
-		Node players;
-		players.SetArray();
-		for ( int i = 1; i <= gpGlobals->maxClients; ++i )
-		{
-			player_info_t info;
-			if ( !engine->GetPlayerInfo( i, &info ) || !info.friendsID || info.fakeplayer )
-				continue;
-			const CSteamID id( info.friendsID, Me().GetEUniverse(), k_EAccountTypeIndividual );
-			if ( id == Me() )
-				continue;
-			Node &p = players.Append();
-			p[ "id" ] = std::to_string( id.ConvertToUint64() );
-			p[ "name" ] = info.name;
-		}
-		ui.Set( "report.players", std::move( players ) );
-		ui.Set( "report.target", Node( "" ) );
-		ui.Set( "report.reason", Node( 0 ) );
-		ui.Set( "ui.modal", Node( "report" ) );
-		return true;
-	}
-	if ( name == "send_report" )
-	{
-		if ( S().flReportDeadline > 0. )
-			return true;
-		const CSteamID id( V_atoui64( Path( ui, "report.target" ).c_str() ) );
-		const Node *reason = ui.Get( "report.reason" );
-		if ( !FrontressGC() || !FrontressGC()->BConnected() )
-			FuiTF().Toast( "error", ui.Translate( "fui_err_title" ), ui.Translate( "fui_gc_offline" ), "" );
-		else if ( reason && ReportPlayerAccount( id, (int)reason->AsNumber() ) )
-		{
-			S().reportTarget = Path( ui, "report.target" );
-			S().flReportDeadline = Plat_FloatTime() + 15.;
-			ui.Set( "report.pending", Node( true ) );
-		}
-		else
-			FuiTF().Toast( "error", ui.Translate( "fui_err_title" ), ui.Translate( "fui_report_failed" ), "" );
-		return true;
-	}
+	if ( name == "open_report" || name == "report_pick" || name == "report_reason" || name == "report_detail" ||
+		name == "send_report" || name == "report_mute" || name == "report_done" )
+		return FuiReportCommand( ui, name, arg, arg2 );
 	if ( name == "invite_player" || name == "join_player" || name == "accept_invite" || name == "decline_invite" ||
 		name == "cancel_invite" || name == "accept_request" || name == "kick_member" || name == "confirm_kick" || name == "profile" )
 	{
@@ -870,4 +1061,29 @@ bool FuiSocialCommand( fui::Runtime &ui, const std::string &name, const std::vec
 		return true;
 	}
 	return false;
+}
+
+//-----------------------------------------------------------------------------
+// fr_report [steamid64 | killer]: the report dialog, for binds and the
+// scoreboard. "killer" picks whoever last killed you.
+//-----------------------------------------------------------------------------
+CON_COMMAND( fr_report, "Report a player: fr_report [steamid64 | killer]. Bind it: bind F7 \"fr_report killer\"." )
+{
+	if ( !FrontressUI() )
+		return;
+	std::string target, source = std::to_string( CMsgGC_ReportPlayer_ESource_kSource_MENU );
+	if ( args.ArgC() > 1 && !V_stricmp( args[ 1 ], "killer" ) )
+	{
+		const CSteamID killer = FrontressReport_LastKiller();
+		if ( killer.IsValid() )
+			target = std::to_string( killer.ConvertToUint64() );
+		source = std::to_string( CMsgGC_ReportPlayer_ESource_kSource_KILLER );
+	}
+	else if ( args.ArgC() > 1 )
+	{
+		target = Digits( args[ 1 ] );
+		if ( args.ArgC() > 2 )
+			source = Digits( args[ 2 ] );
+	}
+	FuiTF().OnCommand( "open_report", { target, source } );
 }

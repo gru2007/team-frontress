@@ -5,6 +5,7 @@ import (
 
 	"github.com/gru2007/team-frontress/services/gc/internal/anticheat"
 	"github.com/gru2007/team-frontress/services/gc/internal/gcpb"
+	"github.com/gru2007/team-frontress/services/gc/internal/reports"
 	"github.com/gru2007/team-frontress/services/gc/internal/session"
 	"github.com/gru2007/team-frontress/services/gc/internal/steamauth"
 	"github.com/gru2007/team-frontress/services/gc/internal/wire"
@@ -22,6 +23,7 @@ var antiCheatKinds = map[gcpb.CMsgGC_Frontress_AntiCheatEvent_EEvent]string{
 	gcpb.CMsgGC_Frontress_AntiCheatEvent_kEvent_VIOLATION:         anticheat.EventViolation,
 	gcpb.CMsgGC_Frontress_AntiCheatEvent_kEvent_TEMP_BANNED:       anticheat.EventTempBanned,
 	gcpb.CMsgGC_Frontress_AntiCheatEvent_kEvent_PERM_BANNED:       anticheat.EventPermBanned,
+	gcpb.CMsgGC_Frontress_AntiCheatEvent_kEvent_VOTE_KICKED:       anticheat.EventVoteKicked,
 }
 
 // handleAntiCheatEvent records what Easy Anti-Cheat decided about a player on
@@ -81,6 +83,7 @@ func (g *GC) handleAntiCheatEvent(s *session.Session, m *wire.Msg) {
 		"server", s.ServerName, "enforced", ev.Enforced, "sanctioned", sanction != nil)
 	if sanction != nil {
 		g.applySanction(id)
+		g.closeReportCase(id, reports.OutcomeActioned, "eac:"+s.ServerName, sanction.Reason)
 	}
 }
 
@@ -148,6 +151,7 @@ func (g *GC) AntiCheatBan(id uint64, hours int, reason, by string) error {
 	}
 	g.log.Info("anti-cheat manual ban", "steamid", id, "hours", hours, "by", by, "reason", reason)
 	g.applySanction(id)
+	g.closeReportCase(id, reports.OutcomeActioned, by, reason)
 	return nil
 }
 

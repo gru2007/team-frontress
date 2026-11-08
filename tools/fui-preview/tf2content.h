@@ -18,6 +18,8 @@ public:
 	bool Mount( const std::string &tf2Dir );
 
 	bool ReadFile( const std::string &path, std::string &out ) const;
+	// A directory searched before TF2's own, as the game searches tc2/loose.
+	void AddLooseRoot( const std::string &dir ) { m_LooseRoots.insert( m_LooseRoots.begin(), dir ); }
 
 	// "materials/<name>.vtf" decoded to RGBA8 (largest mip, first frame).
 	bool LoadVTF( const std::string &name, std::vector< uint8_t > &rgba, int &w, int &h ) const;

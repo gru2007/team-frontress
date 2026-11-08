@@ -67,6 +67,16 @@ private:
 };
 
 bool ReportPlayerAccount( CSteamID steamID, int nReason );
+// Team Frontress: a report with what the player saw (CMsgGC_ReportPlayer::EDetail
+// bits), their own words (at most 200 bytes are sent) and where it was filed
+// from (CMsgGC_ReportPlayer::ESource). It goes to the GC and, when the player
+// is logged in to EOS, to Easy Anti-Cheat's player reports.
+bool ReportPlayerAccountEx( CSteamID steamID, int nReason, uint32 unDetail, const char *pszComment, int nSource );
+bool CanReportPlayer( CSteamID steamID, bool bVerbose );
 void ConfirmPlayerReport( CSteamID steamID );
+// How many times this player killed the local player on the current map.
+int FrontressReport_KillsBy( const CSteamID &steamID );
+// The player who last killed the local player on this map, if any.
+CSteamID FrontressReport_LastKiller();
 
 #endif // REPORT_PLAYER_DIALOG_H

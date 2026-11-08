@@ -329,7 +329,80 @@ body#shell { pointer-events: none; }
 .invite-heading { margin-top: 20dp; }
 .invite-search { display: block; width: 92%; margin-bottom: 12dp; }
 .party-column .invite-list { max-height: 430dp; }
-.report-choice { display: block; margin-bottom: 8dp; text-align: left; }
-.report-choice.active { border-color: #ffc93c; color: #ffc93c; background-color: #ffc93c22; }
+/* ---------------------------------------------------------------- report */
+.report-modal { width: 1180dp; padding: 26dp 30dp 24dp 30dp; }
+.report-head { align-items: center; gap: 16dp; }
+.report-head h2 { margin: 0; }
+.report-shield { width: 56dp; height: 56dp; flex-shrink: 0; decorator: image(tex:vgui/resource/icon_eac contain); }
+.report-shield.big { width: 96dp; height: 96dp; margin: 6dp auto 10dp auto; }
+.report-body { gap: 26dp; margin-top: 20dp; align-items: flex-start; }
+.report-who { width: 470dp; flex-shrink: 0; }
+.report-form { min-width: 0; }
+.report-label { font-family: "TF2 Build"; text-transform: uppercase; font-size: 15dp; color: #b8ab92; letter-spacing: 1dp; margin: 14dp 0 8dp 0; }
+.report-who .report-label { margin-top: 0; }
+.report-form > .report-label:first-child { margin-top: 0; }
+.report-list { height: 470dp; overflow-y: auto; padding-right: 6dp; }
+
+.report-player {
+	align-items: center;
+	gap: 12dp;
+	padding: 8dp 12dp 8dp 0;
+	margin-bottom: 6dp;
+	border-radius: 10dp;
+	background-color: #ffffff0a;
+	border: 2dp #00000000;
+	cursor: pointer;
+	transition: background-color 0.12s;
+}
+.report-player:hover { background-color: #ffffff16; }
+.report-player.active { border-color: #ffc93c; background-color: #ffc93c1e; }
+.report-player.done { opacity: 0.5; }
+.team-bar { width: 6dp; height: 44dp; border-radius: 0 4dp 4dp 0; background-color: #6a5f50; flex-shrink: 0; }
+.report-player.red .team-bar { background-color: #c8413b; }
+.report-player.blu .team-bar { background-color: #4a7fae; }
+.report-avatar { width: 40dp; height: 40dp; border-radius: 8dp; flex-shrink: 0; }
+.report-pmain { min-width: 0; overflow: hidden; }
+.report-pname { font-size: 18dp; color: #fff4e8; white-space: nowrap; overflow: hidden; }
+.kill-badge {
+	flex-shrink: 0;
+	font-family: "TF2 Build";
+	font-size: 13dp;
+	padding: 4dp 9dp;
+	border-radius: 6dp;
+	color: #ffd9d2;
+	background-color: #a8352f88;
+	white-space: nowrap;
+}
+.kill-badge.last { background-color: #c8413b; color: #fff4e8; }
+
+.reason-grid { display: flex; flex-direction: row; flex-wrap: wrap; justify-content: space-between; row-gap: 10dp; }
+.reason-tile {
+	box-sizing: border-box;
+	width: 49%;
+	padding: 12dp 16dp;
+	border-radius: 12dp;
+	background-color: #ffffff0c;
+	border: 2dp #ffffff14;
+	cursor: pointer;
+	transition: background-color 0.12s;
+}
+.reason-tile:hover { background-color: #ffc93c14; border-color: #ffc93c66; }
+.reason-tile.active { background-color: #ffc93c26; border-color: #ffc93c; }
+.reason-title { font-family: "TF2 Build"; font-size: 19dp; color: #fff4e8; margin-bottom: 2dp; }
+.reason-tile.active .reason-title { color: #ffc93c; }
+.report-chips { display: flex; flex-direction: row; flex-wrap: wrap; gap: 8dp; }
+.report-chip { cursor: pointer; border: 2dp #ffffff14; padding: 7dp 14dp; font-size: 16dp; transition: background-color 0.12s; }
+.report-chip:hover { border-color: #ffc93c66; }
+.report-chip.active { background-color: #ffc93c; color: #2a1a05; border-color: #ffc93c; }
+.report-comment { display: block; width: 100%; box-sizing: border-box; }
+
+.report-foot { align-items: center; gap: 18dp; margin-top: 22dp; padding-top: 16dp; border-top: 1dp #ffffff14; }
+.eac-note { align-items: center; gap: 10dp; color: #8a7d68; min-width: 0; }
+.eac-note.on { color: #b8ab92; }
+.eac-mark { width: 22dp; height: 22dp; flex-shrink: 0; decorator: image(tex:vgui/resource/icon_eac contain); opacity: 0.45; }
+.eac-note.on .eac-mark { opacity: 1; }
+.report-sent { display: block; text-align: center; padding: 20dp 60dp 8dp 60dp; }
+.report-sent p { display: block; width: 760dp; margin: 12dp auto 0 auto; line-height: 26dp; }
+.report-sent .mf-buttons { margin-top: 26dp; }
 
 .party-button { white-space: nowrap; flex-shrink: 0; }

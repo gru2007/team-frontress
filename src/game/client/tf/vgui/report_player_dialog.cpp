@@ -15,6 +15,11 @@
 #include <vgui_controls/ImageList.h>
 #include "tf_gamerules.h"
 #include "tf/frontress/frontress_anticheat_client.h"
+#include "tf_gcmessages.h"
+#include "inetchannelinfo.h"
+#include "igamesystem.h"
+#include "GameEventListener.h"
+#include "tf_shareddefs.h"
 
 using namespace vgui;
 
@@ -51,7 +56,69 @@ bool CanReportPlayer( CSteamID steamID, bool bVerbose )
 	return bCanReport;
 }
 
+//-----------------------------------------------------------------------------
+// Who killed the local player on this map, for reports: "killed you 4 times"
+// is shown next to the name, and goes to the GC with the report.
+//-----------------------------------------------------------------------------
+class CFrontressKillTracker : public CAutoGameSystem, public CGameEventListener
+{
+public:
+	CFrontressKillTracker() : CAutoGameSystem( "CFrontressKillTracker" ), m_kills( DefLessFunc( uint64 ) ) {}
+
+	virtual bool Init() OVERRIDE
+	{
+		ListenForGameEvent( "player_death" );
+		return true;
+	}
+	virtual void LevelInitPreEntity() OVERRIDE
+	{
+		m_kills.RemoveAll();
+		m_lastKiller = CSteamID();
+	}
+	virtual void FireGameEvent( IGameEvent *pEvent ) OVERRIDE
+	{
+		const int iLocal = engine->GetLocalPlayer();
+		if ( iLocal <= 0 || engine->GetPlayerForUserID( pEvent->GetInt( "userid" ) ) != iLocal )
+			return;
+		// A Spy's feigned death is not a kill.
+		if ( pEvent->GetInt( "death_flags" ) & TF_DEATH_FEIGN_DEATH )
+			return;
+		const int iAttacker = engine->GetPlayerForUserID( pEvent->GetInt( "attacker" ) );
+		player_info_t pi;
+		if ( iAttacker <= 0 || iAttacker == iLocal || !engine->GetPlayerInfo( iAttacker, &pi ) || pi.fakeplayer || !pi.friendsID )
+			return;
+		const CSteamID id( pi.friendsID, GetUniverse(), k_EAccountTypeIndividual );
+		const uint64 key = id.ConvertToUint64();
+		const unsigned short i = m_kills.Find( key );
+		if ( i == m_kills.InvalidIndex() )
+			m_kills.Insert( key, 1 );
+		else
+			++m_kills[ i ];
+		m_lastKiller = id;
+	}
+
+	int KillsBy( const CSteamID &id ) const
+	{
+		const unsigned short i = m_kills.Find( id.ConvertToUint64() );
+		return i == m_kills.InvalidIndex() ? 0 : m_kills[ i ];
+	}
+	CSteamID LastKiller() const { return m_lastKiller; }
+
+private:
+	CUtlMap< uint64, int > m_kills;
+	CSteamID m_lastKiller;
+};
+static CFrontressKillTracker s_FrontressKillTracker;
+
+int FrontressReport_KillsBy( const CSteamID &steamID ) { return s_FrontressKillTracker.KillsBy( steamID ); }
+CSteamID FrontressReport_LastKiller() { return s_FrontressKillTracker.LastKiller(); }
+
 bool ReportPlayerAccount( CSteamID steamID, int nReason )
+{
+	return ReportPlayerAccountEx( steamID, nReason, 0, NULL, CMsgGC_ReportPlayer_ESource_kSource_MENU );
+}
+
+bool ReportPlayerAccountEx( CSteamID steamID, int nReason, uint32 unDetail, const char *pszComment, int nSource )
 {
 	if ( !steamID.IsValid() || !steamID.BIndividualAccount() ||
 		!steamapicontext || !steamapicontext->SteamUser() || steamID == steamapicontext->SteamUser()->GetSteamID() )
@@ -70,15 +137,51 @@ bool ReportPlayerAccount( CSteamID steamID, int nReason )
 		Assert( !"Invalid report reason" );
 		return false;
 	}
+	if ( !CMsgGC_ReportPlayer_ESource_IsValid( nSource ) )
+		nSource = CMsgGC_ReportPlayer_ESource_kSource_MENU;
+
+	// At most 200 bytes, cut on a UTF-8 character boundary.
+	char szComment[ 201 ] = "";
+	if ( pszComment )
+	{
+		V_strncpy( szComment, pszComment, sizeof( szComment ) );
+		int n = V_strlen( szComment );
+		if ( n == (int)sizeof( szComment ) - 1 )
+		{
+			while ( n > 0 && ( (unsigned char)szComment[ n - 1 ] & 0xC0 ) == 0x80 )
+				--n;
+			if ( n > 0 && ( (unsigned char)szComment[ n - 1 ] & 0xC0 ) == 0xC0 )
+				--n;
+			szComment[ n ] = 0;
+		}
+	}
+
+	char szMap[ MAX_PATH ] = "";
+	if ( engine->GetLevelName() && *engine->GetLevelName() )
+		V_FileBase( engine->GetLevelName(), szMap, sizeof( szMap ) );
+	const char *pszServer = "";
+	INetChannelInfo *pNet = engine->GetNetChannelInfo();
+	if ( pNet && !pNet->IsLoopback() && pNet->GetAddress() )
+		pszServer = pNet->GetAddress();
+	const bool bEAC = FrontressAC_Client_CanReport();
 
 	GCSDK::CProtoBufMsg< CMsgGC_ReportPlayer > msg( k_EMsgGC_ReportPlayer );
 	msg.Body().set_account_id_target( steamID.GetAccountID() );
 	msg.Body().set_reason( (CMsgGC_ReportPlayer_EReason)nReason );
+	msg.Body().set_detail( unDetail );
+	if ( szComment[ 0 ] )
+		msg.Body().set_comment( szComment );
+	msg.Body().set_source( (CMsgGC_ReportPlayer_ESource)nSource );
+	msg.Body().set_killed_by_target( FrontressReport_KillsBy( steamID ) );
+	msg.Body().set_server_address( pszServer );
+	msg.Body().set_map( szMap );
+	msg.Body().set_eac_forwarded( bEAC );
 	if ( !FrontressGC() || !FrontressGC()->BConnected() || !GCClientSystem()->BSendMessage( msg ) )
 		return false;
 	ConMsg( "Report submitted to the game coordinator.\n" );
 	// Easy Anti-Cheat reviews detections against player reports.
-	FrontressAC_Client_ReportPlayer( steamID, nReason );
+	if ( bEAC )
+		FrontressAC_Client_ReportPlayer( steamID, nReason, unDetail, szComment, szMap, pszServer );
 	return true;
 }
 

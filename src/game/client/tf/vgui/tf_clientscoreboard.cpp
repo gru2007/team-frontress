@@ -491,9 +491,18 @@ void CTFClientScoreBoardDialog::ShowPanel( bool bShow )
 //-----------------------------------------------------------------------------
 void CTFClientScoreBoardDialog::OnCommand( const char *command )
 {
-	if ( V_stristr( command, "report_player" ) )
+	if ( !V_strcmp( command, "report_player" ) )
 	{
-		engine->ClientCmd( command );
+		// Team Frontress: the Frontress UI report dialog, with this player picked.
+		SectionedListPanel *pList = GetSelectedPlayerList();
+		KeyValues *pIssueKeyValues = ( pList && pList->GetSelectedItem() >= 0 ) ? pList->GetItemData( pList->GetSelectedItem() ) : NULL;
+		const int playerIndex = pIssueKeyValues ? pIssueKeyValues->GetInt( "playerIndex", 0 ) : 0;
+		player_info_t pi;
+		if ( playerIndex > 0 && playerIndex <= MAX_PLAYERS && engine->GetPlayerInfo( playerIndex, &pi ) && pi.friendsID && !pi.fakeplayer )
+		{
+			const CSteamID steamID( pi.friendsID, GetUniverse(), k_EAccountTypeIndividual );
+			engine->ClientCmd_Unrestricted( CFmtStr( "fr_report %llu 1\n", steamID.ConvertToUint64() ) );
+		}
 	}
 	else if ( !V_strcmp( command, "muteplayer" ) )
 	{
@@ -782,6 +791,12 @@ void CTFClientScoreBoardDialog::OnScoreBoardMouseRightRelease( void )
 				pVoteKickSubMenu->AddMenuItem( reason.pszText, pReport, this );
 			}
 		}
+	}
+
+	// Report (Team Frontress): to moderators and Easy Anti-Cheat.
+	if ( !bFakeClient && engine->GetLocalPlayer() != playerIndex )
+	{
+		contextMenuBuilder.AddMenuItem( "#Frontress_Report_Context", "report_player", "report" );
 	}
 
 	// Mute

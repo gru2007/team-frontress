@@ -31,6 +31,7 @@ const (
 	EventViolation        = "violation"
 	EventTempBanned       = "temp_banned"
 	EventPermBanned       = "perm_banned"
+	EventVoteKicked       = "vote_kicked" // players voted them off a server for cheating
 	EventManualBan        = "manual_ban"
 	EventManualClear      = "manual_clear"
 	EventSteamBan         = "steam_game_ban"

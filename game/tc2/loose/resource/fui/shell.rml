@@ -262,23 +262,95 @@
 		</div>
 	</div>
 
+	<!--
+		Report a player. Who (those who killed you first), why, what exactly,
+		and your own words. It goes to the moderators next to what Easy
+		Anti-Cheat recorded about the player, and to EOS Player Reports.
+	-->
 	<div class="modal-dim hit" data-if="ui.modal == 'report'">
-		<div class="modal settings-modal">
-			<div class="row"><h2 class="grow">#fui_report_title</h2><div class="icon-button" data-event-click="set('ui.modal', '')">#fui_close</div></div>
-			<div class="party-columns" data-if="!report.pending">
-				<div class="party-column invite-list">
-					<div class="button ghost report-choice" data-for="p : report.players" data-class-active="report.target == p.id" data-event-click="set('report.target', p.id)">{{ p.name }}</div>
-					<p class="dim" data-if="report.players.size == 0">#fui_report_empty</p>
+		<div class="modal report-modal">
+			<div class="row report-head">
+				<div class="report-shield"></div>
+				<div class="col grow">
+					<h2>#fui_report_title</h2>
+					<div class="dim small">#fui_report_sub</div>
 				</div>
-				<div class="party-column">
-					<div class="button ghost report-choice" data-class-active="report.reason == 1" data-event-click="set('report.reason', 1)">#fui_report_cheating</div>
-					<div class="button ghost report-choice" data-class-active="report.reason == 2" data-event-click="set('report.reason', 2)">#fui_report_idle</div>
-					<div class="button ghost report-choice" data-class-active="report.reason == 3" data-event-click="set('report.reason', 3)">#fui_report_harassment</div>
-					<div class="button ghost report-choice" data-class-active="report.reason == 4" data-event-click="set('report.reason', 4)">#fui_report_griefing</div>
+				<div class="icon-button" data-event-click="cmd('report_done')">#fui_close</div>
+			</div>
+
+			<div class="row report-body" data-if="!report.sent">
+				<div class="col report-who">
+					<div class="report-label">#fui_report_who</div>
+					<div class="report-list">
+						<div class="row report-player" data-for="p : report.players" data-class-active="report.target == p.id" data-class-done="p.reported" data-class-red="p.team == 'red'" data-class-blu="p.team == 'blu'" data-event-click="cmd('report_pick', p.id)">
+							<div class="team-bar"></div>
+							<img class="avatar report-avatar" data-if="p.avatar != ''" data-attr-src="p.avatar"/>
+							<div class="avatar report-avatar blank" data-if="p.avatar == ''"></div>
+							<div class="col grow report-pmain">
+								<div class="report-pname">{{ p.name }}</div>
+								<div class="tiny dim"><span data-if="p.cls != ''">{{ ('fui_class_' + p.cls) | t }} · </span>{{ 'fui_report_points' | t(p.score) }}</div>
+							</div>
+							<div class="kill-badge" data-if="p.kills > 0" data-class-last="p.last_killer">{{ 'fui_report_killed_you' | t(p.kills) }}</div>
+							<div class="tiny dim" data-if="p.reported">#fui_report_already</div>
+						</div>
+						<p class="dim" data-if="report.players.size == 0">#fui_report_empty</p>
+					</div>
+				</div>
+
+				<div class="col grow report-form">
+					<div class="report-label">#fui_report_why</div>
+					<div class="reason-grid">
+						<div class="reason-tile" data-class-active="report.reason == 1" data-event-click="cmd('report_reason', 1)"><div class="reason-title">#fui_report_cheating</div><div class="tiny dim">#fui_report_cheating_sub</div></div>
+						<div class="reason-tile" data-class-active="report.reason == 3" data-event-click="cmd('report_reason', 3)"><div class="reason-title">#fui_report_harassment</div><div class="tiny dim">#fui_report_harassment_sub</div></div>
+						<div class="reason-tile" data-class-active="report.reason == 4" data-event-click="cmd('report_reason', 4)"><div class="reason-title">#fui_report_griefing</div><div class="tiny dim">#fui_report_griefing_sub</div></div>
+						<div class="reason-tile" data-class-active="report.reason == 2" data-event-click="cmd('report_reason', 2)"><div class="reason-title">#fui_report_idle</div><div class="tiny dim">#fui_report_idle_sub</div></div>
+					</div>
+
+					<div data-if="report.reason == 1">
+						<div class="report-label">#fui_report_what</div>
+						<div class="report-chips">
+							<div class="chip report-chip" data-class-active="report.d.aimbot" data-event-click="cmd('report_detail', 'aimbot')">#fui_report_d_aimbot</div>
+							<div class="chip report-chip" data-class-active="report.d.wallhack" data-event-click="cmd('report_detail', 'wallhack')">#fui_report_d_wallhack</div>
+							<div class="chip report-chip" data-class-active="report.d.triggerbot" data-event-click="cmd('report_detail', 'triggerbot')">#fui_report_d_triggerbot</div>
+							<div class="chip report-chip" data-class-active="report.d.movement" data-event-click="cmd('report_detail', 'movement')">#fui_report_d_movement</div>
+							<div class="chip report-chip" data-class-active="report.d.exploit" data-event-click="cmd('report_detail', 'exploit')">#fui_report_d_exploit</div>
+						</div>
+					</div>
+					<div data-if="report.reason == 3">
+						<div class="report-label">#fui_report_where</div>
+						<div class="report-chips">
+							<div class="chip report-chip" data-class-active="report.d.chat" data-event-click="cmd('report_detail', 'chat')">#fui_report_d_chat</div>
+							<div class="chip report-chip" data-class-active="report.d.voice" data-event-click="cmd('report_detail', 'voice')">#fui_report_d_voice</div>
+							<div class="chip report-chip" data-class-active="report.d.name" data-event-click="cmd('report_detail', 'name')">#fui_report_d_name</div>
+						</div>
+					</div>
+
+					<div class="report-label">#fui_report_comment</div>
+					<input class="text report-comment" type="text" maxlength="200" data-value="report.comment" data-attr-placeholder="'fui_report_comment_hint' | t"/>
 				</div>
 			</div>
-			<p class="dim" data-if="report.pending">#fui_report_sending</p>
-			<div class="button primary" data-if="!report.pending &amp;&amp; report.target != '' &amp;&amp; report.reason > 0" data-event-click="cmd('send_report')">#fui_report_send</div>
+
+			<div class="row report-foot" data-if="!report.sent">
+				<div class="row grow eac-note" data-class-on="report.eac">
+					<div class="eac-mark"></div>
+					<div class="tiny" data-if="report.eac">#fui_report_eac_on</div>
+					<div class="tiny" data-if="!report.eac">#fui_report_eac_off</div>
+				</div>
+				<div class="dim" data-if="report.pending">#fui_report_sending</div>
+				<div class="button primary" data-if="!report.pending &amp;&amp; report.target != '' &amp;&amp; report.reason > 0" data-event-click="cmd('send_report')">#fui_report_send</div>
+				<div class="button primary disabled" data-if="!report.pending &amp;&amp; (report.target == '' || report.reason == 0)">#fui_report_send</div>
+			</div>
+
+			<div class="report-sent" data-if="report.sent">
+				<div class="report-shield big"></div>
+				<h2>#fui_report_sent_title</h2>
+				<p class="dim">{{ 'fui_report_sent_body' | t(report.target_name) }}</p>
+				<div class="row mf-buttons">
+					<div class="button ghost" data-if="report.can_mute &amp;&amp; !report.muted" data-event-click="cmd('report_mute')">#fui_report_mute</div>
+					<div class="button ghost" data-if="report.can_mute &amp;&amp; report.muted" data-event-click="cmd('report_mute')">#fui_report_unmute</div>
+					<div class="button primary" data-event-click="cmd('report_done')">#fui_report_done</div>
+				</div>
+			</div>
 		</div>
 	</div>
 

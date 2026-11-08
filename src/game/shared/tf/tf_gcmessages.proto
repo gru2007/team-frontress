@@ -401,6 +401,7 @@ message CMsgGC_Frontress_AntiCheatEvent {
 		kEvent_VIOLATION = 5;			// client or backend integrity violation
 		kEvent_TEMP_BANNED = 6;			// an active temporary EOS sanction
 		kEvent_PERM_BANNED = 7;			// an active permanent EOS sanction
+		kEvent_VOTE_KICKED = 8;			// players voted the player off the server for cheating; details: the votes
 	}
 
 	optional fixed64 steam_id = 1;
@@ -2888,6 +2889,37 @@ message CMsgGC_ReportPlayer
 	};
 	optional	uint32			account_id_target = 1;
 	optional	EReason			reason = 2;
+
+	// Team Frontress: what the reporter saw, and where. The GC reviews
+	// reports together with what Easy Anti-Cheat said about the player.
+	enum EDetail
+	{
+		kDetail_NONE		= 0;
+		// kReason_CHEATING
+		kDetail_AIMBOT		= 1;
+		kDetail_WALLHACK	= 2;	// ESP, seeing through walls
+		kDetail_TRIGGERBOT	= 4;
+		kDetail_MOVEMENT	= 8;	// speed, flying, bunny hop scripts
+		kDetail_EXPLOIT		= 16;	// map or game exploits
+		// kReason_HARASSMENT
+		kDetail_CHAT		= 32;
+		kDetail_VOICE		= 64;
+		kDetail_NAME		= 128;	// name, avatar or spray
+	};
+	enum ESource
+	{
+		kSource_MENU		= 0;	// the pause menu
+		kSource_SCOREBOARD	= 1;
+		kSource_KILLER		= 2;	// the player who just killed the reporter
+		kSource_RESULTS		= 3;
+	};
+	optional	uint32			detail = 3;				// EDetail bits
+	optional	string			comment = 4;			// at most 200 bytes of UTF-8
+	optional	ESource			source = 5 [ default = kSource_MENU ];
+	optional	uint32			killed_by_target = 6;	// times the target killed the reporter on this map
+	optional	string			server_address = 7;		// the game server, as the client connected to it
+	optional	string			map = 8;
+	optional	bool			eac_forwarded = 9;		// the client also sent it to EOS Player Reports
 };
 
 //

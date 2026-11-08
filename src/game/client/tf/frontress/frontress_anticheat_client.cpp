@@ -20,6 +20,7 @@
 #ifdef FRONTRESS_EAC
 #include "eos_anticheatclient.h"
 #include "eos_reports.h"
+#include "tf_gcmessages.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -226,7 +227,8 @@ public:
 		}
 	}
 
-	void ReportPlayer( const CSteamID &target, int nReason );
+	void ReportPlayer( const CSteamID &target, int nReason, uint32 unDetail, const char *pszComment, const char *pszMap, const char *pszServer );
+	bool BCanReport() const { return m_hPlatform && m_login.BLoggedIn(); }
 
 	bool BSessionActive() const { return m_bSessionActive; }
 	CUtlString ProductUserId() const { return m_login.BLoggedIn() ? FrontressEOS::ProductUserIdString( m_login.LocalUserId() ) : CUtlString(); }
@@ -361,6 +363,8 @@ private:
 		CFrontressACClient *m_pThis;
 		CUtlString m_strTarget;
 		EOS_EPlayerReportsCategory m_eCategory;
+		CUtlString m_strMessage;
+		CUtlString m_strContext;
 	};
 
 	static void EOS_CALL OnMappingsQueried( const EOS_Connect_QueryExternalAccountMappingsCallbackInfo *pData );
@@ -385,24 +389,68 @@ static CFrontressACClient s_FrontressACClient;
 //-----------------------------------------------------------------------------
 // Player reports
 //-----------------------------------------------------------------------------
-void CFrontressACClient::ReportPlayer( const CSteamID &target, int nReason )
+// Keeps what may go into the report's JSON context as is: letters, digits
+// and the punctuation of map names and addresses.
+static void ACReportToken( const char *pszIn, char *pszOut, int nOut )
 {
-	if ( !m_hPlatform || !m_login.BLoggedIn() )
+	int n = 0;
+	for ( const char *p = pszIn ? pszIn : ""; *p && n < nOut - 1; ++p )
+	{
+		const char c = *p;
+		if ( ( c >= 'a' && c <= 'z' ) || ( c >= 'A' && c <= 'Z' ) || ( c >= '0' && c <= '9' ) || V_strchr( "._-:[]", c ) )
+			pszOut[ n++ ] = c;
+	}
+	pszOut[ n ] = 0;
+}
+
+void CFrontressACClient::ReportPlayer( const CSteamID &target, int nReason, uint32 unDetail, const char *pszComment, const char *pszMap, const char *pszServer )
+{
+	if ( !BCanReport() )
 		return;
 
-	// CMsgGC_ReportPlayer::EReason.
+	// CMsgGC_ReportPlayer::EReason and EDetail.
 	EOS_EPlayerReportsCategory eCategory = EOS_EPlayerReportsCategory::EOS_PRC_Other;
+	const char *pszReason = "other";
 	switch ( nReason )
 	{
-	case 1: eCategory = EOS_EPlayerReportsCategory::EOS_PRC_Cheating; break;
-	case 3: eCategory = EOS_EPlayerReportsCategory::EOS_PRC_VerbalAbuse; break;
-	default: eCategory = EOS_EPlayerReportsCategory::EOS_PRC_Other; break;
+	case CMsgGC_ReportPlayer_EReason_kReason_CHEATING:
+		pszReason = "cheating";
+		eCategory = ( unDetail == CMsgGC_ReportPlayer_EDetail_kDetail_EXPLOIT ) ? EOS_EPlayerReportsCategory::EOS_PRC_Exploiting : EOS_EPlayerReportsCategory::EOS_PRC_Cheating;
+		break;
+	case CMsgGC_ReportPlayer_EReason_kReason_HARASSMENT:
+		pszReason = "harassment";
+		eCategory = ( unDetail == CMsgGC_ReportPlayer_EDetail_kDetail_NAME ) ? EOS_EPlayerReportsCategory::EOS_PRC_OffensiveProfile : EOS_EPlayerReportsCategory::EOS_PRC_VerbalAbuse;
+		break;
+	case CMsgGC_ReportPlayer_EReason_kReason_IDLE: pszReason = "idle"; break;
+	case CMsgGC_ReportPlayer_EReason_kReason_GRIEFING: pszReason = "griefing"; break;
+	default: break;
 	}
+
+	static const struct { uint32 unBit; const char *pszName; } s_Details[] = {
+		{ CMsgGC_ReportPlayer_EDetail_kDetail_AIMBOT, "aimbot" }, { CMsgGC_ReportPlayer_EDetail_kDetail_WALLHACK, "wallhack" },
+		{ CMsgGC_ReportPlayer_EDetail_kDetail_TRIGGERBOT, "triggerbot" }, { CMsgGC_ReportPlayer_EDetail_kDetail_MOVEMENT, "movement" },
+		{ CMsgGC_ReportPlayer_EDetail_kDetail_EXPLOIT, "exploit" }, { CMsgGC_ReportPlayer_EDetail_kDetail_CHAT, "chat" },
+		{ CMsgGC_ReportPlayer_EDetail_kDetail_VOICE, "voice" }, { CMsgGC_ReportPlayer_EDetail_kDetail_NAME, "name" },
+	};
+	CUtlString strDetails;
+	for ( const auto &d : s_Details )
+	{
+		if ( unDetail & d.unBit )
+			strDetails.Append( CFmtStr( "%s\"%s\"", strDetails.IsEmpty() ? "" : ",", d.pszName ).Get() );
+	}
+	char szMap[ 64 ], szServer[ 64 ];
+	ACReportToken( pszMap, szMap, sizeof( szMap ) );
+	ACReportToken( pszServer, szServer, sizeof( szServer ) );
 
 	PendingReport_t *pReport = new PendingReport_t;
 	pReport->m_pThis = this;
 	pReport->m_strTarget.Format( "%llu", target.ConvertToUint64() );
 	pReport->m_eCategory = eCategory;
+	// The player's own words; EOS takes up to 512 characters (the menu
+	// allows 200 bytes).
+	pReport->m_strMessage = pszComment ? pszComment : "";
+	pReport->m_strContext.Format( "{\"steamid\":\"%s\",\"reason\":\"%s\",\"detail\":[%s],\"map\":\"%s\",\"server\":\"%s\"}",
+		pReport->m_strTarget.Get(), pszReason, strDetails.Get(), szMap, szServer );
 
 	// EOS knows players by Product User ID; ask it for the one that belongs
 	// to this Steam account.
@@ -445,16 +493,14 @@ void EOS_CALL CFrontressACClient::OnMappingsQueried( const EOS_Connect_QueryExte
 		return;
 	}
 
-	CFmtStr strContext( "{\"steamid\":\"%s\"}", pReport->m_strTarget.Get() );
-
 	EOS_Reports_SendPlayerBehaviorReportOptions opts;
 	V_memset( &opts, 0, sizeof( opts ) );
 	opts.ApiVersion = EOS_REPORTS_SENDPLAYERBEHAVIORREPORT_API_LATEST;
 	opts.ReporterUserId = pThis->m_login.LocalUserId();
 	opts.ReportedUserId = target;
 	opts.Category = pReport->m_eCategory;
-	opts.Message = NULL;
-	opts.Context = strContext.Get();
+	opts.Message = pReport->m_strMessage.IsEmpty() ? NULL : pReport->m_strMessage.Get();
+	opts.Context = pReport->m_strContext.Get();
 	EOS_Reports_SendPlayerBehaviorReport( EOS_Platform_GetReportsInterface( pThis->m_hPlatform ), &opts, pReport, &OnReportSent );
 }
 
@@ -469,7 +515,11 @@ void EOS_CALL CFrontressACClient::OnReportSent( const EOS_Reports_SendPlayerBeha
 }
 
 void FrontressAC_Client_OnServerMessage( bf_read &msg ) { s_FrontressACClient.OnServerMessage( msg ); }
-void FrontressAC_Client_ReportPlayer( const CSteamID &target, int nReason ) { s_FrontressACClient.ReportPlayer( target, nReason ); }
+void FrontressAC_Client_ReportPlayer( const CSteamID &target, int nReason, uint32 unDetail, const char *pszComment, const char *pszMap, const char *pszServer )
+{
+	s_FrontressACClient.ReportPlayer( target, nReason, unDetail, pszComment, pszMap, pszServer );
+}
+bool FrontressAC_Client_CanReport() { return s_FrontressACClient.BCanReport(); }
 bool FrontressAC_Client_BBuiltWithAntiCheat() { return true; }
 bool FrontressAC_Client_BSessionActive() { return s_FrontressACClient.BSessionActive(); }
 const char *FrontressAC_Client_LastViolation() { return s_FrontressACClient.LastViolation(); }
@@ -487,7 +537,8 @@ void FrontressAC_Client_OnServerMessage( bf_read &msg )
 		SendUnavailable( FRONTRESS_AC_UNAVAILABLE_NOT_BUILT );
 }
 
-void FrontressAC_Client_ReportPlayer( const CSteamID &, int ) {}
+void FrontressAC_Client_ReportPlayer( const CSteamID &, int, uint32, const char *, const char *, const char * ) {}
+bool FrontressAC_Client_CanReport() { return false; }
 bool FrontressAC_Client_BBuiltWithAntiCheat() { return false; }
 bool FrontressAC_Client_BSessionActive() { return false; }
 const char *FrontressAC_Client_LastViolation() { return ""; }

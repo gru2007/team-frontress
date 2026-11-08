@@ -31,7 +31,12 @@
 	// leader, me, class, slot (lobby position 0-4), has_look }
 	"party": { "max": 6, "count": 1, "leader": true, "members": [], "empty": [] },
 	"invites": { "incoming": [], "friends": [], "outgoing": [], "requests": [], "search": "" },
-	"report": { "players": [], "target": "", "reason": 0, "pending": false },
+	// The report dialog. players: { id, name, avatar, team (red/blu/spec), cls,
+	// score, kills (times they killed you on this map), last_killer, reported };
+	// d: the detail chips (EDetail), eac: logged in to EOS (the report also
+	// reaches Easy Anti-Cheat), sent: the coordinator saved it.
+	"report": { "players": [], "target": "", "target_name": "", "reason": 0, "comment": "", "pending": false, "sent": false, "eac": false, "can_mute": false, "muted": false,
+		"d": { "aimbot": false, "wallhack": false, "triggerbot": false, "movement": false, "exploit": false, "chat": false, "voice": false, "name": false } },
 	// state: idle | searching | preparing | found | joining | live
 	"queue": { "state": "idle", "mode": "", "seconds": 0, "players": 0, "needed": 0, "map": "", "map_image": "" },
 	"modes": [],

@@ -180,6 +180,21 @@ void CKickIssue::ExecuteCommand( void )
 	// rejoined as ad-hoc while it was going on.
 	engine->ServerCommand( CFmtStr( "kickid \"%s\" %s\n", m_steamIDVoteTarget.Render(), g_pszVoteKickString ) );
 
+	// Team Frontress: players who vote someone off for cheating are evidence
+	// the GC puts next to the reports and Easy Anti-Cheat's record of them.
+	if ( m_eKickReason == TFVoteKickReason_Cheating && m_steamIDVoteTarget.IsValid() && m_steamIDVoteTarget.BIndividualAccount() && GCClientSystem() )
+	{
+		GCSDK::CProtoBufMsg< CMsgGC_Frontress_AntiCheatEvent > msg( k_EMsgGC_Frontress_AntiCheatEvent );
+		msg.Body().set_steam_id( m_steamIDVoteTarget.ConvertToUint64() );
+		msg.Body().set_event( CMsgGC_Frontress_AntiCheatEvent::kEvent_VOTE_KICKED );
+		msg.Body().set_details( CFmtStr( "cheating yes=%d no=%d of %d", m_iNumYesVotes, m_iNumNoVotes, m_iNumPotentialVotes ).Get() );
+		msg.Body().set_enforced( true );
+		const CMatchInfo *pMatch = GTFGCClientSystem() ? GTFGCClientSystem()->GetMatch() : NULL;
+		if ( pMatch )
+			msg.Body().set_match_id( pMatch->m_nMatchID );
+		GCClientSystem()->BSendMessage( msg );
+	}
+
 	if ( tf_mm_strict.GetInt() == 1 )
 	{
 		// If we're in strict match mode, we're done.

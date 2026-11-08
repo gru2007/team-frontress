@@ -28,10 +28,14 @@ class bf_read;
 // The user message handler (registered with USER_MESSAGE_REGISTER).
 void FrontressAC_Client_OnServerMessage( bf_read &msg );
 
-// A player report made in game: also sent to EOS, where reports are what
-// anti-cheat detections and sanctions are reviewed against. nReason is a
-// CMsgGC_ReportPlayer::EReason.
-void FrontressAC_Client_ReportPlayer( const CSteamID &target, int nReason );
+// A player report made in game: also sent to EOS Player Reports, where
+// reports are what anti-cheat detections and sanctions are reviewed against.
+// nReason is a CMsgGC_ReportPlayer::EReason, unDetail its EDetail bits; the
+// comment, map and server go along as the report's message and context.
+void FrontressAC_Client_ReportPlayer( const CSteamID &target, int nReason, uint32 unDetail,
+	const char *pszComment, const char *pszMap, const char *pszServer );
+// Would a report reach EOS now (this player is logged in to EOS)?
+bool FrontressAC_Client_CanReport();
 
 // For menus and diagnostics.
 bool FrontressAC_Client_BBuiltWithAntiCheat();

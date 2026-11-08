@@ -605,6 +605,8 @@ int main( int argc, char **argv )
 		mockFile = g_Root + "/tools/fui-preview/mock.json";
 	if ( !g_Content.Mount( tf2 ) )
 		fprintf( stderr, "[fui] Team Fortress 2 not found at %s: no TF2 art or fonts\n", tf2.c_str() );
+	// Our own materials (materials/vgui/resource/icon_eac.vtf, ...), as in the game.
+	g_Content.AddLooseRoot( g_Root + "/game/tc2/loose/" );
 
 	if ( !SDL_Init( SDL_INIT_VIDEO ) )
 	{
