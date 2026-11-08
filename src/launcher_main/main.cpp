@@ -670,6 +670,7 @@ bool GetExePath( char *pszPath, size_t size )
 	return true;
 }
 
+#include <fcntl.h>
 #include <sys/resource.h>
 #include <unistd.h>
 
