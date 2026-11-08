@@ -253,6 +253,9 @@ jobs:
 
       - name: Package the Linux client
         if: matrix.target == 'linux'
+        env:
+          # dlpak.sh falls back to the GitHub API when a release link fails.
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           ./game_clean/copy.sh
@@ -372,6 +375,9 @@ jobs:
       - name: Package the Windows client
         if: matrix.target == 'windows'
         shell: bash
+        env:
+          # dlpak.sh falls back to the GitHub API when a release link fails.
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           rm -f ./game/tc2/pak1*.vpk
