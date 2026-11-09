@@ -153,16 +153,6 @@ jobs:
           token: ${{ secrets.REPO_TOKEN || github.token }}
           persist-credentials: false
 
-      # See .github/scripts/artifact-cache.sh for why this is not actions/cache.
-      # Keeping .git means the checkout below rewrites only files changed since
-      # the cached build instead of making every source newer than every object.
-      - name: Restore the MSBuild workspace from the previous build
-        if: ${{ matrix.target == 'windows' && github.event.inputs.fresh != 'true' }}
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: bash .ci-bootstrap/.github/scripts/artifact-cache.sh restore msbuild-windows-v2 .
-
       - name: Checkout repository (Windows)
         if: matrix.target == 'windows'
         uses: actions/checkout@v6
@@ -223,13 +213,6 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/CodeQL
           sudo docker image prune --all --force || true
           df -h
-
-      # See .github/scripts/artifact-cache.sh for why this is not actions/cache.
-      - name: Restore ccache from the previous build
-        if: ${{ matrix.target == 'linux' && github.event.inputs.fresh != 'true' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: bash .github/scripts/artifact-cache.sh restore ccache-linux "$CCACHE_DIR"
 
       - name: Build Linux
         if: matrix.target == 'linux'
