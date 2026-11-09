@@ -72,13 +72,6 @@ void GetServerConfig( Config_t &config )
 //-----------------------------------------------------------------------------
 // Logging
 //-----------------------------------------------------------------------------
-// The server builds with fopen=dont_use_fopen (server_base.vpc) to keep game
-// code on the filesystem; this file is outside the game's search paths and
-// must not wait on the filesystem, so it is opened directly.
-#ifdef fopen
-#undef fopen
-#endif
-
 void Trace( const char *pszFormat, ... )
 {
 	const char *pszPath = getenv( "TC2_LAUNCHER_LOG" );
