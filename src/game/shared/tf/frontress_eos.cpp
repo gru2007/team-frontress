@@ -22,6 +22,9 @@
 #include "frontress_eos_config.h"
 
 #include <stdlib.h>
+#ifdef _WIN32
+#include <share.h>
+#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -72,13 +75,6 @@ void GetServerConfig( Config_t &config )
 //-----------------------------------------------------------------------------
 // Logging
 //-----------------------------------------------------------------------------
-// The server builds with fopen=dont_use_fopen (server_base.vpc) to keep game
-// code on the filesystem; this file is outside the game's search paths and
-// must not wait on the filesystem, so it is opened directly.
-#ifdef fopen
-#undef fopen
-#endif
-
 void Trace( const char *pszFormat, ... )
 {
 	const char *pszPath = getenv( "TC2_LAUNCHER_LOG" );
@@ -89,7 +85,14 @@ void Trace( const char *pszFormat, ... )
 	va_start( args, pszFormat );
 	V_vsnprintf( szLine, sizeof( szLine ), pszFormat, args );
 	va_end( args );
+	// Opened directly, not through the filesystem: the file is outside the
+	// game's search paths. Windows builds rename fopen to dont_use_fopen
+	// (server_base.vpc), so it is _fsopen there.
+#ifdef _WIN32
+	FILE *pFile = _fsopen( pszPath, "a", _SH_DENYNO );
+#else
 	FILE *pFile = fopen( pszPath, "a" );
+#endif
 	if ( !pFile )
 		return;
 	fprintf( pFile, "[%.3f] %s\n", Plat_FloatTime(), szLine );
