@@ -242,6 +242,15 @@ private:
 		// Steam has to be up first: the login is a Steam ticket.
 		if ( !steamapicontext || !steamapicontext->SteamUser() )
 			return;
+		// No Epic Online Services at all: no anti-cheat, no in-game reports
+		// through EOS. For telling EOS apart from the rest when a launch fails.
+		if ( CommandLine()->FindParm( "-noeos" ) )
+		{
+			Msg( "[eac] -noeos: Epic Online Services are off; protected servers will refuse this client\n" );
+			FrontressEOS::Trace( "[eac] -noeos: EOS skipped" );
+			m_bPlatformFailed = true;
+			return;
+		}
 
 		FrontressEOS::Config_t config;
 		FrontressEOS::GetClientConfig( config );
@@ -256,6 +265,7 @@ private:
 		// NULL when the game was not started through the anti-cheat
 		// bootstrapper on some SDK versions; BeginSession reports it on others.
 		m_hAntiCheat = EOS_Platform_GetAntiCheatClientInterface( m_hPlatform );
+		FrontressEOS::Trace( "[eac] anti-cheat client interface: %s", m_hAntiCheat ? "present" : "none" );
 		if ( !m_hAntiCheat )
 		{
 			Msg( "[eac] the anti-cheat is not loaded; start the game from Steam to play on protected servers\n" );
@@ -271,6 +281,7 @@ private:
 		V_memset( &violationOpts, 0, sizeof( violationOpts ) );
 		violationOpts.ApiVersion = EOS_ANTICHEATCLIENT_ADDNOTIFYCLIENTINTEGRITYVIOLATED_API_LATEST;
 		m_idViolation = EOS_AntiCheatClient_AddNotifyClientIntegrityViolated( m_hAntiCheat, &violationOpts, this, &OnIntegrityViolated );
+		FrontressEOS::Trace( "[eac] notifications registered" );
 	}
 
 	void BeginSession()
@@ -356,6 +367,7 @@ private:
 		pThis->m_strViolation = pData->ViolationMessage ? pData->ViolationMessage : "Easy Anti-Cheat integrity violation";
 		pThis->m_bViolationPending = true;
 		Warning( "[eac] integrity violation (%d): %s\n", (int)pData->ViolationType, pThis->m_strViolation.Get() );
+		FrontressEOS::Trace( "[eac] integrity violation (%d): %s", (int)pData->ViolationType, pThis->m_strViolation.Get() );
 	}
 
 	struct PendingReport_t
