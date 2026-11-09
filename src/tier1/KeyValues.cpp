@@ -24,10 +24,9 @@
 #include <stdlib.h>
 #include "tier0/dbg.h"
 
-// The engine's vstdlib allocates every KeyValues in blocks of its own
-// sizeof(KeyValues): ours must be exactly that (see KeyValues.h).
+// The engine's KeyValues, to the byte (see KeyValues.h).
 #ifdef PLATFORM_64BITS
-static_assert( sizeof( KeyValues ) == 64, "KeyValues must match the engine's layout" );
+static_assert( sizeof( KeyValues ) == 0x48, "KeyValues must match the engine's layout" );
 #endif
 #include "tier0/mem.h"
 #include "utlbuffer.h"
@@ -467,9 +466,10 @@ void KeyValues::Init()
 	
 	m_bHasEscapeSequences = false;
 	m_bEvaluateConditionals = true;
-
-	// for future proof
-	memset( unused, 0, sizeof(unused) );
+	m_bLocalStorage = false;
+	m_bOwnsStringTable = false;
+	
+	m_pStringTable = NULL;
 }
 
 //-----------------------------------------------------------------------------
@@ -534,7 +534,10 @@ void KeyValues::ChainKeyValue( KeyValues* pChain )
 //-----------------------------------------------------------------------------
 const char *KeyValues::GetName( void ) const
 {
-	return s_pfGetStringForSymbol( m_iKeyName );
+	if ( m_bLocalStorage )
+		return m_pStringTable->GetStringForSymbol( m_iKeyName );
+	else	
+		return s_pfGetStringForSymbol( m_iKeyName );
 }
 
 //-----------------------------------------------------------------------------
@@ -1003,7 +1006,15 @@ KeyValues *KeyValues::FindKey(const char *keyName, bool bCreate)
 	}
 
 	// lookup the symbol for the search string
-	HKeySymbol iSearchStr = s_pfGetSymbolForString( searchStr, bCreate );
+	HKeySymbol iSearchStr = m_bLocalStorage 
+							? m_pStringTable->GetSymbolForString( searchStr, bCreate ) 
+							: s_pfGetSymbolForString( searchStr, bCreate );
+
+	// if it's not included in our local storage string table, just fallback to the standard one
+	if ( m_bLocalStorage && iSearchStr == INVALID_KEY_SYMBOL )
+	{
+		iSearchStr = s_pfGetSymbolForString( searchStr, bCreate );
+	}
 
 	if ( iSearchStr == INVALID_KEY_SYMBOL )
 	{
@@ -1732,7 +1743,18 @@ void KeyValues::SetFloat( const char *keyName, float value )
 
 void KeyValues::SetName( const char * setName )
 {
-	m_iKeyName = s_pfGetSymbolForString( setName, true );
+	if ( m_bLocalStorage )
+		m_iKeyName = m_pStringTable->GetSymbolForString( setName );
+	else
+		m_iKeyName = s_pfGetSymbolForString( setName, true );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+bool KeyValues::IsUsingLocalStorage() const 
+{
+	return m_bLocalStorage != 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -2845,16 +2867,25 @@ bool KeyValues::ReadAsBinary( CUtlBuffer &buffer, int nStackDepth )
 //-----------------------------------------------------------------------------
 // Purpose: memory allocator
 //-----------------------------------------------------------------------------
+// Code compiled against an older, smaller KeyValues (Valve's prebuilt SDK
+// libraries: particles.lib and others) asks for its sizeof, but every
+// KeyValues is constructed and filled here, at the full size: allocating less
+// let each key overwrite the start of the next heap block.
+static int KeyValuesAllocSize( size_t iAllocSize )
+{
+	return (int)( iAllocSize < sizeof( KeyValues ) ? sizeof( KeyValues ) : iAllocSize );
+}
+
 void *KeyValues::operator new( size_t iAllocSize )
 {
 	MEM_ALLOC_CREDIT();
-	return KeyValuesSystem()->AllocKeyValuesMemory( (int)iAllocSize );
+	return KeyValuesSystem()->AllocKeyValuesMemory( KeyValuesAllocSize( iAllocSize ) );
 }
 
 void *KeyValues::operator new( size_t iAllocSize, int nBlockUse, const char *pFileName, int nLine )
 {
 	MemAlloc_PushAllocDbgInfo( pFileName, nLine );
-	void *p = KeyValuesSystem()->AllocKeyValuesMemory( (int)iAllocSize );
+	void *p = KeyValuesSystem()->AllocKeyValuesMemory( KeyValuesAllocSize( iAllocSize ) );
 	MemAlloc_PopAllocDbgInfo();
 	return p;
 }
