@@ -119,8 +119,6 @@ public:
 	// gets the name as a unique int
 	int GetNameSymbol() const { return m_iKeyName; }
 
-	bool IsUsingLocalStorage() const;
-
 	// File access. Set UsesEscapeSequences true, if resource file/buffer uses Escape Sequences (eg \n, \t)
 	void UsesEscapeSequences(bool state); // default false
 	void UsesConditionals(bool state); // default true
@@ -335,13 +333,19 @@ private:
 	char	   m_iDataType;
 	char	   m_bHasEscapeSequences; // true, if while parsing this KeyValue, Escape Sequences are used (default false)
 	char	   m_bEvaluateConditionals; // true, if while parsing this KeyValue, conditionals blocks are evaluated (default true)
-	char	   m_bLocalStorage;
+	char	   unused[1];
 
 	KeyValues *m_pPeer;	// pointer to next key in list
 	KeyValues *m_pSub;	// pointer to Start of a new sub key list
 	KeyValues *m_pChain;// Search here if it's not in our list
 
-	CKeyValuesGrowableStringTable *m_pStringTable;
+	// The layout must be the engine's to the byte: the engine's vstdlib hands
+	// out every KeyValues from a pool of its own sizeof(KeyValues), and
+	// KeyValues cross between our modules and Valve's. Team Fortress 2 has
+	// had this original layout again since its November 2026 update, which
+	// dropped the m_bLocalStorage / m_pStringTable fields of October 2025;
+	// with them our 72-byte KeyValues overran the engine's 64-byte blocks and
+	// corrupted the heap (the Windows crash in vgui2 at startup).
 
 private:
 	// Statics to implement the optional growable string table
