@@ -575,48 +575,6 @@ static void PreloadOwnLibraries( const char *pRootDir, bool bVulkan )
 	}
 }
 
-// tc2_launcher.log next to the executable: how far a launch got. A launch
-// that dies before the engine's console is up (or is closed from outside)
-// leaves no console.log; this says which step it was on. The game's modules
-// add their own lines through TC2_LAUNCHER_LOG (see FrontressEOS).
-static char s_szLauncherLog[ MAX_PATH ];
-
-static void LauncherLog( const char *pszFormat, ... )
-{
-	if ( !s_szLauncherLog[0] )
-		return;
-	FILE *pFile = fopen( s_szLauncherLog, "a" );
-	if ( !pFile )
-		return;
-	SYSTEMTIME now;
-	GetLocalTime( &now );
-	fprintf( pFile, "[%02d:%02d:%02d.%03d] ", now.wHour, now.wMinute, now.wSecond, now.wMilliseconds );
-	va_list args;
-	va_start( args, pszFormat );
-	vfprintf( pFile, pszFormat, args );
-	va_end( args );
-	fputc( '\n', pFile );
-	fclose( pFile );
-}
-
-static void StartLauncherLog( const char *pszRootDir )
-{
-	_snprintf( s_szLauncherLog, sizeof( s_szLauncherLog ), "%s\\tc2_launcher.log", pszRootDir );
-	s_szLauncherLog[ sizeof( s_szLauncherLog ) - 1 ] = '\0';
-	FILE *pFile = fopen( s_szLauncherLog, "w" ); // one launch per file
-	if ( !pFile )
-	{
-		s_szLauncherLog[0] = 0;
-		return;
-	}
-	fclose( pFile );
-	SetEnvironmentVariableA( "TC2_LAUNCHER_LOG", s_szLauncherLog );
-	char szCwd[ MAX_PATH ] = "";
-	GetCurrentDirectoryA( sizeof( szCwd ), szCwd );
-	LauncherLog( "start: %s", GetCommandLineA() );
-	LauncherLog( "working directory: %s", szCwd );
-}
-
 int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow )
 {
 	HandleRelaunching();
@@ -676,21 +634,17 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	// Get the root directory the .exe is in
 	char pRootDir[MAX_PATH];
 	GetBaseDir( moduleName, pRootDir );
-	StartLauncherLog( pRootDir );
 	const char *pBinaryGameDir = pRootDir;
 	char szGameInstallDir[4096];
 	if ( !bForceNoSteamClient )
 	{
-		LauncherLog( "finding Team Fortress 2 through Steam" );
 		if ( !bForceNoSteamClient && !GetGameInstallDir( pRootDir, szGameInstallDir, 4096, bLaunchDedicated ) )
 		{
-			LauncherLog( "no Team Fortress 2 install (or Steam failed); exiting with 1" );
 			return 1;
 		}
 
 		pBinaryGameDir = szGameInstallDir;
 	}
-	LauncherLog( "engine: %s", pBinaryGameDir );
 
 	SetEnvironmentVariableA( "SDK_EXEC_DIR", pBinaryGameDir );
 
@@ -721,7 +675,6 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 	if ( !launcher )
 	{
-		LauncherLog( "could not load %s (error %lu)", szBuffer, GetLastError() );
 		char *pszError;
 		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR)&pszError, 0, NULL);
 
@@ -740,10 +693,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	LauncherMain_t main = (LauncherMain_t)GetProcAddress(launcher, bLaunchDedicated ? "DedicatedMain" : "LauncherMain");
-	LauncherLog( "running the engine" );
-	const int nResult = main( hInstance, hPrevInstance, lpCmdLine, nCmdShow );
-	LauncherLog( "the engine returned %d", nResult );
-	return nResult;
+	return main( hInstance, hPrevInstance, lpCmdLine, nCmdShow );
 }
 
 #elif defined (POSIX)

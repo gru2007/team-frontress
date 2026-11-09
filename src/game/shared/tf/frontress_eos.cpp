@@ -72,23 +72,6 @@ void GetServerConfig( Config_t &config )
 //-----------------------------------------------------------------------------
 // Logging
 //-----------------------------------------------------------------------------
-void Trace( const char *pszFormat, ... )
-{
-	const char *pszPath = getenv( "TC2_LAUNCHER_LOG" );
-	if ( !pszPath || !pszPath[0] )
-		return;
-	char szLine[ 1024 ];
-	va_list args;
-	va_start( args, pszFormat );
-	V_vsnprintf( szLine, sizeof( szLine ), pszFormat, args );
-	va_end( args );
-	FILE *pFile = fopen( pszPath, "a" );
-	if ( !pFile )
-		return;
-	fprintf( pFile, "[%.3f] %s\n", Plat_FloatTime(), szLine );
-	fclose( pFile );
-}
-
 static void EOS_CALL OnLogMessage( const EOS_LogMessage *pMessage )
 {
 	if ( !pMessage || !pMessage->Message )
@@ -114,9 +97,7 @@ static bool BInitialize()
 	opts.ProductName = "Team Frontress";
 	opts.ProductVersion = "1.0";
 
-	Trace( "[eos] EOS_Initialize" );
 	const EOS_EResult eResult = EOS_Initialize( &opts );
-	Trace( "[eos] EOS_Initialize: %s", ResultString( eResult ) );
 	if ( eResult == EOS_EResult::EOS_Success )
 	{
 		// The module that initialised EOS owns its log output; on a listen
@@ -163,9 +144,7 @@ EOS_HPlatform CreatePlatform( const Config_t &config, bool bIsServer )
 	// next to Steam's.
 	opts.Flags = EOS_PF_DISABLE_OVERLAY | EOS_PF_DISABLE_SOCIAL_OVERLAY;
 
-	Trace( "[eos] EOS_Platform_Create (%s)", bIsServer ? "server" : "client" );
 	EOS_HPlatform hPlatform = EOS_Platform_Create( &opts );
-	Trace( "[eos] EOS_Platform_Create: %s", hPlatform ? "ok" : "failed" );
 	if ( !hPlatform )
 		Warning( "[eos] EOS_Platform_Create failed (%s)\n", bIsServer ? "server" : "client" );
 	return hPlatform;

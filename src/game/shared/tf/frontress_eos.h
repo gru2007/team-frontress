@@ -65,11 +65,6 @@ namespace FrontressEOS
 	void ReleasePlatform( EOS_HPlatform &hPlatform );
 
 	const char *ResultString( EOS_EResult eResult );
-
-	// A line in tc2_launcher.log (Windows; TC2_LAUNCHER_LOG names it), written
-	// and closed at once: it survives the process being closed from outside,
-	// which console.log does not.
-	void Trace( PRINTF_FORMAT_STRING const char *pszFormat, ... ) FMTFUNCTION( 1, 2 );
 	CUtlString ProductUserIdString( EOS_ProductUserId id );
 
 	//-------------------------------------------------------------------------
