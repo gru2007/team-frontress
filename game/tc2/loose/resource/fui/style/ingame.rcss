@@ -26,10 +26,15 @@
 .menu-item.danger:hover { color: #ef5a4c; background-color: #c8413b1c; border-left-color: #ef5a4c; }
 .menu-gap { height: 26dp; }
 
-#match-card {
+#pause-side {
 	position: absolute;
-	right: 64dp; top: 120dp;
+	right: 64dp; top: 110dp; bottom: 40dp;
 	width: 520dp;
+	display: flex; flex-direction: column; gap: 14dp;
+	overflow: hidden auto;
+}
+#match-card {
+	flex: 0 0 auto;
 	border-radius: 16dp;
 	decorator: linear-gradient(to bottom, #2a1f19f2, #17110ef5);
 	border: 1dp #6a5442;
@@ -44,7 +49,27 @@
 .score-mid { text-align: center; }
 .you-on { font-family: "TF2 Build"; font-size: 22dp; text-transform: uppercase; }
 
-#pause-quests { position: absolute; right: 64dp; top: 470dp; width: 480dp; }
+.match-goal { padding: 0 18dp 16dp 18dp; font-size: 16dp; line-height: 21dp; color: #d8cdb4; }
+.goal-role {
+	font-family: "TF2 Build"; font-size: 14dp; text-transform: uppercase;
+	padding: 2dp 9dp; margin-right: 8dp; border-radius: 6dp;
+	background-color: #3a2e25; color: #ece3cb;
+}
+.goal-role.attack { background-color: #ffc93c; color: #2a1a05; }
+
+#pause-battle, #pause-quests { flex: 0 0 auto; padding: 16dp 18dp; }
+.battle-head { margin-bottom: 6dp; }
+.battle-sector { font-family: "TF2 Build"; font-size: 26dp; color: #fff4e8; text-transform: uppercase; }
+.battle-role { font-family: "TF2 Build"; font-size: 16dp; text-transform: uppercase; color: #d8cdb4; }
+#pause-battle.attacking .battle-role { color: #ffc93c; }
+.battle-order {
+	display: inline-block; margin-bottom: 8dp; padding: 3dp 10dp; border-radius: 6dp;
+	font-family: "TF2 Build"; font-size: 14dp; color: #2a1a05; background-color: #ffc93c;
+}
+.battle-conds { margin-top: 6dp; }
+.battle-cond { margin-top: 8dp; padding-left: 10dp; border-left: 3dp #ffc93c66; }
+.cond-name { font-family: "TF2 Build"; font-size: 15dp; color: #ffe0a0; text-transform: uppercase; }
+.cond-desc { font-size: 14dp; line-height: 18dp; color: #b8ab92; }
 .mini-quest { margin-bottom: 12dp; }
 .mini-quest .bar { margin-top: 5dp; }
 .mini-quest.done .small { color: #8fd16a; }
@@ -140,3 +165,38 @@ body#hud { pointer-events: none; }
 #hud-toasts .toast-icon { width: 40dp; height: 40dp; border-radius: 6dp; }
 #hud-toasts .toast-title { font-family: "TF2 Build"; font-size: 16dp; }
 #hud-toasts .toast-body { font-size: 14dp; color: #d8cdb4; }
+
+/* ---------------------------------------------------------------- team select */
+.team-dim { position: absolute; left: 0; top: 0; right: 0; bottom: 0; decorator: radial-gradient(ellipse farthest-corner at 50% 50%, #0d090760 0%, #0d0907f0 75%); }
+#team-row { position: absolute; left: 0; right: 0; top: 260dp; justify-content: center; gap: 40dp; }
+#team-arena { position: absolute; left: 0; right: 0; top: 260dp; text-align: center; }
+.team-card {
+	position: relative;
+	width: 420dp; height: 420dp;
+	border-radius: 20dp;
+	text-align: center;
+	border: 3dp #00000000;
+	cursor: pointer;
+	transition: transform border-color 0.12s cubic-out;
+}
+.team-card.blu { decorator: linear-gradient(to bottom, #4a7faef0, #1d3349f5); }
+.team-card.red { decorator: linear-gradient(to bottom, #c8413bf0, #4e1714f5); }
+.team-card.arena { display: inline-block; width: 560dp; height: 300dp; decorator: linear-gradient(to bottom, #6a5442f0, #2a1f19f5); }
+.team-card:hover { transform: translateY(-10dp) scale(1.03); border-color: #ffc93c; }
+.team-card.current { border-color: #8fd16a; }
+.team-card.closed { opacity: 0.5; }
+.team-card.closed:hover { transform: none; border-color: #00000000; }
+.team-card .card-key { left: 14dp; top: 14dp; width: 30dp; height: 30dp; line-height: 30dp; font-size: 18dp; }
+.team-card-name { margin-top: 70dp; font-family: "TF2 Build"; font-size: 110dp; line-height: 110dp; color: #fff4e8; font-effect: shadow(4dp 4dp #00000088); }
+.team-card.arena .team-card-name { margin-top: 70dp; font-size: 80dp; line-height: 84dp; }
+.team-card-score { font-family: "TF2 Build"; font-size: 64dp; color: #ffffffcc; }
+.team-card-count { font-size: 20dp; color: #ffffffcc; margin-top: 6dp; }
+.team-card-tag {
+	position: absolute; left: 0; right: 0; bottom: 18dp;
+	font-family: "TF2 Build"; font-size: 18dp; text-transform: uppercase; color: #8fd16a;
+}
+.team-card-tag.closed { color: #ffd8d2; }
+#team-actions { position: absolute; left: 0; right: 0; bottom: 120dp; justify-content: center; gap: 16dp; }
+.team-alt .kbd { margin-right: 8dp; }
+.team-alt .small { margin-left: 8dp; text-transform: none; font-family: "TF2 Secondary"; }
+.team-alt.current { color: #8fd16a; }

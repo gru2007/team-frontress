@@ -1167,7 +1167,9 @@
     "stat": "8 912 урона",
     "team": "blu"
    }
-  ]
+  ],
+  "pending": false,
+  "level_after": 37
  },
  "quests": {
   "daily_left": 26100,
@@ -1244,7 +1246,24 @@
   "blu": 1,
   "team": "red",
   "class": "soldier",
-  "official": true
+  "official": true,
+  "mode_name": "Захват контрольных точек",
+  "goal": "Захватите все пять контрольных точек, чтобы победить.",
+  "role": "",
+  "war": {
+   "active": true,
+   "sector": "Развязка",
+   "stage": 3,
+   "stages": 3,
+   "kind": "advance",
+   "attacker": "red",
+   "attacking": true,
+   "order": true,
+   "conditions": [
+    "quickwaves",
+    "nocrits"
+   ]
+  }
  },
  "classsel": {
   "team": "red",
@@ -1252,7 +1271,8 @@
  },
  "ui": {
   "front": "junction",
-  "chat_draft": ""
+  "chat_draft": "",
+  "say_draft": ""
  },
  "hud": {
   "visible": true,
@@ -1373,19 +1393,221 @@
     "me": true
    }
   ],
-  "war": {
-   "active": true,
-   "sector": "Развязка",
-   "stage": 3,
-   "stages": 3,
-   "kind": "advance",
-   "attacker": "red",
-   "attacking": true,
-   "order": true,
-   "conditions": [
-    "quickwaves",
-    "nocrits"
+  "conds": [
+   {
+    "id": "buff_offense",
+    "icon": "tex:effects/soldier_buff_offense_red",
+    "bad": false
+   },
+   {
+    "id": "healed",
+    "icon": "",
+    "bad": false
+   },
+   {
+    "id": "bleeding",
+    "icon": "tex:vgui/bleed_drop",
+    "bad": true
+   }
+  ],
+  "disguise": {
+   "on": false,
+   "disguising": false,
+   "class": "",
+   "team": "",
+   "name": "",
+   "weapon": ""
+  },
+  "meters": [
+   {
+    "label": "Ярость",
+    "frac": 0.62,
+    "count": -1,
+    "percent": false,
+    "bars": 1,
+    "flash": false,
+    "streak": false
+   }
+  ],
+  "stickies": -1,
+  "power": -1,
+  "metal": -1,
+  "metal_max": 200,
+  "charge_kind": "",
+  "charge_resist": "",
+  "charges": -1,
+  "charge_active": false,
+  "buildings": [],
+  "next_class": "",
+  "scores": {
+   "shown": false,
+   "summary": false,
+   "mouse": false,
+   "winner": "",
+   "mine": false,
+   "time_left": -1,
+   "red": {
+    "score": 0,
+    "count": 0,
+    "players": []
+   },
+   "blu": {
+    "score": 0,
+    "count": 0,
+    "players": []
+   },
+   "spec": [],
+   "me": {
+    "kills": 0,
+    "deaths": 0,
+    "assists": 0,
+    "destruction": 0,
+    "captures": 0,
+    "defenses": 0,
+    "dominations": 0,
+    "revenge": 0,
+    "healing": 0,
+    "invulns": 0,
+    "teleports": 0,
+    "headshots": 0,
+    "backstabs": 0,
+    "bonus": 0,
+    "damage": 0
+   }
+  },
+  "round": {
+   "shown": false,
+   "winner": "",
+   "mine": false,
+   "complete": false,
+   "reason": "",
+   "cappers": "",
+   "score_red": 0,
+   "score_blu": 0,
+   "top": [],
+   "streak_name": "",
+   "streak": 0
+  },
+  "killer": {
+   "shown": false,
+   "self": false,
+   "object": "",
+   "name": "",
+   "team": "",
+   "cls": "",
+   "avatar": "",
+   "health": 0,
+   "max": 1,
+   "frac": 0,
+   "weapon": "",
+   "weapon_icon": "",
+   "rivalry": ""
+  },
+  "spec": {
+   "shown": false,
+   "mode": "",
+   "team_spec": false,
+   "target": {
+    "on": false,
+    "object": "",
+    "name": "",
+    "team": "",
+    "cls": "",
+    "avatar": "",
+    "health": 0,
+    "max": 1,
+    "frac": 0
+   }
+  },
+  "notices": [
+   {
+    "kind": "notify",
+    "lines": [
+     "Сейчас нельзя сменить класс"
+    ]
+   }
+  ],
+  "votes": [
+   {
+    "header": "Голосование начал Demo Dan",
+    "issue": "Сменить карту на cp_granary?",
+    "result": "",
+    "result_text": "",
+    "voted": false,
+    "input": true,
+    "yesno": true,
+    "needed": 7,
+    "options": [
+     {
+      "label": "F1  Да",
+      "count": 3,
+      "key": "F1"
+     },
+     {
+      "label": "F2  Нет",
+      "count": 1,
+      "key": "F2"
+     }
+    ]
+   }
+  ],
+  "chat": {
+   "open": false,
+   "mode": "all",
+   "lines": [
+    {
+     "fade": false,
+     "segs": [
+      {
+       "t": "Demo Dan",
+       "c": "#ff3f3f"
+      },
+      {
+       "t": " :  кто на турель?",
+       "c": ""
+      }
+     ]
+    },
+    {
+     "fade": false,
+     "segs": [
+      {
+       "t": "(Команда) ",
+       "c": ""
+      },
+      {
+       "t": "Медик Олег",
+       "c": "#ff3f3f"
+      },
+      {
+       "t": " :  убер через 10 секунд",
+       "c": ""
+      }
+     ]
+    },
+    {
+     "fade": false,
+     "segs": [
+      {
+       "t": "Sniperman",
+       "c": "#99ccff"
+      },
+      {
+       "t": " :  gg",
+       "c": ""
+      }
+     ]
+    }
    ]
+  },
+  "menu": {
+   "shown": false,
+   "kind": "",
+   "metal": 0,
+   "team": "red",
+   "group": -1,
+   "simple": false,
+   "slots": []
   }
  },
  "settings": {
@@ -7216,5 +7438,37 @@
     "index": 341
    }
   ]
+ },
+ "teamsel": {
+  "arena": false,
+  "current": "",
+  "can_close": false,
+  "spectate_ok": true,
+  "red": {
+   "count": 5,
+   "score": 2,
+   "closed": false
+  },
+  "blu": {
+   "count": 6,
+   "score": 1,
+   "closed": true
+  }
+ },
+ "votesetup": {
+  "loading": false,
+  "enabled": true,
+  "issues": [],
+  "maps": [],
+  "missions": [],
+  "players": [],
+  "issue": "",
+  "kind": "",
+  "param": "",
+  "reason": "other"
+ },
+ "mute": {
+  "players": [],
+  "all_comms": false
  }
 }

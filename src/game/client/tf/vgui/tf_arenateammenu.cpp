@@ -30,6 +30,8 @@
 #include "c_team.h"
 #include "tf_hud_notification_panel.h"
 #include "inputsystem/iinputsystem.h"
+#include "frontress/fui_tf.h"
+#include "frontress/fui_host.h"
 
 using namespace vgui;
 
@@ -112,6 +114,9 @@ void CTFArenaTeamMenu::ApplySchemeSettings( IScheme *pScheme )
 //-----------------------------------------------------------------------------
 void CTFArenaTeamMenu::ShowPanel( bool bShow )
 {
+	// Team Frontress: closing this closes the Frontress team select too.
+	if ( !bShow )
+		FrontressUISetTeamSelect( false );
 	if ( BaseClass::IsVisible() == bShow )
 		return;
 	
@@ -142,6 +147,13 @@ void CTFArenaTeamMenu::ShowPanel( bool bShow )
 
 		gViewPortInterface->ShowPanel( PANEL_CLASS_RED, false );
 		gViewPortInterface->ShowPanel( PANEL_CLASS_BLUE, false );
+
+		// Team Frontress: the Frontress team select, arena's way (play or watch).
+		if ( FuiTF().ShowTeamSelect( true ) )
+		{
+			SetVisible( false );
+			return;
+		}
 
 		engine->CheckPoint( "TeamMenu" );
 

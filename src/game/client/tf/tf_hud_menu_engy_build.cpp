@@ -908,3 +908,34 @@ bool CHudMenuEngyBuild::CanBuild( int iSlot )
 	}
 	return bCanBuild;
 }
+
+//-----------------------------------------------------------------------------
+// Team Frontress: drawn by the Frontress HUD instead (fui_ingame.cpp).
+//-----------------------------------------------------------------------------
+extern bool FrontressHudReplaces( const char *pszPart );
+
+void CHudMenuEngyBuild::PaintTraverse( bool Repaint, bool allowForce )
+{
+	if ( FrontressHudReplaces( "buildmenu" ) )
+		return;
+	BaseClass::PaintTraverse( Repaint, allowForce );
+}
+
+int CHudMenuEngyBuild::FrontressSlot( int i, int &iType, int &iMode, int &iCost )
+{
+	iType = iMode = iCost = 0;
+	if ( i < 0 || i >= NUM_ENGY_BUILDINGS || !m_Buildings[ i ].m_bEnabled )
+		return 0;
+	GetBuildingIDAndModeFromSlot( i + 1, iType, iMode, m_Buildings );
+	C_TFPlayer *pLocalPlayer = C_TFPlayer::GetLocalTFPlayer();
+	iCost = pLocalPlayer ? pLocalPlayer->m_Shared.CalculateObjectCost( pLocalPlayer, iType ) : 0;
+	if ( m_pAlreadyBuiltObjects[ i ] && m_pAlreadyBuiltObjects[ i ]->IsVisible() )
+		return 2;
+	if ( m_pUnavailableObjects[ i ] && m_pUnavailableObjects[ i ]->IsVisible() )
+		return 4;
+	if ( m_pCantAffordObjects[ i ] && m_pCantAffordObjects[ i ]->IsVisible() )
+		return 3;
+	if ( m_pAvailableObjects[ i ] && m_pAvailableObjects[ i ]->IsVisible() )
+		return 1;
+	return 0;
+}

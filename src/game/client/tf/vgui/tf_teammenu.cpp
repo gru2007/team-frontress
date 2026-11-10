@@ -37,6 +37,8 @@
 #include "c_team.h"
 #include "tf_hud_notification_panel.h"
 #include "iinput.h"
+#include "frontress/fui_tf.h"
+#include "frontress/fui_host.h"
 
 //-----------------------------------------------------------------------------
 // Purpose: Constructor
@@ -343,6 +345,9 @@ void CTFTeamMenu::ApplySchemeSettings( IScheme *pScheme )
 void CTFTeamMenu::ShowPanel( bool bShow )
 {
 	if ( bShow && GTFGCClientSystem() && GTFGCClientSystem()->BHaveLiveMatch() ) return;
+	// Team Frontress: closing this closes the Frontress team select too.
+	if ( !bShow )
+		FrontressUISetTeamSelect( false );
 	if ( BaseClass::IsVisible() == bShow )
 		return;
 	
@@ -392,6 +397,13 @@ void CTFTeamMenu::ShowPanel( bool bShow )
 
 		gViewPortInterface->ShowPanel( PANEL_CLASS_RED, false );
 		gViewPortInterface->ShowPanel( PANEL_CLASS_BLUE, false );
+
+		// Team Frontress: the Frontress team select (resource/fui/screens/teams.rml).
+		if ( FuiTF().ShowTeamSelect( false ) )
+		{
+			SetVisible( false );
+			return;
+		}
 
 		engine->CheckPoint( "TeamMenu" );
 

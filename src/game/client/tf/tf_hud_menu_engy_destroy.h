@@ -62,6 +62,13 @@ public:
 
 	int			CalcCustomDestroyMenuLayout( void );
 
+	// Team Frontress: the Frontress HUD draws this menu (when its
+	// data-replaces names "buildmenu"); this panel keeps its logic and keys
+	// but does not paint. fui_ingame.cpp reads it.
+	virtual void	PaintTraverse( bool Repaint, bool allowForce = true ) OVERRIDE;
+	// A slot (0-3): 0 empty, 1 built (can be destroyed), 2 not built, 3 unavailable.
+	int				FrontressSlot( int i, int &iType, int &iMode );
+
 private:
 
 	void InitBuildings();

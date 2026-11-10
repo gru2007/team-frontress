@@ -1194,8 +1194,19 @@ void CBaseHudChat::Printf( int iFilter, const char *fmt, ... )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+#ifdef TF_CLIENT_DLL
+// Team Frontress: the Frontress HUD's chat (tf/frontress/fui_hud_overlay.cpp).
+extern bool FuiHudStartChat( int iMode );
+extern void FuiHudChatLine( int iPlayer, const char *pszLine );
+#endif
+
 void CBaseHudChat::StartMessageMode( int iMessageModeType )
 {
+#ifdef TF_CLIENT_DLL
+	// The HUD on screen has its own chat line: type there.
+	if ( FuiHudStartChat( iMessageModeType ) )
+		return;
+#endif
 #ifndef _XBOX
 	m_nMessageMode = iMessageModeType;
 
@@ -1815,6 +1826,12 @@ void CBaseHudChat::ChatPrintf( int iPlayerIndex, int iFilter, const char *fmt, .
 
 	if ( !cl_enable_text_chat.GetBool() && ( iPlayerIndex != 0 ) )
 		return;
+
+#ifdef TF_CLIENT_DLL
+	// The Frontress HUD keeps its own copy of what is said (filtered and
+	// muted as above), for when it draws the chat.
+	FuiHudChatLine( iPlayerIndex, pmsg );
+#endif
 
 	if ( *pmsg < 32 )
 	{

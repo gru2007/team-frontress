@@ -30,6 +30,8 @@ bool FrontressUIReplacesMenu();
 // Open or close the Frontress class select (in a match). Opening returns
 // false when it is turned off, and the stock menu should show instead.
 bool FrontressUISetClassSelect( bool bOpen );
+// The same for the team select.
+bool FrontressUISetTeamSelect( bool bOpen );
 
 // A classic window is about to open from the UI: let it stay on top.
 void FrontressUIYield();

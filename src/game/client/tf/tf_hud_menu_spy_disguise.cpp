@@ -669,3 +669,15 @@ void CHudMenuSpyDisguise::SetVisible( bool state )
 
 	BaseClass::SetVisible( state );
 }
+
+//-----------------------------------------------------------------------------
+// Team Frontress: drawn by the Frontress HUD instead (fui_ingame.cpp).
+//-----------------------------------------------------------------------------
+extern bool FrontressHudReplaces( const char *pszPart );
+
+void CHudMenuSpyDisguise::PaintTraverse( bool Repaint, bool allowForce )
+{
+	if ( FrontressHudReplaces( "buildmenu" ) )
+		return;
+	BaseClass::PaintTraverse( Repaint, allowForce );
+}

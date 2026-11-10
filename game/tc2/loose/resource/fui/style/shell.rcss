@@ -406,3 +406,19 @@ body#shell { pointer-events: none; }
 .report-sent .mf-buttons { margin-top: 26dp; }
 
 .party-button { white-space: nowrap; flex-shrink: 0; }
+
+/* ---------------------------------------------------------------- calling a vote, muting */
+.vote-modal { width: 1100dp; }
+.vote-list { height: 420dp; }
+.vote-list.short { height: 300dp; }
+.vote-issue-row .report-pname { white-space: normal; }
+.vote-issue-row.off { opacity: 0.45; cursor: default; }
+.vote-issue-row.off:hover { background-color: #ffffff0a; }
+.vote-map { width: 96dp; height: 54dp; border-radius: 6dp; flex-shrink: 0; }
+.mute-modal { width: 760dp; }
+.mute-list { height: 480dp; margin-top: 18dp; }
+.mute-list .report-player { cursor: default; }
+.talking { color: #8fd16a; }
+.mute-all { gap: 12dp; cursor: pointer; font-size: 16dp; }
+.check { width: 26dp; height: 26dp; border-radius: 6dp; border: 2dp #6a5442; flex-shrink: 0; }
+.check.on { background-color: #ffc93c; border-color: #ffc93c; }

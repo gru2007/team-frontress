@@ -40,6 +40,8 @@ bool FrontressAC_Client_CanReport();
 // For menus and diagnostics.
 bool FrontressAC_Client_BBuiltWithAntiCheat();
 bool FrontressAC_Client_BSessionActive();
+// Whether the anti-cheat module is in this process (for fr_eac_status).
+CUtlString FrontressAC_Client_ModuleStatus();
 const char *FrontressAC_Client_LastViolation();
 // This player's EOS Product User ID once logged in, else "".
 CUtlString FrontressAC_Client_ProductUserId();

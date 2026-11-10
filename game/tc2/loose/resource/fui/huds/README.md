@@ -31,16 +31,32 @@ they stay hidden while it is up. Leave a word out and the game's part stays.
 
 | Word | The game's part |
 |---|---|
-| `health` | health and class (CTFHudPlayerStatus) |
+| `health` | health and class (CTFHudPlayerStatus), the floating +health numbers |
 | `ammo` | ammo (CTFHudWeaponAmmo) |
 | `medic` | ÜberCharge meter (CHudMedicChargeMeter) |
+| `class` | what a class carries: item meters (cloak, drinks, banners, heads...), stickybombs and charge meters, a spy's disguise, metal, an engineer's buildings |
+| `buildmenu` | an engineer's build and destroy menus, a spy's disguise menu (CHudMenuEngyBuild, CHudMenuEngyDestroy, CHudMenuSpyDisguise); their keys still work |
 | `objective` | timer, points, cart, flags (CTFHudObjectiveStatus, CTFHudKothTimeStatus, CTFHudMatchStatus), only in modes `hud.mode` covers |
+| `goal` | the map's goal across the top at spawn (CHudTeamGoal); it is in Esc |
 | `killfeed` | kill feed (CTFHudDeathNotice) |
+| `scoreboard` | the scoreboard on Tab (CTFClientScoreBoardDialog); not in MvM |
+| `winpanel` | the end of a round and of a match (CTFWinPanel, CTFArenaWinPanel, CTFMatchSummary); not in MvM |
+| `freezecam` | who killed you (CTFFreezePanel) |
+| `spectator` | the spectator bars (CTFSpectatorGUI); not in MvM |
+| `chat` | chat (CHudChat): the lines and typing them |
+| `vote` | votes (CHudVotePanel); calling a vote is still the game's window |
+| `notices` | the game's notices: can't change class now, teams switched, sudden death, arena, streaks, "game paused" |
+| `quests` | Valve's contract tracker and quest notices |
+
+The stock panels keep running behind a HUD that replaces them (their
+events, strings and timers), so a part a HUD does not draw itself comes back
+the moment the word is left out.
 
 ### What a HUD can read
 
 All of `hud` (defaults and comments in `../schema.json`), plus `quests`,
-`toasts`, `player` and the rest of the menus' state.
+`toasts`, `player`, `match` (the map, its mode and goal, a war battle) and
+the rest of the menus' state.
 
 | Field | |
 |---|---|
@@ -58,6 +74,26 @@ All of `hud` (defaults and comments in `../schema.json`), plus `quests`,
 | `hud.cart` | `progress` 0..1, `speed` (-1 rolling back), `team` |
 | `hud.flags[]` | `team`, `status` (home, stolen, dropped), `return` |
 | `hud.kills[]` | `killer`, `killer_team`, `assist`, `victim`, `victim_team`, `icon`, `crit`, `me` |
+| `hud.restart` | seconds until the round starts, -1 none |
+| `hud.conds[]` | `id` (burning, bleeding, jarate, milk, gas, marked, slowed, uber, crits, minicrits, resist_*, buff_*, rune_*, healed, cloaked, parachute, speed), `icon`, `bad` |
+| `hud.disguise` | `on`, `disguising`, `class`, `team`, `name`, `weapon` |
+| `hud.meters[]` | the item meters: `label` (in your language), `frac`, `count` (-1 none), `percent`, `bars`, `flash`, `streak` |
+| `hud.stickies`, `hud.power`, `hud.metal` | stickybombs out, a weapon charging (0..1), metal; -1 when not yours |
+| `hud.charge_kind`, `hud.charge_resist`, `hud.charges`, `hud.charge_active` | uber / kritz / quickfix / vaccinator; the Vaccinator's resist and charges |
+| `hud.buildings[]` | an engineer's four slots: `kind`, `built`, `level`, `mini`, `health`, `building`, `progress`, `carried`, `sapped`, `alert`, `upgrade`, `ammo`, `rockets`, `kills`, `charge` (-1 where it has none) |
+| `hud.next_class` | the class you come back as, "" if the same |
+| `hud.scores` | `shown`, `summary` (the match is over), `mouse`, `winner`, `red` / `blu` { `score`, `count`, `players[]` }, `spec[]`, `time_left`, `me` (your round) |
+| `hud.round` | the end of a round: `shown`, `winner`, `complete`, `reason`, `cappers`, `score_red`, `score_blu`, `top[]`, `streak_name`, `streak` |
+| `hud.killer` | who killed you: `shown`, `self`, `object`, `name`, `team`, `cls`, `avatar`, `health`, `max`, `frac`, `weapon`, `weapon_icon`, `rivalry` |
+| `hud.spec` | spectating: `shown`, `mode`, `team_spec`, `target` { `on`, `object`, `name`, `team`, `cls`, `avatar`, `health`, `max`, `frac` } |
+| `hud.menu` | the class menu up: `shown`, `kind` (build, destroy, disguise), `metal`, `team`, `group`, `simple`, `slots[]` { `key`, `kind`, `state`, `cost` } or { `key`, `cls`, `group`, `selected` } |
+| `hud.notices[]` | `kind`, `lines[]` |
+| `hud.votes[]` | `header`, `issue`, `options[]` { `label`, `count` }, `voted`, `yesno`, `result` (passed / failed), `result_text` |
+| `hud.chat` | `open`, `mode` (all / team / party), `lines[]` { `fade`, `segs[]` { `t`, `c` } }; type into `<input id="say" data-value="ui.say_draft" data-event-change="cmd('say_input', ev.linebreak, ev.value)">` |
+
+Commands a HUD may send: `cmd('say_input', ...)`, `cmd('say_close')`,
+`cmd('scores_pick', <steam id>)` (the report dialog), `cmd('scores_mute', <player index>)`.
+Interactive parts need `pointer-events: auto` (the HUD's body has none).
 
 Images: `tex:<material path>` is any game texture (`tex:hud/class_soldierred`,
 `tex:sprites/obj_icons/icon_obj_red`); `hudicon:<name>` is a HUD icon from

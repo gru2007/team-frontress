@@ -16,6 +16,7 @@
 		"in_game": false,		// in a match: the pause, class and HUD screens
 		"class_hover": "soldier",	// class select: the class shown
 		"chat_draft": "",			// the chat line being typed
+		"say_draft": "",			// in a match: the chat line being typed
 		"leave_lobby": "",
 		"party_target": "",
 		"kick_target": "",
@@ -60,11 +61,53 @@
 		"health": 0, "max": 1, "frac": 0, "overheal": 0, "low": false,
 		"weapon": "", "weapon_icon": "", "clip": -1, "reserve": -1, "clip_max": 0, "clip_low": false,
 		"charge": -1, "charge_ready": false, "respawn": -1, "killed_by": "",
-		"mode": "", "timer": -1, "setup": false, "overtime": false, "waiting": false,
+		"mode": "", "timer": -1, "setup": false, "overtime": false, "waiting": false, "restart": -1,
 		"score_red": 0, "score_blu": 0, "koth_red": -1, "koth_blu": -1,
 		"points": [], "cart": { "progress": -1, "speed": 0, "team": "blu" }, "flags": [], "kills": [],
-		// war: { active, sector, stage, stages, kind, attacker, attacking, order, conditions[] }
-		"war": { "active": false, "sector": "", "stage": 0, "stages": 0, "kind": "", "attacker": "", "attacking": false, "order": false, "conditions": [] }
+		// What the class carries (fui_hud.cpp, from the stock panels' logic).
+		// conds: { id, icon, bad } (burning, bleeding, resists, buffs...);
+		// disguise: a spy's; meters: the item meters { label, frac, count,
+		// percent, bars, flash, streak }; stickies, power (a weapon charging
+		// 0..1), metal: -1 when not yours; charge_kind (uber, kritz, quickfix,
+		// vaccinator), charge_resist, charges (the Vaccinator's), charge_active.
+		// buildings: an engineer's four slots { kind (sentry, dispenser,
+		// entrance, exit), built, level, mini, health, building, progress,
+		// carried, sapped, disabled, alert (sapper, ammo, health), upgrade,
+		// ammo, rockets, kills, assists, charge, used }, -1 where it has none.
+		"conds": [], "disguise": { "on": false, "disguising": false, "class": "", "team": "", "name": "", "weapon": "" },
+		"meters": [], "stickies": -1, "power": -1, "metal": -1, "metal_max": 200,
+		"charge_kind": "", "charge_resist": "", "charges": -1, "charge_active": false,
+		"buildings": [], "next_class": "",
+		// The overlays (fui_hud_overlay.cpp). scores: the scoreboard { shown,
+		// summary (the match is over), mouse (the cursor is on), winner, mine,
+		// red / blu { score, count, players[ { idx, id, name, team, cls, score,
+		// kills, deaths, damage, healing, alive, me, bot, ping, doms, streak,
+		// avatar, muted, rivalry (nemesis, dominated) } ] }, spec[], time_left,
+		// me { your round's stats } }.
+		"scores": { "shown": false, "summary": false, "mouse": false, "winner": "", "mine": false, "time_left": -1,
+			"red": { "score": 0, "count": 0, "players": [] }, "blu": { "score": 0, "count": 0, "players": [] }, "spec": [],
+			"me": { "kills": 0, "deaths": 0, "assists": 0, "destruction": 0, "captures": 0, "defenses": 0, "dominations": 0, "revenge": 0,
+				"healing": 0, "invulns": 0, "teleports": 0, "headshots": 0, "backstabs": 0, "bonus": 0, "damage": 0 } },
+		// round: the end of a round { shown, winner, mine, complete, reason,
+		// cappers, score_red, score_blu, top[ { name, team, cls, points, avatar } ],
+		// streak_name, streak }.
+		"round": { "shown": false, "winner": "", "mine": false, "complete": false, "reason": "", "cappers": "", "score_red": 0, "score_blu": 0,
+			"top": [], "streak_name": "", "streak": 0 },
+		// killer: who killed you, over the freeze frame; spec: whom you watch.
+		"killer": { "shown": false, "self": false, "object": "", "name": "", "team": "", "cls": "", "avatar": "", "health": 0, "max": 1, "frac": 0,
+			"weapon": "", "weapon_icon": "", "rivalry": "" },
+		"spec": { "shown": false, "mode": "", "team_spec": false,
+			"target": { "on": false, "object": "", "name": "", "team": "", "cls": "", "avatar": "", "health": 0, "max": 1, "frac": 0 } },
+		// notices: { kind, lines[] } (the game's own notices); votes: { header,
+		// issue, result (passed, failed), result_text, voted, input, yesno,
+		// needed, options[ { label, count } ] }; chat: { open, mode (all, team,
+		// party), lines[ { fade, segs[ { t, c (a colour, "" plain) } ] } ] }.
+		"notices": [], "votes": [], "chat": { "open": false, "mode": "all", "lines": [] },
+		// menu: an engineer's build / destroy menu or a spy's disguise menu
+		// (fui_ingame.cpp) { shown, kind (build, destroy, disguise), metal, team,
+		// group, simple, slots[ { key, kind, state, cost } | { key, cls, group, selected } ] }.
+		// state: build: ready, built, short, off; destroy: built, none, off.
+		"menu": { "shown": false, "kind": "", "metal": 0, "team": "red", "group": -1, "simple": false, "slots": [] }
 	},
 	// The settings window: the HUDs installed (resource/fui/huds) and the one in use.
 	"settings": { "menu_3d": true, "hud_style": "auto", "huds": [ "auto" ] },
@@ -87,7 +130,9 @@
 	},
 	"career": { "hours": 0, "matches": 0, "wins": 0, "mvp": 0, "ratings": [], "classes": [], "history": [] },
 	"results": { "result": "", "map": "", "image": "", "mode": "", "score_red": 0, "score_blu": 0, "duration": 0, "front": "", "front_before": 0, "front_after": 0,
-		"xp_total": 0, "level_before": 0, "frac_before": 0, "frac_after": 0, "rating": 0, "delta": 0, "xp": [], "mvps": [] },
+		"xp_total": 0, "level_before": 0, "level_after": 0, "frac_before": 0, "frac_after": 0, "rating": 0, "delta": 0, "xp": [], "mvps": [],
+		// result: win | loss | draw; pending: the coordinator has not said what it was worth yet
+		"pending": false },
 	// The coordinator's social side (src/game/client/tf/frontress/fui_social.cpp).
 	// tab: global | clan | party | online. view: the open tab's chat lines
 	// { id, ch, name, tag, gold, sup, text, sys, key, a1..a4, kind, time, me }
@@ -116,10 +161,27 @@
 	// From the coordinator (GET /v1/player/<id>/quests). Each quest:
 	// { key, kind, class, target, progress, frac, xp, done, weekly, photo }
 	"quests": { "daily": [], "weekly": [], "daily_left": 0, "weekly_left": 0, "done": 0, "total": 0 },
-	// The match being played, for the pause screen.
-	"match": { "active": false, "map": "", "map_id": "", "image": "", "red": 0, "blu": 0, "team": "none", "class": "", "official": false },
+	// The match being played, for the pause screen. mode_name: "Control
+	// Points"..., goal: the map's goal for your team, role: attack | defend | "".
+	// war: a war battle { active, sector, stage, stages, kind, attacker,
+	// attacking, order, conditions[] }.
+	"match": { "active": false, "map": "", "map_id": "", "image": "", "red": 0, "blu": 0, "team": "none", "class": "", "official": false,
+		"mode_name": "", "goal": "", "role": "",
+		"war": { "active": false, "sector": "", "stage": 0, "stages": 0, "kind": "", "attacker": "", "attacking": false, "order": false, "conditions": [] } },
 	// Class select: whose team, and the class played now.
 	"classsel": { "team": "red", "current": "" },
+	// Calling a vote (the server's issues, fui_ingame.cpp): issues { id, label,
+	// active, param (map, player, mission, "") }, maps / missions { id, name },
+	// players { idx, name, cls, avatar }; issue, kind, param, reason: the choice.
+	"votesetup": { "loading": false, "enabled": true, "issues": [], "maps": [], "missions": [], "players": [],
+		"issue": "", "kind": "", "param": "", "reason": "other" },
+	// Muting: players { idx, name, team, avatar, muted, talking }, all_comms.
+	"mute": { "players": [], "all_comms": false },
+	// Team select: each side as you see it { count, score, closed (would
+	// unbalance) }, the team you are on (red, blu, spectate, ""), arena (play or
+	// watch only).
+	"teamsel": { "arena": false, "current": "", "can_close": false, "spectate_ok": true,
+		"red": { "count": 0, "score": 0, "closed": false }, "blu": { "count": 0, "score": 0, "closed": false } },
 	// Notifications: { kind (quest, party, clan, support, error), title, body, icon (a texture source) }
 	"toasts": []
 }

@@ -39,7 +39,6 @@
 #include "text_message.h"
 #include "tf_classmenu.h"
 
-#include "tf_textwindow.h"
 #include "tf_clientscoreboard.h"
 #include "tf_spectatorgui.h"
 #include "intromenu.h"
@@ -66,6 +65,7 @@
 
 #include "quest_log_panel.h"
 #include "tf_matchmaking_dashboard.h"
+#include "frontress/fui_hud.h"
 
 //#include "tf_overview.h"
 
@@ -222,7 +222,7 @@ CON_COMMAND( togglescores, "Toggles score panel")
 	if ( !scoreboard )
 		return;
 
-	if ( scoreboard->IsVisible() )
+	if ( scoreboard->IsVisible() || FuiHudScoresShown() )
 	{
 		gViewPortInterface->ShowPanel( scoreboard, false );
 		GetClientVoiceMgr()->StopSquelchMode();
@@ -316,7 +316,8 @@ IViewPortPanel* TFViewport::CreatePanelByName(const char *szPanelName)
 	}
 	else if ( Q_strcmp( PANEL_INFO, szPanelName ) == 0 )
 	{
-		newpanel = new CTFTextWindow( this );
+		// Team Frontress: no welcome message (MOTD) window; see TFViewport_ContinueJoin.
+		return NULL;
 	}
 	else if ( Q_strcmp( PANEL_MAPINFO, szPanelName ) == 0 )
 	{
@@ -457,7 +458,34 @@ void TFViewport::OnScreenSizeChanged( int iOldWide, int iOldTall )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+// Team Frontress: a server sent its welcome message (MOTD), which this game
+// does not show. Do what closing it (and the map info after it) led to: the
+// team menu. On the next tick, once the local player has its team.
+//-----------------------------------------------------------------------------
+static bool s_bContinueJoin = false;
+
+void TFViewport_ContinueJoin()
+{
+	s_bContinueJoin = true;
+}
+
+static void ContinueJoin()
+{
+	C_TFPlayer *pPlayer = C_TFPlayer::GetLocalTFPlayer();
+	if ( !s_bContinueJoin || !pPlayer || !TFGameRules() )
+		return;
+	s_bContinueJoin = false;
+	if ( pPlayer->GetTeamNumber() != TEAM_UNASSIGNED )
+		return;
+	if ( TFGameRules()->IsInArenaMode() && tf_arena_use_queue.GetBool() )
+		gViewPortInterface->ShowPanel( PANEL_ARENA_TEAM, true );
+	else
+		engine->ClientCmd( "team_ui_setup" );
+}
+
 void TFViewport::OnTick()
 {
 	m_pAnimController->UpdateAnimations( gpGlobals->curtime );
+	ContinueJoin();
 }

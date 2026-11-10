@@ -165,6 +165,8 @@ public:
 	void				HandleCommand_JoinTeam( const char *pTeamName );
 	void				HandleCommand_JoinClass( const char *pClassName, bool bAllowSpawn = true );
 	void				HandleCommand_JoinTeam_NoMenus( const char *pTeamName );
+	void				ShowTeamMenu();
+	void				ShowJoinMenu();
 
 	void				CreateViewModel( int iViewModel = 0 );
 	CBaseViewModel		*GetOffHandViewModel();
@@ -1238,6 +1240,7 @@ private:
 	bool				m_bHintShown;
 	bool				m_bAbortFreezeCam;
 	bool				m_bSeenRoundInfo;
+	bool				m_bJoinMenuPending;	// joined: show the team menu on the first think
 	CNetworkVar( bool, m_bRegenerating );
 	bool				m_bRespawning;
 

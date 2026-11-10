@@ -138,6 +138,21 @@ private:
 
 class CHudVote;
 
+#ifdef TF_CLIENT_DLL
+// Team Frontress: a vote as the Frontress HUD draws it (fui_hud_overlay.cpp).
+// iResult: 0 still voting, 1 passed, 2 failed (or could not be called).
+struct FrontressVote_t
+{
+	wchar_t wszHeader[ k_MAX_VOTE_NAME_LENGTH ];
+	wchar_t wszIssue[ k_MAX_VOTE_NAME_LENGTH ];
+	wchar_t wszResult[ k_MAX_VOTE_NAME_LENGTH ];
+	wchar_t wszOptions[ MAX_VOTE_OPTIONS ][ k_MAX_VOTE_NAME_LENGTH ];
+	int nCounts[ MAX_VOTE_OPTIONS ];
+	int nOptions, nPotential, iResult;
+	bool bYesNo, bVoted, bInput;
+};
+#endif
+
 class CHudVotePanel : public vgui::EditablePanel, public CGameEventListener
 {
 	DECLARE_CLASS_SIMPLE( CHudVotePanel, vgui::EditablePanel );
@@ -161,6 +176,13 @@ public:
 	bool			IsFirst();
 
 	void			RefreshChoiceVisibility(bool bForceOff = false);
+
+#ifdef TF_CLIENT_DLL
+	// Team Frontress: the vote for the Frontress HUD, which draws it instead
+	// of this panel when its data-replaces names "vote".
+	bool			GetFrontressVote( FrontressVote_t &out );
+	virtual void	PaintTraverse( bool Repaint, bool allowForce = true ) OVERRIDE;
+#endif
 
 protected:
 

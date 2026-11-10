@@ -133,6 +133,14 @@ public:
 
 	virtual GameActionSet_t GetPreferredActionSet() { return IsActive() ? GAME_ACTION_SET_IN_GAME_HUD : GAME_ACTION_SET_NONE; }
 
+	// Team Frontress: the Frontress HUD draws this menu (when its
+	// data-replaces names "buildmenu"); this panel keeps its logic and keys
+	// but does not paint. fui_ingame.cpp reads it.
+	virtual void	PaintTraverse( bool Repaint, bool allowForce = true ) OVERRIDE;
+	// A slot (0-3): 0 empty, 1 can build, 2 built, 3 can't afford (or being
+	// placed), 4 unavailable; and the building in it.
+	int				FrontressSlot( int i, int &iType, int &iMode, int &iCost );
+
 private:
 
 	void SendBuildMessage( int iSlot );

@@ -720,6 +720,14 @@ std::string Runtime::HudAttribute( const char *pszName ) const
 	return m_pHud ? m_pHud->GetAttribute< Rml::String >( pszName, "" ) : std::string();
 }
 
+bool Runtime::FocusHud( const std::string &id )
+{
+	if ( !m_bHud || !m_pHud )
+		return false;
+	Rml::Element *pElement = m_pHud->GetElementById( id );
+	return pElement && pElement->Focus();
+}
+
 void Runtime::ApplyScreen()
 {
 	if ( m_bHud )

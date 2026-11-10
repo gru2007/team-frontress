@@ -1,22 +1,27 @@
 <rml>
 <!-- The Frontress HUD.
 
-     Bottom left: health, with the class and the overheal on top of it.
-     Bottom right: the weapon in hand and its ammo; a medic's ÜberCharge.
-     Top: the score, the clock and the objective (points, the cart, flags).
-     Top right: the kill feed. Left: the quest tracker. Centre: who killed
-     you and when you are back.
+     Bottom left: health, with the class (or a spy's disguise) and what is
+     being done to you (burning, bleeding, Übercharged...) over it.
+     Bottom right: the weapon in hand and its ammo; over it what the class
+     carries: item meters (cloak, drinks, banners...), stickybombs, a charge,
+     metal, a medic's ÜberCharge.
+     Top: the score, the clock and the objective (points, the cart, flags),
+     nothing more: the map's goal and a war battle's terms are in Esc.
+     Top left: an engineer's buildings, then quests and votes.
+     Top right: the kill feed. Left, above health: chat.
+     Over everything when it is time: the scoreboard (Tab), the end of a
+     round and of the match, who killed you, the spectator view, notices.
 
      data-replaces names the game's HUD parts this file draws itself, so
-     they stay hidden while it is up: health ammo medic objective killfeed.
-     Everything here reads "hud" (schema.json); see huds/README.md to make
-     your own. -->
+     they stay hidden while it is up (see huds/README.md for each word).
+     Everything here reads "hud" (schema.json). -->
 <head>
 	<title>HUD</title>
 	<link type="text/rcss" href="../../style/base.rcss"/>
 	<link type="text/rcss" href="hud.rcss"/>
 </head>
-<body id="hud" data-replaces="health ammo medic objective killfeed">
+<body id="hud" data-replaces="health ammo medic class buildmenu objective goal killfeed scoreboard winpanel freezecam spectator chat vote notices quests">
 <div class="root" data-model="fr" data-class-world="app.world">
 	<div class="world-standin game-still" data-if="app.preview"></div>
 	<div class="hud" data-if="hud.visible" data-class-team-blu="hud.team == 'blu'">
@@ -62,20 +67,6 @@
 				</div>
 			</div>
 
-			<!-- A war battle: what it is for, and what it is fought under -->
-			<div id="war-banner" data-if="hud.war.active" data-class-attacking="hud.war.attacking">
-				<div class="wb-row row">
-					<span class="wb-tag">#fui_hud_war</span>
-					<span class="wb-sector">{{ hud.war.sector }}</span>
-					<span class="wb-stage">{{ 'fui_war_stage_of' | t(hud.war.stage, hud.war.stages) }} · {{ ('#fui_stage_' + hud.war.kind) | t }}</span>
-					<span class="wb-role">{{ (hud.war.attacking ? 'fui_hud_war_attack' : 'fui_hud_war_defend') | t }}</span>
-					<span class="wb-order" data-if="hud.war.order">#fui_hud_war_order</span>
-				</div>
-				<div class="wb-conds row" data-if="hud.war.conditions.size > 0">
-					<span class="wb-cond" data-for="c : hud.war.conditions">{{ ('#fui_cond_' + c) | t }}</span>
-				</div>
-			</div>
-
 			<!-- Capture the flag: where each intelligence is -->
 			<div id="flags" class="row" data-if="hud.mode == 'ctf'">
 				<div class="flag" data-for="f : hud.flags" data-class-red="f.team == 'red'" data-class-blu="f.team == 'blu'"
@@ -84,6 +75,19 @@
 					<span class="flag-state">{{ ('#fui_hud_flag_' + f.status) | t }}</span>
 					<div class="flag-return" data-if="f.status == 'dropped'"><div class="fill" data-style-width="(f.return * 100) + '%'"></div></div>
 				</div>
+			</div>
+		</div>
+
+		<!-- The round is about to start -->
+		<div id="restart" data-if="hud.restart >= 0 && !hud.round.shown && !hud.scores.shown">
+			<div class="restart-label">#fui_hud_round_starts</div>
+			<div class="restart-num">{{ hud.restart }}</div>
+		</div>
+
+		<!-- The game's notices: can't change class now, teams switched, sudden death... -->
+		<div id="notices">
+			<div class="notice" data-for="n : hud.notices" data-attr-class="'notice k-' + n.kind">
+				<div class="notice-line" data-for="l : n.lines">{{ l }}</div>
 			</div>
 		</div>
 
@@ -97,8 +101,33 @@
 			</div>
 		</div>
 
+		<!-- An engineer's buildings: a slot for each, built or not -->
+		<div id="buildings" data-if="hud.buildings.size > 0 && !hud.spec.shown">
+			<div class="bld" data-for="b : hud.buildings" data-class-none="!b.built" data-class-alert="b.alert != ''"
+				data-class-sapped="b.sapped" data-class-building="b.built && b.building">
+				<div class="bld-head row">
+					<span class="bld-name">{{ ('#fui_bld_' + b.kind) | t }}</span>
+					<span class="bld-level" data-if="b.built && !b.mini">{{ 'fui_bld_level' | t(b.level) }}</span>
+					<span class="bld-level" data-if="b.built && b.mini">#fui_bld_mini</span>
+					<span class="spacer"></span>
+					<span class="bld-alert" data-if="b.built && b.alert != ''">{{ ('#fui_bld_alert_' + b.alert) | t }}</span>
+					<span class="bld-kills" data-if="b.built && b.kills >= 0 && b.alert == ''">{{ 'fui_bld_kills' | t(b.kills) }}</span>
+					<span class="bld-off" data-if="!b.built">#fui_bld_none</span>
+				</div>
+				<div class="bld-bars" data-if="b.built">
+					<div class="bld-stat row" data-if="!b.building"><span class="bld-k">#fui_bld_hp</span><div class="bld-bar hp grow"><div class="fill" data-style-width="(b.health * 100) + '%'"></div></div></div>
+					<div class="bld-stat row" data-if="b.building"><span class="bld-k">#fui_bld_build</span><div class="bld-bar build grow"><div class="fill" data-style-width="(b.progress * 100) + '%'"></div></div></div>
+					<div class="bld-stat row" data-if="!b.building && b.ammo >= 0"><span class="bld-k">{{ (b.kind == 'dispenser' ? 'fui_bld_metal' : 'fui_bld_ammo') | t }}</span><div class="bld-bar ammo grow"><div class="fill" data-style-width="(b.ammo * 100) + '%'"></div></div></div>
+					<div class="bld-stat row" data-if="!b.building && b.rockets >= 0"><span class="bld-k">#fui_bld_rockets</span><div class="bld-bar rockets grow"><div class="fill" data-style-width="(b.rockets * 100) + '%'"></div></div></div>
+					<div class="bld-stat row" data-if="!b.building && b.charge >= 0 && b.charge < 1"><span class="bld-k">#fui_bld_charge</span><div class="bld-bar charge grow"><div class="fill" data-style-width="(b.charge * 100) + '%'"></div></div></div>
+					<div class="bld-stat row" data-if="!b.building && b.upgrade >= 0"><span class="bld-k">#fui_bld_upgrade</span><div class="bld-bar upgrade grow"><div class="fill" data-style-width="(b.upgrade * 100) + '%'"></div></div></div>
+				</div>
+				<div class="bld-note" data-if="b.built && b.carried">#fui_bld_carried</div>
+			</div>
+		</div>
+
 		<!-- Quests -->
-		<div id="tracker" data-if="quests.total > 0 && quests.done < quests.total">
+		<div id="tracker" data-if="quests.total > 0 && quests.done < quests.total && !hud.scores.shown" data-class-low="hud.buildings.size > 0">
 			<div class="tracker-title">#fui_tab_quests <span class="dimmer">{{ quests.done }}/{{ quests.total }}</span></div>
 			<div class="track-q" data-for="q : quests.daily" data-if="!q.done">
 				<div class="track-text">{{ ('fui_q_' + q.kind) | t(q.target, '#fui_class_' + q.class) }}</div>
@@ -109,16 +138,135 @@
 			</div>
 		</div>
 
+		<!-- Votes: the issue, the count, F1 / F2 -->
+		<div id="votes">
+			<div class="vote" data-for="v : hud.votes" data-class-passed="v.result == 'passed'" data-class-failed="v.result == 'failed'" data-class-dim="!v.input && v.result == ''">
+				<div class="vote-head" data-if="v.result == ''">{{ v.header }}</div>
+				<div class="vote-issue" data-if="v.result == ''">{{ v.issue }}</div>
+				<div class="vote-opts" data-if="v.result == '' && !v.voted">
+					<div class="vote-opt row" data-for="o : v.options">
+						<span class="grow">{{ o.label }}</span>
+						<span class="vote-count" data-if="v.yesno">{{ o.count }}</span>
+					</div>
+				</div>
+				<div class="vote-tally row" data-if="v.result == '' && v.voted && v.yesno">
+					<span class="good">{{ v.options.size > 0 ? v.options[0].count : 0 }}</span>
+					<div class="vote-bar grow"><div class="fill" data-style-width="((v.options.size > 1 && v.options[0].count + v.options[1].count > 0) ? v.options[0].count * 100 / (v.options[0].count + v.options[1].count) : 50) + '%'"></div></div>
+					<span class="bad">{{ v.options.size > 1 ? v.options[1].count : 0 }}</span>
+				</div>
+				<div class="vote-result" data-if="v.result != ''">
+					<div class="vote-head">{{ (v.result == 'passed' ? 'fui_vote_passed' : 'fui_vote_failed') | t }}</div>
+					<div class="vote-issue">{{ v.result_text }}</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Chat: what was said lately; the whole history while typing -->
+		<div id="chat" data-class-open="hud.chat.open">
+			<div class="chat-lines">
+				<div class="chat-line" data-for="l : hud.chat.lines" data-class-fade="l.fade"><span data-for="s : l.segs" data-style-color="s.c != '' ? s.c : '#ece3cb'">{{ s.t }}</span></div>
+			</div>
+			<div class="chat-entry row" data-if="hud.chat.open">
+				<span class="chat-mode" data-class-team="hud.chat.mode == 'team'">{{ ('#fui_chat_' + hud.chat.mode) | t }}</span>
+				<input id="say" type="text" class="say-input grow" maxlength="127" data-value="ui.say_draft"
+					data-event-change="cmd('say_input', ev.linebreak, ev.value)"/>
+			</div>
+		</div>
+
 		<!-- Dead: by whom, and how long until we are back -->
-		<div id="dead" data-if="!hud.alive && hud.respawn >= 0">
-			<div class="dead-by" data-if="hud.killed_by != ''">{{ 'fui_hud_killed_by' | t(hud.killed_by) }}</div>
+		<div id="dead" data-if="!hud.alive && hud.respawn >= 0 && !hud.scores.shown" data-class-up="hud.killer.shown">
+			<div class="dead-by" data-if="hud.killed_by != '' && !hud.spec.shown">{{ 'fui_hud_killed_by' | t(hud.killed_by) }}</div>
 			<div class="dead-in">{{ hud.respawn > 0 ? ('fui_hud_respawn_in' | t(hud.respawn)) : ('fui_hud_respawn_now' | t) }}</div>
+			<div class="dead-as" data-if="hud.next_class != ''">{{ 'fui_hud_respawn_as' | t('#fui_class_' + hud.next_class) }}</div>
+		</div>
+
+		<!-- Who killed you, over the freeze frame -->
+		<div id="killer" data-if="hud.killer.shown && !hud.scores.shown" data-class-blu="hud.killer.team == 'blu'">
+			<div class="killer-tag" data-if="hud.killer.rivalry != ''">{{ ('#fui_killer_' + hud.killer.rivalry) | t }}</div>
+			<div class="row killer-row">
+				<img class="killer-avatar" data-if="hud.killer.avatar != ''" data-attr-src="hud.killer.avatar"/>
+				<div class="killer-face" data-if="hud.killer.avatar == '' && hud.killer.cls != ''"
+					data-style-decorator="'image(tex:hud/class_' + (hud.killer.cls == 'demoman' ? 'demo' : (hud.killer.cls == 'engineer' ? 'engi' : hud.killer.cls)) + (hud.killer.team == 'blu' ? 'blue' : 'red') + ' contain)'"></div>
+				<div class="col grow">
+					<div class="killer-label">{{ hud.killer.self ? ('fui_killer_self' | t) : (hud.killer.object != '' ? ('fui_killer_object' | t('#fui_bld_' + (hud.killer.object == 'teleporter' ? 'entrance' : hud.killer.object))) : ('fui_killer_by' | t)) }}</div>
+					<div class="killer-name" data-if="!hud.killer.self">{{ hud.killer.name }} <span class="killer-cls" data-if="hud.killer.cls != ''">{{ ('fui_class_' + hud.killer.cls) | t }}</span></div>
+					<div class="row killer-hp" data-if="!hud.killer.self">
+						<div class="bar grow"><div class="fill" data-style-width="(hud.killer.frac * 100) + '%'"></div></div>
+						<span class="killer-hp-num">{{ hud.killer.health }} / {{ hud.killer.max }}</span>
+					</div>
+				</div>
+			</div>
+			<div class="row killer-weapon" data-if="hud.killer.weapon != ''">
+				<img class="killer-weapon-icon" data-if="hud.killer.weapon_icon != ''" data-attr-src="hud.killer.weapon_icon"/>
+				<span>{{ hud.killer.weapon }}</span>
+			</div>
+		</div>
+
+		<!-- The spectator view: whom you watch, and the keys -->
+		<div id="spec" data-if="hud.spec.shown && !hud.scores.shown">
+			<div class="spec-card row" data-if="hud.spec.target.on" data-class-blu="hud.spec.target.team == 'blu'">
+				<img class="spec-avatar" data-if="hud.spec.target.avatar != ''" data-attr-src="hud.spec.target.avatar"/>
+				<div class="col grow">
+					<div class="spec-name">{{ hud.spec.target.name }}</div>
+					<div class="spec-cls">{{ hud.spec.target.object != '' ? (('#fui_bld_' + (hud.spec.target.object == 'teleporter' ? 'entrance' : hud.spec.target.object)) | t) : (('fui_class_' + hud.spec.target.cls) | t) }}</div>
+					<div class="row spec-hp">
+						<div class="bar grow"><div class="fill" data-style-width="(hud.spec.target.frac * 100) + '%'"></div></div>
+						<span class="spec-hp-num">{{ hud.spec.target.health }}</span>
+					</div>
+				</div>
+			</div>
+			<div class="spec-keys row">
+				<span class="spec-mode" data-if="hud.spec.mode != ''">{{ ('#fui_spec_' + hud.spec.mode) | t }}</span>
+				<span><span class="kbd">LMB</span> / <span class="kbd">RMB</span> #fui_spec_cycle</span>
+				<span><span class="kbd">Space</span> #fui_spec_change</span>
+				<span data-if="hud.spec.team_spec"><span class="kbd">.</span> #fui_change_team</span>
+			</div>
+		</div>
+
+		<!-- An engineer's build / destroy menu, a spy's disguise menu: the number keys pick -->
+		<div id="classmenu" data-if="hud.menu.shown && hud.alive" data-attr-class="'k-' + hud.menu.kind">
+			<div class="row cm-head">
+				<span class="cm-title">{{ ('#fui_cm_' + hud.menu.kind) | t }}</span>
+				<span class="spacer"></span>
+				<span class="cm-metal" data-if="hud.menu.kind == 'build'">{{ 'fui_cm_metal' | t(hud.menu.metal) }}</span>
+				<span class="cm-team" data-if="hud.menu.kind == 'disguise'" data-class-blu="hud.menu.team == 'blu'">{{ hud.menu.team == 'blu' ? 'BLU' : 'RED' }}</span>
+			</div>
+			<div class="row cm-slots" data-if="hud.menu.kind != 'disguise'">
+				<div class="cm-slot" data-for="s : hud.menu.slots" data-if="s.state != ''" data-attr-class="'cm-slot s-' + s.state">
+					<div class="cm-key">{{ s.key }}</div>
+					<div class="cm-name">{{ ('#fui_bld_' + s.kind) | t }}</div>
+					<div class="cm-note" data-if="hud.menu.kind == 'build' && (s.state == 'ready' || s.state == 'short')">{{ 'fui_cm_cost' | t(s.cost) }}</div>
+					<div class="cm-note" data-if="s.state != 'ready' && s.state != 'short'">{{ ('#fui_cm_' + hud.menu.kind + '_' + s.state) | t }}</div>
+				</div>
+			</div>
+			<div class="row cm-slots" data-if="hud.menu.kind == 'disguise'">
+				<div class="cm-slot cls" data-for="s : hud.menu.slots" data-class-selected="s.selected" data-class-dim="hud.menu.simple && hud.menu.group >= 0 && hud.menu.group != s.group">
+					<div class="cm-key">{{ hud.menu.simple ? (hud.menu.group >= 0 ? (s.key - s.group * 3) : (s.group + 1)) : s.key }}</div>
+					<img class="cm-face" data-attr-src="'tex:vgui/class_portraits/' + s.cls + (hud.menu.team == 'blu' ? '_blue' : '')"/>
+					<div class="cm-name">{{ ('fui_class_' + s.cls) | t }}</div>
+				</div>
+			</div>
+			<div class="cm-hint" data-if="hud.menu.kind == 'disguise'">#fui_cm_disguise_hint</div>
+			<div class="cm-hint" data-if="hud.menu.kind != 'disguise'">#fui_cm_hint</div>
 		</div>
 
 		<!-- Health -->
+		<div id="conds" class="row" data-if="hud.alive && (hud.conds.size > 0 || hud.disguise.on || hud.disguise.disguising)">
+			<div class="disguise" data-if="hud.disguise.on" data-class-blu="hud.disguise.team == 'blu'">
+				<span>{{ 'fui_hud_disguised' | t('#fui_class_' + hud.disguise.class) }}</span>
+				<span class="disguise-as" data-if="hud.disguise.name != ''">{{ hud.disguise.name }}</span>
+				<span class="disguise-as" data-if="hud.disguise.weapon != ''">{{ hud.disguise.weapon }}</span>
+			</div>
+			<div class="disguise busy" data-if="hud.disguise.disguising && !hud.disguise.on"><span>#fui_hud_disguising</span></div>
+			<div class="cond" data-for="c : hud.conds" data-attr-class="'cond k-' + c.id + (c.bad ? ' bad' : '')">
+				<img class="cond-icon" data-if="c.icon != ''" data-attr-src="c.icon"/>
+				<span>{{ ('#fui_cond_hud_' + c.id) | t }}</span>
+			</div>
+		</div>
 		<div id="vitals" class="row" data-if="hud.alive" data-class-low="hud.low" data-class-over="hud.overheal > 0">
 			<div class="vitals-bg"></div>
-			<div class="portrait" data-style-decorator="'image(tex:hud/class_' + (hud.class == 'demoman' ? 'demo' : (hud.class == 'engineer' ? 'engi' : hud.class)) + (hud.team == 'blu' ? 'blue' : 'red') + ' contain)'"></div>
+			<div class="portrait" data-if="!hud.disguise.on" data-style-decorator="'image(tex:hud/class_' + (hud.class == 'demoman' ? 'demo' : (hud.class == 'engineer' ? 'engi' : hud.class)) + (hud.team == 'blu' ? 'blue' : 'red') + ' contain)'"></div>
+			<div class="portrait" data-if="hud.disguise.on" data-style-decorator="'image(tex:hud/class_' + (hud.disguise.class == 'demoman' ? 'demo' : (hud.disguise.class == 'engineer' ? 'engi' : hud.disguise.class)) + (hud.disguise.team == 'blu' ? 'blue' : 'red') + ' contain)'"></div>
 			<div class="col grow">
 				<div class="row hp-row">
 					<span class="hp-cross">+</span>
@@ -132,13 +280,33 @@
 			</div>
 		</div>
 
-		<!-- Weapon and ammo -->
+		<!-- Weapon and ammo, and what the class carries -->
 		<div id="arms" data-if="hud.alive">
-			<div id="uber" data-if="hud.charge >= 0" data-class-ready="hud.charge_ready">
+			<div id="classbox" data-if="hud.meters.size > 0 || hud.stickies >= 0 || hud.power >= 0 || hud.metal >= 0">
+				<div class="meter" data-for="m : hud.meters" data-class-flash="m.flash" data-class-full="m.frac >= 1 && m.count < 0">
+					<div class="row">
+						<span class="meter-label">{{ m.label }}</span>
+						<span class="spacer"></span>
+						<span class="meter-count" data-if="m.count >= 0">{{ m.count }}{{ m.percent ? '%' : '' }}</span>
+					</div>
+					<div class="meter-bar" data-if="m.count < 0 || m.frac > 0"><div class="fill" data-style-width="(m.frac * 100) + '%'"></div></div>
+				</div>
+				<div class="meter" data-if="hud.power >= 0">
+					<div class="row"><span class="meter-label">#fui_hud_power</span></div>
+					<div class="meter-bar power"><div class="fill" data-style-width="(hud.power * 100) + '%'"></div></div>
+				</div>
+				<div class="row class-nums">
+					<div class="class-num" data-if="hud.stickies >= 0"><span class="num">{{ hud.stickies }}</span> #fui_hud_stickies</div>
+					<div class="class-num metal" data-if="hud.metal >= 0"><span class="num">{{ hud.metal }}</span> #fui_hud_metal</div>
+				</div>
+			</div>
+			<div id="uber" data-if="hud.charge >= 0" data-class-ready="hud.charge_ready" data-class-active="hud.charge_active">
 				<div class="row">
-					<span class="uber-label">#fui_hud_uber</span>
+					<span class="uber-label">{{ ('#fui_hud_uber_' + hud.charge_kind) | t }}</span>
+					<span class="uber-resist" data-if="hud.charge_resist != ''">{{ ('#fui_hud_resist_' + hud.charge_resist) | t }}</span>
 					<div class="spacer"></div>
-					<span class="uber-pct">{{ hud.charge_ready ? ('fui_hud_uber_ready' | t) : (hud.charge | percent) }}</span>
+					<span class="uber-pct" data-if="hud.charges < 0">{{ hud.charge_ready ? ('fui_hud_uber_ready' | t) : (hud.charge | percent) }}</span>
+					<span class="uber-charges" data-if="hud.charges >= 0">{{ 'fui_hud_charges' | t(hud.charges) }}</span>
 				</div>
 				<div class="uber-bar"><div class="uber-fill" data-style-width="(hud.charge > 0 ? hud.charge * 100 : 0) + '%'"></div></div>
 			</div>
@@ -155,9 +323,130 @@
 				</div>
 			</div>
 		</div>
+
+		<!-- The end of a round: who won, why, who carried it -->
+		<div id="round" data-if="hud.round.shown && !hud.scores.shown" data-class-blu="hud.round.winner == 'blu'" data-class-draw="hud.round.winner == ''">
+			<div class="round-title">{{ hud.round.winner == '' ? ('fui_round_stalemate' | t) : ((hud.round.complete ? 'fui_round_win' : 'fui_round_advance') | t(hud.round.winner == 'red' ? 'RED' : 'BLU')) }}</div>
+			<div class="round-reason" data-if="hud.round.reason != ''">{{ hud.round.reason }}</div>
+			<div class="round-cappers" data-if="hud.round.cappers != ''">{{ 'fui_round_cappers' | t(hud.round.cappers) }}</div>
+			<div class="row round-score" data-if="hud.round.complete">
+				<div class="score blu-score">{{ hud.round.score_blu }}</div>
+				<div class="score red-score">{{ hud.round.score_red }}</div>
+			</div>
+			<div class="round-top" data-if="hud.round.top.size > 0">
+				<div class="round-top-title">#fui_round_top</div>
+				<div class="round-mvp row" data-for="p, i : hud.round.top" data-class-blu="p.team == 'blu'">
+					<span class="mvp-n">{{ i + 1 }}</span>
+					<img class="mvp-avatar" data-if="p.avatar != ''" data-attr-src="p.avatar"/>
+					<span class="grow mvp-name">{{ p.name }}</span>
+					<span class="mvp-cls" data-if="p.cls != ''">{{ ('fui_class_' + p.cls) | t }}</span>
+					<span class="mvp-pts">{{ 'fui_round_points' | t(p.points) }}</span>
+				</div>
+			</div>
+			<div class="round-streak" data-if="hud.round.streak > 0">{{ 'fui_round_streak' | t(hud.round.streak_name, hud.round.streak) }}</div>
+		</div>
+
+		<!-- The scoreboard (Tab); at the end of a match, the summary -->
+		<div id="scores" data-if="hud.scores.shown" data-class-live="hud.scores.mouse" data-class-summary="hud.scores.summary">
+			<div class="scores-dim"></div>
+			<div class="scores-panel">
+				<div class="scores-banner" data-if="hud.scores.summary" data-class-blu="hud.scores.winner == 'blu'" data-class-draw="hud.scores.winner == ''">
+					{{ hud.scores.winner == '' ? ('fui_round_stalemate' | t) : ('fui_round_win' | t(hud.scores.winner == 'red' ? 'RED' : 'BLU')) }}
+				</div>
+				<div class="row scores-top">
+					<div class="col">
+						<div class="scores-map">{{ match.map }}</div>
+						<div class="scores-sub">{{ match.mode_name }}<span data-if="hud.scores.time_left >= 0"> · {{ 'fui_scores_time_left' | t(hud.scores.time_left | clock) }}</span></div>
+					</div>
+					<div class="spacer"></div>
+					<div class="scores-hint" data-if="!hud.scores.mouse && !hud.scores.summary">#fui_scores_click</div>
+					<div class="scores-hint" data-if="hud.scores.mouse">#fui_scores_pick</div>
+				</div>
+				<div class="row scores-cols">
+					<div class="col grow scores-team blu">
+						<div class="row team-head">
+							<span class="team-name">BLU</span>
+							<span class="team-count">{{ 'fui_scores_players' | t(hud.scores.blu.count) }}</span>
+							<span class="spacer"></span>
+							<span class="team-total">{{ hud.scores.blu.score }}</span>
+						</div>
+						<div class="row col-head">
+							<span class="c-name grow">#fui_scores_name</span>
+							<span class="c-num">#fui_scores_score</span>
+							<span class="c-num">#fui_scores_kills</span>
+							<span class="c-num">#fui_scores_deaths</span>
+							<span class="c-ping">#fui_scores_ping</span>
+						</div>
+						<div class="prow row" data-for="p : hud.scores.blu.players" data-class-dead="!p.alive" data-class-me="p.me"
+							data-event-click="cmd('scores_pick', p.id)">
+							<img class="p-avatar" data-if="p.avatar != ''" data-attr-src="p.avatar"/>
+							<div class="p-avatar none" data-if="p.avatar == ''"></div>
+							<img class="p-cls" data-if="p.cls != ''" data-attr-src="'tex:hud/leaderboard_class_' + p.cls + (p.alive ? '' : '_d')"/>
+							<div class="p-cls none" data-if="p.cls == ''"></div>
+							<span class="c-name grow p-name">{{ p.name }}</span>
+							<span class="p-tag nemesis" data-if="p.rivalry == 'nemesis'">#fui_scores_nemesis</span>
+							<span class="p-tag dominated" data-if="p.rivalry == 'dominated'">#fui_scores_dominated</span>
+							<span class="p-tag" data-if="p.streak > 1">{{ 'fui_scores_streak' | t(p.streak) }}</span>
+							<span class="c-num p-score">{{ p.score }}</span>
+							<span class="c-num">{{ p.kills }}</span>
+							<span class="c-num">{{ p.deaths }}</span>
+							<span class="c-ping">{{ p.bot ? ('fui_scores_bot' | t) : p.ping }}</span>
+						</div>
+					</div>
+					<div class="col grow scores-team red">
+						<div class="row team-head">
+							<span class="team-name">RED</span>
+							<span class="team-count">{{ 'fui_scores_players' | t(hud.scores.red.count) }}</span>
+							<span class="spacer"></span>
+							<span class="team-total">{{ hud.scores.red.score }}</span>
+						</div>
+						<div class="row col-head">
+							<span class="c-name grow">#fui_scores_name</span>
+							<span class="c-num">#fui_scores_score</span>
+							<span class="c-num">#fui_scores_kills</span>
+							<span class="c-num">#fui_scores_deaths</span>
+							<span class="c-ping">#fui_scores_ping</span>
+						</div>
+						<div class="prow row" data-for="p : hud.scores.red.players" data-class-dead="!p.alive" data-class-me="p.me"
+							data-event-click="cmd('scores_pick', p.id)">
+							<img class="p-avatar" data-if="p.avatar != ''" data-attr-src="p.avatar"/>
+							<div class="p-avatar none" data-if="p.avatar == ''"></div>
+							<img class="p-cls" data-if="p.cls != ''" data-attr-src="'tex:hud/leaderboard_class_' + p.cls + (p.alive ? '' : '_d')"/>
+							<div class="p-cls none" data-if="p.cls == ''"></div>
+							<span class="c-name grow p-name">{{ p.name }}</span>
+							<span class="p-tag nemesis" data-if="p.rivalry == 'nemesis'">#fui_scores_nemesis</span>
+							<span class="p-tag dominated" data-if="p.rivalry == 'dominated'">#fui_scores_dominated</span>
+							<span class="p-tag" data-if="p.streak > 1">{{ 'fui_scores_streak' | t(p.streak) }}</span>
+							<span class="c-num p-score">{{ p.score }}</span>
+							<span class="c-num">{{ p.kills }}</span>
+							<span class="c-num">{{ p.deaths }}</span>
+							<span class="c-ping">{{ p.bot ? ('fui_scores_bot' | t) : p.ping }}</span>
+						</div>
+					</div>
+				</div>
+				<div class="scores-spec" data-if="hud.scores.spec.size > 0">#fui_scores_spectators <span data-for="n, i : hud.scores.spec">{{ i > 0 ? ', ' : '' }}{{ n }}</span></div>
+				<div class="row scores-me">
+					<div class="stat"><span class="v">{{ hud.scores.me.kills }}</span>#fui_scores_kills</div>
+					<div class="stat"><span class="v">{{ hud.scores.me.deaths }}</span>#fui_scores_deaths</div>
+					<div class="stat"><span class="v">{{ hud.scores.me.assists }}</span>#fui_stat_assists</div>
+					<div class="stat"><span class="v">{{ hud.scores.me.damage | thousands }}</span>#fui_stat_damage</div>
+					<div class="stat" data-if="hud.scores.me.healing > 0"><span class="v">{{ hud.scores.me.healing | thousands }}</span>#fui_stat_healing</div>
+					<div class="stat" data-if="hud.scores.me.captures > 0"><span class="v">{{ hud.scores.me.captures }}</span>#fui_stat_captures</div>
+					<div class="stat" data-if="hud.scores.me.defenses > 0"><span class="v">{{ hud.scores.me.defenses }}</span>#fui_stat_defenses</div>
+					<div class="stat" data-if="hud.scores.me.destruction > 0"><span class="v">{{ hud.scores.me.destruction }}</span>#fui_stat_destruction</div>
+					<div class="stat" data-if="hud.scores.me.dominations > 0"><span class="v">{{ hud.scores.me.dominations }}</span>#fui_stat_dominations</div>
+					<div class="stat" data-if="hud.scores.me.revenge > 0"><span class="v">{{ hud.scores.me.revenge }}</span>#fui_stat_revenge</div>
+					<div class="stat" data-if="hud.scores.me.invulns > 0"><span class="v">{{ hud.scores.me.invulns }}</span>#fui_stat_invulns</div>
+					<div class="stat" data-if="hud.scores.me.teleports > 0"><span class="v">{{ hud.scores.me.teleports }}</span>#fui_stat_teleports</div>
+					<div class="stat" data-if="hud.scores.me.headshots > 0"><span class="v">{{ hud.scores.me.headshots }}</span>#fui_stat_headshots</div>
+					<div class="stat" data-if="hud.scores.me.backstabs > 0"><span class="v">{{ hud.scores.me.backstabs }}</span>#fui_stat_backstabs</div>
+					<div class="stat" data-if="hud.scores.me.bonus > 0"><span class="v">{{ hud.scores.me.bonus }}</span>#fui_stat_bonus</div>
+				</div>
+			</div>
+		</div>
 	</div>
 
-	<div id="hud-toasts">
+	<div id="hud-toasts" data-if="!hud.scores.shown">
 		<div class="toast" data-for="t : toasts" data-class-quest="t.kind == 'quest'" data-class-party="t.kind == 'party'">
 			<img class="toast-icon" data-if="t.icon != ''" data-attr-src="t.icon"/>
 			<div class="col grow">

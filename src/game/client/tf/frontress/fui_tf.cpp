@@ -17,8 +17,11 @@
 #include "fui_stage.h"
 #include "fui_host.h"
 #include "fui_social.h"
+#include "fui_hud.h"
+#include "fui_ingame.h"
 
 #include "frontress_gc.h"
+#include "frontress_uniform.h"
 #include "tf_gc_client.h"
 #include "tf_gc_status.h"
 #include "tf_item_inventory.h"
@@ -31,7 +34,9 @@
 #include "steam/steam_api.h"
 #include "vgui/ILocalize.h"
 #include "c_team.h"
+#include "c_tf_team.h"
 #include "c_tf_player.h"
+#include "c_tf_playerresource.h"
 #include "tf_gamerules.h"
 
 #include <map>
@@ -250,11 +255,28 @@ private:
 struct CFuiTF::Impl
 {
 	fui::Runtime *pRuntime = nullptr;
+	bool bArenaTeams = false;	// the team select is arena's (play or watch)
 	float flNextRefresh = 0.f;
 	float flNextLocker = 0.f;
 	CFuiFetch war;
 	CFuiFetch record;
 	CFuiFetch history;
+	CFuiFetch lastMatch;	// the match just played, as the coordinator recorded it
+
+	// The match being played, for its results screen afterwards.
+	struct MatchLog_t
+	{
+		bool bActive = false;		// in a match on this map
+		bool bEnded = false;		// its end was seen and its results kept
+		bool bPending = false;		// open the results screen back at the menu
+		bool bGC = false;			// the coordinator's half (XP, rating) is still to come
+		std::string map, sector;	// sector: a war battle's
+		double flStart = 0.0, flFrontBefore = -1.0;
+	} log;
+	void TrackMatch( bool bInGame );
+	void CaptureResults();
+	void TakeLastMatch( const Node &doc );
+	double SectorControl( const std::string &sector );
 	std::string strQueuedMode;			// what the play button asked for
 	CUtlVector< itemid_t > lockerItems;	// locker.items index -> item id
 
@@ -305,6 +327,7 @@ struct CFuiTF::Impl
 	void RefreshHistory( const Node &doc, const CSteamID &owner );
 	void RefreshMatch();
 	void RefreshToasts();
+	void RefreshTeamSelect();
 
 	std::string Str( const char *pszPath )
 	{
@@ -1170,6 +1193,159 @@ void CFuiTF::Impl::RefreshQuests( Node &doc )
 //-----------------------------------------------------------------------------
 // The match we are in: for the pause screen and the HUD.
 //-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+// Results. The game says how the match went the moment it ends (who won, the
+// score, who carried it); the coordinator adds what it was worth (XP, the
+// rating) once it has recorded it; the war map how far the front moved.
+//-----------------------------------------------------------------------------
+double CFuiTF::Impl::SectorControl( const std::string &sector )
+{
+	const Node *pFronts = pRuntime->Get( "war.fronts" );
+	for ( size_t i = 0; pFronts && !sector.empty() && i < pFronts->Size(); ++i )
+	{
+		const Node &f = *pFronts->At( i );
+		const Node *pID = f.Find( "id" ), *pName = f.Find( "name" ), *pControl = f.Find( "control" );
+		if ( pControl && ( ( pID && pID->AsString() == sector ) || ( pName && pName->AsString() == sector ) ) )
+			return pControl->AsNumber();
+	}
+	return -1.0;
+}
+
+void CFuiTF::Impl::TrackMatch( bool bInGame )
+{
+	if ( !bInGame )
+	{
+		if ( log.bActive && log.bEnded && pRuntime->Get( "results.pending" ) && pRuntime->Get( "results.pending" )->AsBool() )
+		{
+			// Back from a finished match: ask what it was worth.
+			log.bGC = true;
+			lastMatch.Soon();
+			record.Soon();
+			war.Soon();
+		}
+		log.bActive = false;
+		return;
+	}
+	const std::string map = Str( "match.map_id" );
+	if ( !log.bActive || log.map != map )
+	{
+		log = MatchLog_t();
+		log.bActive = true;
+		log.map = map;
+		log.flStart = Plat_FloatTime();
+		if ( const Node *pWar = pRuntime->Get( "match.war.active" ) )
+		{
+			if ( pWar->AsBool() )
+			{
+				log.sector = Str( "match.war.sector" );
+				log.flFrontBefore = SectorControl( log.sector );
+			}
+		}
+	}
+	CTFGameRules *pRules = TFGameRules();
+	if ( !log.bEnded && pRules && ( pRules->ShowMatchSummary() || pRules->State_Get() == GR_STATE_GAME_OVER ) )
+		CaptureResults();
+}
+
+void CFuiTF::Impl::CaptureResults()
+{
+	log.bEnded = true;
+	C_TFPlayer *pLocal = C_TFPlayer::GetLocalTFPlayer();
+	const int iTeam = pLocal ? pLocal->GetTeamNumber() : TEAM_UNASSIGNED;
+	if ( iTeam < FIRST_GAME_TEAM || !g_TF_PR )
+		return;	// watched, not played
+	CTFGameRules *pRules = TFGameRules();
+	const int iWinner = pRules ? pRules->GetWinningTeam() : TEAM_UNASSIGNED;
+
+	Node res;
+	res[ "result" ] = iWinner < FIRST_GAME_TEAM ? "draw" : iWinner == iTeam ? "win" : "loss";
+	res[ "map" ] = Str( "match.map" );
+	res[ "image" ] = Str( "match.image" );
+	const bool bWar = !log.sector.empty();
+	res[ "mode" ] = std::string( "#fui_mode_" ) + ( bWar ? "war" : ( pRules && pRules->GetCurrentMatchGroup() != k_eTFMatchGroup_Invalid ) ?
+		ModeForGroup( pRules->GetCurrentMatchGroup() ) : "community" );
+	C_Team *pRed = GetGlobalTeam( frontress::DisplayTeam( TF_TEAM_RED ) ), *pBlu = GetGlobalTeam( frontress::DisplayTeam( TF_TEAM_BLUE ) );
+	res[ "score_red" ] = pRed ? pRed->Get_Score() : 0;
+	res[ "score_blu" ] = pBlu ? pBlu->Get_Score() : 0;
+	res[ "duration" ] = (int)( Plat_FloatTime() - log.flStart );
+	res[ "front" ] = log.sector;
+	res[ "front_before" ] = log.flFrontBefore;
+	res[ "front_after" ] = log.flFrontBefore;
+	res[ "level_before" ] = (int)( pRuntime->Get( "player.level" ) ? pRuntime->Get( "player.level" )->AsNumber( 1 ) : 1 );
+	res[ "frac_before" ] = pRuntime->Get( "player.xp_frac" ) ? pRuntime->Get( "player.xp_frac" )->AsNumber() : 0.0;
+	res[ "frac_after" ] = res[ "frac_before" ].AsNumber();
+	res[ "xp_total" ] = 0;
+	res[ "xp" ].SetArray();
+	res[ "rating" ] = 0;
+	res[ "delta" ] = 0;
+	res[ "pending" ] = true;
+
+	// The three who scored most in the whole match.
+	struct Best_t { int iPlayer, nScore; };
+	std::vector< Best_t > best;
+	for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+	{
+		if ( g_PR->IsConnected( i ) && g_PR->GetTeam( i ) >= FIRST_GAME_TEAM )
+			best.push_back( { i, g_TF_PR->GetTotalScore( i ) } );
+	}
+	std::stable_sort( best.begin(), best.end(), []( const Best_t &a, const Best_t &b ) { return a.nScore > b.nScore; } );
+	Node &mvps = res[ "mvps" ];
+	mvps.SetArray();
+	std::string points = pRuntime->Translate( "fui_round_points" );
+	for ( size_t i = 0; i < best.size() && i < 3; ++i )
+	{
+		Node &p = mvps.Append();
+		const int iPlayer = best[ i ].iPlayer;
+		const int iShown = frontress::DisplayTeam( g_PR->GetTeam( iPlayer ) );
+		p[ "name" ] = g_PR->GetPlayerName( iPlayer );
+		p[ "team" ] = iShown == TF_TEAM_BLUE ? "blu" : "red";
+		p[ "class" ] = ClassID( g_TF_PR->GetPlayerClass( iPlayer ) );
+		std::string stat = points;
+		const size_t n = stat.find( "%1" );
+		if ( n != std::string::npos )
+			stat.replace( n, 2, std::to_string( best[ i ].nScore ) );
+		p[ "stat" ] = stat;
+	}
+	pRuntime->Set( "results", std::move( res ) );
+	log.bPending = true;
+}
+
+// The coordinator's record of the match just played: what it gave.
+void CFuiTF::Impl::TakeLastMatch( const Node &doc )
+{
+	const Node *matches = doc.Find( "matches" );
+	const Node *match = matches && matches->Size() ? matches->At( 0 ) : nullptr;
+	const Node *map = match ? match->Find( "map" ) : nullptr;
+	if ( !match || !map || map->AsString() != log.map )
+		return;	// not recorded yet: the next poll
+	const Node *result = match->Find( "result" );
+	const Node *players = result ? result->Find( "players" ) : nullptr;
+	const std::string steamID = std::to_string( LocalSteamID().ConvertToUint64() );
+	for ( size_t j = 0; players && j < players->Size(); ++j )
+	{
+		const Node &player = *players->At( j );
+		const Node *id = player.Find( "steam_id" );
+		if ( !id || id->AsString() != steamID )
+			continue;
+		const Node *pXP = player.Find( "xp_change" ), *pDelta = player.Find( "display_rating_change" );
+		const int nXP = pXP ? (int)pXP->AsNumber() : 0;
+		pRuntime->Set( "results.xp_total", Node( nXP ) );
+		Node xp;
+		xp.SetArray();
+		if ( nXP > 0 )
+		{
+			Node &line = xp.Append();
+			line[ "what" ] = pRuntime->Translate( "fui_results_match_xp" );
+			line[ "xp" ] = nXP;
+		}
+		pRuntime->Set( "results.xp", std::move( xp ) );
+		pRuntime->Set( "results.delta", Node( pDelta ? pDelta->AsNumber() : 0.0 ) );
+		break;
+	}
+	log.bGC = false;
+	pRuntime->Set( "results.pending", Node( false ) );
+}
+
 void CFuiTF::Impl::RefreshMatch()
 {
 	Node match;
@@ -1193,9 +1369,73 @@ void CFuiTF::Impl::RefreshMatch()
 		const int iClass = ( pLocal && pLocal->GetPlayerClass() ) ? pLocal->GetPlayerClass()->GetClassIndex() : TF_CLASS_UNDEFINED;
 		match[ "class" ] = iClass > TF_CLASS_UNDEFINED && iClass < TF_LAST_NORMAL_CLASS ? ClassID( iClass ) : "";
 		match[ "official" ] = TFGameRules() && TFGameRules()->IsMatchTypeCasual();
+
+		// What this map is played for: the mode, and the goal the map gives
+		// the local team (TF2 flashed it across the top of the screen at
+		// spawn; it lives here, in Esc, now).
+		match[ "mode_name" ] = Localized( GetMapType( szMap ) );
+		C_TFTeam *pTeam = iTeam >= FIRST_GAME_TEAM ? GetGlobalTFTeam( iTeam ) : NULL;
+		const char *pszGoal = TFGameRules() && iTeam >= FIRST_GAME_TEAM ? TFGameRules()->GetTeamGoalString( iTeam ) : NULL;
+		match[ "goal" ] = Localized( pszGoal );
+		match[ "role" ] = !pTeam ? "" : pTeam->GetRole() == TEAM_ROLE_ATTACKERS ? "attack" : pTeam->GetRole() == TEAM_ROLE_DEFENDERS ? "defend" : "";
+
+		// A war battle: what it is for and what it is fought under, as the
+		// server has it from the coordinator (frontress_conditions.cpp).
+		static ConVarRef tf_war_battle( "tf_war_battle" ), tf_war_conditions( "tf_war_conditions" );
+		Node &w = match[ "war" ];
+		CUtlStringList parts, conds;
+		if ( tf_war_battle.IsValid() && tf_war_battle.GetString()[ 0 ] )
+			V_SplitString( tf_war_battle.GetString(), "|", parts );
+		w[ "active" ] = parts.Count() >= 7;
+		if ( parts.Count() >= 7 )
+		{
+			w[ "stage" ] = V_atoi( parts[ 0 ] );
+			w[ "stages" ] = V_atoi( parts[ 1 ] );
+			w[ "kind" ] = std::string( parts[ 2 ] );
+			w[ "attacker" ] = std::string( parts[ 3 ] );
+			w[ "attacking" ] = iTeam == V_atoi( parts[ 4 ] );
+			w[ "order" ] = !V_strcmp( parts[ 5 ], "true" );
+			w[ "sector" ] = std::string( parts[ 6 ] );
+		}
+		if ( tf_war_conditions.IsValid() && tf_war_conditions.GetString()[ 0 ] )
+			V_SplitString( tf_war_conditions.GetString(), ",", conds );
+		Node &list = w[ "conditions" ];
+		list.SetArray();
+		for ( int i = 0; i < conds.Count(); ++i )
+			list.Append( Node( std::string( conds[ i ] ) ) );
 	}
 	pRuntime->Set( "match", std::move( match ) );
 	pRuntime->Set( "ui.in_game", Node( bInGame ) );
+	TrackMatch( bInGame );
+}
+
+//-----------------------------------------------------------------------------
+// The team select: each side as you see it (a war may swap uniforms), how
+// many are on it, whether it takes you (the stock menu's balance check).
+//-----------------------------------------------------------------------------
+void CFuiTF::Impl::RefreshTeamSelect()
+{
+	CTFGameRules *pRules = TFGameRules();
+	C_TFPlayer *pLocal = C_TFPlayer::GetLocalTFPlayer();
+	const int iCurrent = pLocal ? pLocal->GetTeamNumber() : TEAM_UNASSIGNED;
+	Node sel;
+	sel[ "arena" ] = bArenaTeams;
+	const int iShown = frontress::DisplayTeam( iCurrent );
+	sel[ "current" ] = iShown == TF_TEAM_RED ? "red" : iShown == TF_TEAM_BLUE ? "blu" : iCurrent == TEAM_SPECTATOR ? "spectate" : "";
+	sel[ "can_close" ] = iCurrent != TEAM_UNASSIGNED;
+	static ConVarRef mp_allowspectators( "mp_allowspectators" );
+	sel[ "spectate_ok" ] = !mp_allowspectators.IsValid() || mp_allowspectators.GetBool();
+	for ( int iSide : { TF_TEAM_RED, TF_TEAM_BLUE } )
+	{
+		const int iReal = frontress::DisplayTeam( iSide );
+		C_Team *pTeam = GetGlobalTeam( iReal );
+		Node &t = sel[ iSide == TF_TEAM_RED ? "red" : "blu" ];
+		t[ "count" ] = pTeam ? pTeam->GetNumPlayers() : 0;
+		t[ "score" ] = pTeam ? pTeam->Get_Score() : 0;
+		t[ "closed" ] = pRules && iReal != iCurrent && ( pRules->WouldChangeUnbalanceTeams( iReal, iCurrent ) ||
+			( iReal == TF_TEAM_BLUE && pRules->IsMannVsMachineMode() ) );
+	}
+	pRuntime->Set( "teamsel", std::move( sel ) );
 }
 
 void CFuiTF::Impl::RefreshToasts()
@@ -1278,6 +1518,26 @@ void CFuiTF::Update( fui::Runtime &runtime, bool bShown )
 		d.record.Poll( CFmtStr( "/v1/player/%llu", me.ConvertToUint64() ), k_flRecordPoll );
 	d.TakeFetches();
 
+	// The results screen: what the coordinator made of the match, and how
+	// the level and the front stand now.
+	if ( d.log.bGC && me.IsValid() )
+	{
+		d.lastMatch.Poll( CFmtStr( "/v1/matches?steam_id=%llu&state=ended&limit=1", me.ConvertToUint64() ), 3.f );
+		Node lastDoc;
+		if ( d.lastMatch.Take( lastDoc ) )
+			d.TakeLastMatch( lastDoc );
+	}
+	if ( runtime.Screen() == "results" )
+	{
+		runtime.Set( "results.frac_after", Node( runtime.Get( "player.xp_frac" ) ? runtime.Get( "player.xp_frac" )->AsNumber() : 0.0 ) );
+		runtime.Set( "results.level_after", Node( runtime.Get( "player.level" ) ? runtime.Get( "player.level" )->AsNumber( 1 ) : 1.0 ) );
+		if ( const Node *pRating = runtime.Get( "career.ratings.0.rating" ) )
+			runtime.Set( "results.rating", Node( pRating->AsNumber() ) );
+		const double flFront = d.SectorControl( d.log.sector );
+		if ( flFront >= 0.0 )
+			runtime.Set( "results.front_after", Node( flFront ) );
+	}
+
 	if ( runtime.Screen() == "career" && me.IsValid() )
 	{
 		d.history.Poll( CFmtStr( "/v1/matches?steam_id=%llu&state=ended&limit=6", me.ConvertToUint64() ), 5.f );
@@ -1285,6 +1545,9 @@ void CFuiTF::Update( fui::Runtime &runtime, bool bShown )
 		if ( d.history.Take( historyDoc ) )
 			d.RefreshHistory( historyDoc, me );
 	}
+
+	if ( runtime.Screen() == "teams" )
+		d.RefreshTeamSelect();
 
 	if ( runtime.Screen() == "locker" && flNow >= d.flNextLocker )
 	{
@@ -1309,6 +1572,15 @@ void CFuiTF::OnNavigate( const std::string &screen )
 	FuiSocialNavigate( *m_pImpl->pRuntime, screen );
 }
 
+bool CFuiTF::TakeResults()
+{
+	// Out of the match (the background level counts as out).
+	if ( !m_pImpl || !m_pImpl->log.bPending || ( engine->IsInGame() && !engine->IsLevelMainMenuBackground() ) )
+		return false;
+	m_pImpl->log.bPending = false;
+	return true;
+}
+
 void CFuiTF::Toast( const std::string &kind, const std::string &title, const std::string &body, const std::string &icon )
 {
 	if ( m_pImpl )
@@ -1324,6 +1596,10 @@ void CFuiTF::OnCommand( const std::string &name, const std::vector< std::string 
 	const std::string arg = args.empty() ? std::string() : args[ 0 ];
 
 	if ( FuiSocialCommand( ui, name, args ) )
+		return;
+	if ( FuiHudCommand( ui, name, args ) )
+		return;
+	if ( FuiIngameCommand( ui, name, args ) )
 		return;
 	if ( name == "queue" )
 	{
@@ -1506,6 +1782,54 @@ void CFuiTF::OnCommand( const std::string &name, const std::vector< std::string 
 	}
 	else if ( name == "close_classes" )
 		FrontressUISetClassSelect( false );
+	else if ( name == "pick_team" )
+	{
+		// The side as shown (red / blu) is a team as the server has it.
+		C_TFPlayer *pLocal = C_TFPlayer::GetLocalTFPlayer();
+		const char *pszTeam = NULL;
+		int iTeam = TEAM_INVALID;
+		if ( arg == "red" || arg == "blu" )
+		{
+			iTeam = frontress::DisplayTeam( arg == "red" ? TF_TEAM_RED : TF_TEAM_BLUE );
+			pszTeam = iTeam == TF_TEAM_RED ? "red" : "blue";
+		}
+		else if ( arg == "auto" )
+			pszTeam = "auto";
+		else if ( arg == "spectate" )
+		{
+			pszTeam = "spectate";
+			iTeam = TEAM_SPECTATOR;
+		}
+		if ( d.bArenaTeams && iTeam != TEAM_SPECTATOR )
+		{
+			pszTeam = "auto";	// arena queues you; it picks the side
+			iTeam = TEAM_INVALID;
+		}
+		const int iCurrent = pLocal ? pLocal->GetTeamNumber() : TEAM_UNASSIGNED;
+		// A side that would not take you (the stock menu greys it out).
+		CTFGameRules *pRules = TFGameRules();
+		if ( pRules && ( iTeam == TF_TEAM_RED || iTeam == TF_TEAM_BLUE ) && iTeam != iCurrent &&
+			( pRules->WouldChangeUnbalanceTeams( iTeam, iCurrent ) || ( iTeam == TF_TEAM_BLUE && pRules->IsMannVsMachineMode() ) ) )
+			return;
+		if ( !pszTeam )
+			return;
+		if ( iTeam != TEAM_INVALID && iCurrent == iTeam )
+		{
+			FrontressUISetTeamSelect( false );	// already there
+			return;
+		}
+		engine->ClientCmd( CFmtStr( "jointeam %s\n", pszTeam ) );
+		// On a team already: done, whatever the server says. Not on one yet:
+		// stay until the server puts you on one (it may say the team is full).
+		if ( iCurrent != TEAM_UNASSIGNED )
+			FrontressUISetTeamSelect( false );
+	}
+	else if ( name == "close_teams" )
+	{
+		C_TFPlayer *pLocal = C_TFPlayer::GetLocalTFPlayer();
+		if ( pLocal && pLocal->GetTeamNumber() != TEAM_UNASSIGNED )
+			FrontressUISetTeamSelect( false );
+	}
 	else
 		DevMsg( "[fui] unknown command '%s'\n", name.c_str() );
 }
@@ -1521,6 +1845,15 @@ bool CFuiTF::ShowClassSelect( int iTeam )
 	const std::string current = iClass > TF_CLASS_UNDEFINED && iClass < TF_LAST_NORMAL_CLASS ? ClassID( iClass ) : std::string();
 	ui.Set( "classsel.current", fui::Node( current ) );
 	ui.Set( "ui.class_hover", fui::Node( current.empty() ? m_pImpl->Str( "ui.class" ) : current ) );
+	return true;
+}
+
+bool CFuiTF::ShowTeamSelect( bool bArena )
+{
+	if ( !m_pImpl || !FrontressUISetTeamSelect( true ) )
+		return false;
+	m_pImpl->bArenaTeams = bArena;
+	m_pImpl->RefreshTeamSelect();
 	return true;
 }
 

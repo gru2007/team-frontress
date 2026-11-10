@@ -1,0 +1,59 @@
+<rml>
+<!-- Team select in a match: BLU or RED (as you see them: a war may swap the
+     uniforms), auto, or watch. 1-4 pick, Esc closes once you are on a team
+     (fui_host.cpp). Arena has no sides to pick: play (the queue) or watch. -->
+<head>
+	<title>Teams</title>
+	<link type="text/rcss" href="../style/base.rcss"/>
+	<link type="text/rcss" href="../style/ingame.rcss"/>
+</head>
+<body>
+<div class="root" data-model="fr" data-class-world="app.world">
+	<div class="world-standin game-still" data-if="app.preview"></div>
+	<div class="team-dim"></div>
+	<div class="class-head in0">
+		<div class="dimmer upper small" data-if="match.map != ''">{{ match.map }}<span data-if="match.mode_name != ''"> · {{ match.mode_name }}</span></div>
+		<h1 class="shadow">#fui_pick_team</h1>
+	</div>
+
+	<div id="team-row" class="row in1" data-if="!teamsel.arena">
+		<div class="team-card blu" sfx="class" data-class-current="teamsel.current == 'blu'" data-class-closed="teamsel.blu.closed"
+			data-event-click="cmd('pick_team', 'blu')">
+			<div class="card-key">1</div>
+			<div class="team-card-name">BLU</div>
+			<div class="team-card-score">{{ teamsel.blu.score }}</div>
+			<div class="team-card-count">{{ 'fui_scores_players' | t(teamsel.blu.count) }}</div>
+			<div class="team-card-tag" data-if="teamsel.current == 'blu'">#fui_team_current</div>
+			<div class="team-card-tag closed" data-if="teamsel.blu.closed && teamsel.current != 'blu'">#fui_team_full</div>
+		</div>
+		<div class="team-card red" sfx="class" data-class-current="teamsel.current == 'red'" data-class-closed="teamsel.red.closed"
+			data-event-click="cmd('pick_team', 'red')">
+			<div class="card-key">2</div>
+			<div class="team-card-name">RED</div>
+			<div class="team-card-score">{{ teamsel.red.score }}</div>
+			<div class="team-card-count">{{ 'fui_scores_players' | t(teamsel.red.count) }}</div>
+			<div class="team-card-tag" data-if="teamsel.current == 'red'">#fui_team_current</div>
+			<div class="team-card-tag closed" data-if="teamsel.red.closed && teamsel.current != 'red'">#fui_team_full</div>
+		</div>
+	</div>
+
+	<div id="team-arena" class="in1" data-if="teamsel.arena">
+		<div class="team-card arena" sfx="play" data-event-click="cmd('pick_team', 'auto')">
+			<div class="card-key">1</div>
+			<div class="team-card-name">#fui_team_arena_play</div>
+			<div class="team-card-count">#fui_team_arena_desc</div>
+		</div>
+	</div>
+
+	<div id="team-actions" class="row in2">
+		<div class="button ghost team-alt" sfx="" data-if="!teamsel.arena" data-event-click="cmd('pick_team', 'auto')">
+			<span class="kbd">3</span> #fui_team_auto <span class="dim small">#fui_team_auto_desc</span>
+		</div>
+		<div class="button ghost team-alt" sfx="" data-if="teamsel.spectate_ok" data-class-current="teamsel.current == 'spectate'" data-event-click="cmd('pick_team', 'spectate')">
+			<span class="kbd">4</span> #fui_team_spectate <span class="dim small">#fui_team_spectate_desc</span>
+		</div>
+		<div class="button ghost" sfx="" data-if="teamsel.can_close" data-event-click="cmd('close_teams')"><span class="kbd">Esc</span></div>
+	</div>
+</div>
+</body>
+</rml>

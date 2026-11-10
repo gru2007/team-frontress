@@ -1,5 +1,7 @@
 <rml>
-<!-- Results: what the match was worth. Shown when a match ends. -->
+<!-- Results: what the match was worth. Opens back at the menu after a match
+     played to the end (fui_tf.cpp): the game's half (who won, the score, the
+     best three) at once, the coordinator's (XP, rating) when it has it. -->
 <head>
 	<title>Results</title>
 	<link type="text/rcss" href="../style/base.rcss"/>
@@ -10,8 +12,8 @@
 	<div class="world-standin" data-if="app.preview"></div>
 	<div class="dim-all"></div>
 	<div class="screen">
-		<div id="banner" class="pop" data-class-loss="results.result == 'loss'">
-			<div class="banner-text outline">{{ (results.result == 'win' ? 'fui_results_win' : 'fui_results_loss') | t }}</div>
+		<div id="banner" class="pop" data-class-loss="results.result == 'loss'" data-class-draw="results.result == 'draw'">
+			<div class="banner-text outline">{{ (results.result == 'win' ? 'fui_results_win' : (results.result == 'draw' ? 'fui_round_stalemate' : 'fui_results_loss')) | t }}</div>
 		</div>
 		<div id="scoreline" class="row">
 			<div class="score red-score">{{ results.score_red }}</div>
@@ -23,30 +25,31 @@
 		</div>
 
 		<div class="row res-cols">
-			<div class="panel res-xp rise">
+			<div class="panel res-xp rise" data-if="results.xp_total > 0 || results.pending">
 				<div class="panel-title">#fui_results_xp</div>
+				<div class="dim small" data-if="results.pending">#fui_results_pending</div>
 				<div class="xp-line row" data-for="x : results.xp">
 					<span class="grow">{{ x.what }}</span><span class="gold title">+{{ x.xp }}</span>
 				</div>
-				<div class="xp-line row total">
+				<div class="xp-line row total" data-if="!results.pending">
 					<span class="grow title">#fui_results_total</span><span class="gold title">+{{ results.xp_total }} XP</span>
 				</div>
-				<div class="row level-row">
-					<span class="badge">{{ results.level_before }}</span>
+				<div class="row level-row" data-if="!results.pending">
+					<span class="badge">{{ results.level_after > 0 ? results.level_after : results.level_before }}</span>
 					<div class="bar grow lvl-bar">
 						<div class="fill" data-style-width="(results.frac_after * 100) + '%'"></div>
 					</div>
-					<span class="badge">{{ results.level_before + 1 }}</span>
+					<span class="badge">{{ (results.level_after > 0 ? results.level_after : results.level_before) + 1 }}</span>
 				</div>
 			</div>
 
 			<div class="col res-mid">
-				<div class="panel rise">
+				<div class="panel rise" data-if="results.front != '' && results.front_after >= 0">
 					<div class="panel-title">#fui_results_front · {{ results.front }}</div>
 					<div class="split-bar"><div class="split-red" data-style-width="(results.front_after * 100) + '%'"></div></div>
 					<div class="row small"><span class="red">RED {{ results.front_after | percent }}</span><div class="spacer"></div><span class="good">+{{ (results.front_after - results.front_before) | percent }}</span><div class="spacer"></div><span class="blu">{{ (1 - results.front_after) | percent }} BLU</span></div>
 				</div>
-				<div class="panel rise">
+				<div class="panel rise" data-if="results.rating > 0 || results.delta != 0">
 					<div class="panel-title">#fui_results_rating</div>
 					<div class="row"><div class="rating-big">{{ results.rating }}</div><div data-attr-class="'rating-delta ' + (results.delta >= 0 ? 'good' : 'bad')">{{ results.delta | signed }}</div></div>
 				</div>

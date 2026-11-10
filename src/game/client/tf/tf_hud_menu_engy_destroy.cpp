@@ -408,3 +408,29 @@ void CHudMenuEngyDestroy::InitBuildings()
 	InvalidateLayout( true, true );
 }
 
+//-----------------------------------------------------------------------------
+// Team Frontress: drawn by the Frontress HUD instead (fui_ingame.cpp).
+//-----------------------------------------------------------------------------
+extern bool FrontressHudReplaces( const char *pszPart );
+
+void CHudMenuEngyDestroy::PaintTraverse( bool Repaint, bool allowForce )
+{
+	if ( FrontressHudReplaces( "buildmenu" ) )
+		return;
+	BaseClass::PaintTraverse( Repaint, allowForce );
+}
+
+int CHudMenuEngyDestroy::FrontressSlot( int i, int &iType, int &iMode )
+{
+	iType = iMode = 0;
+	if ( i < 0 || i >= NUM_ENGY_BUILDINGS || !m_Buildings[ i ].m_bEnabled )
+		return 0;
+	CHudMenuEngyBuild::GetBuildingIDAndModeFromSlot( i + 1, iType, iMode, m_Buildings );
+	if ( m_pActiveItems[ i ] && m_pActiveItems[ i ]->IsVisible() )
+		return 1;
+	if ( m_pInactiveItems[ i ] && m_pInactiveItems[ i ]->IsVisible() )
+		return 2;
+	if ( m_pUnavailableItems[ i ] && m_pUnavailableItems[ i ]->IsVisible() )
+		return 3;
+	return 0;
+}

@@ -1842,6 +1842,13 @@ void CHudVote::MsgFunc_VoteSetup( bf_read &msg )
 	}
 #endif // TF_CLIENT_DLL
 
+#ifdef TF_CLIENT_DLL
+	// Team Frontress: the Frontress menu's own window (tf/frontress/fui_ingame.cpp).
+	extern bool FuiVoteSetup( const CUtlVector< VoteIssue_t > &issues, const CUtlStringList &maps, const CUtlStringList &missions );
+	if ( FuiVoteSetup( m_VoteSetupIssues, m_VoteSetupMapCycle, m_VoteSetupPopFiles ) )
+		return;
+#endif
+
 	// Now send any data we gathered over to the listpanel
 	PropagateOptionParameters();
 
@@ -2261,6 +2268,73 @@ void CHudVotePanel::OnThink()
 
 	BaseClass::OnThink();
 }
+
+#ifdef TF_CLIENT_DLL
+extern bool FrontressHudReplaces( const char *pszPart );
+
+//-----------------------------------------------------------------------------
+// Team Frontress: the Frontress HUD draws the vote; this panel keeps running
+// it (messages, timers, sounds) but does not paint.
+//-----------------------------------------------------------------------------
+void CHudVotePanel::PaintTraverse( bool Repaint, bool allowForce )
+{
+	if ( FrontressHudReplaces( "vote" ) )
+		return;
+	BaseClass::PaintTraverse( Repaint, allowForce );
+}
+
+static void FrontressPanelText( vgui::EditablePanel *pPanel, const char *pszControl, const char *pszVariable, wchar_t *pwszOut, int nOutBytes )
+{
+	pwszOut[ 0 ] = 0;
+	if ( !pPanel )
+		return;
+	if ( pszControl )
+	{
+		if ( vgui::Label *pLabel = dynamic_cast< vgui::Label * >( pPanel->FindChildByName( pszControl, true ) ) )
+			pLabel->GetText( pwszOut, nOutBytes );
+	}
+	if ( !pwszOut[ 0 ] && pszVariable && pPanel->GetDialogVariables() )
+		V_wcsncpy( pwszOut, pPanel->GetDialogVariables()->GetWString( pszVariable, L"" ), nOutBytes );
+}
+
+bool CHudVotePanel::GetFrontressVote( FrontressVote_t &out )
+{
+	if ( !ShouldDraw() )
+		return false;
+	C_BasePlayer *pLocalPlayer = C_BasePlayer::GetLocalPlayer();
+	if ( m_nVoteTeamIndex && ( !pLocalPlayer || pLocalPlayer->GetTeamNumber() != m_nVoteTeamIndex ) )
+		return false;
+
+	V_memset( &out, 0, sizeof( out ) );
+	out.bYesNo = m_bIsYesNoVote;
+	out.bVoted = m_bPlayerVoted;
+	out.nPotential = m_nPotentialVotes;
+	CHudVote *pHudVote = GET_HUDELEMENT( CHudVote );
+	out.bInput = pHudVote && pHudVote->GetInputVotePanel() == this;
+
+	if ( m_bVotingActive )
+	{
+		FrontressPanelText( m_pVoteActive, NULL, "header", out.wszHeader, sizeof( out.wszHeader ) );
+		FrontressPanelText( m_pVoteActive, NULL, "voteissue", out.wszIssue, sizeof( out.wszIssue ) );
+		out.nOptions = m_bIsYesNoVote ? 2 : MIN( m_VoteSetupChoices.Count(), MAX_VOTE_OPTIONS );
+		for ( int i = 0; i < out.nOptions; ++i )
+		{
+			FrontressPanelText( m_pVoteActive, CFmtStr( "LabelOption%d", i + 1 ), NULL, out.wszOptions[ i ], sizeof( out.wszOptions[ i ] ) );
+			out.nCounts[ i ] = m_nVoteOptionCount[ i ];
+		}
+		return true;
+	}
+
+	out.iResult = m_bVotePassed ? 1 : 2;
+	if ( m_bVotePassed )
+		FrontressPanelText( m_pVotePassed, NULL, "passedresult", out.wszResult, sizeof( out.wszResult ) );
+	else if ( m_pCallVoteFailed && m_pCallVoteFailed->IsVisible() )
+		FrontressPanelText( m_pCallVoteFailed, "FailedReason", "FailedReason", out.wszResult, sizeof( out.wszResult ) );
+	else
+		FrontressPanelText( m_pVoteFailed, "FailedReason", "FailedReason", out.wszResult, sizeof( out.wszResult ) );
+	return true;
+}
+#endif
 
 bool CHudVotePanel::IsVisible()
 {

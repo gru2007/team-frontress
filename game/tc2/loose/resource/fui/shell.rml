@@ -354,6 +354,122 @@
 		</div>
 	</div>
 
+	<!-- Calling a vote: what the server allows here (fui_ingame.cpp) -->
+	<div class="modal-dim hit" data-if="ui.modal == 'vote'">
+		<div class="modal report-modal vote-modal">
+			<div class="row report-head">
+				<div class="col grow">
+					<h2>#fui_vote_title</h2>
+					<div class="dim small">#fui_vote_sub</div>
+				</div>
+				<div class="icon-button" data-event-click="set('ui.modal', '')">#fui_close</div>
+			</div>
+			<p class="dim" data-if="votesetup.loading">#fui_vote_loading</p>
+			<p class="dim" data-if="!votesetup.loading &amp;&amp; !votesetup.enabled">#fui_vote_disabled</p>
+
+			<div class="row report-body" data-if="!votesetup.loading &amp;&amp; votesetup.enabled">
+				<div class="col report-who">
+					<div class="report-label">#fui_vote_issue</div>
+					<div class="report-list vote-list">
+						<div class="row report-player vote-issue-row" data-for="i : votesetup.issues" data-if="i.active"
+							data-class-active="votesetup.issue == i.id"
+							data-event-click="set('votesetup.issue', i.id); set('votesetup.kind', i.param); set('votesetup.param', '')">
+							<div class="col grow report-pmain"><div class="report-pname">{{ i.label }}</div></div>
+							<div class="tiny dim" data-if="i.param != ''">›</div>
+						</div>
+						<div class="row report-player vote-issue-row off" data-for="i : votesetup.issues" data-if="!i.active">
+							<div class="col grow report-pmain"><div class="report-pname">{{ i.label }}</div><div class="tiny dim">#fui_vote_issue_off</div></div>
+						</div>
+					</div>
+				</div>
+
+				<div class="col grow report-form">
+					<div data-if="votesetup.kind == 'map'">
+						<div class="report-label">#fui_vote_pick_map</div>
+						<div class="report-list vote-list">
+							<div class="row report-player" data-for="m : votesetup.maps" data-class-active="votesetup.param == m.id" data-event-click="set('votesetup.param', m.id)">
+								<img class="vote-map" data-attr-src="'tex:vgui/maps/menu_thumb_' + m.id"/>
+								<div class="col grow report-pmain"><div class="report-pname">{{ m.name }}</div><div class="tiny dim">{{ m.id }}</div></div>
+							</div>
+							<p class="dim" data-if="votesetup.maps.size == 0">#fui_vote_no_maps</p>
+						</div>
+					</div>
+					<div data-if="votesetup.kind == 'mission'">
+						<div class="report-label">#fui_vote_pick_mission</div>
+						<div class="report-list vote-list">
+							<div class="row report-player" data-for="m : votesetup.missions" data-class-active="votesetup.param == m.id" data-event-click="set('votesetup.param', m.id)">
+								<div class="col grow report-pmain"><div class="report-pname">{{ m.name }}</div></div>
+							</div>
+						</div>
+					</div>
+					<div data-if="votesetup.kind == 'player'">
+						<div class="report-label">#fui_vote_pick_player</div>
+						<div class="report-list vote-list short">
+							<div class="row report-player" data-for="p : votesetup.players" data-class-active="votesetup.param == p.idx" data-event-click="set('votesetup.param', p.idx)">
+								<img class="avatar report-avatar" data-if="p.avatar != ''" data-attr-src="p.avatar"/>
+								<div class="avatar report-avatar blank" data-if="p.avatar == ''"></div>
+								<div class="col grow report-pmain">
+									<div class="report-pname">{{ p.name }}</div>
+									<div class="tiny dim" data-if="p.cls != ''">{{ ('fui_class_' + p.cls) | t }}</div>
+								</div>
+							</div>
+							<p class="dim" data-if="votesetup.players.size == 0">#fui_vote_no_players</p>
+						</div>
+						<div class="report-label">#fui_vote_reason</div>
+						<div class="report-chips">
+							<div class="chip report-chip" data-class-active="votesetup.reason == 'other'" data-event-click="set('votesetup.reason', 'other')">#fui_vote_reason_other</div>
+							<div class="chip report-chip" data-class-active="votesetup.reason == 'cheating'" data-event-click="set('votesetup.reason', 'cheating')">#fui_vote_reason_cheating</div>
+							<div class="chip report-chip" data-class-active="votesetup.reason == 'idle'" data-event-click="set('votesetup.reason', 'idle')">#fui_vote_reason_idle</div>
+							<div class="chip report-chip" data-class-active="votesetup.reason == 'scamming'" data-event-click="set('votesetup.reason', 'scamming')">#fui_vote_reason_scamming</div>
+						</div>
+					</div>
+					<p class="dim" data-if="votesetup.issue == ''">#fui_vote_pick_issue</p>
+					<p class="dim" data-if="votesetup.issue != '' &amp;&amp; votesetup.kind == ''">#fui_vote_no_param</p>
+				</div>
+			</div>
+
+			<div class="row report-foot" data-if="!votesetup.loading &amp;&amp; votesetup.enabled">
+				<div class="grow tiny dim">#fui_vote_hint</div>
+				<div class="button primary" data-if="votesetup.issue != '' &amp;&amp; (votesetup.kind == '' || votesetup.param != '')" data-event-click="cmd('call_vote')">#fui_vote_call</div>
+				<div class="button primary disabled" data-if="votesetup.issue == '' || (votesetup.kind != '' &amp;&amp; votesetup.param == '')">#fui_vote_call</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Muting players (voice, and text with cl_mute_all_comms) -->
+	<div class="modal-dim hit" data-if="ui.modal == 'mute'">
+		<div class="modal report-modal mute-modal">
+			<div class="row report-head">
+				<div class="col grow">
+					<h2>#fui_mute_title</h2>
+					<div class="dim small">#fui_mute_sub</div>
+				</div>
+				<div class="icon-button" data-event-click="set('ui.modal', '')">#fui_close</div>
+			</div>
+			<div class="report-list mute-list">
+				<div class="row report-player" data-for="p : mute.players" data-class-red="p.team == 'red'" data-class-blu="p.team == 'blu'" data-class-done="p.muted">
+					<div class="team-bar"></div>
+					<img class="avatar report-avatar" data-if="p.avatar != ''" data-attr-src="p.avatar"/>
+					<div class="avatar report-avatar blank" data-if="p.avatar == ''"></div>
+					<div class="col grow report-pmain">
+						<div class="report-pname">{{ p.name }}</div>
+						<div class="tiny talking" data-if="p.talking">#fui_mute_talking</div>
+					</div>
+					<div class="button small-button ghost" data-if="!p.muted" data-event-click="cmd('mute_toggle', p.idx)">#fui_mute_do</div>
+					<div class="button small-button danger" data-if="p.muted" data-event-click="cmd('mute_toggle', p.idx)">#fui_mute_undo</div>
+				</div>
+				<p class="dim" data-if="mute.players.size == 0">#fui_mute_empty</p>
+			</div>
+			<div class="row report-foot">
+				<div class="row grow mute-all" data-event-click="cmd('mute_all_comms')">
+					<div class="check" data-class-on="mute.all_comms"><div class="tick" data-if="mute.all_comms"></div></div>
+					<div class="col"><div>#fui_mute_all_comms</div><div class="tiny dim">#fui_mute_all_comms_sub</div></div>
+				</div>
+				<div class="button primary" data-event-click="set('ui.modal', '')">#fui_report_done</div>
+			</div>
+		</div>
+	</div>
+
 	<!-- Quit -->
 	<div class="modal-dim hit" data-if="ui.modal == 'quit'">
 		<div class="modal quit-modal">

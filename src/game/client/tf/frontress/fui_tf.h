@@ -39,6 +39,11 @@ public:
 	void OnPartyLooks( const char *pszJSON );
 	// Show the in-match class select for a team; false if the menu is off.
 	bool ShowClassSelect( int iTeam );
+	// Show the in-match team select (arena: play or watch); false if it is off.
+	bool ShowTeamSelect( bool bArena );
+	// A match ended while you played it: its results screen is waiting. True
+	// once, for the menu to open it on the way back.
+	bool TakeResults();
 	// A notification in the corner: kind (quest, party, clan, support,
 	// error), title, body, icon (a texture source or "").
 	void Toast( const std::string &kind, const std::string &title, const std::string &body, const std::string &icon );

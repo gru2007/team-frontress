@@ -18,8 +18,8 @@
 			<div class="menu-item" sfx="" data-event-click="cmd('changeteam')"><span class="kbd">.</span>#fui_change_team</div>
 			<div class="menu-item" sfx="" data-event-click="nav('locker')">#fui_tab_locker</div>
 			<div class="menu-item" sfx="" data-event-click="nav('quests')">#fui_tab_quests</div>
-			<div class="menu-item" sfx="" data-event-click="cmd('classic', 'vote')">#fui_vote</div>
-			<div class="menu-item" sfx="" data-event-click="cmd('classic', 'mute')">#fui_mute</div>
+			<div class="menu-item" sfx="" data-event-click="cmd('open_vote')">#fui_vote</div>
+			<div class="menu-item" sfx="" data-event-click="cmd('open_mute')">#fui_mute</div>
 			<div class="menu-item" sfx="" data-event-click="cmd('open_report')">#fui_report_title</div>
 			<div class="menu-item" sfx="" data-event-click="cmd('open_invites')">#fui_party_group</div>
 			<div class="menu-item" sfx="" data-event-click="cmd('open_settings')">#fui_settings</div>
@@ -28,35 +28,60 @@
 		</div>
 	</div>
 
-	<div id="match-card" class="in1" data-if="match.active">
-		<div class="match-art" data-style-decorator="'image(tex:' + match.image + ' cover center top)'">
-			<div class="match-shade"></div>
-			<div class="match-title">
-				<div class="dim tiny upper">#fui_now_playing</div>
-				<h2 class="shadow">{{ match.map }}</h2>
+	<!-- The match, what it is played for, and (in a war) the battle. TF2 put
+	     the map's goal and the battle's terms across the top of the screen;
+	     they are here, out of the way of the fight. -->
+	<div id="pause-side">
+		<div id="match-card" class="in1" data-if="match.active">
+			<div class="match-art" data-style-decorator="'image(tex:' + match.image + ' cover center top)'">
+				<div class="match-shade"></div>
+				<div class="match-title">
+					<div class="dim tiny upper">#fui_now_playing<span data-if="match.mode_name != ''"> · {{ match.mode_name }}</span></div>
+					<h2 class="shadow">{{ match.map }}</h2>
+				</div>
+			</div>
+			<div class="row scoreline">
+				<div class="score red-score">{{ match.red }}</div>
+				<div class="col grow score-mid">
+					<div class="you-on" data-if="match.team == 'red'"><span class="red">#fui_you_red</span></div>
+					<div class="you-on" data-if="match.team == 'blu'"><span class="blu">#fui_you_blu</span></div>
+					<div class="dim small" data-if="match.class != ''">{{ ('fui_class_' + match.class) | t }}</div>
+				</div>
+				<div class="score blu-score">{{ match.blu }}</div>
+			</div>
+			<div class="match-goal" data-if="match.goal != '' || match.role != ''">
+				<span class="goal-role" data-if="match.role != ''" data-class-attack="match.role == 'attack'">{{ ('fui_role_side_' + match.role) | t }}</span>
+				<span class="goal-text" data-if="match.goal != ''">{{ match.goal }}</span>
 			</div>
 		</div>
-		<div class="row scoreline">
-			<div class="score red-score">{{ match.red }}</div>
-			<div class="col grow score-mid">
-				<div class="you-on" data-if="match.team == 'red'"><span class="red">#fui_you_red</span></div>
-				<div class="you-on" data-if="match.team == 'blu'"><span class="blu">#fui_you_blu</span></div>
-				<div class="dim small" data-if="match.class != ''">{{ ('fui_class_' + match.class) | t }}</div>
-			</div>
-			<div class="score blu-score">{{ match.blu }}</div>
-		</div>
-	</div>
 
-	<div id="pause-quests" class="panel in2" data-if="quests.total > 0">
-		<div class="panel-title">#fui_quests_today</div>
-		<div class="mini-quest" data-for="q : quests.daily" data-class-done="q.done">
-			<div class="row">
-				<div class="grow small">{{ ('fui_q_' + q.kind) | t(q.target, '#fui_class_' + q.class) }}</div>
-				<div class="tiny dim">{{ q.progress | thousands }}/{{ q.target | thousands }}</div>
+		<div id="pause-battle" class="panel in2" data-if="match.war.active" data-class-attacking="match.war.attacking">
+			<div class="panel-title">#fui_hud_war <span class="sub">{{ 'fui_war_stage_of' | t(match.war.stage, match.war.stages) }} · {{ ('#fui_stage_' + match.war.kind) | t }}</span></div>
+			<div class="row battle-head">
+				<div class="grow battle-sector">{{ match.war.sector }}</div>
+				<div class="battle-role">{{ (match.war.attacking ? 'fui_hud_war_attack' : 'fui_hud_war_defend') | t }}</div>
 			</div>
-			<div class="bar"><div class="fill" data-style-width="(q.frac * 100) + '%'"></div></div>
+			<div class="battle-order" data-if="match.war.order">#fui_hud_war_order</div>
+			<div class="battle-conds" data-if="match.war.conditions.size > 0">
+				<div class="dimmer tiny upper">#fui_war_conditions</div>
+				<div class="battle-cond" data-for="c : match.war.conditions">
+					<div class="cond-name">{{ ('#fui_cond_' + c) | t }}</div>
+					<div class="cond-desc">{{ ('#fui_condd_' + c) | t }}</div>
+				</div>
+			</div>
 		</div>
-		<div class="dimmer tiny">#fui_quests_after_match</div>
+
+		<div id="pause-quests" class="panel in2" data-if="quests.total > 0">
+			<div class="panel-title">#fui_quests_today</div>
+			<div class="mini-quest" data-for="q : quests.daily" data-class-done="q.done">
+				<div class="row">
+					<div class="grow small">{{ ('fui_q_' + q.kind) | t(q.target, '#fui_class_' + q.class) }}</div>
+					<div class="tiny dim">{{ q.progress | thousands }}/{{ q.target | thousands }}</div>
+				</div>
+				<div class="bar"><div class="fill" data-style-width="(q.frac * 100) + '%'"></div></div>
+			</div>
+			<div class="dimmer tiny">#fui_quests_after_match</div>
+		</div>
 	</div>
 </div>
 </body>

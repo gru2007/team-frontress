@@ -144,7 +144,6 @@
 
 #pragma warning( disable: 4355 ) // disables ' 'this' : used in base member initializer list'
 
-ConVar sv_motd_unload_on_dismissal( "sv_motd_unload_on_dismissal", "1", 0, "If enabled, the MOTD contents will be unloaded when the player closes the MOTD." );
 
 #define DAMAGE_FORCE_SCALE_SELF				9
 #define SCOUT_ADD_BIRD_ON_GIB_CHANCE		5
@@ -1083,6 +1082,7 @@ static void HandleCoachCommand( CTFPlayer *pPlayer, eCoachCommand command )
 CTFPlayer::CTFPlayer() 
 {
 	m_pAttributes = this;
+	m_bJoinMenuPending = false;
 
 	m_PlayerAnimState = CreateTFPlayerAnimState( this );
 
@@ -8832,84 +8832,10 @@ bool CTFPlayer::ClientCommand( const CCommand &args )
 	}
 	else if ( FStrEq( pcmd, "show_motd" ) )
 	{
-		if ( ShouldRunRateLimitedCommand( args ) )
-		{
-			if ( ShouldForceAutoTeam() )
-			{
-				int nPreferedTeam = TF_TEAM_AUTOASSIGN;
-				PlayerHistoryInfo_t *pPlayerInfo = ( TFGameRules() ) ? TFGameRules()->PlayerHistory_GetPlayerInfo( this ) : NULL;
-				if ( pPlayerInfo && pPlayerInfo->nTeam >= FIRST_GAME_TEAM )
-				{
-					nPreferedTeam = pPlayerInfo->nTeam;
-				}
-
-				int iTeam = GetAutoTeam( nPreferedTeam );
-				ChangeTeam( iTeam, true, false );
-				if ( iTeam > LAST_SHARED_TEAM )
-				{
-					ShowViewPortPanel( ( iTeam == TF_TEAM_RED ) ? PANEL_CLASS_RED : PANEL_CLASS_BLUE );
-				}
-			}
-#ifdef TF_RAID_MODE
-			else if ( TFGameRules()->IsBossBattleMode() )
-			{
-				int iTeam = GetAutoTeam();
-				ChangeTeam( iTeam, true );
-				if ( iTeam > LAST_SHARED_TEAM )
-				{
-					ShowViewPortPanel( ( iTeam == TF_TEAM_RED ) ? PANEL_CLASS_RED : PANEL_CLASS_BLUE );
-				}
-			}
-#endif
-			else
-			{
-				ShowViewPortPanel( PANEL_TEAM, false );
-			}
-			ShowViewPortPanel( PANEL_ARENA_TEAM, false );
-
-			char pszWelcome[128];
-			Q_snprintf( pszWelcome, sizeof(pszWelcome), "#TF_Welcome" );
-			if ( UTIL_GetActiveHolidayString() )
-			{
-				Q_snprintf( pszWelcome, sizeof(pszWelcome), "#TF_Welcome_%s", UTIL_GetActiveHolidayString() );
-			}
-
-			KeyValues *data = new KeyValues( "data" );
-			data->SetString( "title", pszWelcome );		// info panel title
-			data->SetString( "type", "1" );				// show userdata from stringtable entry
-			data->SetString( "msg",	"motd" );			// use this stringtable entry
-			data->SetString( "msg_fallback",	"motd_text" );			// use this stringtable entry if the base is HTML, and client has disabled HTML motds
-			data->SetBool( "unload", sv_motd_unload_on_dismissal.GetBool() );
-
-			ShowViewPortPanel( PANEL_INFO, true, data );
-
-			data->deleteThis();
-		}
-		return true;
-	}
-	else if ( FStrEq( pcmd, "show_htmlpage" ) )
-	{
-		if ( ShouldRunRateLimitedCommand( args ) )
-		{
-			if ( args.ArgC() != 2 )
-			{
-				Warning( "Usage: show_htmlpage <url>\n" );
-				return true;
-			}
-
-			KeyValues *data = new KeyValues( "data" );
-			data->SetString( "title", "#TF_Welcome" );	// info panel title
-			data->SetString( "type", "2" );				// show url
-			data->SetString( "msg",	args[1] );
-			data->SetString( "msg_fallback", "motd_text" );			// use this stringtable entry if the base is HTML, and client has disabled HTML motds
-			data->SetInt( "cmd", TEXTWINDOW_CMD_CLOSED_HTMLPAGE );		// exec this command if panel closed
-			data->SetString( "customsvr", "1" );
-			data->SetBool( "unload", false );
-
-			ShowViewPortPanel( PANEL_INFO, true, data );
-
-			data->deleteThis();
-		}
+		// Team Frontress: there is no welcome message. The client asks for
+		// this when it lost its menus (a resolution change before joining).
+		if ( ShouldRunRateLimitedCommand( args ) && GetTeamNumber() == TEAM_UNASSIGNED )
+			ShowJoinMenu();
 		return true;
 	}
 	else if ( FStrEq( pcmd, "closed_htmlpage" ) )
@@ -9110,26 +9036,7 @@ bool CTFPlayer::ClientCommand( const CCommand &args )
 	}
 	else if ( FStrEq( pcmd, "team_ui_setup" ) )
 	{
-		bool bAutoTeam = ShouldForceAutoTeam();
-#ifdef TF_RAID_MODE
-		bAutoTeam |= TFGameRules()->IsBossBattleMode();
-#endif
-		
-		// For autoteam, display the appropriate team's CLASS selection ui
-		if ( bAutoTeam )
-		{
-			ChangeTeam( GetAutoTeam(), true, false );
-			if ( GetTeamNumber() > LAST_SHARED_TEAM )
-			{
-				ShowViewPortPanel( ( GetTeamNumber() == TF_TEAM_BLUE ) ? PANEL_CLASS_BLUE : PANEL_CLASS_RED );
-			}
-		}
-		// Otherwise, show TEAM selection ui
-		else
-		{
-			ShowViewPortPanel( PANEL_TEAM );
-		}
-
+		ShowTeamMenu();
 		return true;
 	}
 	else if ( FStrEq( "next_map_vote", pcmd ) )
@@ -15127,34 +15034,52 @@ void CTFPlayer::StateEnterWELCOME( void )
 //=============================================================================
 	else
 	{
-		if ( !IsX360() )
-		{
-			char pszWelcome[128];
-			Q_snprintf( pszWelcome, sizeof(pszWelcome), "#TF_Welcome" );
-			if ( UTIL_GetActiveHolidayString() )
-			{
-				Q_snprintf( pszWelcome, sizeof(pszWelcome), "#TF_Welcome_%s", UTIL_GetActiveHolidayString() );
-			}
-
-			KeyValues *data = new KeyValues( "data" );
-			data->SetString( "title", pszWelcome );		// info panel title
-			data->SetString( "type", "1" );				// show userdata from stringtable entry
-			data->SetString( "msg",	"motd" );			// use this stringtable entry
-			data->SetString( "msg_fallback",	"motd_text" );			// use this stringtable entry if the base is HTML, and client has disabled HTML motds
-			data->SetBool( "unload", sv_motd_unload_on_dismissal.GetBool() );
-
-			ShowViewPortPanel( PANEL_INFO, true, data );
-
-			data->deleteThis();
-		}
-		else
-		{
-			ShowViewPortPanel( PANEL_MAPINFO, true );
-		}
-
+		// Team Frontress: no welcome message (MOTD); straight to the team
+		// menu, once the client is up and thinking (StateThinkWELCOME).
+		m_bJoinMenuPending = true;
 		m_bSeenRoundInfo = false;
 	}
 
+}
+
+//-----------------------------------------------------------------------------
+// The team menu, or the class menu of the team the server picks for players
+// it does not let choose (matchmaking, boss battles).
+//-----------------------------------------------------------------------------
+void CTFPlayer::ShowTeamMenu()
+{
+	bool bAutoTeam = ShouldForceAutoTeam();
+#ifdef TF_RAID_MODE
+	bAutoTeam |= TFGameRules()->IsBossBattleMode();
+#endif
+
+	if ( bAutoTeam )
+	{
+		ChangeTeam( GetAutoTeam(), true, false );
+		if ( GetTeamNumber() > LAST_SHARED_TEAM )
+		{
+			ShowViewPortPanel( ( GetTeamNumber() == TF_TEAM_BLUE ) ? PANEL_CLASS_BLUE : PANEL_CLASS_RED );
+		}
+	}
+	else
+	{
+		ShowViewPortPanel( PANEL_TEAM );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Team Frontress: what a player who just joined sees first. TF2 showed the
+// server's welcome message (MOTD) and the map's info; this goes straight to
+// what closing them led to. Arena with a queue has its own team menu.
+//-----------------------------------------------------------------------------
+void CTFPlayer::ShowJoinMenu()
+{
+	if ( TFGameRules() && TFGameRules()->IsInArenaMode() && tf_arena_use_queue.GetBool() )
+	{
+		ShowViewPortPanel( PANEL_ARENA_TEAM, true );
+		return;
+	}
+	ShowTeamMenu();
 }
 
 //-----------------------------------------------------------------------------
@@ -15164,6 +15089,13 @@ void CTFPlayer::StateThinkWELCOME( void )
 {
 	if ( !IsFakeClient() )
 	{
+		if ( m_bJoinMenuPending && !IsInCommentaryMode() && !TFGameRules()->IsInTraining() )
+		{
+			m_bJoinMenuPending = false;
+			if ( GetTeamNumber() == TEAM_UNASSIGNED )
+				ShowJoinMenu();
+		}
+
 		if ( IsInCommentaryMode() )
 		{
 			ChangeTeam( TF_TEAM_BLUE );

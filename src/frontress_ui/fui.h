@@ -98,6 +98,9 @@ public:
 	// An attribute of the HUD document's <body>, e.g. "data-replaces": the
 	// game's own HUD parts this HUD draws itself. Empty when none is loaded.
 	std::string HudAttribute( const char *pszName ) const;
+	// Give the keyboard to the HUD element with this id (the chat line).
+	// False while the HUD is not up or has no such element yet.
+	bool FocusHud( const std::string &id );
 
 	// Re-read every document, stylesheet and string table.
 	void Reload();

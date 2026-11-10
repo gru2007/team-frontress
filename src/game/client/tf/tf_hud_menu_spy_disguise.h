@@ -42,6 +42,14 @@ public:
 
 	virtual GameActionSet_t GetPreferredActionSet() { return IsActive() ? GAME_ACTION_SET_IN_GAME_HUD : GAME_ACTION_SET_NONE; }
 
+	// Team Frontress: the Frontress HUD draws this menu (when its
+	// data-replaces names "buildmenu"); this panel keeps its logic and keys
+	// but does not paint. fui_ingame.cpp reads it.
+	virtual void	PaintTraverse( bool Repaint, bool allowForce = true ) OVERRIDE;
+	// The team whose disguises are offered, the group picked (simple menu:
+	// 0 offense, 1 defense, 2 support, -1 none) and the slot under the cursor.
+	void			FrontressState( int &iTeam, int &iGroup, int &iSelected ) const { iTeam = m_iShowingTeam; iGroup = m_iGroupSelection; iSelected = m_iSelectedItem; }
+
 private:
 	void SetSelectedItem( int iSlot );
 	void ToggleDisguiseTeam( void );

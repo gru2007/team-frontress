@@ -8,6 +8,7 @@
 	decorator: linear-gradient(to right, #8e2a2600 0%, #c8413b 18%, #c8413b 82%, #8e2a2600 100%);
 	animation: 0.45s cubic-out 1 pop;
 }
+#banner.draw { decorator: linear-gradient(to right, #5a4e4000 0%, #6a5442 18%, #6a5442 82%, #5a4e4000 100%); }
 #banner.loss { decorator: linear-gradient(to right, #2f567900 0%, #4a7fae 18%, #4a7fae 82%, #2f567900 100%); }
 .banner-text { font-family: "TF2 Build"; font-size: 104dp; line-height: 110dp; text-transform: uppercase; color: #fff4e8; }
 

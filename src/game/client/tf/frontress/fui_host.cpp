@@ -52,10 +52,13 @@ ConVar fui_hot_reload( "fui_hot_reload", "0", FCVAR_ARCHIVE, "Reload resource/fu
 ConVar fui_hud( "fui_hud", "1", FCVAR_ARCHIVE, "Show the Frontress HUD layer (quests, notifications) in matches." );
 ConVar fui_pause_menu( "fui_pause_menu", "1", FCVAR_ARCHIVE, "Use the Frontress pause menu in matches." );
 ConVar fui_class_select( "fui_class_select", "1", FCVAR_ARCHIVE, "Use the Frontress class select in matches." );
+ConVar fui_team_select( "fui_team_select", "1", FCVAR_ARCHIVE, "Use the Frontress team select in matches." );
 
 static CFuiStage *s_pStage = NULL;
 static bool s_bClassSelect = false;
 static int s_iClassAtSelect = 0;	// the local class when class select opened
+static bool s_bTeamSelect = false;
+static int s_iTeamAtSelect = 0;		// the local team when team select opened
 
 //-----------------------------------------------------------------------------
 // Drawing on the material system. Every texture is a procedural ITexture
@@ -502,7 +505,7 @@ public:
 		// Keys only while a text field has focus, so the console key and the
 		// game's own bindings keep working everywhere else.
 		Rml::Element *pFocus = m_pRuntime->Context() ? m_pRuntime->Context()->GetFocusElement() : NULL;
-		const bool bTyping = !bYield && IsMouseInputEnabled() && ( ( pFocus && pFocus->GetTagName() == "input" ) || s_bClassSelect );
+		const bool bTyping = !bYield && IsMouseInputEnabled() && ( ( pFocus && pFocus->GetTagName() == "input" ) || s_bClassSelect || s_bTeamSelect );
 		if ( bTyping != IsKeyBoardInputEnabled() )
 		{
 			SetKeyBoardInputEnabled( bTyping );
@@ -530,6 +533,25 @@ public:
 
 	virtual void OnKeyCodePressed( vgui::KeyCode code ) OVERRIDE
 	{
+		// Typing a chat line in the HUD: Esc puts it away.
+		if ( code == KEY_ESCAPE && FuiHudCloseChat() )
+			return;
+		// Team select: 1 BLU, 2 RED, 3 auto, 4 spectate, as the stock menu
+		// lays them out; Esc closes once you are on a team.
+		if ( s_bTeamSelect )
+		{
+			static const char *s_Teams[] = { "blu", "red", "auto", "spectate" };
+			if ( code >= KEY_1 && code <= KEY_4 )
+			{
+				FuiTF().OnCommand( "pick_team", { s_Teams[ code - KEY_1 ] } );
+				return;
+			}
+			if ( code == KEY_ESCAPE || code == KEY_0 )
+			{
+				FuiTF().OnCommand( "close_teams", {} );
+				return;
+			}
+		}
 		// Class select: the number row picks, as in the stock menu.
 		if ( s_bClassSelect )
 		{
@@ -596,8 +618,8 @@ CON_COMMAND( fui_after, "fui_after <seconds> \"<command>\": run a console comman
 	s_Scheduled.AddToTail( item );
 }
 
-// fui_dev_hide info: close a viewport panel (the welcome message) from a script.
-CON_COMMAND( fui_dev_hide, "fui_dev_hide <panel>: close a viewport panel, e.g. info (the server's welcome message)." )
+// fui_dev_hide <panel>: close a viewport panel from a script.
+CON_COMMAND( fui_dev_hide, "fui_dev_hide <panel>: close a viewport panel, e.g. team." )
 {
 	if ( args.ArgC() >= 2 && gViewPortInterface )
 		gViewPortInterface->ShowPanel( args[ 1 ], false );
@@ -689,6 +711,7 @@ public:
 		k_eMenu,	// main menu
 		k_ePause,	// in a match, game menu open
 		k_eClass,	// in a match, choosing a class
+		k_eTeam,	// in a match, choosing a team
 		k_eHud,		// in a match, playing
 	};
 
@@ -705,9 +728,18 @@ public:
 		if ( !m_runtime.IsInitialized() )
 			return;
 
-		// Class select belongs to a match; leaving one closes it.
+		// Class and team select belong to a match; leaving one closes them.
 		if ( s_bClassSelect && ( !engine->IsInGame() || engine->IsLevelMainMenuBackground() ) )
 			s_bClassSelect = false;
+		if ( s_bTeamSelect && ( !engine->IsInGame() || engine->IsLevelMainMenuBackground() ) )
+			s_bTeamSelect = false;
+		// On a new team (jointeam, a bind, the server): the choice is made.
+		if ( s_bTeamSelect )
+		{
+			C_TFPlayer *pLocal = C_TFPlayer::GetLocalTFPlayer();
+			if ( pLocal && pLocal->GetTeamNumber() != s_iTeamAtSelect )
+				s_bTeamSelect = false;
+		}
 		// A class picked some other way (joinclass, a bind): the choice is made.
 		if ( s_bClassSelect )
 		{
@@ -730,7 +762,10 @@ public:
 		const bool bShow = eMode != k_eHidden && !( fui_stage_debug.IsValid() && fui_stage_debug.GetInt() == 2 );
 		if ( m_pPanel->IsVisible() != bShow )
 			m_pPanel->SetVisible( bShow );
-		const bool bMouse = bShow && ( eMode == k_eMenu || eMode == k_ePause || eMode == k_eClass );
+		// In a match the HUD takes the mouse only to type a chat line or to pick
+		// a player on its scoreboard.
+		const bool bMouse = bShow && ( eMode == k_eMenu || eMode == k_ePause || eMode == k_eClass || eMode == k_eTeam ||
+			( eMode == k_eHud && ( FuiHudWantsMouse() || FuiHudWantsKeyboard() ) ) );
 		const bool bInput = bMouse && !FuiYielding( m_pPanel->GetVPanel() );
 		if ( m_pPanel->IsMouseInputEnabled() != bInput )
 			m_pPanel->SetMouseInputEnabled( bInput );
@@ -829,12 +864,10 @@ public:
 			const bool bMenu = enginevgui->IsGameUIVisible() && ( !engine->IsConnected() || engine->IsLevelMainMenuBackground() );
 			return bMenu ? k_eMenu : k_eHidden;
 		}
+		if ( s_bTeamSelect && fui_team_select.GetBool() )
+			return k_eTeam;
 		if ( s_bClassSelect && fui_class_select.GetBool() )
-		{
-			// The server's welcome message comes first, as in TF2.
-			IViewPortPanel *pInfo = gViewPortInterface ? gViewPortInterface->FindPanelByName( PANEL_INFO ) : NULL;
-			return pInfo && pInfo->IsVisible() ? k_eHidden : k_eClass;
-		}
+			return k_eClass;
 		if ( enginevgui->IsGameUIVisible() )
 			return fui_pause_menu.GetBool() ? k_ePause : k_eHidden;
 		return fui_hud.GetBool() ? k_eHud : k_eHidden;
@@ -848,12 +881,16 @@ public:
 		switch ( eMode )
 		{
 		case k_eMenu:
-			// Back at the main menu from a match: start at home.
-			if ( eOld != k_eHidden || m_runtime.Screen() == "pause" || m_runtime.Screen() == "classes" )
+			// Back at the main menu from a match: its results if it was played
+			// to the end, home otherwise.
+			if ( FuiTF().TakeResults() )
+				m_runtime.Navigate( "results" );
+			else if ( eOld != k_eHidden || m_runtime.Screen() == "pause" || m_runtime.Screen() == "classes" || m_runtime.Screen() == "teams" )
 				m_runtime.Navigate( "home" );
 			break;
 		case k_ePause: m_runtime.Navigate( "pause" ); break;
 		case k_eClass: m_runtime.Navigate( "classes" ); break;
+		case k_eTeam: m_runtime.Navigate( "teams" ); break;
 		default: break;
 		}
 	}
@@ -953,6 +990,19 @@ bool FrontressUISetClassSelect( bool bOpen )
 		s_iClassAtSelect = pLocal && pLocal->GetPlayerClass() ? pLocal->GetPlayerClass()->GetClassIndex() : 0;
 	}
 	s_bClassSelect = bOpen;
+	return true;
+}
+
+bool FrontressUISetTeamSelect( bool bOpen )
+{
+	if ( bOpen && ( !fui_menu.GetBool() || !fui_team_select.GetBool() || !FrontressUI() ) )
+		return false;
+	if ( bOpen && !s_bTeamSelect )
+	{
+		C_TFPlayer *pLocal = C_TFPlayer::GetLocalTFPlayer();
+		s_iTeamAtSelect = pLocal ? pLocal->GetTeamNumber() : TEAM_UNASSIGNED;
+	}
+	s_bTeamSelect = bOpen;
 	return true;
 }
 

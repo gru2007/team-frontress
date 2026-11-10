@@ -89,8 +89,14 @@ void CTFArenaWinPanel::Update( void )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+extern bool FrontressHudReplaces( const char *pszPart );
+
 void CTFArenaWinPanel::SetVisible( bool state )
 {
+	// Team Frontress: the Frontress HUD draws the end of the round.
+	if ( state && FrontressHudReplaces( "winpanel" ) )
+		state = false;
+
 	if ( state == IsVisible() )
 		return;
 

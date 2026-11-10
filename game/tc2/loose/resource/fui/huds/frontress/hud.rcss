@@ -273,7 +273,7 @@ body#hud { pointer-events: none; }
 .track-q .bar { height: 6dp; margin-top: 3dp; }
 .track-count { font-size: 12dp; color: #d8cdb4; margin-left: 8dp; }
 
-#hud-toasts { position: absolute; left: 50%; top: 150dp; width: 420dp; margin-left: -210dp; }
+#hud-toasts { position: absolute; right: 28dp; top: 250dp; width: 400dp; }
 #hud-toasts .toast {
 	display: flex; flex-direction: row; align-items: center; gap: 12dp;
 	margin-bottom: 8dp; padding: 8dp 14dp 8dp 8dp;
@@ -285,14 +285,354 @@ body#hud { pointer-events: none; }
 #hud-toasts .toast-title { font-family: "TF2 Build"; font-size: 16dp; }
 #hud-toasts .toast-body { font-size: 14dp; color: #d8cdb4; }
 
-/* ------------------------------------------------------------ the war */
-#war-banner { margin: 10dp auto 0 auto; text-align: center; }
-.wb-row { justify-content: center; gap: 10dp; align-items: center; }
-.wb-row > span { padding: 4dp 10dp; border-radius: 8dp; background-color: #120d0bd8; font-size: 15dp; color: #d8cdb4; }
-.wb-tag { font-family: "TF2 Build"; color: #ffc93c; }
-.wb-sector { font-family: "TF2 Build"; color: #fff4e8; }
-.wb-role { font-family: "TF2 Build"; }
-#war-banner.attacking .wb-role { color: #ffc93c; }
-.wb-order { color: #2a1a05; background-color: #ffc93c; font-family: "TF2 Build"; }
-.wb-conds { justify-content: center; gap: 6dp; margin-top: 6dp; }
-.wb-cond { padding: 3dp 9dp; border-radius: 10dp; background-color: #3a2a1ed8; border: 1dp #ffc93c66; font-size: 13dp; color: #ffe0a0; }
+/* ------------------------------------------------------------ what is done to you */
+#conds {
+	position: absolute;
+	left: 60dp; bottom: 162dp;
+	width: 640dp;
+	flex-wrap: wrap;
+	gap: 6dp;
+}
+.cond, .disguise {
+	display: flex; flex-direction: row; align-items: center;
+	padding: 3dp 10dp;
+	border-radius: 8dp;
+	background-color: #120d0bd8;
+	border-left: 3dp #8fd16a;
+	font-family: "TF2 Build";
+	font-size: 14dp;
+	text-transform: uppercase;
+	color: #e8f5dc;
+	white-space: nowrap;
+}
+.cond.bad { border-left-color: #ef5a4c; color: #ffd8d2; animation: 0.7s sine-in-out infinite alternate cond-pulse; }
+@keyframes cond-pulse { from { background-color: #120d0bd8; } to { background-color: #4a1612d8; } }
+.cond.k-uber { border-left-color: #ffc93c; color: #ffe9a8; }
+.cond.k-crits, .cond.k-minicrits { border-left-color: #ffc93c; color: #ffe9a8; }
+.cond.k-burning { border-left-color: #ff8a3c; }
+.cond.k-jarate { border-left-color: #e8d23c; }
+.cond-icon { width: 20dp; height: 20dp; margin-right: 6dp; }
+.disguise { border-left-color: #c8413b; color: #fff4e8; text-transform: none; font-family: "TF2 Secondary"; font-size: 15dp; }
+.disguise.blu { border-left-color: #4a7fae; }
+.disguise.busy { border-left-color: #b8ab92; color: #d8cdb4; }
+.disguise-as { color: #b8ab92; margin-left: 8dp; }
+
+/* ------------------------------------------------------------ the class's things */
+#classbox {
+	margin: 0 6dp 10dp 60dp;
+	padding: 8dp 14dp 10dp 14dp;
+	border-radius: 10dp;
+	background-color: #120d0bd8;
+	border: 1dp #6a544288;
+}
+.meter { margin-bottom: 6dp; }
+.meter-label { font-family: "TF2 Build"; font-size: 15dp; color: #d8cdb4; text-transform: uppercase; }
+.meter-count { font-family: "TF2 Build"; font-size: 18dp; color: #fff4e8; }
+.meter-bar { height: 8dp; margin-top: 3dp; border-radius: 4dp; background-color: #00000099; border: 1dp #ffffff14; }
+.meter-bar .fill { height: 100%; border-radius: 4dp; background-color: #d8cdb4; transition: width 0.15s; }
+.meter.full .meter-bar .fill { background-color: #ffc93c; }
+.meter.flash .meter-bar .fill { background-color: #ef5a4c; animation: 0.3s linear infinite alternate hp-throb; }
+.meter-bar.power .fill { decorator: linear-gradient(to right, #c8413b, #ffc93c); transition: none; }
+.class-nums { gap: 16dp; justify-content: flex-end; }
+.class-num { font-size: 15dp; color: #b8ab92; }
+.class-num .num { font-family: "TF2 Build"; font-size: 26dp; color: #fff4e8; margin-right: 4dp; }
+.class-num.metal .num { color: #ffd76a; }
+#uber.active .uber-fill { animation: 0.4s sine-in-out infinite alternate hp-throb; }
+.uber-charges { font-family: "TF2 Build"; font-size: 17dp; color: #fff4e8; white-space: nowrap; }
+#dead.up { top: 46%; }
+.uber-resist {
+	margin-left: 10dp; padding: 1dp 8dp; border-radius: 6dp;
+	font-family: "TF2 Build"; font-size: 13dp; text-transform: uppercase;
+	background-color: #ffffff18; color: #fff4e8;
+}
+
+/* ------------------------------------------------------------ buildings */
+#buildings { position: absolute; left: 28dp; top: 24dp; width: 320dp; }
+.bld {
+	margin-bottom: 6dp;
+	padding: 6dp 12dp 8dp 12dp;
+	border-radius: 10dp;
+	background-color: #120d0bd0;
+	border-left: 4dp #8fd16a;
+}
+.bld.none { background-color: #120d0b80; border-left-color: #5a4e40; }
+.bld.alert { border-left-color: #ffc93c; }
+.bld.sapped { border-left-color: #ef5a4c; animation: 0.5s sine-in-out infinite alternate cond-pulse; }
+.bld.building { border-left-color: #6aa2d8; }
+.bld-head { gap: 8dp; }
+.bld-name { font-family: "TF2 Build"; font-size: 15dp; text-transform: uppercase; color: #fff4e8; }
+.bld.none .bld-name { color: #7d705e; }
+.bld-level { font-size: 13dp; color: #b8ab92; }
+.bld-alert { font-family: "TF2 Build"; font-size: 13dp; color: #ffc93c; text-transform: uppercase; }
+.bld.sapped .bld-alert { color: #ef5a4c; }
+.bld-kills { font-size: 13dp; color: #d8cdb4; }
+.bld-off { font-size: 13dp; color: #7d705e; }
+.bld-bars { margin-top: 3dp; }
+.bld-stat { gap: 8dp; margin-top: 2dp; }
+.bld-k { width: 74dp; font-size: 11dp; color: #8a7d68; text-transform: uppercase; white-space: nowrap; }
+.bld-bar { height: 5dp; border-radius: 3dp; background-color: #00000099; }
+.bld-bar .fill { height: 100%; border-radius: 3dp; }
+.bld-bar.hp .fill { background-color: #8fd16a; }
+.bld-bar.build .fill { background-color: #6aa2d8; }
+.bld-bar.ammo .fill { background-color: #d8cdb4; }
+.bld-bar.rockets .fill { background-color: #ff8a3c; }
+.bld-bar.charge .fill { background-color: #b98cff; }
+.bld-bar.upgrade .fill { background-color: #ffc93c; }
+.bld-note { margin-top: 3dp; font-size: 12dp; color: #b8ab92; }
+#tracker.low { top: 300dp; }
+
+/* ------------------------------------------------------------ round start */
+#restart { position: absolute; left: 0; right: 0; top: 30%; text-align: center; }
+.restart-label { font-family: "TF2 Build"; font-size: 26dp; text-transform: uppercase; color: #d8cdb4; font-effect: shadow(2dp 2dp #000000); }
+.restart-num { font-family: "TF2 Build"; font-size: 120dp; line-height: 124dp; color: #ffc93c; font-effect: shadow(4dp 4dp #000000aa); }
+
+/* ------------------------------------------------------------ notices */
+#notices { position: absolute; left: 50%; top: 150dp; width: 760dp; margin-left: -380dp; text-align: center; }
+.notice {
+	display: inline-block;
+	margin: 0 auto 8dp auto;
+	padding: 8dp 18dp;
+	border-radius: 10dp;
+	background-color: #17110ee8;
+	border-bottom: 3dp #ffc93c;
+	animation: 0.3s back-out 1 rise;
+}
+.notice-line { font-family: "TF2 Build"; font-size: 19dp; color: #fff4e8; }
+.notice-line + .notice-line { font-family: "TF2 Secondary"; font-size: 16dp; color: #d8cdb4; }
+.notice.k-stalemate, .notice.k-teamswitch { border-bottom-color: #ef5a4c; }
+.notice.k-pause { border-bottom-color: #b8ab92; }
+
+/* ------------------------------------------------------------ votes */
+#votes { position: absolute; left: 28dp; top: 520dp; width: 360dp; }
+.vote {
+	margin-bottom: 8dp;
+	padding: 10dp 14dp;
+	border-radius: 10dp;
+	background-color: #17110ee8;
+	border-left: 4dp #ffc93c;
+}
+.vote.dim { opacity: 0.6; }
+.vote.passed { border-left-color: #8fd16a; }
+.vote.failed { border-left-color: #ef5a4c; }
+.vote-head { font-family: "TF2 Build"; font-size: 15dp; text-transform: uppercase; color: #ffc93c; }
+.vote.passed .vote-head { color: #8fd16a; }
+.vote.failed .vote-head { color: #ef5a4c; }
+.vote-issue { font-size: 16dp; line-height: 20dp; color: #fff4e8; margin-top: 2dp; }
+.vote-opts { margin-top: 6dp; }
+.vote-opt { font-size: 15dp; color: #d8cdb4; padding: 2dp 0; }
+.vote-count { font-family: "TF2 Build"; color: #fff4e8; }
+.vote-tally { gap: 8dp; margin-top: 6dp; font-family: "TF2 Build"; font-size: 16dp; }
+.vote-bar { height: 8dp; border-radius: 4dp; background-color: #ef5a4c99; }
+.vote-bar .fill { height: 100%; border-radius: 4dp; background-color: #8fd16a; }
+
+/* ------------------------------------------------------------ chat */
+#chat { position: absolute; left: 48dp; bottom: 206dp; width: 620dp; }
+.chat-line {
+	font-size: 17dp;
+	line-height: 22dp;
+	font-effect: shadow(1dp 1dp #000000);
+	padding: 1dp 8dp;
+	transition: opacity 1.5s;
+}
+.chat-line.fade { opacity: 0; }
+#chat.open .chat-lines { max-height: 440dp; overflow: hidden; padding: 6dp 0; border-radius: 10dp 10dp 0 0; background-color: #0d0907b0; }
+.chat-entry {
+	pointer-events: auto;
+	gap: 8dp;
+	padding: 6dp 10dp;
+	border-radius: 0 0 10dp 10dp;
+	background-color: #17110ef0;
+	border-top: 2dp #ffc93c;
+}
+.chat-mode { font-family: "TF2 Build"; font-size: 15dp; text-transform: uppercase; color: #ffc93c; }
+.chat-mode.team { color: #8fd16a; }
+.say-input { font-size: 18dp; color: #fff4e8; height: 26dp; cursor: text; }
+
+/* ------------------------------------------------------------ dead, killer */
+.dead-as { font-size: 18dp; color: #d8cdb4; margin-top: 2dp; font-effect: shadow(2dp 2dp #000000); }
+#killer {
+	position: absolute;
+	left: 50%; bottom: 150dp;
+	width: 560dp; margin-left: -280dp;
+	padding: 14dp 18dp;
+	border-radius: 14dp;
+	decorator: linear-gradient(to bottom, #2a1f19f0, #120d0bf5);
+	border-bottom: 4dp #c8413b;
+	animation: 0.35s back-out 1 rise;
+}
+#killer.blu { border-bottom-color: #4a7fae; }
+.killer-tag {
+	display: inline-block; margin-bottom: 8dp; padding: 2dp 10dp; border-radius: 6dp;
+	font-family: "TF2 Build"; font-size: 15dp; text-transform: uppercase;
+	background-color: #ef5a4c; color: #fff4e8;
+}
+.killer-row { gap: 14dp; }
+.killer-avatar, .killer-face { width: 72dp; height: 72dp; border-radius: 8dp; }
+.killer-label { font-size: 14dp; color: #b8ab92; text-transform: uppercase; }
+.killer-name { font-family: "TF2 Build"; font-size: 28dp; color: #fff4e8; }
+.killer-cls { font-family: "TF2 Secondary"; font-size: 15dp; color: #b8ab92; margin-left: 6dp; }
+.killer-hp { gap: 10dp; margin-top: 4dp; }
+.killer-hp .bar { height: 8dp; }
+.killer-hp .fill { decorator: linear-gradient(to right, #5f9a3a, #a8e07a); }
+.killer-hp-num { font-family: "TF2 Build"; font-size: 16dp; color: #d8cdb4; }
+.killer-weapon { gap: 10dp; margin-top: 10dp; padding-top: 8dp; border-top: 1dp #ffffff14; font-size: 16dp; color: #d8cdb4; }
+.killer-weapon-icon { height: 44dp; }
+
+/* ------------------------------------------------------------ spectating */
+#spec { position: absolute; left: 0; right: 0; bottom: 34dp; text-align: center; }
+.spec-card {
+	width: 520dp; margin: 0 auto 10dp auto;
+	padding: 10dp 16dp; gap: 14dp;
+	border-radius: 12dp;
+	background-color: #17110ee8;
+	border-bottom: 4dp #c8413b;
+	text-align: left;
+}
+.spec-card.blu { border-bottom-color: #4a7fae; }
+.spec-avatar { width: 56dp; height: 56dp; border-radius: 8dp; }
+.spec-name { font-family: "TF2 Build"; font-size: 24dp; color: #fff4e8; }
+.spec-cls { font-size: 14dp; color: #b8ab92; }
+.spec-hp { gap: 8dp; margin-top: 3dp; }
+.spec-hp .bar { height: 7dp; }
+.spec-hp .fill { decorator: linear-gradient(to right, #5f9a3a, #a8e07a); }
+.spec-hp-num { font-family: "TF2 Build"; font-size: 15dp; color: #d8cdb4; }
+.spec-keys { justify-content: center; gap: 22dp; font-size: 15dp; color: #d8cdb4; font-effect: shadow(1dp 1dp #000000); }
+.spec-mode { font-family: "TF2 Build"; text-transform: uppercase; color: #ffc93c; }
+
+/* ------------------------------------------------------------ end of a round */
+#round {
+	position: absolute;
+	left: 50%; top: 150dp;
+	width: 760dp; margin-left: -380dp;
+	padding: 18dp 24dp 16dp 24dp;
+	border-radius: 16dp;
+	text-align: center;
+	decorator: linear-gradient(to bottom, #2a1f19f2, #120d0bf5);
+	border-top: 6dp #c8413b;
+	animation: 0.45s back-out 1 rise;
+}
+#round.blu { border-top-color: #4a7fae; }
+#round.draw { border-top-color: #b8ab92; }
+.round-title { font-family: "TF2 Build"; font-size: 54dp; line-height: 58dp; text-transform: uppercase; color: #fff4e8; font-effect: shadow(3dp 3dp #000000aa); }
+.round-reason { font-size: 19dp; color: #d8cdb4; margin-top: 4dp; }
+.round-cappers { font-size: 15dp; color: #b8ab92; margin-top: 2dp; }
+.round-score { justify-content: center; gap: 14dp; margin-top: 12dp; }
+#round .score { font-family: "TF2 Build"; font-size: 44dp; line-height: 54dp; width: 90dp; border-radius: 10dp; }
+#round .red-score { background-color: #c8413b; color: #fff4e8; }
+#round .blu-score { background-color: #4a7fae; color: #f0f6ff; }
+.round-top { margin-top: 14dp; text-align: left; }
+.round-top-title { font-family: "TF2 Build"; font-size: 15dp; text-transform: uppercase; color: #ffc93c; margin-bottom: 4dp; }
+.round-mvp { gap: 10dp; padding: 5dp 10dp; margin-bottom: 4dp; border-radius: 8dp; background-color: #c8413b2e; border-left: 4dp #c8413b; font-size: 16dp; }
+.round-mvp.blu { background-color: #4a7fae2e; border-left-color: #4a7fae; }
+.mvp-n { font-family: "TF2 Build"; color: #ffc93c; width: 18dp; }
+.mvp-avatar { width: 28dp; height: 28dp; border-radius: 4dp; }
+.mvp-name { font-family: "TF2 Build"; color: #fff4e8; }
+.mvp-cls { color: #b8ab92; font-size: 14dp; }
+.mvp-pts { font-family: "TF2 Build"; color: #fff4e8; }
+.round-streak { margin-top: 8dp; font-size: 15dp; color: #d8cdb4; }
+
+/* ------------------------------------------------------------ scoreboard */
+#scores { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
+#scores.live { pointer-events: auto; }
+.scores-dim { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background-color: #0d090770; }
+.scores-panel {
+	position: absolute;
+	left: 50%; top: 96dp;
+	width: 1480dp; margin-left: -740dp;
+	padding: 18dp 22dp;
+	border-radius: 18dp;
+	decorator: linear-gradient(to bottom, #2a1f19f4, #120d0bf8);
+	border: 1dp #6a5442;
+}
+.scores-banner {
+	margin: -18dp -22dp 14dp -22dp;
+	padding: 10dp 0;
+	border-radius: 17dp 17dp 0 0;
+	text-align: center;
+	font-family: "TF2 Build"; font-size: 46dp; text-transform: uppercase; color: #fff4e8;
+	background-color: #c8413b;
+}
+.scores-banner.blu { background-color: #4a7fae; }
+.scores-banner.draw { background-color: #5a4e40; }
+.scores-top { margin-bottom: 12dp; }
+.scores-map { font-family: "TF2 Build"; font-size: 28dp; text-transform: uppercase; color: #fff4e8; }
+.scores-sub { font-size: 15dp; color: #b8ab92; }
+.scores-hint { font-size: 14dp; color: #7d705e; }
+.scores-cols { align-items: flex-start; gap: 20dp; }
+.scores-team { border-radius: 12dp; background-color: #00000040; padding-bottom: 6dp; }
+.team-head { padding: 8dp 14dp; border-radius: 12dp 12dp 0 0; gap: 12dp; }
+.scores-team.blu .team-head { decorator: linear-gradient(to right, #2f5679, #4a7fae); }
+.scores-team.red .team-head { decorator: linear-gradient(to right, #8e2a26, #c8413b); }
+.team-name { font-family: "TF2 Build"; font-size: 26dp; color: #fff4e8; }
+.team-count { font-size: 14dp; color: #ffffffb0; }
+.team-total { font-family: "TF2 Build"; font-size: 34dp; color: #fff4e8; }
+.col-head { padding: 6dp 14dp 4dp 14dp; font-size: 13dp; color: #7d705e; text-transform: uppercase; }
+.col-head .c-name { padding-left: 70dp; }
+.c-num { width: 72dp; text-align: right; white-space: nowrap; }
+.c-ping { width: 64dp; text-align: right; }
+.prow { padding: 3dp 14dp; gap: 8dp; font-size: 16dp; color: #ece3cb; }
+.prow:nth-child(odd) { background-color: #ffffff06; }
+.prow.me { background-color: #ffc93c24; }
+.prow.dead { color: #7d705e; }
+#scores.live .prow { cursor: pointer; }
+#scores.live .prow:hover { background-color: #ffc93c38; }
+.p-avatar { width: 28dp; height: 28dp; border-radius: 4dp; }
+.p-avatar.none { background-color: #ffffff10; }
+.p-cls { width: 26dp; height: 26dp; }
+.p-cls.none { width: 26dp; }
+.p-name { font-family: "TF2 Build"; font-size: 16dp; white-space: nowrap; overflow: hidden; }
+.prow.dead .p-name { color: #8a7d68; }
+.p-score { font-family: "TF2 Build"; color: #fff4e8; }
+.p-tag { padding: 0 6dp; border-radius: 5dp; font-size: 12dp; background-color: #ffffff14; color: #d8cdb4; white-space: nowrap; }
+.p-tag.nemesis { background-color: #ef5a4c; color: #fff4e8; }
+.p-tag.dominated { background-color: #8fd16a; color: #1a2a10; }
+.scores-spec { margin-top: 10dp; font-size: 14dp; color: #b8ab92; }
+.scores-me { margin-top: 12dp; padding-top: 10dp; border-top: 1dp #ffffff14; gap: 22dp; flex-wrap: wrap; }
+.stat { font-size: 13dp; color: #b8ab92; text-transform: uppercase; }
+.stat .v { font-family: "TF2 Build"; font-size: 22dp; color: #fff4e8; margin-right: 6dp; text-transform: none; }
+
+/* ------------------------------------------------------------ class menus */
+#classmenu {
+	position: absolute;
+	left: 50%; bottom: 190dp;
+	width: 760dp; margin-left: -380dp;
+	padding: 12dp 16dp;
+	border-radius: 14dp;
+	decorator: linear-gradient(to bottom, #2a1f19f0, #120d0bf5);
+	border-bottom: 4dp #ffc93c;
+	animation: 0.2s cubic-out 1 rise;
+}
+#classmenu.k-destroy { border-bottom-color: #ef5a4c; }
+#classmenu.k-disguise { width: 900dp; margin-left: -450dp; }
+.cm-head { margin-bottom: 8dp; gap: 10dp; }
+.cm-title { font-family: "TF2 Build"; font-size: 20dp; text-transform: uppercase; color: #fff4e8; }
+.cm-metal { font-family: "TF2 Build"; font-size: 18dp; color: #ffd76a; }
+.cm-team { font-family: "TF2 Build"; font-size: 16dp; padding: 1dp 10dp; border-radius: 6dp; background-color: #c8413b; color: #fff4e8; }
+.cm-team.blu { background-color: #4a7fae; }
+.cm-slots { gap: 10dp; }
+.cm-slot {
+	position: relative;
+	flex: 1 1 0;
+	padding: 10dp 10dp 8dp 10dp;
+	border-radius: 10dp;
+	background-color: #ffffff0c;
+	border: 2dp #ffffff10;
+	text-align: center;
+}
+.cm-slot.s-ready { border-color: #8fd16a; }
+.cm-slot.s-built { border-color: #ef5a4c; }
+.cm-slot.s-short, .cm-slot.s-none { opacity: 0.6; }
+.cm-slot.s-off { opacity: 0.3; }
+.cm-slot.selected { border-color: #ffc93c; background-color: #ffc93c1e; }
+.cm-slot.dim { opacity: 0.35; }
+.cm-key {
+	position: absolute; left: 6dp; top: 6dp;
+	width: 22dp; height: 22dp; line-height: 22dp; border-radius: 5dp;
+	font-family: "TF2 Build"; font-size: 14dp; background-color: #000000aa; color: #ece3cb;
+}
+.cm-name { font-family: "TF2 Build"; font-size: 16dp; text-transform: uppercase; color: #fff4e8; margin-top: 18dp; }
+.cm-slot.cls .cm-name { margin-top: 2dp; font-size: 13dp; }
+.cm-note { font-size: 13dp; color: #b8ab92; margin-top: 2dp; }
+.cm-slot.s-ready .cm-note { color: #ffd76a; }
+.cm-face { width: 64dp; height: 64dp; margin: 6dp auto 0 auto; }
+.cm-hint { margin-top: 8dp; font-size: 13dp; color: #7d705e; text-align: center; }

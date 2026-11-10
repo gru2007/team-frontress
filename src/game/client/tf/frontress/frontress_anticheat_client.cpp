@@ -231,6 +231,29 @@ public:
 	bool BCanReport() const { return m_hPlatform && m_login.BLoggedIn(); }
 
 	bool BSessionActive() const { return m_bSessionActive; }
+
+	// Whether the anti-cheat module the bootstrapper loads is in this process:
+	// a protected session can only start when it is.
+	CUtlString ModuleStatus() const
+	{
+		if ( !m_hPlatform )
+			return CUtlString( m_bPlatformFailed ? "EOS is off" : "EOS not started yet" );
+		if ( !m_hAntiCheat )
+			return CUtlString( "no anti-cheat interface" );
+		EOS_AntiCheatClient_GetModuleBuildIdOptions opts;
+		V_memset( &opts, 0, sizeof( opts ) );
+		opts.ApiVersion = EOS_ANTICHEATCLIENT_GETMODULEBUILDID_API_LATEST;
+		uint32_t unBuild = 0;
+		const EOS_EResult eResult = EOS_AntiCheatClient_GetModuleBuildId( m_hAntiCheat, &opts, &unBuild );
+		CUtlString str;
+		if ( eResult == EOS_EResult::EOS_Success )
+			str.Format( "loaded (build %u)", unBuild );
+		else if ( eResult == EOS_EResult::EOS_NotFound )
+			str = "NOT loaded: the game was not started through start_protected_game, or EAC fell back to its null client";
+		else
+			str.Format( "unknown (%s)", FrontressEOS::ResultString( eResult ) );
+		return str;
+	}
 	CUtlString ProductUserId() const { return m_login.BLoggedIn() ? FrontressEOS::ProductUserIdString( m_login.LocalUserId() ) : CUtlString(); }
 	const char *LastViolation() const { return m_strViolation.Get(); }
 
@@ -524,6 +547,7 @@ bool FrontressAC_Client_BBuiltWithAntiCheat() { return true; }
 bool FrontressAC_Client_BSessionActive() { return s_FrontressACClient.BSessionActive(); }
 const char *FrontressAC_Client_LastViolation() { return s_FrontressACClient.LastViolation(); }
 CUtlString FrontressAC_Client_ProductUserId() { return s_FrontressACClient.ProductUserId(); }
+CUtlString FrontressAC_Client_ModuleStatus() { return s_FrontressACClient.ModuleStatus(); }
 
 #else // !FRONTRESS_EAC
 
@@ -543,6 +567,7 @@ bool FrontressAC_Client_BBuiltWithAntiCheat() { return false; }
 bool FrontressAC_Client_BSessionActive() { return false; }
 const char *FrontressAC_Client_LastViolation() { return ""; }
 CUtlString FrontressAC_Client_ProductUserId() { return CUtlString(); }
+CUtlString FrontressAC_Client_ModuleStatus() { return CUtlString( "not in this build" ); }
 
 #endif // FRONTRESS_EAC
 
@@ -577,7 +602,9 @@ CON_COMMAND( fr_eac_status, "Show the Easy Anti-Cheat state of this client." )
 	Msg( "Easy Anti-Cheat: %s\n", FrontressAC_Client_BBuiltWithAntiCheat() ? "built in" : "not in this build" );
 	const CUtlString strUser = FrontressAC_Client_ProductUserId();
 	Msg( "  EOS user: %s\n", strUser.IsEmpty() ? "not logged in" : strUser.Get() );
-	Msg( "  protected session: %s\n", FrontressAC_Client_BSessionActive() ? "active" : "none" );
+	Msg( "  anti-cheat module: %s\n", FrontressAC_Client_ModuleStatus().Get() );
+	// A session starts only on a protected server, when it says hello.
+	Msg( "  protected session: %s\n", FrontressAC_Client_BSessionActive() ? "active" : ( engine->IsConnected() ? "none" : "none (only on a protected server)" ) );
 	const char *pszViolation = FrontressAC_Client_LastViolation();
 	if ( pszViolation && pszViolation[0] )
 		Msg( "  last violation: %s\n", pszViolation );

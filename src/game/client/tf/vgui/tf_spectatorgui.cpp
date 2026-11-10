@@ -41,6 +41,7 @@
 
 #include "tf_hud_match_status.h"
 #include "vgui_avatarimage.h"
+#include "frontress/fui_hud.h"
 
 using namespace vgui;
 
@@ -822,6 +823,13 @@ void CTFSpectatorGUI::UpdateKeyLabels( void )
 //-----------------------------------------------------------------------------
 void CTFSpectatorGUI::ShowPanel(bool bShow)
 {
+	// Team Frontress: the Frontress HUD draws the spectator view; this one
+	// stays hidden (and leaves the objective panel where it is).
+	if ( FuiHudShowSpectator( bShow ) )
+	{
+		bShow = false;
+	}
+
 	if ( bShow != IsVisible() )
 	{
 		CTFHudObjectiveStatus *pStatus = GET_HUDELEMENT( CTFHudObjectiveStatus );

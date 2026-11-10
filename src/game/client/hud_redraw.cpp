@@ -44,7 +44,7 @@ static ConVar fov_watcher( "_fov", "0", 0, "Automates fov command to server.", F
 
 #ifdef TF_CLIENT_DLL
 // Parts of the HUD that the Frontress HUD draws itself (tf/frontress/fui_hud.h).
-extern bool FrontressHudReplaces( const char *pszElement );
+extern bool FrontressHudReplaces( CHudElement *pElement );
 #endif
 
 //-----------------------------------------------------------------------------
@@ -64,7 +64,7 @@ void CHud::Think(void)
 		// Visible?
 		bool visible = m_HudList[i]->ShouldDraw();
 #ifdef TF_CLIENT_DLL
-		visible = visible && !FrontressHudReplaces( m_HudList[i]->GetName() );
+		visible = visible && !FrontressHudReplaces( m_HudList[i] );
 #endif
 
 #if defined( REPLAY_ENABLED )

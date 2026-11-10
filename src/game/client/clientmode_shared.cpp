@@ -225,6 +225,29 @@ static void __MsgFunc_VGUIMenu( bf_read &msg )
 	msg.ReadString( panelname, sizeof(panelname) );
 
 	bool  bShow = msg.ReadByte()!=0;
+
+#ifdef TF_CLIENT_DLL
+	// Team Frontress: there is no welcome message (MOTD) window. A server that
+	// still sends one gets what closing it led to: the team menu. Pages that
+	// server plugins open in it (customsvr) are dropped.
+	if ( !V_stricmp( panelname, PANEL_INFO ) )
+	{
+		bool bServerPage = false;
+		const int nKeys = msg.ReadByte();
+		for ( int i = 0; i < nKeys; ++i )
+		{
+			char name[255], data[255];
+			msg.ReadString( name, sizeof( name ) );
+			msg.ReadString( data, sizeof( data ) );
+			if ( !V_stricmp( name, "customsvr" ) && V_atoi( data ) )
+				bServerPage = true;
+		}
+		extern void TFViewport_ContinueJoin();
+		if ( bShow && !bServerPage )
+			TFViewport_ContinueJoin();
+		return;
+	}
+#endif
 	
 	IViewPortPanel *viewport = gViewPortInterface->FindPanelByName( panelname );
 

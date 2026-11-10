@@ -59,6 +59,7 @@
 #include "tf_mann_vs_machine_stats.h"
 #include "player_vs_environment/c_tf_upgrades.h"
 #include "tf_badge_panel.h"
+#include "frontress/fui_hud.h"
 
 
 using namespace vgui;
@@ -436,6 +437,12 @@ void CTFClientScoreBoardDialog::ShowPanel( bool bShow )
 
 	// Don't show in commentary mode
 	if ( IsInCommentaryMode() )
+	{
+		bShow = false;
+	}
+
+	// Team Frontress: the Frontress HUD draws the scoreboard; this one stays hidden.
+	if ( FuiHudShowScores( bShow ) )
 	{
 		bShow = false;
 	}
@@ -2403,6 +2410,10 @@ SectionedListPanel *CTFClientScoreBoardDialog::GetSelectedPlayerList( void )
 //-----------------------------------------------------------------------------
 int	CTFClientScoreBoardDialog::HudElementKeyInput( int down, ButtonCode_t keynum, const char *pszCurrentBinding )
 {
+	// The Frontress HUD's scoreboard: a click turns its cursor on.
+	if ( FuiHudScoresClick( down, keynum ) )
+		return 0;
+
 	if ( !IsVisible() )
 		return 1;
 
