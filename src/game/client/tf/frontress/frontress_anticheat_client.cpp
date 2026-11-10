@@ -18,6 +18,8 @@
 #include <vgui/ILocalize.h>
 
 #ifdef FRONTRESS_EAC
+#include "inetchannelinfo.h"
+#include "utllinkedlist.h"
 #include "eos_anticheatclient.h"
 #include "eos_reports.h"
 #include "tf_gcmessages.h"
@@ -29,47 +31,6 @@
 static ConVar fr_eac_debug( "fr_eac_debug", "0", FCVAR_ARCHIVE, "Log Easy Anti-Cheat message traffic." );
 
 #define ACDbg( ... ) do { if ( fr_eac_debug.GetBool() ) Msg( "[eac] " __VA_ARGS__ ); } while ( 0 )
-
-//-----------------------------------------------------------------------------
-// Sending to the server: base64 text in numbered KeyValues chunks.
-//-----------------------------------------------------------------------------
-static int s_nOutSeq = 0;
-
-static void SendToServer( EFrontressACClientMsg eType, const uint8 *pData, int cubData )
-{
-	if ( !engine->IsConnected() )
-		return;
-
-	CUtlString strB64;
-	FrontressAC_Base64Encode( pData, cubData, strB64 );
-	const int nTotal = strB64.Length();
-	const int nCount = MAX( 1, ( nTotal + FRONTRESS_AC_KV_CHUNK_BYTES - 1 ) / FRONTRESS_AC_KV_CHUNK_BYTES );
-	if ( nCount > FRONTRESS_AC_MAX_CHUNKS )
-	{
-		Warning( "[eac] message of %d bytes is too large to send\n", cubData );
-		return;
-	}
-
-	const int nSeq = ( ++s_nOutSeq ) & 0x7FFF;
-	char szChunk[ FRONTRESS_AC_KV_CHUNK_BYTES + 1 ];
-	for ( int i = 0; i < nCount; i++ )
-	{
-		const int nOffset = i * FRONTRESS_AC_KV_CHUNK_BYTES;
-		const int nLen = MIN( FRONTRESS_AC_KV_CHUNK_BYTES, nTotal - nOffset );
-		V_memcpy( szChunk, strB64.Get() + nOffset, MAX( nLen, 0 ) );
-		szChunk[ MAX( nLen, 0 ) ] = '\0';
-
-		KeyValues *pKV = new KeyValues( FRONTRESS_AC_KV_NAME );
-		pKV->SetInt( "t", eType );
-		pKV->SetInt( "s", nSeq );
-		pKV->SetInt( "i", i );
-		pKV->SetInt( "n", nCount );
-		pKV->SetString( "d", szChunk );
-		// The engine serialises and then deletes it.
-		engine->ServerCmdKeyValues( pKV );
-	}
-	ACDbg( "-> server type %d, %d bytes in %d chunk(s)\n", eType, cubData, nCount );
-}
 
 static void SendUnavailable( const char *pszReason )
 {
@@ -151,6 +112,9 @@ public:
 				SendUnavailable( FRONTRESS_AC_UNAVAILABLE_LOGIN_FAILED );
 			}
 		}
+
+		if ( m_bSessionActive )
+			FlushOutgoing();
 
 		if ( m_bViolationPending )
 		{
@@ -343,12 +307,16 @@ private:
 #endif
 		CUtlString strPayload;
 		strPayload.Format( "%d\n%s\n%s", nPlatform, strUserId.Get(), strToken.Get() );
-		SendToServer( k_EFrontressACClientMsg_Token, (const uint8 *)strPayload.Get(), strPayload.Length() );
+		QueueOutgoing( k_EFrontressACClientMsg_Token, (const uint8 *)strPayload.Get(), strPayload.Length() );
 		Msg( "[eac] protected session started\n" );
 	}
 
 	void EndSession()
 	{
+		m_outgoing.RemoveAll();
+		m_bOutgoingFailed = false;
+		m_flNextSend = 0.0;
+		m_nLastOutgoingBytes = -1;
 		if ( !m_bSessionActive )
 			return;
 		m_bSessionActive = false;
@@ -361,12 +329,106 @@ private:
 		ACDbg( "protected session ended\n" );
 	}
 
+	struct OutgoingMessage_t
+	{
+		EFrontressACClientMsg m_eType;
+		CUtlString m_strBase64;
+		int m_nSequence;
+		int m_nNextChunk;
+		int m_nChunkCount;
+		double m_flQueuedAt;
+	};
+
+	void QueueOutgoing( EFrontressACClientMsg eType, const uint8 *pData, int cubData )
+	{
+		if ( m_bOutgoingFailed )
+			return;
+
+		const int nMaxBytes = eType == k_EFrontressACClientMsg_Token
+			? FRONTRESS_AC_MAX_TOKEN_BYTES : FRONTRESS_AC_MAX_DATA_BYTES;
+		if ( m_outgoing.Count() >= 128 || cubData <= 0 || cubData > nMaxBytes )
+		{
+			// Handle the failure after EOS_Platform_Tick returns.
+			Warning( "[eac] outgoing transport cannot queue type %d, %d bytes (%d messages pending)\n",
+				eType, cubData, m_outgoing.Count() );
+			m_bOutgoingFailed = true;
+			return;
+		}
+
+		OutgoingMessage_t &msg = m_outgoing[m_outgoing.AddToTail()];
+		msg.m_eType = eType;
+		FrontressAC_Base64Encode( pData, cubData, msg.m_strBase64 );
+		m_nOutgoingSequence = ( m_nOutgoingSequence + 1 ) & 0x7FFF;
+		msg.m_nSequence = m_nOutgoingSequence;
+		msg.m_nNextChunk = 0;
+		msg.m_nChunkCount = ( msg.m_strBase64.Length() + FRONTRESS_AC_KV_CHUNK_BYTES - 1 ) / FRONTRESS_AC_KV_CHUNK_BYTES;
+		msg.m_flQueuedAt = Plat_FloatTime();
+		ACDbg( "queued type %d, %d bytes in %d chunk(s), %d messages pending\n",
+			eType, cubData, msg.m_nChunkCount, m_outgoing.Count() );
+	}
+
+	void FlushOutgoing()
+	{
+		if ( !engine->IsConnected() )
+		{
+			EndSession();
+			return;
+		}
+		if ( m_bOutgoingFailed )
+		{
+			EndSession();
+			engine->ClientCmd_Unrestricted( "disconnect" );
+			ShowMessageBox( "Easy Anti-Cheat", "The anti-cheat network queue could not deliver its messages." );
+			return;
+		}
+
+		const double flNow = Plat_FloatTime();
+		if ( m_outgoing.IsEmpty() || flNow < m_flNextSend )
+			return;
+
+		INetChannelInfo *pChannel = engine->GetNetChannelInfo();
+		if ( !pChannel || pChannel->IsTimingOut() )
+			return;
+
+		// Wait for actual outgoing traffic between chunks. A render frame
+		// can run without the engine sending anything (e.g. when choked).
+		const int nOutgoingBytes = pChannel->GetTotalData( FLOW_OUTGOING );
+		if ( nOutgoingBytes == m_nLastOutgoingBytes )
+			return;
+
+		const int nHead = m_outgoing.Head();
+		OutgoingMessage_t &msg = m_outgoing[nHead];
+		const int nOffset = msg.m_nNextChunk * FRONTRESS_AC_KV_CHUNK_BYTES;
+		const int nLen = MIN( FRONTRESS_AC_KV_CHUNK_BYTES, msg.m_strBase64.Length() - nOffset );
+		char szChunk[ FRONTRESS_AC_KV_CHUNK_BYTES + 1 ];
+		V_memcpy( szChunk, msg.m_strBase64.Get() + nOffset, nLen );
+		szChunk[nLen] = '\0';
+
+		KeyValues *pKV = new KeyValues( FRONTRESS_AC_KV_NAME );
+		pKV->SetInt( "t", msg.m_eType );
+		pKV->SetInt( "s", msg.m_nSequence );
+		pKV->SetInt( "i", msg.m_nNextChunk );
+		pKV->SetInt( "n", msg.m_nChunkCount );
+		pKV->SetString( "d", szChunk );
+		// The engine serialises and deletes the KeyValues.
+		engine->ServerCmdKeyValues( pKV );
+		m_nLastOutgoingBytes = nOutgoingBytes;
+		m_flNextSend = flNow + 0.02; // At most 50 chunks/s, including after a stall.
+
+		if ( ++msg.m_nNextChunk == msg.m_nChunkCount )
+		{
+			ACDbg( "-> server type %d, %d chunk(s) in %.0f ms, %d messages pending\n",
+				msg.m_eType, msg.m_nChunkCount, ( flNow - msg.m_flQueuedAt ) * 1000.0, m_outgoing.Count() - 1 );
+			m_outgoing.Remove( nHead );
+		}
+	}
+
 	static void EOS_CALL OnMessageToServer( const EOS_AntiCheatClient_OnMessageToServerCallbackInfo *pData )
 	{
 		CFrontressACClient *pThis = (CFrontressACClient *)pData->ClientData;
 		if ( !pThis || !pThis->m_bSessionActive )
 			return;
-		SendToServer( k_EFrontressACClientMsg_Data, (const uint8 *)pData->MessageData, (int)pData->MessageDataSizeBytes );
+		pThis->QueueOutgoing( k_EFrontressACClientMsg_Data, (const uint8 *)pData->MessageData, (int)pData->MessageDataSizeBytes );
 	}
 
 	static void EOS_CALL OnIntegrityViolated( const EOS_AntiCheatClient_OnClientIntegrityViolatedCallbackInfo *pData )
@@ -405,6 +467,11 @@ private:
 	double m_flHelloTime;
 	CUtlString m_strViolation;
 	CFrontressACReassembly m_in;
+	CUtlLinkedList< OutgoingMessage_t > m_outgoing;
+	bool m_bOutgoingFailed = false;
+	int m_nOutgoingSequence = 0;
+	int m_nLastOutgoingBytes = -1;
+	double m_flNextSend = 0.0;
 };
 
 static CFrontressACClient s_FrontressACClient;
