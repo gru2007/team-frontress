@@ -311,7 +311,14 @@ int FrontressMatchBotFill()
 //      by time any message that needs it gets sent. (a previous message in queue should be requesting it)
 static uint64 ReliableMsgCheckUpdateMatchID( uint64 nMsgMatchID )
 {
-	uint64 nCurrentMatchID = GTFGCClientSystem()->GetMatch()->m_nMatchID;
+	// No match on this server: the message is about one it does not run (a
+	// stale lobby rejected after a restart, see SendRejectLobby). It already
+	// names that match; there is nothing to update or check it against.
+	CMatchInfo *pMatch = GTFGCClientSystem()->GetMatch();
+	if ( !pMatch )
+		return nMsgMatchID;
+
+	uint64 nCurrentMatchID = pMatch->m_nMatchID;
 	Assert( !nMsgMatchID || nMsgMatchID == nCurrentMatchID );
 
 	// If we were queued for a match we didn't know the ID of yet, we can now glom it
