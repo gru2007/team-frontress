@@ -60,6 +60,8 @@ type Lobby struct {
 	PreviousMatchID uint64
 	NextMaps        []uint32
 	War             *state.War
+	// Region the match was formed in ("": anywhere), see region.go.
+	Region string `json:",omitempty"`
 
 	// Runtime only.
 	serverLostAt  time.Time
@@ -229,7 +231,7 @@ func (g *GC) nextBattle(grp config.MatchGroupConfig, queue []mm.Entry) *battle {
 	return &battle{Battle: b, Front: fronts[0]}
 }
 
-func (g *GC) createLobby(grp config.MatchGroupConfig, f mm.Formed, sizes mm.Sizes, b *battle) {
+func (g *GC) createLobby(grp config.MatchGroupConfig, f mm.Formed, sizes mm.Sizes, b *battle, region string) {
 	now := g.now()
 	l := &Lobby{
 		ID:         newID(),
@@ -238,6 +240,7 @@ func (g *GC) createLobby(grp config.MatchGroupConfig, f mm.Formed, sizes mm.Size
 		MaxPlayers: sizes.Max,
 		State:      lobbySetup,
 		FormedAt:   now,
+		Region:     region,
 	}
 	picked := append(append([]mm.Entry{}, f.Red...), f.Blu...)
 	lastPlayed := func(m string) time.Time { return g.recentMaps[m] }
@@ -310,7 +313,7 @@ func (g *GC) createLobby(grp config.MatchGroupConfig, f mm.Formed, sizes mm.Size
 	}
 	red, blu := l.teamCounts()
 	g.log.Info("match formed", "lobby", l.ID, "match", l.MatchID, "group", grp.Name,
-		"map", l.Map, "red", red, "blu", blu)
+		"map", l.Map, "red", red, "blu", blu, "region", l.Region)
 	g.assignServer(l)
 	g.archiveMatch(l, nil, "")
 }
@@ -326,9 +329,11 @@ func (g *GC) assignServer(l *Lobby) {
 		return
 	}
 	grp, _ := g.cfg.Group(l.Group)
+	// A match formed in a region plays on that region's servers.
 	var best *Server
 	for _, srv := range g.servers {
-		if !g.serverEligible(srv, g.now()) || (grp.Region != "" && srv.Region != grp.Region) {
+		if !g.serverEligible(srv, g.now()) || (grp.Region != "" && srv.Region != grp.Region) ||
+			(l.Region != "" && srv.Region != l.Region) {
 			continue
 		}
 		if best == nil || srv.SteamID < best.SteamID {

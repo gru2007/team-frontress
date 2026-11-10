@@ -397,12 +397,23 @@ void CTFBotManager::MaintainBotQuota()
 
 	int desiredBotCount = tf_bot_quota.GetInt();
 	int nTotalNonTFBots = nConnectedClients - nTFBots;
+	const char *pszQuotaMode = tf_bot_quota_mode.GetString();
 
-	if ( FStrEq( tf_bot_quota_mode.GetString(), "fill" ) )
+	// Team Frontress: a short coordinator match fills up with bots
+	// (tf_gc_server.cpp); they leave as players join.
+	extern int FrontressMatchBotFill();
+	const int nMatchFill = FrontressMatchBotFill();
+	if ( nMatchFill > 0 )
+	{
+		desiredBotCount = nMatchFill;
+		pszQuotaMode = "fill";
+	}
+
+	if ( FStrEq( pszQuotaMode, "fill" ) )
 	{
 		desiredBotCount = MAX( 0, desiredBotCount - nNonTFBotsOnGameTeams );
 	}
-	else if ( FStrEq( tf_bot_quota_mode.GetString(), "match" ) )
+	else if ( FStrEq( pszQuotaMode, "match" ) )
 	{
 		// If bot_quota_mode is 'match', we want the number of bots to be bot_quota * total humans
 		desiredBotCount = (int)MAX( 0, tf_bot_quota.GetFloat() * nNonTFBotsOnGameTeams );

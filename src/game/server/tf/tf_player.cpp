@@ -7041,7 +7041,9 @@ void CTFPlayer::HandleCommand_JoinTeam( const char *pTeamName )
 		return;
 	}
 
-	if ( GTFGCClientSystem() && GTFGCClientSystem()->GetMatch() )
+	// Bots that fill a short coordinator match have no seat: they take a side
+	// like anywhere else.
+	if ( GTFGCClientSystem() && GTFGCClientSystem()->GetMatch() && !IsBot() )
 	{
 		CSteamID id;
 		const CMatchInfo::PlayerMatchData_t *seat = GetSteamID( &id ) ? GTFGCClientSystem()->GetMatch()->GetMatchDataForPlayer( id ) : NULL;
@@ -15043,6 +15045,22 @@ void CTFPlayer::StateEnterWELCOME( void )
 }
 
 //-----------------------------------------------------------------------------
+// Team Frontress: the team the coordinator seated this player on in the match
+// being played (TEAM_UNASSIGNED when there is no match or no seat).
+//-----------------------------------------------------------------------------
+int CTFPlayer::GetMatchSeatTeam()
+{
+	CMatchInfo *pMatch = GTFGCClientSystem() ? GTFGCClientSystem()->GetLiveMatch() : NULL;
+	CSteamID id;
+	if ( !pMatch || IsBot() || !TFGameRules() || !GetSteamID( &id ) )
+		return TEAM_UNASSIGNED;
+	const CMatchInfo::PlayerMatchData_t *seat = pMatch->GetMatchDataForPlayer( id );
+	if ( !seat || seat->bDropped )
+		return TEAM_UNASSIGNED;
+	return TFGameRules()->GetGameTeamForGCTeam( seat->eGCTeam );
+}
+
+//-----------------------------------------------------------------------------
 // The team menu, or the class menu of the team the server picks for players
 // it does not let choose (matchmaking, boss battles).
 //-----------------------------------------------------------------------------
@@ -15074,6 +15092,16 @@ void CTFPlayer::ShowTeamMenu()
 //-----------------------------------------------------------------------------
 void CTFPlayer::ShowJoinMenu()
 {
+	// A coordinator match seats every player on a team: straight to that
+	// team's class menu, whatever the mode (arena included).
+	const int iSeat = GetMatchSeatTeam();
+	if ( iSeat == TF_TEAM_RED || iSeat == TF_TEAM_BLUE )
+	{
+		ChangeTeam( iSeat, true, false );
+		if ( GetTeamNumber() == iSeat )
+			ShowViewPortPanel( iSeat == TF_TEAM_BLUE ? PANEL_CLASS_BLUE : PANEL_CLASS_RED );
+		return;
+	}
 	if ( TFGameRules() && TFGameRules()->IsInArenaMode() && tf_arena_use_queue.GetBool() )
 	{
 		ShowViewPortPanel( PANEL_ARENA_TEAM, true );

@@ -1369,6 +1369,8 @@ void CFuiTF::Impl::RefreshMatch()
 		const int iClass = ( pLocal && pLocal->GetPlayerClass() ) ? pLocal->GetPlayerClass()->GetClassIndex() : TF_CLASS_UNDEFINED;
 		match[ "class" ] = iClass > TF_CLASS_UNDEFINED && iClass < TF_LAST_NORMAL_CLASS ? ClassID( iClass ) : "";
 		match[ "official" ] = TFGameRules() && TFGameRules()->IsMatchTypeCasual();
+		// A matchmade game: the coordinator seated everyone, teams are fixed.
+		match[ "matched" ] = TFGameRules() && TFGameRules()->GetCurrentMatchGroup() != k_eTFMatchGroup_Invalid;
 
 		// What this map is played for: the mode, and the goal the map gives
 		// the local team (TF2 flashed it across the top of the screen at
@@ -1819,6 +1821,7 @@ void CFuiTF::OnCommand( const std::string &name, const std::vector< std::string 
 			return;
 		}
 		engine->ClientCmd( CFmtStr( "jointeam %s\n", pszTeam ) );
+		FrontressUITeamPicked();
 		// On a team already: done, whatever the server says. Not on one yet:
 		// stay until the server puts you on one (it may say the team is full).
 		if ( iCurrent != TEAM_UNASSIGNED )

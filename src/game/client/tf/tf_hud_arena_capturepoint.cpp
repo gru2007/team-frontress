@@ -20,6 +20,7 @@
 #include "tf_gamerules.h"
 #include "c_tf_team.h"
 #include "tf_hud_freezepanel.h"
+#include "frontress/fui_paint.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -34,6 +35,7 @@ extern ConVar tf_arena_preround_time;
 class CHudArenaCapPointCountdown : public CHudElement, public EditablePanel
 {
 	DECLARE_CLASS_SIMPLE( CHudArenaCapPointCountdown, EditablePanel );
+	FRONTRESS_HUD_PAINTS( "notices" )
 
 public:
 	CHudArenaCapPointCountdown( const char *pElementName );

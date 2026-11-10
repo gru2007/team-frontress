@@ -23,6 +23,7 @@
 #include "tf_hud_teamswitch.h"
 #include "hud_chat.h"
 #include "usermessages.h"
+#include "frontress/fui_paint.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -39,6 +40,7 @@ extern ConVar tf_arena_preround_time;
 class CHudArenaNotification : public CHudElement, public EditablePanel
 {
 	DECLARE_CLASS_SIMPLE( CHudArenaNotification, EditablePanel );
+	FRONTRESS_HUD_PAINTS( "notices" )
 
 public:
 	CHudArenaNotification( const char *pElementName );

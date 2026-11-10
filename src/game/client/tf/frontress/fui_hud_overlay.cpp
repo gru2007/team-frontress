@@ -608,9 +608,11 @@ void WriteNotices( Node &out )
 	};
 	for ( const auto &notice : s_Notices )
 	{
+		// The stock panel still shows and hides itself (it only does not
+		// paint, fui_paint.h): it is up when it says it is visible.
 		CHudElement *pElement = gHUD.FindElement( notice.pszElement );
 		vgui::Panel *pPanel = dynamic_cast< vgui::Panel * >( pElement );
-		if ( !pElement || !pPanel || !pElement->ShouldDraw() )
+		if ( !pElement || !pPanel || !pPanel->IsVisible() )
 			continue;
 		Node n;
 		n[ "kind" ] = Node( notice.pszKind );

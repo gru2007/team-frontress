@@ -59,6 +59,7 @@ static bool s_bClassSelect = false;
 static int s_iClassAtSelect = 0;	// the local class when class select opened
 static bool s_bTeamSelect = false;
 static int s_iTeamAtSelect = 0;		// the local team when team select opened
+static bool s_bTeamPicked = false;	// a team was asked for since it opened
 
 //-----------------------------------------------------------------------------
 // Drawing on the material system. Every texture is a procedural ITexture
@@ -733,11 +734,14 @@ public:
 			s_bClassSelect = false;
 		if ( s_bTeamSelect && ( !engine->IsInGame() || engine->IsLevelMainMenuBackground() ) )
 			s_bTeamSelect = false;
-		// On a new team (jointeam, a bind, the server): the choice is made.
+		// On RED or BLU now (jointeam, a bind, the server), or anywhere new
+		// after picking: the choice is made. Being moved to the spectators by
+		// the server alone (arena's queue does that) is not a choice.
 		if ( s_bTeamSelect )
 		{
 			C_TFPlayer *pLocal = C_TFPlayer::GetLocalTFPlayer();
-			if ( pLocal && pLocal->GetTeamNumber() != s_iTeamAtSelect )
+			const int iTeam = pLocal ? pLocal->GetTeamNumber() : TEAM_UNASSIGNED;
+			if ( pLocal && iTeam != s_iTeamAtSelect && ( iTeam >= FIRST_GAME_TEAM || s_bTeamPicked ) )
 				s_bTeamSelect = false;
 		}
 		// A class picked some other way (joinclass, a bind): the choice is made.
@@ -1001,9 +1005,15 @@ bool FrontressUISetTeamSelect( bool bOpen )
 	{
 		C_TFPlayer *pLocal = C_TFPlayer::GetLocalTFPlayer();
 		s_iTeamAtSelect = pLocal ? pLocal->GetTeamNumber() : TEAM_UNASSIGNED;
+		s_bTeamPicked = false;
 	}
 	s_bTeamSelect = bOpen;
 	return true;
+}
+
+void FrontressUITeamPicked()
+{
+	s_bTeamPicked = true;
 }
 
 CON_COMMAND( fui_reload, "Reload the Frontress menu's documents, styles and strings." )

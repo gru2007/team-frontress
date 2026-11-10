@@ -172,16 +172,20 @@ func (g *GC) matchmake() {
 			queue = g.backfill(grp, queue)
 		}
 		// A match is only formed when a server is free to play it: nobody is
-		// told "match found" and then left waiting for one.
-		free := g.freeServers(grp.Region)
-		for len(queue) > 0 && free > 0 {
-			formed, sizes, battle, ok := g.form(grp, queue)
-			if !ok {
-				break
+		// told "match found" and then left waiting for one. Each region
+		// matches its own players on its own servers (region.go).
+		for _, pool := range g.regionPools(grp, queue) {
+			entries := pool.entries
+			free := g.freeServersIn(grp, pool.region)
+			for len(entries) > 0 && free > 0 {
+				formed, sizes, battle, ok := g.form(grp, entries)
+				if !ok {
+					break
+				}
+				g.createLobby(grp, formed, sizes, battle, pool.region)
+				entries = remaining(entries, formed)
+				free--
 			}
-			g.createLobby(grp, formed, sizes, battle)
-			queue = remaining(queue, formed)
-			free--
 		}
 	}
 	for _, p := range g.parties {
@@ -277,7 +281,7 @@ func (g *GC) backfill(grp config.MatchGroupConfig, queue []mm.Entry) []mm.Entry 
 		seated := false
 		for _, l := range open {
 			srv := g.servers[l.ServerID]
-			if e.Size() > srv.LateJoinSlots {
+			if e.Size() > srv.LateJoinSlots || !g.lobbyTakes(l, e) {
 				continue
 			}
 			blocked := false

@@ -32,6 +32,8 @@ bool FrontressUIReplacesMenu();
 bool FrontressUISetClassSelect( bool bOpen );
 // The same for the team select.
 bool FrontressUISetTeamSelect( bool bOpen );
+// A team was asked for from the team select: the next team change closes it.
+void FrontressUITeamPicked();
 
 // A classic window is about to open from the UI: let it stay on top.
 void FrontressUIYield();

@@ -165,7 +165,7 @@
 	// Points"..., goal: the map's goal for your team, role: attack | defend | "".
 	// war: a war battle { active, sector, stage, stages, kind, attacker,
 	// attacking, order, conditions[] }.
-	"match": { "active": false, "map": "", "map_id": "", "image": "", "red": 0, "blu": 0, "team": "none", "class": "", "official": false,
+	"match": { "active": false, "map": "", "map_id": "", "image": "", "red": 0, "blu": 0, "team": "none", "class": "", "official": false, "matched": false,
 		"mode_name": "", "goal": "", "role": "",
 		"war": { "active": false, "sector": "", "stage": 0, "stages": 0, "kind": "", "attacker": "", "attacking": false, "order": false, "conditions": [] } },
 	// Class select: whose team, and the class played now.

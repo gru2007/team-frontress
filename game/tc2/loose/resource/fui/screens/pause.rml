@@ -15,7 +15,7 @@
 		<div class="menu-list">
 			<div class="menu-item primary" sfx="" data-event-click="cmd('resume')"><span class="kbd">Esc</span>#fui_resume</div>
 			<div class="menu-item" sfx="" data-event-click="cmd('changeclass')"><span class="kbd">,</span>#fui_change_class</div>
-			<div class="menu-item" sfx="" data-event-click="cmd('changeteam')"><span class="kbd">.</span>#fui_change_team</div>
+			<div class="menu-item" sfx="" data-if="!match.matched" data-event-click="cmd('changeteam')"><span class="kbd">.</span>#fui_change_team</div>
 			<div class="menu-item" sfx="" data-event-click="nav('locker')">#fui_tab_locker</div>
 			<div class="menu-item" sfx="" data-event-click="nav('quests')">#fui_tab_quests</div>
 			<div class="menu-item" sfx="" data-event-click="cmd('open_vote')">#fui_vote</div>

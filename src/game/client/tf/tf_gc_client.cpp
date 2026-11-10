@@ -354,8 +354,77 @@ void CTFGCClientSystem::FireGameEvent( IGameEvent *event )
 }
 
 //-----------------------------------------------------------------------------
+// Team Frontress: where the player is. Steam's relay network measures the
+// ping to each of its data centers ("fra", "iad"...); the coordinator matches
+// players with the servers of their region by them. tf_mm_region picks a
+// region by hand instead (an id from the coordinator's "regions").
+//-----------------------------------------------------------------------------
+static void TFMMRegionChanged( IConVar *pVar, const char *pszOld, float flOld );
+ConVar tf_mm_region( "tf_mm_region", "auto", FCVAR_ARCHIVE, "Matchmaking region: auto (by ping) or a region id the coordinator knows (eu, na...).", TFMMRegionChanged );
+static double s_flNextPingSend = 0.0;
+static bool s_bRegionDirty = true;
+
+static void TFMMRegionChanged( IConVar *pVar, const char *pszOld, float flOld )
+{
+	s_bRegionDirty = true;
+}
+
 void CTFGCClientSystem::InvalidatePingData()
 {
+	s_flNextPingSend = 0.0;
+	s_bRegionDirty = true;
+}
+
+static void SendDataCenterPings( CMsgGCDataCenterPing_Update &cache )
+{
+	if ( !FrontressGC() || !FrontressGC()->BConnected() )
+		return;
+	const double flNow = Plat_FloatTime();
+	if ( s_bRegionDirty )
+	{
+		// 51020 (the coordinator's region message): JSON in a party chat message.
+		char szRegion[ 32 ] = "";
+		const char *pszRegion = tf_mm_region.GetString();
+		for ( int i = 0, n = 0; pszRegion[ i ] && n < (int)sizeof( szRegion ) - 1; ++i )
+		{
+			const char c = pszRegion[ i ];
+			if ( V_isalnum( c ) || c == '-' || c == '_' )
+				szRegion[ n++ ] = c, szRegion[ n ] = 0;
+		}
+		GCSDK::CProtoBufMsg< CMsgPartyChatMsg > msg( 51020 );
+		msg.Body().set_msg( CFmtStr( "{\"region\":\"%s\"}", V_stricmp( szRegion, "auto" ) ? szRegion : "" ).Get() );
+		if ( GCClientSystem()->BSendMessage( msg ) )
+			s_bRegionDirty = false;
+	}
+	ISteamNetworkingUtils *pUtils = SteamNetworkingUtils();
+	if ( !pUtils || flNow < s_flNextPingSend )
+		return;
+	s_flNextPingSend = flNow + 60.0;
+	SteamNetworkingPOPID pops[ 128 ];
+	const int nPops = pUtils->GetPOPList( pops, ARRAYSIZE( pops ) );
+	CMsgGCDataCenterPing_Update update;
+	for ( int i = 0; i < nPops; ++i )
+	{
+		SteamNetworkingPOPID via = 0;
+		const int nPing = pUtils->GetPingToDataCenter( pops[ i ], &via );
+		if ( nPing < 0 || nPing > 5000 )
+			continue;
+		char szName[ 8 ];
+		GetSteamNetworkingLocationPOPStringFromID( pops[ i ], szName );
+		CMsgGCDataCenterPing_Update_PingEntry *pEntry = update.add_pingdata();
+		pEntry->set_name( szName );
+		pEntry->set_ping( nPing );
+		pEntry->set_ping_status( CMsgGCDataCenterPing_Update_Status_Normal );
+	}
+	if ( !update.pingdata_size() )
+	{
+		s_flNextPingSend = flNow + 10.0;	// the relay network is still starting
+		return;
+	}
+	cache = update;
+	GCSDK::CProtoBufMsg< CMsgGCDataCenterPing_Update > msg( k_EMsgGCDataCenterPing_Update );
+	msg.Body() = update;
+	GCClientSystem()->BSendMessage( msg );
 }
 
 
@@ -1065,6 +1134,7 @@ void CTFGCClientSystem::Update( float frametime )
 	BaseClass::Update( frametime );
 
 	WebapiInventoryThink();
+	SendDataCenterPings( m_msgCachedPingUpdate );
 	if ( m_nLeavingLobbyID && FrontressGC() && FrontressGC()->BConnected() )
 	{
 		const CTFGSLobby *pLobby = GetLobby();

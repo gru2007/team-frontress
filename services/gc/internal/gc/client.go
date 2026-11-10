@@ -24,6 +24,7 @@ type Player struct {
 	Look           *Look  // see looks.go
 	WarFront       string // the operation they asked to fight in, see warfront.go
 	BestDataCenter string
+	RegionPref     string // the region they picked (tf_mm_region), see region.go
 
 	// Social (social.go): their name as the game told us, their language,
 	// whether they are looking for a squad, their chat allowance.

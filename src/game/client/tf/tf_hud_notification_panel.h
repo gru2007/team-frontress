@@ -13,6 +13,7 @@
 #include "hudelement.h"
 #include "IconPanel.h"
 #include <vgui_controls/ImagePanel.h>
+#include "frontress/fui_paint.h"
 
 using namespace vgui;
 
@@ -33,6 +34,7 @@ struct HudNotificationParams_t
 class CHudNotificationPanel : public CHudElement, public EditablePanel
 {
 	DECLARE_CLASS_SIMPLE( CHudNotificationPanel, EditablePanel );
+	FRONTRESS_HUD_PAINTS( "notices" )
 
 public:
 
@@ -97,6 +99,7 @@ private:
 class CStrandedSpawnPanel : public CHudElement, public EditablePanel
 {
 	DECLARE_CLASS_SIMPLE( CStrandedSpawnPanel, EditablePanel );
+	FRONTRESS_HUD_PAINTS( "notices" )
 
 public:
 
@@ -118,6 +121,7 @@ private:
 class CGamePausePanel : public CHudElement, public EditablePanel
 {
 	DECLARE_CLASS_SIMPLE( CGamePausePanel, EditablePanel );
+	FRONTRESS_HUD_PAINTS( "notices" )
 
 public:
 	CGamePausePanel( const char* pElementName );

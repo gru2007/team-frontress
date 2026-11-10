@@ -478,7 +478,10 @@ static void ContinueJoin()
 	s_bContinueJoin = false;
 	if ( pPlayer->GetTeamNumber() != TEAM_UNASSIGNED )
 		return;
-	if ( TFGameRules()->IsInArenaMode() && tf_arena_use_queue.GetBool() )
+	// A matchmade game seats players itself (team_ui_setup puts you on your
+	// team); arena's own menu is only for open servers.
+	const bool bMatch = TFGameRules()->GetCurrentMatchGroup() != k_eTFMatchGroup_Invalid;
+	if ( !bMatch && TFGameRules()->IsInArenaMode() && tf_arena_use_queue.GetBool() )
 		gViewPortInterface->ShowPanel( PANEL_ARENA_TEAM, true );
 	else
 		engine->ClientCmd( "team_ui_setup" );

@@ -34,6 +34,7 @@
 #include "econ_notifications.h"
 //#include "econ/econ_controls.h"
 #include "passtime_game_events.h"
+#include "frontress/fui_paint.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -82,6 +83,7 @@ static int MinStreakForType( CTFPlayerShared::ETFStreak eStreakType )
 class CTFStreakNotice : public CHudElement, public vgui::EditablePanel
 {
 	DECLARE_CLASS_SIMPLE( CTFStreakNotice, vgui::EditablePanel );
+	FRONTRESS_HUD_PAINTS( "notices" )
 public:
 	CTFStreakNotice( const char *pName );
 

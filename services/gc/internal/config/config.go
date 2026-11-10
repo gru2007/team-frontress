@@ -46,7 +46,26 @@ type Config struct {
 	Support  SupportConfig     `json:"support"`
 	// AntiCheat is how the GC acts on Easy Anti-Cheat.
 	AntiCheat AntiCheatConfig `json:"anticheat"`
+	// Regions split matchmaking by where players are: each groups Steam's
+	// relay data centers ("fra", "iad"...), which the game pings, with the
+	// servers of that region (server_keys[].region, or the region a server
+	// reports). Empty: one pool, any server.
+	Regions []RegionConfig `json:"regions,omitempty"`
+	// RegionWaitSecs is how long a party waits for a match in its own region
+	// before it may be matched with anyone, on any server. Default 120.
+	RegionWaitSecs int `json:"region_wait_secs,omitempty"`
 }
+
+// RegionConfig is one matchmaking region.
+type RegionConfig struct {
+	ID   string   `json:"id"`
+	Name string   `json:"name"`
+	// Pops are Steam relay data center codes whose players belong here.
+	Pops []string `json:"pops"`
+}
+
+// RegionWait is RegionWaitSecs with its default.
+func (c *Config) RegionWait() time.Duration { return secs(c.RegionWaitSecs, 120) }
 
 // AntiCheatConfig is how the GC acts on what Easy Anti-Cheat reports.
 type AntiCheatConfig struct {

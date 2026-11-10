@@ -28,6 +28,13 @@
     }
   },
 
+  "//regions": "Matchmaking regions. A player's region is the one holding the Steam relay data center they ping best (pops), or the one they set with tf_mm_region. A region's matches play on servers whose region (server_keys[].region, or what the server reports) is its id. region_wait_secs: after that long a party plays with anyone, on any server. Without regions everybody is one pool.",
+  "regions": [
+    { "id": "eu", "name": "Europe", "pops": ["ams", "fra", "lhr", "par", "mad", "sto", "sto2", "waw", "vie", "lux", "hel", "man"] },
+    { "id": "na", "name": "North America", "pops": ["iad", "ord", "atl", "dfw", "lax", "sea", "eat", "okc", "mwh"] }
+  ],
+  "region_wait_secs": 120,
+
   "match_groups": [
     {
       "match_group": 7,

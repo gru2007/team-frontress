@@ -19,6 +19,7 @@
 #include "tf_imagepanel.h"
 #include "tf_gamerules.h"
 #include "tf_hud_freezepanel.h"
+#include "frontress/fui_paint.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -31,6 +32,7 @@ using namespace vgui;
 class CHudAlert : public CHudElement, public EditablePanel
 {
 	DECLARE_CLASS_SIMPLE( CHudAlert, EditablePanel );
+	FRONTRESS_HUD_PAINTS( "notices" )
 
 public:
 	CHudAlert( const char *pElementName );

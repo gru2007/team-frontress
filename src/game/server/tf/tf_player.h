@@ -167,6 +167,7 @@ public:
 	void				HandleCommand_JoinTeam_NoMenus( const char *pTeamName );
 	void				ShowTeamMenu();
 	void				ShowJoinMenu();
+	int					GetMatchSeatTeam();
 
 	void				CreateViewModel( int iViewModel = 0 );
 	CBaseViewModel		*GetOffHandViewModel();

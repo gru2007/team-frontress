@@ -248,6 +248,53 @@ static bool g_bWarnedAboutMaxplayersInMVM = false;
 extern ConVar tf_mm_servermode;
 extern ConVar tf_mm_trusted;
 extern ConVar tf_mm_strict;
+extern ConVar tf_arena_use_queue;
+
+//-----------------------------------------------------------------------------
+// Team Frontress: coordinator matches keep their own teams. Arena's
+// spectator queue would reshuffle them every round (and park players who
+// just joined as spectators), so it is off while a match is managed.
+//-----------------------------------------------------------------------------
+static int s_nArenaQueueBeforeMatch = -1;
+
+static void FrontressMatchArenaQueue( bool bMatch )
+{
+	if ( bMatch )
+	{
+		if ( s_nArenaQueueBeforeMatch < 0 )
+			s_nArenaQueueBeforeMatch = tf_arena_use_queue.GetInt();
+		tf_arena_use_queue.SetValue( 0 );
+	}
+	else if ( s_nArenaQueueBeforeMatch >= 0 )
+	{
+		tf_arena_use_queue.SetValue( s_nArenaQueueBeforeMatch );
+		s_nArenaQueueBeforeMatch = -1;
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Team Frontress: a coordinator match that started short (the queue's
+// minimum is small) fills its empty places with bots, which leave as players
+// join (CTFBotManager::MaintainBotQuota, "fill" mode).
+//-----------------------------------------------------------------------------
+ConVar tf_mm_bot_fill( "tf_mm_bot_fill", "1", FCVAR_NOTIFY, "Coordinator matches that are short of players fill the empty places with bots, who leave as players join." );
+ConVar tf_mm_bot_fill_size( "tf_mm_bot_fill_size", "0", FCVAR_NOTIFY, "How many players (bots included) a bot-filled match has. 0: the match group's size, at most 12 on arena maps." );
+
+int FrontressMatchBotFill()
+{
+	CMatchInfo *pMatch = GTFGCClientSystem() ? GTFGCClientSystem()->GetLiveMatch() : NULL;
+	if ( !tf_mm_bot_fill.GetBool() || !pMatch || !TFGameRules() || TFGameRules()->IsMannVsMachineMode() )
+		return 0;
+	int nSize = tf_mm_bot_fill_size.GetInt();
+	if ( nSize <= 0 )
+	{
+		const IMatchGroupDescription *pDesc = GetMatchGroupDescription( pMatch->m_eMatchGroup );
+		nSize = pDesc ? pDesc->GetMatchSize() : 24;
+		if ( TFGameRules()->IsInArenaMode() )
+			nSize = MIN( nSize, 12 );
+	}
+	return MIN( nSize, gpGlobals->maxClients - 1 );
+}
 
 // Some reliable messages don't know the matchID yet when they are queued, but we should have it by time they send. This
 // helper takes their current match ID and returns the one they should use, for use in OnPrepare().
@@ -2634,6 +2681,7 @@ void CTFGCServerSystem::SOCreated( const CSteamID & steamIDOwner, const GCSDK::C
 			}
 
 			m_pMatchInfo = new CMatchInfo( pLobby, FrontressGC()->BConnected() );
+			FrontressMatchArenaQueue( true );
 			MMLog( "Starting managed match %llu, group %d, Frontress assignment %d, Valve trusted %d\n",
 				(unsigned long long)pLobby->GetMatchID(), eMatchGroup,
 				m_pMatchInfo->BAssignedByFrontressGC(), tf_mm_trusted.GetBool() );
@@ -4069,6 +4117,7 @@ void CTFGCServerSystem::EndManagedMatch()
 		{ return; }
 
 	pMatch->SetEnded();
+	FrontressMatchArenaQueue( false );
 
 	// Cancel launching the new match. Leave the rest of the state alone, we'll send a NewMatch -> EndMatch and things
 	// will just work out as responses come in.
