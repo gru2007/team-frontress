@@ -74,3 +74,25 @@ func TestListPaginationAndActiveRecovery(t *testing.T) {
 		t.Fatalf("page: %+v", p)
 	}
 }
+
+func TestKindIsFilledForOldArchives(t *testing.T) {
+	dir := t.TempDir()
+	write := func(id, body string) {
+		if err := os.WriteFile(filepath.Join(dir, id+".json"), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("1", `{"match_id":"1","match_group":7,"members":[]}`)
+	write("2", `{"match_id":"2","match_group":7,"campaign":"rustvalley-1","members":[]}`)
+	write("3", `{"match_id":"3","match_group":2,"members":[]}`)
+	write("4", `{"match_id":"4","match_group":7,"kind":"ranked","members":[]}`)
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for id, want := range map[string]string{"1": KindCasual, "2": KindWar, "3": KindRanked, "4": KindRanked} {
+		if m, _ := s.Get(id); m.Kind != want {
+			t.Errorf("match %s: kind %q, want %q", id, m.Kind, want)
+		}
+	}
+}

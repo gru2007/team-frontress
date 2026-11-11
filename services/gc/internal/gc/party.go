@@ -141,6 +141,7 @@ func (g *GC) joinParty(p *Party, id uint64) error {
 	p.Members = append(p.Members, id)
 	pl.PartyID = p.ID
 	clear(p.Queues)
+	g.log.Debug("party joined", "party", p.ID, "steamid", id, "leader", p.Leader, "steamids", p.Members)
 	g.publishParty(p)
 	return nil
 }

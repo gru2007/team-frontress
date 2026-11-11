@@ -288,7 +288,18 @@ func (g *GC) handleMatchResult(s *session.Session, m *wire.Msg) {
 			g.log.Warn("war: could not apply result", "match", l.MatchID, "err", err)
 		} else {
 			g.warFeed(l, attackerWon, ownerBefore)
+			if after := g.war.Owner(l.War.NodeID); after != ownerBefore {
+				g.hooks.Emit(sink.Event{Type: "war_sector_captured", At: g.now(), Data: map[string]any{
+					"campaign": g.war.Campaign(),
+					"node":     l.War.NodeID,
+					"name":     g.nodeName(l.War.NodeID),
+					"from":     side(ownerBefore),
+					"to":       side(after),
+					"match_id": strconv.FormatUint(l.MatchID, 10),
+				}})
+			}
 			if winnerBefore == "" && g.war.Snapshot().Winner != "" {
+				g.warWon()
 				g.stopWarQueues()
 			}
 		}

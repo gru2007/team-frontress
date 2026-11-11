@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/gru2007/team-frontress/services/gc/internal/config"
 	"github.com/gru2007/team-frontress/services/gc/internal/gcpb"
@@ -28,6 +29,7 @@ func init() {
 		}
 		var pick struct {
 			Region string `json:"region"`
+			Ping   int    `json:"ping"` // the game pings servers when asked (probe.go)
 		}
 		if len(body.GetMsg()) > 128 || json.Unmarshal([]byte(body.GetMsg()), &pick) != nil {
 			return
@@ -36,7 +38,14 @@ func init() {
 		if region != "" && g.regionByID(region) == nil {
 			region = ""
 		}
-		g.player(s.SteamID).RegionPref = region
+		p := g.player(s.SteamID)
+		p.RegionPref = region
+		if pick.Ping > 0 && !p.CanPing {
+			p.CanPing = true
+			p.probeSentAt = time.Time{}
+			list := g.probeList()
+			g.sendProbe(p, list, probeKey(list))
+		}
 	}
 }
 
@@ -49,8 +58,9 @@ func (g *GC) regionByID(id string) *config.RegionConfig {
 	return nil
 }
 
-// playerRegion is where a player plays: their pick, else their best data
-// center's region, else "" (unknown: anywhere).
+// playerRegion is where a player plays: their pick, else the region of the
+// server they ping best, else their best data center's region, else ""
+// (unknown: anywhere).
 func (g *GC) playerRegion(id uint64) string {
 	p := g.online[id]
 	if p == nil {
@@ -58,6 +68,9 @@ func (g *GC) playerRegion(id uint64) string {
 	}
 	if p.RegionPref != "" && g.regionByID(p.RegionPref) != nil {
 		return p.RegionPref
+	}
+	if r := g.pingRegion(p); r != "" {
+		return r
 	}
 	if p.BestDataCenter == "" {
 		return ""
@@ -138,18 +151,27 @@ func (g *GC) regionPools(grp config.MatchGroupConfig, queue []mm.Entry) []region
 	return pools
 }
 
-// freeServersIn is how many servers could take a match of the group in the
-// region now ("": anywhere the group may play).
-func (g *GC) freeServersIn(grp config.MatchGroupConfig, region string) int {
+// freeServersIn lists the servers that could take a match of the group in
+// the region now ("": anywhere the group may play).
+func (g *GC) freeServersIn(grp config.MatchGroupConfig, region string) []*Server {
 	if region == "" {
-		return g.freeServers(grp.Region)
+		region = grp.Region
 	}
-	return g.freeServers(region)
+	var out []*Server
+	for _, srv := range g.servers {
+		if g.serverEligible(srv, g.now()) && (region == "" || srv.Region == region) {
+			out = append(out, srv)
+		}
+	}
+	return out
 }
 
 // lobbyTakes reports whether a running match may take a queued party: it is
 // in the party's region, or one of them is not tied to a region.
 func (g *GC) lobbyTakes(l *Lobby, e mm.Entry) bool {
+	if srv := g.servers[l.ServerID]; srv != nil && !g.entryReaches(e, srv) {
+		return false
+	}
 	if l.Region == "" {
 		return true
 	}

@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gru2007/team-frontress/services/gc/internal/config"
@@ -25,13 +26,14 @@ import (
 
 // Event is one thing that happened.
 type Event struct {
-	Type string    `json:"type"` // "match_started", "match_ended"
+	Type string    `json:"type"` // match_started, match_ended, match_result, quest_finished, war_sector_captured, war_campaign_won, war_campaign_started
 	At   time.Time `json:"at"`
 	Data any       `json:"data"`
 }
 
 // Webhooks delivers events to every configured hook.
 type Webhooks struct {
+	mu    sync.RWMutex
 	hooks []config.WebhookConfig
 	log   *slog.Logger
 	queue chan delivery
@@ -58,6 +60,14 @@ func New(hooks []config.WebhookConfig, log *slog.Logger) *Webhooks {
 		queue: make(chan delivery, queueSize),
 		http:  &http.Client{Timeout: 10 * time.Second},
 	}
+}
+
+// SetHooks replaces the hooks (the admin panel changed them). Deliveries
+// already queued still go to the hook they were made for.
+func (w *Webhooks) SetHooks(hooks []config.WebhookConfig) {
+	w.mu.Lock()
+	w.hooks = hooks
+	w.mu.Unlock()
 }
 
 // Run delivers until ctx ends.
@@ -89,14 +99,17 @@ func (w *Webhooks) Run(ctx context.Context) {
 
 // Emit queues an event for every hook that wants it.
 func (w *Webhooks) Emit(e Event) {
-	if len(w.hooks) == 0 {
+	w.mu.RLock()
+	hooks := w.hooks
+	w.mu.RUnlock()
+	if len(hooks) == 0 {
 		return
 	}
 	body, err := json.Marshal(e)
 	if err != nil {
 		return
 	}
-	for _, h := range w.hooks {
+	for _, h := range hooks {
 		if !wants(h, e.Type) {
 			continue
 		}

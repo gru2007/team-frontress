@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -20,6 +21,8 @@ import (
 	"github.com/gru2007/team-frontress/services/gc/internal/gc"
 	"github.com/gru2007/team-frontress/services/gc/internal/history"
 	"github.com/gru2007/team-frontress/services/gc/internal/httpapi"
+	"github.com/gru2007/team-frontress/services/gc/internal/journal"
+	"github.com/gru2007/team-frontress/services/gc/internal/jsonkeys"
 	"github.com/gru2007/team-frontress/services/gc/internal/players"
 	"github.com/gru2007/team-frontress/services/gc/internal/reports"
 	"github.com/gru2007/team-frontress/services/gc/internal/sink"
@@ -47,10 +50,14 @@ func main() {
 }
 
 func run(path string, log *slog.Logger) error {
-	cfg, err := config.Load(path)
+	cfg, saved, err := config.LoadWithSettings(path)
 	if err != nil {
 		return err
 	}
+	if saved.Revision > 0 {
+		log.Info("admin panel settings applied", "revision", saved.Revision, "sections", len(saved.Sections))
+	}
+	warnUnknownKeys(log, path, config.Config{})
 
 	file := func(name string) string {
 		if cfg.DataDir == "" {
@@ -63,6 +70,19 @@ func run(path string, log *slog.Logger) error {
 			return err
 		}
 	}
+
+	// The journal copies what the log says about players, servers and
+	// matches for the admin panel; every logger below writes through it.
+	journalDir := ""
+	if cfg.DataDir != "" {
+		journalDir = filepath.Join(cfg.DataDir, "journal")
+	}
+	journalDays, _ := strconv.Atoi(os.Getenv("GC_JOURNAL_DAYS"))
+	jr, err := journal.Open(journalDir, journalDays)
+	if err != nil {
+		return fmt.Errorf("journal: %w", err)
+	}
+	log = slog.New(jr.Handler(log.Handler()))
 
 	ps, err := players.Open(file("players.jsonl"))
 	if err != nil {
@@ -130,6 +150,7 @@ func run(path string, log *slog.Logger) error {
 		if err != nil {
 			return fmt.Errorf("war: %w", err)
 		}
+		warnUnknownKeys(log, cfg.War.Theater, war.Theater{})
 		// The war's log is its state; it is never kept only in memory.
 		wpath := file("war.jsonl")
 		if wpath == "" {
@@ -171,6 +192,7 @@ func run(path string, log *slog.Logger) error {
 		Support:   book,
 		Steam:     steam,
 		Commerce:  commerce,
+		Settings:  saved,
 	})
 	if err != nil {
 		return err
@@ -180,6 +202,9 @@ func run(path string, log *slog.Logger) error {
 	defer stop()
 
 	go hooks.Run(ctx)
+	journalDone := make(chan struct{})
+	go func() { defer close(journalDone); jr.Run(ctx) }()
+	defer func() { stop(); <-journalDone }()
 	commerceDone := make(chan struct{})
 	if commerce != nil {
 		go func() { defer close(commerceDone); commerce.Run(ctx) }()
@@ -192,7 +217,7 @@ func run(path string, log *slog.Logger) error {
 
 	srv := &http.Server{
 		Addr:              cfg.Listen,
-		Handler:           httpapi.New(g, auth, log).Handler(),
+		Handler:           httpapi.New(g, auth, log).UseJournal(jr).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		// Long enough for a long-poll plus slack.
 		WriteTimeout: cfg.Timing.Poll() + 30*time.Second,
@@ -216,4 +241,16 @@ func run(path string, log *slog.Logger) error {
 	_ = srv.Shutdown(shutdown)
 	<-loopDone
 	return nil
+}
+
+// warnUnknownKeys names every setting in a config file that the GC does not
+// read: a misspelt or unsupported key would otherwise do nothing, silently.
+func warnUnknownKeys(log *slog.Logger, path string, v any) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	for _, key := range jsonkeys.Unknown(raw, v) {
+		log.Warn("unknown setting ignored", "file", path, "key", key)
+	}
 }

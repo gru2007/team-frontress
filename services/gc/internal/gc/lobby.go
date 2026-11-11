@@ -231,7 +231,7 @@ func (g *GC) nextBattle(grp config.MatchGroupConfig, queue []mm.Entry) *battle {
 	return &battle{Battle: b, Front: fronts[0]}
 }
 
-func (g *GC) createLobby(grp config.MatchGroupConfig, f mm.Formed, sizes mm.Sizes, b *battle, region string) {
+func (g *GC) createLobby(grp config.MatchGroupConfig, f mm.Formed, sizes mm.Sizes, b *battle, region string, srv *Server) {
 	now := g.now()
 	l := &Lobby{
 		ID:         newID(),
@@ -314,7 +314,11 @@ func (g *GC) createLobby(grp config.MatchGroupConfig, f mm.Formed, sizes mm.Size
 	red, blu := l.teamCounts()
 	g.log.Info("match formed", "lobby", l.ID, "match", l.MatchID, "group", grp.Name,
 		"map", l.Map, "red", red, "blu", blu, "region", l.Region)
-	g.assignServer(l)
+	if srv != nil && l.ServerID == 0 && g.serverEligible(srv, g.now()) && g.lobbyReaches(l, srv) {
+		g.bindServer(l, srv)
+	} else {
+		g.assignServer(l)
+	}
 	g.archiveMatch(l, nil, "")
 }
 
@@ -329,19 +333,23 @@ func (g *GC) assignServer(l *Lobby) {
 		return
 	}
 	grp, _ := g.cfg.Group(l.Group)
-	// A match formed in a region plays on that region's servers.
-	var best *Server
+	// A match formed in a region plays on that region's servers, and only on
+	// one every player in it reaches (probe.go), the best pinged first.
+	var ok []*Server
 	for _, srv := range g.servers {
 		if !g.serverEligible(srv, g.now()) || (grp.Region != "" && srv.Region != grp.Region) ||
-			(l.Region != "" && srv.Region != l.Region) {
+			(l.Region != "" && srv.Region != l.Region) || !g.lobbyReaches(l, srv) {
 			continue
 		}
-		if best == nil || srv.SteamID < best.SteamID {
-			best = srv
-		}
+		ok = append(ok, srv)
 	}
-	if best != nil {
-		g.bindServer(l, best)
+	if len(ok) > 0 {
+		ids := make([]uint64, 0, len(l.Members))
+		for _, m := range l.Members {
+			ids = append(ids, m.SteamID)
+		}
+		g.byPing(ok, ids)
+		g.bindServer(l, ok[0])
 		return
 	}
 }
@@ -474,6 +482,7 @@ func (g *GC) tickLobbies() {
 			if advanced, err := g.war.AdvanceCampaign(g.now(), 24*time.Hour); err != nil {
 				g.log.Error("campaign restart", "err", err)
 			} else if advanced {
+				g.warStarted()
 				for id := range g.online {
 					g.sendFaction(id)
 				}
@@ -603,6 +612,7 @@ func (g *GC) matchSummary(l *Lobby, extra map[string]any) map[string]any {
 		"match_id":    strconv.FormatUint(l.MatchID, 10),
 		"match_group": l.Group,
 		"group_name":  grpName,
+		"kind":        g.matchKind(l),
 		"map":         l.Map,
 		"server":      l.Connect,
 		"stv":         l.STV,

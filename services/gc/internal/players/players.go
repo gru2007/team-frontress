@@ -11,6 +11,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -399,4 +402,61 @@ func (s *Store) Known() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.records)
+}
+
+// Page is a slice of the record set for lists and leaderboards.
+type Page struct {
+	Records []Record
+	Total   int
+}
+
+// List is the players who have played, filtered by a name or SteamID
+// fragment (q, case-insensitive) and ordered by sort: "level" (XP, the
+// default), "matches", "wins" or "recent" (last match).
+func (s *Store) List(q, sortBy string, offset, limit int) Page {
+	s.mu.Lock()
+	out := make([]Record, 0, len(s.records))
+	q = strings.ToLower(strings.TrimSpace(q))
+	for _, r := range s.records {
+		if r.Matches == 0 && r.QuestXP == 0 {
+			continue
+		}
+		if q != "" && !strings.Contains(strings.ToLower(r.Name), q) &&
+			!strings.Contains(strconv.FormatUint(r.SteamID, 10), q) {
+			continue
+		}
+		c := *r
+		c.Quests, c.Acknowledged = nil, nil
+		out = append(out, c)
+	}
+	s.mu.Unlock()
+	key := func(r Record) int {
+		switch sortBy {
+		case "matches":
+			return r.Matches
+		case "wins":
+			return r.Wins
+		default:
+			return r.XP()
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if sortBy == "recent" {
+			if !out[i].LastMatch.Equal(out[j].LastMatch) {
+				return out[i].LastMatch.After(out[j].LastMatch)
+			}
+		} else if a, b := key(out[i]), key(out[j]); a != b {
+			return a > b
+		}
+		return out[i].SteamID < out[j].SteamID
+	})
+	p := Page{Total: len(out)}
+	if offset < len(out) {
+		end := min(offset+limit, len(out))
+		p.Records = out[offset:end]
+	}
+	if p.Records == nil {
+		p.Records = []Record{}
+	}
+	return p
 }

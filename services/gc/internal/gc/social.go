@@ -14,6 +14,7 @@ import (
 	"github.com/gru2007/team-frontress/services/gc/internal/clans"
 	"github.com/gru2007/team-frontress/services/gc/internal/gcpb"
 	"github.com/gru2007/team-frontress/services/gc/internal/session"
+	"github.com/gru2007/team-frontress/services/gc/internal/sink"
 	"github.com/gru2007/team-frontress/services/gc/internal/war"
 	"github.com/gru2007/team-frontress/services/gc/internal/wire"
 )
@@ -278,6 +279,7 @@ func (g *GC) say(id uint64, ch, text string) {
 		return
 	}
 	p.chatTokens--
+	g.log.Debug("chat", "steamid", id, "channel", ch, "text", text)
 
 	key := "global"
 	switch ch {
@@ -531,4 +533,24 @@ func (g *GC) warFeed(l *Lobby, attackerWon bool, ownerBefore war.Side) {
 		}
 	}
 	g.feed("war", "fui_feed_captured", name, "#fui_side_"+side(after))
+}
+
+// warStarted tells everyone, and every hook, that a new campaign began.
+func (g *GC) warStarted() {
+	campaign := g.war.Campaign()
+	g.feed("war", "fui_feed_campaign_new")
+	g.hooks.Emit(sink.Event{Type: "war_campaign_started", At: g.now(), Data: map[string]any{
+		"campaign": campaign,
+	}})
+}
+
+// warWon tells everyone, and every hook, that a side won the campaign.
+func (g *GC) warWon() {
+	snap := g.war.Snapshot()
+	g.feed("war", "fui_feed_campaign_won", "#fui_side_"+side(snap.Winner))
+	g.hooks.Emit(sink.Event{Type: "war_campaign_won", At: g.now(), Data: map[string]any{
+		"campaign": snap.Campaign,
+		"winner":   side(snap.Winner),
+		"ended_at": snap.EndedAt,
+	}})
 }

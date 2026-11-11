@@ -78,12 +78,18 @@ type GC struct {
 	chat         map[string][]ChatLine
 	chatSeq      uint64
 	presenceAt   time.Time
+	reachWarnAt  time.Time // probe.go: when a server nobody reaches was last logged
 	presenceLast string
 	// presenceCounts is the last presence without the list, for Status.
 	presenceCounts Presence
 
-	status  atomic.Pointer[Status]
-	warView atomic.Pointer[WarView]
+	status atomic.Pointer[Status]
+	// live is cfg for readers off the loop; started is what the GC started
+	// with (some settings only change on a restart). See settings.go.
+	live     atomic.Pointer[config.Config]
+	started  config.Config
+	settings config.SettingsFile
+	warView  atomic.Pointer[WarView]
 }
 
 // Deps are the GC's collaborators. Only Config is required.
@@ -108,7 +114,10 @@ type Deps struct {
 	// SteamBans issues Steam game bans; nil builds the Web API client when
 	// anticheat.steam_game_bans asks for it.
 	SteamBans SteamBanner
-	Now       func() time.Time
+	// Settings is what the admin panel saved (config.LoadWithSettings);
+	// its revision guards against two admins saving over each other.
+	Settings config.SettingsFile
+	Now      func() time.Time
 }
 
 // New makes a GC and restores the matches that were running when it last
@@ -136,6 +145,7 @@ func New(d Deps) (*GC, error) {
 		lobbies:    map[uint64]*Lobby{},
 		servers:    map[uint64]*Server{},
 		recentMaps: map[string]time.Time{},
+		settings:   d.Settings,
 	}
 	if g.log == nil {
 		g.log = slog.Default()
@@ -198,6 +208,8 @@ func New(d Deps) (*GC, error) {
 	if err := g.history.Reconcile(active, g.now()); err != nil {
 		return nil, err
 	}
+	g.started = g.cfg
+	g.live.Store(&g.started)
 	g.publishStatus()
 	return g, nil
 }
@@ -206,7 +218,7 @@ func New(d Deps) (*GC, error) {
 func (g *GC) Sessions() *session.Manager { return g.sessions }
 
 // Config is the GC's configuration.
-func (g *GC) Config() config.Config { return g.cfg }
+func (g *GC) Config() config.Config { return *g.live.Load() }
 
 // Clans is the clan store.
 func (g *GC) Clans() *clans.Store { return g.clans }
@@ -271,6 +283,7 @@ func (g *GC) safely(f func()) {
 func (g *GC) tick() {
 	g.tickParties()
 	g.tickLobbies()
+	g.tickProbes()
 	g.matchmake()
 	g.tickPresence()
 	g.save()

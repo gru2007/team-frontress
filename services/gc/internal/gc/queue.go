@@ -46,7 +46,7 @@ func (g *GC) handleQueue(s *session.Session, m *wire.Msg) {
 	}
 	if _, already := p.Queues[grp.MatchGroup]; !already {
 		p.Queues[grp.MatchGroup] = g.now()
-		g.log.Info("party queued", "party", p.ID, "group", grp.Name, "players", len(p.Members))
+		g.log.Info("party queued", "party", p.ID, "group", grp.Name, "players", len(p.Members), "steamids", p.Members)
 	}
 	g.publishParty(p)
 }
@@ -60,6 +60,9 @@ func (g *GC) handleUnqueue(s *session.Session, m *wire.Msg) {
 	p := g.partyOf(s, msg.GetPartyId())
 	if p == nil {
 		return
+	}
+	if _, queued := p.Queues[int32(msg.GetMatchGroup())]; queued {
+		g.log.Debug("party left the queue", "party", p.ID, "group", msg.GetMatchGroup(), "steamid", s.SteamID, "steamids", p.Members)
 	}
 	delete(p.Queues, int32(msg.GetMatchGroup()))
 	g.publishParty(p)
@@ -173,18 +176,35 @@ func (g *GC) matchmake() {
 		}
 		// A match is only formed when a server is free to play it: nobody is
 		// told "match found" and then left waiting for one. Each region
-		// matches its own players on its own servers (region.go).
+		// matches its own players on its own servers (region.go), and a
+		// server only takes the players who reach it (probe.go). The servers
+		// the queue pings best go first.
 		for _, pool := range g.regionPools(grp, queue) {
 			entries := pool.entries
 			free := g.freeServersIn(grp, pool.region)
-			for len(entries) > 0 && free > 0 {
-				formed, sizes, battle, ok := g.form(grp, entries)
-				if !ok {
+			g.byPing(free, entryIDs(entries))
+			for _, srv := range free {
+				if len(entries) == 0 {
 					break
 				}
-				g.createLobby(grp, formed, sizes, battle, pool.region)
+				if !g.serverEligible(srv, g.now()) {
+					continue // taken by a match formed this tick
+				}
+				var reach []mm.Entry
+				for _, e := range entries {
+					if g.entryReaches(e, srv) {
+						reach = append(reach, e)
+					}
+				}
+				if len(reach) == 0 {
+					continue
+				}
+				formed, sizes, battle, ok := g.form(grp, reach)
+				if !ok {
+					continue
+				}
+				g.createLobby(grp, formed, sizes, battle, pool.region, srv)
 				entries = remaining(entries, formed)
-				free--
 			}
 		}
 	}
@@ -244,6 +264,16 @@ func (g *GC) partyMaps(p *Party) []string {
 		}
 	}
 	sort.Strings(out)
+	return out
+}
+
+func entryIDs(es []mm.Entry) []uint64 {
+	var out []uint64
+	for _, e := range es {
+		for _, p := range e.Players {
+			out = append(out, p.SteamID)
+		}
+	}
 	return out
 }
 

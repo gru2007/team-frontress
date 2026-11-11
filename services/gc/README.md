@@ -33,7 +33,11 @@ only removed the pipe to Steam. That pipe now points here.
    are free servers in the pool, so nobody is told "match found" with nowhere
    to play: parties are never split,
    teams are balanced by size and rating, the map is what the parties voted for
-   (if `map_index` is configured), otherwise the least recently played.
+   (if `map_index` is configured), otherwise the least recently played. A
+   match only goes to a server every one of its players reaches: each game
+   pings the pool when the GC asks (`server_ping`, `internal/gc/probe.go`), so
+   a player whose network cannot reach a host -- Russia and a server in
+   Canada, say -- is never sent there, not even after `region_wait_secs`.
 5. **A server takes it.** A free server from the pool (the dedicated servers
    connected with a server key) is given the lobby in state `SERVERSETUP`.
    The server's own `CTFGCServerSystem` builds the match and changes level.
@@ -94,10 +98,12 @@ job.
 Public JSON: `GET /v1/status` (what the main menu shows), `GET
 /v1/player/{steamid}` (record, XP, level, rating), `GET /healthz`.
 
-Match history for the tf2pickup portal: `GET /v1/matches` and
+Match history for the portal (mm.team-frontress.org): `GET /v1/matches` and
 `GET /v1/matches/{match_id}`. The list accepts `offset` (0..1000000), `limit`
 (1..100, default 20), `steam_id` and `state` (`setup`, `run`, `ended`). IDs are
-decimal strings. Records retain all roster participants, including leavers,
+decimal strings. `kind` is `casual`, `ranked` or `war`: a war battle is fought
+in a casual queue, so `match_group` alone does not tell it apart (war battles
+also carry `campaign` and `sector`). Records retain all roster participants, including leavers,
 and the reported result after the lobby is destroyed. They contain no server
 keys, GC sessions or private connection addresses.
 
@@ -180,8 +186,65 @@ sit in its path.
   JSON, signed with `X-Frontress-Signature: sha256=<hmac>` when the hook has a
   secret, and retried with backoff. A pickup site, a stats page or a Discord
   bot builds on these. A hook that is down never holds anything up.
-- **Public API.** `/v1/status`, `/v1/player/{steamid}` and `/v1/clans` (the
-  clan leaderboard) are open and CORS enabled.
+- **Public API.** `/v1/status`, `/v1/player/{steamid}` (with the player's
+  name, last match, war side and clan), `/v1/players` (players who have played:
+  `q` searches names and SteamIDs, `sort` is `level`, `matches`, `wins` or
+  `recent`, `offset`, `limit` up to 200) and `/v1/clans` (the clan leaderboard)
+  are open and CORS enabled.
+
+## The portal
+
+[mm.team-frontress.org](https://mm.team-frontress.org)
+([tf2pickup-frontress](https://github.com/gru2007/tf2pickup-frontress)) is the
+coordinator's admin panel and where players see their accounts. It keeps
+nothing of its own: it reads the public API and, with `admin_key`
+(`$GC_ADMIN_KEY`), the admin API. Every admin call carries
+`Authorization: Bearer <admin_key>` and `X-Frontress-Actor: <admin SteamID64>`.
+
+| | |
+| --- | --- |
+| `GET /admin/v1/live` | the server pool (state, map, EAC, match), running matches with their rosters and connect states, and the parties in a queue |
+| `POST /admin/v1/matches/{match_id}/end` | `{"reason": "..."}`: ends a running match the way a missed deadline does; the archive records the reason, parties are not requeued |
+| `GET/POST /admin/v1/anticheat[/{steamid}]` | matchmaking bans, lifting them, Steam game bans |
+| `GET/POST /admin/v1/reports[/{steamid}]` | the report queue and its cases |
+| `GET /admin/v1/payments`, `POST /admin/v1/payments/operations` | donations, Steam transactions, refunds and cancellations |
+
+| `GET/PUT /admin/v1/settings` | the configuration the panel manages; `{"revision": N, "note": "...", "sections": {...}}` replaces whole sections, validates the result and applies it at once (409 when somebody saved since revision N) |
+| `GET /admin/v1/settings/history` | every saved revision: who, when, the note and the sections |
+| `GET/POST /admin/v1/server-keys` | keys with the servers connected with each (never the key itself); `{"action": "create"\|"update"\|"rotate"\|"revoke", "name": ...}`; a new key is in the answer once |
+| `GET /admin/v1/journal` | what the GC logged about players, servers and matches: `steam_id`, `server`, `match` (or lobby), `q` (text), `level`, `before` (paging), `limit` |
+
+The embedded console at `/admin/` stays for working on the GC host directly.
+
+### Settings from the panel
+
+The panel manages `name`, `match_groups`, `server_keys`, `regions`,
+`region_wait_secs`, `server_ping`, `anticheat`, `chat`, `timing`, `map_index`
+and `webhooks`. A section saved from the panel lives in
+`<data_dir>/settings.json` and replaces the same section of `gc.json`, whole;
+`settings-history.jsonl` beside it keeps every revision (both mode 0600: they
+hold server keys). `gc.json` stays the place for what the GC needs before it
+serves anyone: `listen`, `data_dir`, `admin_key`, `auth`, `support` and
+`war`. To go back to `gc.json` for a section, remove it from `settings.json`
+and restart.
+
+A save applies at once: a queue switched off or removed stops its parties'
+search; a revoked or rotated key disconnects its servers (their match ends on
+the server-lost deadline); new webhooks get the next event. Matches already
+running keep the settings they formed with. `timing.tick_millis`,
+`session_ttl_secs` and `poll_secs` are saved but need a restart; the panel
+says so. The key from `$GC_SERVER_KEY` is listed but never saved or changed.
+
+### The journal
+
+A handler in front of the GC's log copies every record that names a player
+(`steamid`, `steamids`, `reporter`, `target`), a server or a match into
+`<data_dir>/journal/YYYY-MM-DD.jsonl`, kept 30 days (`$GC_JOURNAL_DAYS`). It
+also keeps the debug records the log leaves out: chat lines, party joins and
+queue changes. Sign-ins carry the peer's address (the first
+`X-Forwarded-For` address behind a proxy on a private network). The newest
+50 000 entries are in memory; writing never blocks the loop and what the disk
+cannot take is counted as dropped.
 
 ## Social, clans, support
 

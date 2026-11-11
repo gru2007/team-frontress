@@ -48,7 +48,7 @@ func TestWarFormationHonorsFactionAndMapTeamMapping(t *testing.T) {
 		t.Fatal("matched one faction against itself")
 	}
 	b := &battle{Battle: war.Battle{Attacker: war.SideRED, AttackerTeam: 3, Fields: []war.Battlefield{{Map: "pl_badwater", AttackerTeam: 3}}}, Front: war.Front{ID: "front-test"}}
-	g.createLobby(grp, f, mm.Sizes{Min: 4, Ideal: 4, Max: 4}, b, "")
+	g.createLobby(grp, f, mm.Sizes{Min: 4, Ideal: 4, Max: 4}, b, "", nil)
 	for _, l := range g.lobbies {
 		if l.War == nil || !l.War.UniformSwap || l.War.Campaign != engine.Campaign() {
 			t.Fatal("missing campaign presentation mapping", l.War)

@@ -3,6 +3,7 @@ package gc
 import (
 	"strconv"
 
+	"github.com/gru2007/team-frontress/services/gc/internal/config"
 	"github.com/gru2007/team-frontress/services/gc/internal/gcpb"
 	"github.com/gru2007/team-frontress/services/gc/internal/history"
 	"github.com/gru2007/team-frontress/services/gc/internal/mm"
@@ -82,14 +83,36 @@ func (g *GC) newMatchResult(l *Lobby, msg *gcpb.CMsgGC_Match_Result) *history.Re
 
 func (g *GC) History() *history.Store { return g.history }
 
+// matchKind is whether a match is a war battle, a ranked match or a casual
+// one. War battles run in a casual queue, so the war decides first.
+func (g *GC) matchKind(l *Lobby) string {
+	if l.War != nil {
+		return history.KindWar
+	}
+	if grp, ok := g.cfg.Group(l.Group); ok {
+		if grp.EffectiveMode() == config.ModeRanked {
+			return history.KindRanked
+		}
+		return history.KindCasual
+	}
+	if l.Group == ladderGroup {
+		return history.KindRanked
+	}
+	return history.KindCasual
+}
+
 // archiveMatch runs on the loop. Former participants and a received result
 // survive roster removals, backfill and the destruction of the live lobby.
 func (g *GC) archiveMatch(l *Lobby, result *history.Result, reason string) {
 	id := strconv.FormatUint(l.MatchID, 10)
 	m, _ := g.history.Get(id)
 	m.MatchID, m.Group, m.Map, m.State, m.FormedAt = id, l.Group, l.Map, string(l.State), l.FormedAt
+	m.Kind = g.matchKind(l)
 	if l.War != nil {
-		m.Campaign, m.UniformSwap = l.War.Campaign, l.War.UniformSwap
+		m.Campaign, m.UniformSwap, m.Sector = l.War.Campaign, l.War.UniformSwap, l.War.NodeName
+		if m.Sector == "" {
+			m.Sector = g.nodeName(l.War.NodeID)
+		}
 	}
 	if grp, ok := g.cfg.Group(l.Group); ok {
 		m.GroupName = grp.Name

@@ -77,6 +77,28 @@ type Result struct {
 
 func (r Result) Completed() bool { return r.Status == 0 || r.Status == 7 }
 
+// Kinds of match. A war battle is fought in a casual queue, so the match
+// group alone cannot tell it apart; Kind can.
+const (
+	KindCasual = "casual"
+	KindRanked = "ranked"
+	KindWar    = "war"
+)
+
+// ladderGroup is TF2's ETFMatchGroup Ladder_6v6, the ranked group.
+const ladderGroup = 2
+
+// legacyKind classifies archive entries written before Kind existed.
+func legacyKind(m Match) string {
+	switch {
+	case m.Campaign != "":
+		return KindWar
+	case m.Group == ladderGroup:
+		return KindRanked
+	}
+	return KindCasual
+}
+
 // Match contains no session tokens, server keys or private connection addresses.
 // All IDs are strings so JavaScript never rounds a SteamID or match ID.
 type Match struct {
@@ -86,7 +108,9 @@ type Match struct {
 	Map         string     `json:"map"`
 	State       string     `json:"state"`
 	Region      string     `json:"region"`
+	Kind        string     `json:"kind"` // casual, ranked or war
 	Campaign    string     `json:"campaign,omitempty"`
+	Sector      string     `json:"sector,omitempty"` // the war sector fought over
 	UniformSwap bool       `json:"uniform_swap"`
 	FormedAt    time.Time  `json:"formed_at"`
 	StartedAt   *time.Time `json:"started_at,omitempty"`
@@ -137,6 +161,9 @@ func Open(dir string) (*Store, error) {
 		}
 		if !validID(m.MatchID) || entry.Name() != m.MatchID+".json" {
 			return nil, fmt.Errorf("history: invalid match file %q", entry.Name())
+		}
+		if m.Kind == "" {
+			m.Kind = legacyKind(m)
 		}
 		s.matches[m.MatchID] = m
 	}
@@ -217,6 +244,9 @@ func (m Match) ResultTime() time.Time {
 func (s *Store) Put(m Match) error {
 	if !validID(m.MatchID) {
 		return fmt.Errorf("history: invalid match ID")
+	}
+	if m.Kind == "" {
+		m.Kind = legacyKind(m)
 	}
 	if s.dir != "" {
 		raw, err := json.Marshal(m)

@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/gru2007/team-frontress/services/gc/internal/config"
 	"github.com/gru2007/team-frontress/services/gc/internal/gc"
+	"github.com/gru2007/team-frontress/services/gc/internal/journal"
 	"github.com/gru2007/team-frontress/services/gc/internal/session"
 	"github.com/gru2007/team-frontress/services/gc/internal/steamauth"
 	"github.com/gru2007/team-frontress/services/gc/internal/wire"
@@ -40,11 +42,12 @@ const ProtocolVersion = 1
 
 // API serves HTTP.
 type API struct {
-	gc   *gc.GC
-	auth steamauth.Verifier
-	cfg  config.Config
-	log  *slog.Logger
-	poll time.Duration
+	journal *journal.Store
+	gc      *gc.GC
+	auth    steamauth.Verifier
+	cfg     config.Config
+	log     *slog.Logger
+	poll    time.Duration
 }
 
 // New builds the API.
@@ -70,9 +73,18 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("GET /admin/v1/reports", a.adminReportCases)
 	mux.HandleFunc("GET /admin/v1/reports/{steamid}", a.adminReportCase)
 	mux.HandleFunc("POST /admin/v1/reports/{steamid}", a.adminReportAction)
+	mux.HandleFunc("GET /admin/v1/live", a.adminLive)
+	mux.HandleFunc("GET /admin/v1/settings", a.adminSettings)
+	mux.HandleFunc("PUT /admin/v1/settings", a.adminSaveSettings)
+	mux.HandleFunc("GET /admin/v1/settings/history", a.adminSettingsHistory)
+	mux.HandleFunc("GET /admin/v1/server-keys", a.adminServerKeys)
+	mux.HandleFunc("POST /admin/v1/server-keys", a.adminChangeServerKey)
+	mux.HandleFunc("GET /admin/v1/journal", a.adminJournal)
+	mux.HandleFunc("POST /admin/v1/matches/{id}/end", a.adminEndMatch)
 	mux.HandleFunc("GET /admin/{$}", a.adminConsole)
 	mux.HandleFunc("GET /admin/{file}", a.adminConsole)
 	mux.HandleFunc("GET /v1/war", a.war)
+	mux.HandleFunc("GET /v1/players", a.playerList)
 	mux.HandleFunc("GET /v1/player/{steamid}", a.playerRecord)
 	mux.HandleFunc("GET /v1/player/{steamid}/quests", a.playerQuests)
 	mux.HandleFunc("GET /v1/clans", a.clanList)
@@ -138,13 +150,14 @@ func (a *API) session(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s := a.gc.Sessions().Open(session.Client, id, func(s *session.Session) { s.AppID = appID })
+		a.log.Info("client session", "steamid", id, "ip", clientIP(r), "app", appID)
 		var lobbyID uint64
 		if err := a.gc.Call(ctx, func() { lobbyID = a.gc.ClientConnected(s, a.auth.Verified()) }); err != nil {
 			writeKV(w, http.StatusServiceUnavailable, "error", "coordinator busy")
 			return
 		}
 		writeKV(w, http.StatusOK, "session", s.ID, "steam_id", strconv.FormatUint(id, 10),
-			"poll_ms", strconv.Itoa(int(a.poll.Milliseconds())), "name", a.cfg.Name, "lobby_id", strconv.FormatUint(lobbyID, 10))
+			"poll_ms", strconv.Itoa(int(a.poll.Milliseconds())), "name", a.gc.Config().Name, "lobby_id", strconv.FormatUint(lobbyID, 10))
 
 	case "server":
 		key, ok := a.serverKey(r.PostForm.Get("key"))
@@ -155,18 +168,20 @@ func (a *API) session(w http.ResponseWriter, r *http.Request) {
 		}
 		s := a.gc.Sessions().Open(session.Server, steamID, func(s *session.Session) {
 			s.ServerName = firstNonEmpty(r.PostForm.Get("name"), key.Name)
+			s.KeyID = config.KeyID(key.Key)
 			s.CommunityID = key.Community
 			s.AntiCheatAuthority = key.AntiCheatAuthority
 			s.Region = firstNonEmpty(r.PostForm.Get("region"), key.Region)
 			s.Connect = r.PostForm.Get("connect")
 		})
+		a.log.Info("server session", "server", steamID, "key", key.Name, "ip", clientIP(r), "connect", r.PostForm.Get("connect"))
 		var lobbyID uint64
 		if err := a.gc.Call(ctx, func() { lobbyID = a.gc.ServerConnected(s) }); err != nil {
 			writeKV(w, http.StatusServiceUnavailable, "error", "coordinator busy")
 			return
 		}
 		writeKV(w, http.StatusOK, "session", s.ID,
-			"poll_ms", strconv.Itoa(int(a.poll.Milliseconds())), "name", a.cfg.Name, "lobby_id", strconv.FormatUint(lobbyID, 10))
+			"poll_ms", strconv.Itoa(int(a.poll.Milliseconds())), "name", a.gc.Config().Name, "lobby_id", strconv.FormatUint(lobbyID, 10))
 
 	default:
 		writeKV(w, http.StatusBadRequest, "error", "kind must be client or server")
@@ -177,7 +192,7 @@ func (a *API) serverKey(presented string) (config.ServerKey, bool) {
 	if presented == "" {
 		return config.ServerKey{}, false
 	}
-	for _, k := range a.cfg.ServerKeys {
+	for _, k := range a.gc.Config().ServerKeys {
 		if subtle.ConstantTimeCompare([]byte(k.Key), []byte(presented)) == 1 {
 			return k, true
 		}
@@ -277,8 +292,12 @@ func (a *API) playerRecord(w http.ResponseWriter, r *http.Request) {
 	}
 	rec := a.gc.PlayerRecord(id)
 	into, need := rec.LevelProgress()
-	writeJSON(w, http.StatusOK, map[string]any{
+	out := map[string]any{
 		"steam_id":       strconv.FormatUint(id, 10),
+		"name":           rec.Name,
+		"last_match":     rec.LastMatch,
+		"war_campaign":   rec.WarCampaign,
+		"war_side":       rec.WarSide,
 		"matches":        rec.Matches,
 		"wins":           rec.Wins,
 		"losses":         rec.Losses,
@@ -288,7 +307,11 @@ func (a *API) playerRecord(w http.ResponseWriter, r *http.Request) {
 		"level":          rec.Level(),
 		"level_xp":       into,
 		"level_xp_total": need,
-	})
+	}
+	if c := a.gc.Clans().Of(id); c != nil {
+		out["clan"] = map[string]any{"id": c.ID, "name": c.Name, "tag": c.Tag, "color": c.Color, "level": c.Level()}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // playerQuests is a player's daily and weekly quests with their progress.
@@ -322,4 +345,22 @@ func firstNonEmpty(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+// clientIP is the peer's address. Behind a reverse proxy on the same host or
+// network (Caddy), it is the first X-Forwarded-For address instead.
+func clientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	if ip := net.ParseIP(host); ip != nil && (ip.IsLoopback() || ip.IsPrivate()) {
+		if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
+			first, _, _ := strings.Cut(fwd, ",")
+			if p := net.ParseIP(strings.TrimSpace(first)); p != nil {
+				return p.String()
+			}
+		}
+	}
+	return host
 }

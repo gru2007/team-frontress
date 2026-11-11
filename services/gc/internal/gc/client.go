@@ -26,6 +26,16 @@ type Player struct {
 	BestDataCenter string
 	RegionPref     string // the region they picked (tf_mm_region), see region.go
 
+	// Server pings (probe.go): whether the game measures them, what it
+	// measured, and the last request.
+	CanPing       bool
+	Pings         map[uint64]serverPing
+	probeAddrs    map[uint64]string
+	probeKey      string
+	probeSentAt   time.Time
+	probeAnswered bool
+	reachNoticeAt time.Time
+
 	// Social (social.go): their name as the game told us, their language,
 	// whether they are looking for a squad, their chat allowance.
 	Name       string

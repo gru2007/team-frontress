@@ -61,6 +61,7 @@ type Session struct {
 
 	// Server sessions only.
 	ServerName  string // which key let it in, for logs
+	KeyID       string // config.KeyID of that key: revoking or rotating it ends the session
 	Connect     string // the address players use
 	Region      string
 	CommunityID string // which community operates this server

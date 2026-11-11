@@ -28,12 +28,16 @@
     }
   },
 
-  "//regions": "Matchmaking regions. A player's region is the one holding the Steam relay data center they ping best (pops), or the one they set with tf_mm_region. A region's matches play on servers whose region (server_keys[].region, or what the server reports) is its id. region_wait_secs: after that long a party plays with anyone, on any server. Without regions everybody is one pool.",
+  "//regions": "Matchmaking regions. A player's region is the one they set with tf_mm_region (the region picker on the play screen), else the region of the server their game pings best, else the region holding the Steam relay data center they ping best (pops). A region's matches play on servers whose region is its id: set tf_gc_server_region (ru, eu, na) on each server, or region on its server key. Players in Russia usually ping European relays best (hel, sto, waw), so without a server in ru they play in eu. region_wait_secs: after that long a party plays with anyone, on any server it reaches (server_ping). Without regions everybody is one pool.",
   "regions": [
-    { "id": "eu", "name": "Europe", "pops": ["ams", "fra", "lhr", "par", "mad", "sto", "sto2", "waw", "vie", "lux", "hel", "man"] },
-    { "id": "na", "name": "North America", "pops": ["iad", "ord", "atl", "dfw", "lax", "sea", "eat", "okc", "mwh"] }
+    { "id": "ru", "name": "RU/Asia", "pops": ["sgp", "hkg", "tyo", "tyo2", "man", "bom", "maa", "dxb"] },
+    { "id": "eu", "name": "EU/Germany", "pops": ["fra", "ams", "lhr", "par", "mad", "sto", "sto2", "waw", "vie", "lux", "hel"] },
+    { "id": "na", "name": "NA/Canada", "pops": ["iad", "ord", "atl", "dfw", "lax", "sea", "eat", "okc", "mwh"] }
   ],
   "region_wait_secs": 120,
+
+  "//server_ping": "Before a match takes a server, every player's game pings the pool and the match only goes to a server all of them reach. max_ms: the highest ping allowed (-1: only check the server answers). answer_secs: how long to wait for a game's pings before it is not held back (older builds never ping).",
+  "server_ping": { "max_ms": 180, "answer_secs": 15 },
 
   "match_groups": [
     {
@@ -54,7 +58,8 @@
       "match_group": 2,
       "name": "Ranked 6v6",
       "mode": "ranked",
-      "enabled": true,
+      "//enabled": "Off: Frontress has no ranked mode yet. The menu only offers groups the GC enables.",
+      "enabled": false,
       "min_players": 12,
       "ideal_players": 12,
       "max_players": 12,
@@ -108,6 +113,6 @@
     "fake": false
   },
 
-  "//webhooks": "Other projects hear about matches here: match_started, match_result, match_ended.",
+  "//webhooks": "Other projects hear about matches and the war here: match_started, match_result, match_ended, quest_finished, war_sector_captured, war_campaign_won, war_campaign_started.",
   "webhooks": []
 }

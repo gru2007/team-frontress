@@ -54,12 +54,37 @@ type Config struct {
 	// RegionWaitSecs is how long a party waits for a match in its own region
 	// before it may be matched with anyone, on any server. Default 120.
 	RegionWaitSecs int `json:"region_wait_secs,omitempty"`
+	// ServerPing is the check a match makes before it takes a server: every
+	// player's game pings the pool, and a match only goes to a server all its
+	// players reach, within the ping limit.
+	ServerPing ServerPingConfig `json:"server_ping,omitempty"`
 }
+
+// ServerPingConfig limits which servers a player may be sent to.
+type ServerPingConfig struct {
+	// MaxMS is the highest ping a player may have to the match's server.
+	// 0 means 200; -1 only checks that the server answers at all.
+	MaxMS int `json:"max_ms,omitempty"`
+	// AnswerSecs is how long the GC waits for a game's pings before it stops
+	// holding the player back for them. Default 15.
+	AnswerSecs int `json:"answer_secs,omitempty"`
+}
+
+// Max is MaxMS with its default; below zero means no limit.
+func (c ServerPingConfig) Max() int {
+	if c.MaxMS == 0 {
+		return 200
+	}
+	return c.MaxMS
+}
+
+// AnswerWait is AnswerSecs with its default.
+func (c ServerPingConfig) AnswerWait() time.Duration { return secs(c.AnswerSecs, 15) }
 
 // RegionConfig is one matchmaking region.
 type RegionConfig struct {
-	ID   string   `json:"id"`
-	Name string   `json:"name"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
 	// Pops are Steam relay data center codes whose players belong here.
 	Pops []string `json:"pops"`
 }
@@ -194,6 +219,9 @@ type ServerKey struct {
 	// ban they report keeps the player out of matchmaking. Give it only to
 	// servers you run -- a community server could report anything.
 	AntiCheatAuthority bool `json:"anticheat_authority,omitempty"`
+	// Source is SourceEnv for the key from $GC_SERVER_KEY, which the admin
+	// panel shows but does not save.
+	Source string `json:"-"`
 }
 
 // Mode is what the GC may do with a match once it has formed.
@@ -348,7 +376,7 @@ type WebhookConfig struct {
 	Name   string   `json:"name"`
 	URL    string   `json:"url"`
 	Secret string   `json:"secret"` // signs the body: X-Frontress-Signature
-	Events []string `json:"events"` // "match_started", "match_ended"; empty = all
+	Events []string `json:"events"` // match_started, match_ended, match_result, quest_finished, war_sector_captured, war_campaign_won, war_campaign_started; empty = all
 }
 
 // Load reads and validates a config file. Environment variables override the
@@ -385,7 +413,7 @@ func (c *Config) applyEnv() {
 	// GC_SERVER_KEY adds one key, for the container that is the whole fleet.
 	if v := os.Getenv("GC_SERVER_KEY"); v != "" {
 		// The operator's own fleet: its anti-cheat verdicts are trusted.
-		c.ServerKeys = append(c.ServerKeys, ServerKey{Name: "env", Key: v, AntiCheatAuthority: true})
+		c.ServerKeys = append(c.ServerKeys, ServerKey{Name: "env", Key: v, AntiCheatAuthority: true, Source: SourceEnv})
 	}
 }
 
