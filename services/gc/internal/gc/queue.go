@@ -400,8 +400,27 @@ func (g *GC) form(grp config.MatchGroupConfig, queue []mm.Entry) (mm.Formed, mm.
 	patience := time.Duration(grp.PatientSecs) * time.Second
 	if b != nil {
 		f, ok := g.formFactions(queue, sizes, patience)
-		return f, sizes, b, ok
+		if ok || !waitedOut(queue, patience, g.now()) {
+			return f, sizes, b, ok
+		}
+		// A battle needs both factions. When the queue cannot field them
+		// (everybody waiting is RED, say), it plays an ordinary match rather
+		// than wait forever.
+		sizes = mm.Sizes{Min: grp.MinPlayers, Ideal: grp.IdealPlayers, Max: grp.MaxPlayers}
+		f, ok = mm.Form(queue, sizes, patience, g.now())
+		return f, sizes, nil, ok
 	}
 	f, ok := mm.Form(queue, sizes, patience, g.now())
 	return f, sizes, b, ok
+}
+
+// waitedOut reports whether the longest-waiting entry has waited past the
+// group's patience.
+func waitedOut(queue []mm.Entry, patience time.Duration, now time.Time) bool {
+	for _, e := range queue {
+		if patience <= 0 || now.Sub(e.QueuedAt) >= patience {
+			return true
+		}
+	}
+	return false
 }

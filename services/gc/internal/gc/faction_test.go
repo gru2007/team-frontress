@@ -64,3 +64,49 @@ func TestWarFormationHonorsFactionAndMapTeamMapping(t *testing.T) {
 		}
 	}
 }
+
+// A queue of one faction cannot fight a battle; once it has waited out the
+// group's patience it plays an ordinary match instead of waiting forever.
+func TestOneFactionQueuePlaysCasualAfterPatience(t *testing.T) {
+	theater, err := war.LoadTheater("../../theater.example.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	log, past, err := war.OpenLog(filepath.Join(t.TempDir(), "war.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer log.Close()
+	engine, err := war.NewEngine(theater, log, past)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := engine.Reconcile(2, 1); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	grp := config.MatchGroupConfig{MatchGroup: 7, Enabled: true, MinPlayers: 2, IdealPlayers: 12, MaxPlayers: 24, PatientSecs: 60, Maps: []string{"pl_badwater"}}
+	g, err := New(Deps{War: engine, Now: func() time.Time { return now },
+		Config: config.Config{War: config.WarConfig{Enabled: true}, MatchGroups: []config.MatchGroupConfig{grp}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var queue []mm.Entry
+	for i := uint64(1); i <= 2; i++ {
+		if err := g.players.ChooseWarSide(i, engine.Campaign(), "RED"); err != nil {
+			t.Fatal(err)
+		}
+		queue = append(queue, mm.Entry{PartyID: i, QueuedAt: now, Players: []mm.Player{{SteamID: i, Rating: 1500}}})
+	}
+	if g.nextBattle(grp, queue) == nil {
+		t.Fatal("the war has no battle to fight")
+	}
+	if _, _, _, ok := g.form(grp, queue); ok {
+		t.Fatal("gave up on the war before the queue waited")
+	}
+	now = now.Add(61 * time.Second)
+	f, _, b, ok := g.form(grp, queue)
+	if !ok || b != nil || mm.Count(f.Red)+mm.Count(f.Blu) != 2 {
+		t.Fatalf("one-faction queue did not play a casual match: ok=%v battle=%v formed=%+v", ok, b, f)
+	}
+}
