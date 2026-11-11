@@ -46,6 +46,7 @@ static const uint32 k_ESOMsg_CacheSubscriptionRefresh = 28;
 static const uint32 k_EMsgGCFrontress_Notice = 51000;
 static const uint32 k_EMsgGCFrontress_PartyLooks = 51002;	// see services/gc/internal/gc/looks.go
 static const uint32 k_EMsgGCFrontress_SocialEvent = 51011;	// see services/gc/internal/gc/social.go
+static const uint32 k_EMsgGCFrontress_ServerList = 51021;	// see services/gc/internal/gc/probe.go
 
 static const float k_flMaxBackoff = 60.f;
 static const uint32 k_cubMaxBatch = 256 * 1024;
@@ -868,6 +869,22 @@ public:
 	}
 };
 GC_REG_JOB( GCSDK::CGCClient, CGCFrontressSocialEvent, "CGCFrontressSocialEvent", k_EMsgGCFrontress_SocialEvent, GCSDK::k_EServerTypeGCClient );
+
+// The matchmaking servers to ping (services/gc/internal/gc/probe.go). The
+// game measures them on its own frames (fui_servers.cpp) and answers.
+extern void FuiOnServerList( const char *pszJSON );
+class CGCFrontressServerList : public GCSDK::CGCClientJob
+{
+public:
+	CGCFrontressServerList( GCSDK::CGCClient *pClient ) : GCSDK::CGCClientJob( pClient ) {}
+	virtual bool BYieldingRunGCJob( GCSDK::IMsgNetPacket *pNetPacket ) OVERRIDE
+	{
+		GCSDK::CProtoBufMsg< CMsgPartyChatMsg > msg( pNetPacket );
+		FuiOnServerList( msg.Body().msg().c_str() );
+		return true;
+	}
+};
+GC_REG_JOB( GCSDK::CGCClient, CGCFrontressServerList, "CGCFrontressServerList", k_EMsgGCFrontress_ServerList, GCSDK::k_EServerTypeGCClient );
 
 #endif // CLIENT_DLL
 

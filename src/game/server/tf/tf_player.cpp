@@ -7921,7 +7921,10 @@ void CTFPlayer::HandleCommand_JoinClass( const char *pClassName, bool bAllowSpaw
 					return;
 			}
 		}
-		else if ( tf_arena_use_queue.GetBool() == false )
+		// Team Frontress: a matchmade arena match readies up between rounds
+		// first (see State_Enter_PREROUND); players spawn and wait for the
+		// countdown like on any other map.
+		else if ( tf_arena_use_queue.GetBool() == false && TFGameRules()->State_Get() != GR_STATE_BETWEEN_RNDS )
 		{
 			return;
 		}
@@ -16110,7 +16113,9 @@ void CTFPlayer::ForceRespawn( void )
 			}
 		}
 
-		if ( ( tf_arena_use_queue.GetBool() == false && TFGameRules()->IsInWaitingForPlayers() ) || TFGameRules()->State_Get() == GR_STATE_PREGAME  )
+		// Not while waiting for players -- except during a matchmade arena
+		// match's ready-up (GR_STATE_BETWEEN_RNDS), which counts as waiting.
+		if ( ( tf_arena_use_queue.GetBool() == false && TFGameRules()->IsInWaitingForPlayers() && TFGameRules()->State_Get() != GR_STATE_BETWEEN_RNDS ) || TFGameRules()->State_Get() == GR_STATE_PREGAME  )
 		{
 			return;
 		}

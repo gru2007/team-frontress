@@ -31,7 +31,8 @@
 					<div class="hstat"><span class="title good">{{ clan.c.online }}</span><div class="dim tiny upper">#fui_clan_online</div></div>
 					<div class="hstat"><span class="title gold">{{ clan.c.wins }}</span><div class="dim tiny upper">#fui_clan_wins</div></div>
 					<div class="hstat"><span class="title">{{ clan.c.battles }}</span><div class="dim tiny upper">#fui_clan_battles</div></div>
-					<div class="hstat" data-if="clan.c.bonus > 0"><span class="title good">+{{ clan.c.bonus }}%</span><div class="dim tiny upper">XP</div></div>
+					<div class="hstat" data-if="clan.c.bonus > 0"><span class="title good">+{{ clan.c.bonus }}%</span><div class="dim tiny upper">#fui_clan_bonus_short</div></div>
+					<div class="hstat banner-stat" data-if="clan.c.banner != '' && clan.c.level &gt;= 3"><span class="title"><span class="flag-pip"></span>{{ clan.c.banner }}</span><div class="dim tiny upper">#fui_clan_banner</div></div>
 				</div>
 			</div>
 			<div class="spacer"></div>
@@ -40,10 +41,19 @@
 					<div class="clan-level-ring"><div class="title">{{ clan.c.level }}</div></div>
 					<div class="col grow">
 						<div class="title level-label">#fui_clan_level</div>
-						<div class="dim tiny">{{ clan.c.xp | thousands }} / {{ clan.c.xp_to | thousands }} #fui_clan_xp</div>
+						<div class="dim tiny">{{ clan.c.xp | thousands }}<span data-if="!clan.c.max"> / {{ clan.c.xp_to | thousands }}</span> #fui_clan_xp</div>
+					</div>
+					<div class="rank-chip" sfx="" data-event-click="set('ui.modal', 'clan_top')">
+						<div class="rank-num title">#{{ clan.c.rank }}</div>
+						<div class="dimmer tiny">{{ 'fui_clan_of' | t(clan.c.clans) }}</div>
 					</div>
 				</div>
 				<div class="bar big-bar"><div class="fill" data-style-width="(clan.c.frac * 100) + '%'"></div></div>
+				<div class="level-next" data-if="!clan.c.max">
+					<span class="gold">{{ 'fui_clan_next_left' | t(clan.c.next.level, clan.c.next.xp_left) }}</span>
+					<span class="dim" data-if="clan.c.next.eta &gt; 0"> · {{ 'fui_clan_next_eta' | t(clan.c.next.eta | duration) }}</span>
+				</div>
+				<div class="level-next gold" data-if="clan.c.max">#fui_clan_max</div>
 				<div class="row hero-buttons">
 					<div class="button ghost small-button" sfx="" data-if="clan.officer" data-event-click="set('ui.modal', 'clan_settings')">#fui_clan_settings</div>
 					<div class="button ghost small-button" sfx="" data-event-click="set('ui.modal', 'clan_leave')">#fui_clan_leave</div>
@@ -52,21 +62,34 @@
 		</div>
 
 		<div class="row clan-body">
-			<!-- Perks: the reason to level the clan -->
+			<!-- Perks: the reason to level the clan, and what the next one takes -->
 			<div class="col perks-col panel in1">
 				<div class="panel-title">#fui_clan_perks <span class="sub">#fui_clan_perks_d</span></div>
-				<div data-for="p : clan.c.perks" data-attr-class="'perk' + (p.on ? ' on' : '') + (p.level == clan.c.level + 1 ? ' next' : '')">
-					<div class="perk-level title">{{ p.level }}</div>
-					<div class="col grow">
-						<div class="perk-name">{{ ('fui_clan_perk_' + p.id) | t }}</div>
-						<div class="perk-desc">{{ ('fui_clan_perk_' + p.id + '_d') | t }}</div>
+				<div class="next-up" data-if="!clan.c.max">
+					<div class="row">
+						<div class="dimmer tiny upper grow">{{ 'fui_clan_next_perk' | t(clan.c.next_perk.level) }}</div>
+						<div class="gold tiny upper">{{ 'fui_clan_xp_left' | t(clan.c.next_perk.xp_left) }}</div>
 					</div>
-					<div class="perk-check" data-if="p.on"><div class="tick"></div></div>
-					<div class="perk-lock" data-if="!p.on"></div>
+					<div class="next-up-name title">{{ ('fui_clan_perk_' + clan.c.next_perk.id) | t }}</div>
+					<div class="next-up-how">{{ 'fui_clan_next_how' | t(clan.c.next_perk.wins, clan.c.next_perk.together) }}</div>
+					<div class="next-up-how dim" data-if="clan.c.next_perk.eta &gt; 0">{{ 'fui_clan_next_pace' | t(clan.c.daily_xp, clan.c.next_perk.eta | duration) }}</div>
+					<div class="next-up-how dim" data-if="clan.c.next_perk.eta &lt;= 0">#fui_clan_next_nopace</div>
 				</div>
+				<div class="perk-list">
+					<div data-for="p : clan.c.perks" data-attr-class="'perk' + (p.on ? ' on' : '') + (p.id == clan.c.next_perk.id ? ' next' : '')">
+						<div class="perk-level title">{{ p.level }}</div>
+						<div class="col grow">
+							<div class="perk-name">{{ ('fui_clan_perk_' + p.id) | t }}</div>
+							<div class="perk-desc">{{ ('fui_clan_perk_' + p.id + '_d') | t }}</div>
+						</div>
+						<div class="perk-check" data-if="p.on"><div class="tick"></div></div>
+						<div class="perk-lock" data-if="!p.on"></div>
+					</div>
+				</div>
+				<div class="earn-note">{{ 'fui_clan_earn' | t(clan.c.earn.match, clan.c.earn.win, clan.c.earn.together, clan.c.earn.contract) }}</div>
 			</div>
 
-			<!-- What the clan is doing this week -->
+			<!-- What the clan is doing this week, and where it stands -->
 			<div class="col mid-col">
 				<div class="panel contract in2" data-class-locked="!clan.c.contract.on">
 					<div class="row">
@@ -78,7 +101,7 @@
 						<div class="bar grow big-bar"><div class="fill" data-class-done="clan.c.contract.paid" data-style-width="(clan.c.contract.frac * 100) + '%'"></div></div>
 						<div class="contract-count title">{{ clan.c.contract.progress }}<span class="dimmer">/{{ clan.c.contract.target }}</span></div>
 					</div>
-					<div class="dim small" data-if="!clan.c.contract.paid">{{ 'fui_clan_contract_reward' | t(clan.c.contract.clan_xp, clan.c.contract.member_xp) }}</div>
+					<div class="dim small" data-if="!clan.c.contract.paid">{{ 'fui_clan_contract_reward' | t(clan.c.contract.clan_xp, clan.c.contract.member_xp) }}<span class="gold" data-if="clan.c.contract.on && !clan.c.max && clan.c.contract.clan_xp &gt;= clan.c.next.xp_left"> {{ 'fui_clan_contract_levels' | t(clan.c.next.level) }}</span></div>
 					<div class="good small" data-if="clan.c.contract.paid">#fui_clan_contract_done</div>
 					<div class="locked-note" data-if="!clan.c.contract.on">#fui_clan_contract_locked</div>
 				</div>
@@ -107,24 +130,43 @@
 					</div>
 				</div>
 
-				<div class="panel banner-card in4">
+				<!-- The table around the clan -->
+				<div class="panel standing in4">
 					<div class="row">
-						<div data-attr-class="'banner c-' + clan.c.color">
-							<img data-attr-src="'tex:hud/leaderboard_class_' + (clan.c.emblem == 'demoman' ? 'demo' : clan.c.emblem)"/>
+						<div class="panel-title grow">#fui_clan_standing <span class="sub">{{ 'fui_clan_place' | t(clan.c.rank, clan.c.clans) }}</span></div>
+						<div class="icon-button" sfx="" data-event-click="set('ui.modal', 'clan_top')">#fui_clan_all</div>
+					</div>
+					<div class="row st-head dimmer tiny upper">
+						<div class="grow">#fui_clan_col_clan</div>
+						<div class="st-week">#fui_clan_week_xp</div>
+						<div class="st-xp">#fui_clan_col_xp</div>
+						<div class="st-gap">#fui_clan_col_gap</div>
+					</div>
+					<div data-for="n : clan.c.near" data-attr-class="'st-row' + (n.me ? ' me' : '')">
+						<div class="st-rank title">{{ n.rank }}</div>
+						<div data-attr-class="'st-pip c-' + n.color"></div>
+						<div class="row grow st-who">
+							<span data-attr-class="'clan-tag' + (n.gold ? ' gold' : '')">{{ n.tag }}</span>
+							<span class="st-name">{{ n.name }}</span>
 						</div>
-						<div class="col grow banner-text">
-							<div class="panel-title">#fui_clan_banner</div>
-							<div class="small" data-if="clan.c.banner != '' && clan.c.level &gt;= 3">{{ 'fui_clan_banner_at' | t(clan.c.banner) }}</div>
-							<div class="dim small" data-if="clan.c.banner == '' || clan.c.level &lt; 3">#fui_clan_banner_none</div>
+						<div class="st-week good tiny">+{{ n.week_xp | thousands }}</div>
+						<div class="title st-xp">{{ n.xp | thousands }}</div>
+						<div class="st-gap tiny">
+							<span class="ahead" data-if="n.gap &gt; 0">+{{ n.gap | thousands }}</span>
+							<span class="behind" data-if="n.gap &lt; 0">{{ n.gap | thousands }}</span>
+							<span class="dimmer" data-if="n.me">#fui_clan_you</span>
 						</div>
 					</div>
+					<div class="st-foot gold" data-if="clan.c.rank &gt; 1">{{ 'fui_clan_gap_up' | t(clan.c.rank - 1, clan.c.gap_up) }}</div>
+					<div class="st-foot gold" data-if="clan.c.rank == 1">#fui_clan_first</div>
 				</div>
 			</div>
 
-			<!-- The roster -->
+			<!-- The roster, and who is invited -->
 			<div class="col roster panel in2">
-				<div class="row">
-					<div class="panel-title grow">#fui_clan_members <span class="sub">{{ clan.c.online }} #fui_clan_online</span></div>
+				<div class="row roster-head">
+					<div class="panel-title grow">#fui_clan_members <span class="sub">{{ clan.c.count }}/{{ clan.c.cap }} · {{ clan.c.online }} #fui_clan_online</span></div>
+					<div class="button primary small-button" sfx="" data-if="clan.c.can_invite" data-event-click="set('clanform.search', ''); set('ui.modal', 'clan_invite')">+ #fui_clan_invite</div>
 				</div>
 				<div class="roster-list">
 					<div data-for="m : clan.c.members" data-attr-class="'rm' + (m.online ? ' online' : '') + (m.me ? ' me' : '')">
@@ -136,14 +178,23 @@
 							</div>
 							<div class="rm-sub">{{ ('fui_clan_st_' + m.status) | t }} · {{ m.week_xp | thousands }} XP #fui_clan_week_xp</div>
 						</div>
-						<div class="rm-xp title">{{ m.xp | thousands }}</div>
-						<div class="rm-acts">
-							<div class="rm-act" sfx="" data-if="!m.me && m.online && m.status != 'match'" data-event-click="cmd('invite_player', m.id)">#fui_soc_invite</div>
+						<div class="rm-admin">
 							<div class="rm-act ghost" sfx="" data-if="clan.leader && m.role == 'member'" data-event-click="cmd('clan_role', m.id, 'officer')">#fui_clan_promote</div>
 							<div class="rm-act ghost" sfx="" data-if="clan.leader && m.role == 'officer'" data-event-click="cmd('clan_role', m.id, 'member')">#fui_clan_demote</div>
 							<div class="rm-act ghost" sfx="" data-if="clan.leader && m.role == 'officer'" data-event-click="cmd('clan_role', m.id, 'leader')">#fui_clan_make_leader</div>
 							<div class="rm-act danger" sfx="" data-if="!m.me && (clan.leader || (clan.officer && m.role == 'member'))" data-event-click="cmd('clan_kick', m.id)">#fui_clan_kick</div>
 						</div>
+						<div class="rm-xp title">{{ m.xp | thousands }}</div>
+						<div class="rm-act" sfx="" data-if="!m.me && m.online && m.status != 'match'" data-event-click="cmd('invite_player', m.id)">#fui_soc_invite</div>
+					</div>
+				</div>
+				<div class="invited" data-if="clan.c.invited.size &gt; 0">
+					<div class="dimmer tiny upper invited-title">{{ 'fui_clan_invited' | t(clan.c.invited.size) }}</div>
+					<div class="inv-row" data-for="v : clan.c.invited">
+						<div data-attr-class="'who-dot ' + (v.online ? 'menu' : 'offline')"></div>
+						<span class="inv-name grow">{{ v.name != '' ? v.name : v.id }}</span>
+						<span class="dimmer tiny">{{ 'fui_clan_invited_ago' | t(v.ago | duration) }}</span>
+						<div class="rm-act ghost" sfx="" data-if="clan.c.can_invite" data-event-click="cmd('clan_uninvite', v.id)">#fui_clan_uninvite</div>
 					</div>
 				</div>
 			</div>
@@ -220,8 +271,8 @@
 				<div class="panel list grow">
 					<div class="panel-title">#fui_clan_list</div>
 					<div class="clan-list">
-						<div class="clan-card" data-for="c, i : clan.top">
-							<div class="cc-rank title">{{ i + 1 }}</div>
+						<div class="clan-card" data-for="c : clan.top">
+							<div class="cc-rank title">{{ c.rank }}</div>
 							<div data-attr-class="'banner small c-' + c.color">
 								<img data-attr-src="'tex:hud/leaderboard_class_' + (c.emblem == 'demoman' ? 'demo' : c.emblem)"/>
 							</div>
@@ -233,6 +284,7 @@
 									<span class="cc-chip">{{ c.count }}/{{ c.cap }}</span>
 									<span class="cc-chip good" data-if="c.online > 0">{{ c.online }} #fui_clan_online</span>
 									<span class="cc-chip gold" data-if="c.wins > 0">{{ c.wins }} #fui_clan_wins</span>
+									<span class="cc-chip" data-if="c.week_xp > 0">{{ 'fui_clan_week_plus' | t(c.week_xp) }}</span>
 									<span class="cc-chip banner-chip" data-if="c.banner != ''"><span class="flag-pip"></span>{{ c.banner }}</span>
 								</div>
 							</div>
@@ -310,6 +362,84 @@
 						<div class="perk-desc">#fui_clan_perk_legend_d</div>
 					</div>
 				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Invite: people online with no clan, then Steam friends -->
+	<div class="modal-dim" data-if="ui.modal == 'clan_invite'">
+		<div class="modal clan-modal invite-modal panel">
+			<div class="row">
+				<h2 class="shadow grow">#fui_clan_invite_title</h2>
+				<div class="icon-button" sfx="" data-event-click="set('ui.modal', '')">#fui_close</div>
+			</div>
+			<div class="dim small invite-why" data-if="clan.c.open">#fui_clan_invite_open</div>
+			<div class="dim small invite-why" data-if="!clan.c.open">#fui_clan_invite_closed</div>
+			<div class="bad small invite-why" data-if="clan.c.count &gt;= clan.c.cap">#fui_err_clan_full</div>
+			<div class="search-box">
+				<input type="text" class="text" maxlength="32" data-value="clanform.search"/>
+				<div class="search-hint dimmer small" data-if="clanform.search == ''">#fui_clan_invite_search</div>
+			</div>
+			<div class="cand-list">
+				<div data-for="p : clan.cands" data-attr-class="'cand' + (p.invited ? ' invited' : '')">
+					<div data-attr-class="'who-dot ' + (p.status == 'steam' ? 'menu' : p.status)"></div>
+					<div class="col grow">
+						<div class="row">
+							<span class="cand-name">{{ p.name }}</span>
+							<span class="who-level" data-if="p.level &gt; 0">{{ p.level }}</span>
+							<span class="cand-friend" data-if="p.friend">#fui_clan_friend</span>
+						</div>
+						<div class="rm-sub">{{ ('fui_clan_cand_' + p.status) | t }}</div>
+					</div>
+					<div class="cand-sent good tiny upper" data-if="p.invited">#fui_clan_invite_sent</div>
+					<div class="rm-act ghost" sfx="" data-if="p.invited" data-event-click="cmd('clan_uninvite', p.id)">#fui_clan_uninvite</div>
+					<div class="rm-act" sfx="" data-if="!p.invited && clan.c.count &lt; clan.c.cap" data-event-click="cmd('clan_invite', p.id)">#fui_clan_invite</div>
+				</div>
+				<div class="dim small empty" data-if="clan.cands.size == 0">#fui_clan_invite_nobody</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- The whole table, the player's clan marked, gaps against it -->
+	<div class="modal-dim" data-if="ui.modal == 'clan_top'">
+		<div class="modal clan-modal top-modal panel">
+			<div class="row">
+				<h2 class="shadow grow">#fui_clan_standing</h2>
+				<div class="icon-button" sfx="" data-event-click="set('ui.modal', '')">#fui_close</div>
+			</div>
+			<div class="dim small" data-if="clan.has">{{ 'fui_clan_place' | t(clan.c.rank, clan.c.clans) }} · #fui_clan_top_how</div>
+			<div class="row top-head dimmer tiny upper">
+				<div class="tc-rank">#</div>
+				<div class="tc-clan grow">#fui_clan_col_clan</div>
+				<div class="tc-n">#fui_clan_lvl</div>
+				<div class="tc-xp">#fui_clan_col_xp</div>
+				<div class="tc-xp">#fui_clan_week_xp</div>
+				<div class="tc-n2">#fui_clan_col_wins</div>
+				<div class="tc-n">#fui_clan_members</div>
+				<div class="tc-xp" data-if="clan.has">#fui_clan_col_gap</div>
+			</div>
+			<div class="top-list">
+				<div data-for="t : clan.top" data-attr-class="'top-row' + (t.me ? ' me' : '')">
+					<div class="tc-rank title">{{ t.rank }}</div>
+					<div class="row tc-clan grow">
+						<div data-attr-class="'banner small c-' + t.color">
+							<img data-attr-src="'tex:hud/leaderboard_class_' + (t.emblem == 'demoman' ? 'demo' : t.emblem)"/>
+						</div>
+						<span data-attr-class="'clan-tag' + (t.gold ? ' gold' : '')">{{ t.tag }}</span>
+						<span class="st-name">{{ t.name }}</span>
+					</div>
+					<div class="tc-n title">{{ t.level }}</div>
+					<div class="tc-xp">{{ t.xp | thousands }}</div>
+					<div class="tc-xp good">+{{ t.week_xp | thousands }}</div>
+					<div class="tc-n2">{{ t.wins }}<span class="dimmer">/{{ t.battles }}</span></div>
+					<div class="tc-n">{{ t.count }}<span class="dimmer">/{{ t.cap }}</span></div>
+					<div class="tc-xp" data-if="clan.has">
+						<span class="st-gap ahead" data-if="t.xp &gt; clan.c.xp">+{{ (t.xp - clan.c.xp) | thousands }}</span>
+						<span class="st-gap behind" data-if="t.xp &lt; clan.c.xp">{{ (t.xp - clan.c.xp) | thousands }}</span>
+						<span class="dimmer" data-if="t.xp == clan.c.xp">—</span>
+					</div>
+				</div>
+				<div class="dim empty" data-if="clan.top.size == 0">#fui_clan_none_yet</div>
 			</div>
 		</div>
 	</div>

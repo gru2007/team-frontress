@@ -4392,6 +4392,9 @@ void CTFGCServerSystem::LaunchNewMatchForLobby()
 
 	delete m_pMatchInfo;
 	m_pMatchInfo = pNewMatchInfo;
+	// The previous match's end turned the arena queue back on; the next map
+	// of this lobby may be an arena map too.
+	FrontressMatchArenaQueue( true );
 
 	// If we are going ahead with a server-created match before getting a reply to NewMatchForLobby, the new team
 	// assignments from the still-not-received new match will be too late.  Fix this by queuing a ChangeMatchPlayerTeams

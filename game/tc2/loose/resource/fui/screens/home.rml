@@ -58,7 +58,7 @@
 		<div class="quest" data-for="q : quests.daily" data-class-done="q.done">
 			<div class="quest-photo" data-style-decorator="'image(tex:' + q.photo + ' cover)'"></div>
 			<div class="col grow">
-				<div class="quest-text">{{ ('fui_q_' + q.kind) | t(q.target, '#fui_class_' + q.class) }}</div>
+				<div class="quest-text">{{ q.text_key | t(q.amount, '#fui_class_' + q.class) }}</div>
 				<div class="row">
 					<div class="bar grow"><div class="fill" data-style-width="(q.frac * 100) + '%'"></div></div>
 					<div class="quest-count">{{ q.progress | thousands }}/{{ q.target | thousands }}</div>
@@ -131,7 +131,7 @@
 
 		<!-- The chat -->
 		<div id="chat-log" data-if="social.tab != 'online'">
-			<div data-for="l : social.view" data-attr-class="'line' + (l.sys ? ' sys k-' + l.kind : '') + (l.me ? ' mine' : '')">
+			<div data-for="l : social.view" data-attr-class="'line' + (l.sys ? ' sys k-' + l.kind : '') + (l.me ? ' mine' : '') + (l.pending ? ' pending' : '')">
 				<span class="l-time">{{ l.time }}</span>
 				<span class="l-tag" data-if="l.tag != ''" data-class-gold="l.gold">{{ l.tag }}</span>
 				<span class="l-name" data-if="!l.sys">{{ l.name }}</span>
@@ -163,7 +163,7 @@
 				</div>
 				<div class="who-act" sfx="" data-if="!p.me && p.status != 'match'" data-event-click="cmd('invite_player', p.id)">#fui_soc_invite</div>
 				<div class="who-act ghost" sfx="" data-if="!p.me && p.lfg == false && p.party > 1 && p.status == 'menu'" data-event-click="cmd('join_player', p.id)">#fui_soc_join</div>
-				<div class="who-act ghost" sfx="" data-if="!p.me && clan.officer && p.tag == ''" data-event-click="cmd('clan_invite', p.id)">#fui_soc_to_clan</div>
+				<div class="who-act ghost" sfx="" data-if="!p.me && clan.c.can_invite && p.tag == ''" data-event-click="cmd('clan_invite', p.id)">#fui_soc_to_clan</div>
 			</div>
 			<div class="chat-empty dimmer small" data-if="social.online.players.size == 0">#fui_soc_nobody</div>
 		</div>

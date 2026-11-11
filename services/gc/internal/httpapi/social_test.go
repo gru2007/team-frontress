@@ -2,6 +2,7 @@ package httpapi_test
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -148,6 +149,12 @@ func TestClans(t *testing.T) {
 	if clan["tag"] != "RK" || clan["role"] != "leader" || clan["level"] != float64(1) {
 		t.Fatalf("clan %v", clan)
 	}
+	// Its place, what the next level takes and brings, who may invite.
+	next, _ := clan["next"].(map[string]any)
+	if clan["rank"] != float64(1) || clan["clans"] != float64(1) || clan["can_invite"] != true ||
+		next == nil || next["level"] != float64(2) || next["xp_left"] != float64(600) || len(clan["near"].([]any)) != 1 {
+		t.Fatalf("clan standing/next %v", clan)
+	}
 	b.until("the founding in the feed", func() bool { return has(b.chatText("global"), "fui_feed_clan_new") })
 
 	// Bob finds it in the list and joins.
@@ -176,9 +183,30 @@ func TestClans(t *testing.T) {
 		}
 	}
 
-	// A taken tag is refused with a reason the game can show.
+	// An invite lists for the clan and reaches the invited; taken back, it
+	// is gone from both.
 	c := newPeer(t, base, carol)
 	c.client()
+	c.op(map[string]any{"op": "hello", "name": "Carol"})
+	carolID := strconv.FormatUint(carol, 10)
+	a.op(map[string]any{"op": "clan_invite", "who": carolID})
+	c.until("the invite", func() bool {
+		ev := c.last("clan")
+		inv, _ := ev["invites"].([]any)
+		return ev != nil && len(inv) == 1
+	})
+	a.until("carol on the invited list", func() bool {
+		cl, _ := a.last("clan")["clan"].(map[string]any)
+		inv, _ := cl["invited"].([]any)
+		return len(inv) == 1 && inv[0].(map[string]any)["id"] == carolID
+	})
+	a.op(map[string]any{"op": "clan_uninvite", "who": carolID})
+	c.until("the invite taken back", func() bool {
+		inv, _ := c.last("clan")["invites"].([]any)
+		return len(inv) == 0
+	})
+
+	// A taken tag is refused with a reason the game can show.
 	c.op(map[string]any{"op": "clan_create", "name": "Other", "tag": "RK"})
 	c.until("the refusal", func() bool {
 		ev := c.last("error")

@@ -83,5 +83,6 @@ bool FuiHudCommand( fui::Runtime &runtime, const std::string &name, const std::v
 // Called by FuiHudUpdate.
 void FuiHudOverlayUpdate( fui::Runtime &runtime, fui::Node &hud );
 void FuiHudOverlayReset();
+void FuiHudOverlayHideStock();
 
 #endif // FUI_HUD_H

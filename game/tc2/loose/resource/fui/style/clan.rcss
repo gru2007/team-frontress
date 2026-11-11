@@ -1,5 +1,8 @@
 /* Clans */
 
+/* The hero on top, the panels filling what is left. */
+.screen { display: flex; flex-direction: column; }
+
 /* ------------------------------------------------------------ hero */
 .hero { align-items: center; gap: 26dp; margin-bottom: 22dp; min-height: 150dp; }
 .hero h1 { font-size: 60dp; line-height: 64dp; }
@@ -18,9 +21,11 @@
 .motto { font-size: 20dp; font-style: italic; margin-top: 2dp; }
 .hero-stats { gap: 30dp; margin-top: 12dp; }
 .hstat .title { font-size: 30dp; line-height: 32dp; }
+.banner-stat .title { font-size: 22dp; color: #ece3cb; }
+.banner-stat .flag-pip { width: 8dp; height: 14dp; margin-right: 8dp; }
 
 .level-box {
-	width: 420dp;
+	width: 480dp;
 	padding: 16dp 18dp;
 	border-radius: 16dp;
 	decorator: linear-gradient(to bottom, #2a1f19ee, #17110ef2);
@@ -40,17 +45,33 @@
 .big-bar .fill { border-radius: 7dp; }
 .big-bar .fill.done { decorator: linear-gradient(to right, #4d7a33, #8fd16a); }
 .hero-buttons { gap: 8dp; margin-top: 10dp; justify-content: flex-end; }
+.level-next { font-size: 15dp; line-height: 19dp; }
+
+/* The clan's place in the table; opens the whole table. */
+.rank-chip {
+	min-width: 76dp;
+	padding: 6dp 10dp;
+	border-radius: 12dp;
+	text-align: center;
+	background-color: #ffc93c14;
+	border: 1dp #ffc93c55;
+	cursor: pointer;
+	transition: background-color border-color 0.12s cubic-out;
+}
+.rank-chip:hover { background-color: #ffc93c2a; border-color: #ffc93c; }
+.rank-num { font-size: 26dp; line-height: 28dp; color: #ffc93c; }
 
 /* ------------------------------------------------------------ body */
-.clan-body { align-items: stretch; gap: 22dp; height: 720dp; }
+.clan-body { align-items: stretch; gap: 22dp; flex: 1 1 0; min-height: 0; }
 
-.perks-col { width: 460dp; padding: 16dp 16dp 8dp 16dp; }
+.perks-col { width: 500dp; padding: 16dp 16dp 10dp 16dp; }
+.perk-list { flex: 1 1 0; overflow-y: auto; }
 .perk {
 	display: flex;
 	flex-direction: row;
 	align-items: center;
 	gap: 12dp;
-	padding: 8dp 6dp;
+	padding: 5dp 6dp;
 	border-top: 1dp #ffffff0c;
 	opacity: 0.55;
 }
@@ -72,6 +93,26 @@
 .perk-name { font-family: "TF2 Build"; font-size: 16dp; text-transform: uppercase; color: #ece3cb; }
 .perk.on .perk-name { color: #ffc93c; }
 .perk-desc { font-size: 13dp; line-height: 16dp; color: #9a8d78; }
+
+/* The next perk: what it is, what it takes, when it comes. */
+.next-up {
+	padding: 10dp 12dp;
+	margin-bottom: 8dp;
+	border-radius: 12dp;
+	background-color: #ffc93c10;
+	border: 1dp #ffc93c55;
+}
+.next-up-name { font-size: 20dp; line-height: 24dp; color: #ffc93c; margin-top: 2dp; }
+.next-up-how { font-size: 14dp; line-height: 18dp; color: #ece3cb; margin-top: 4dp; }
+.next-up-how.dim { color: #9a8d78; margin-top: 1dp; }
+.earn-note {
+	margin-top: 8dp;
+	padding-top: 8dp;
+	border-top: 1dp #ffffff14;
+	font-size: 12dp;
+	line-height: 16dp;
+	color: #8a7d68;
+}
 .perk-check { width: 22dp; height: 22dp; border-radius: 11dp; background-color: #8fd16a; }
 .perk-check .tick { margin-top: 2dp; width: 5dp; height: 10dp; }
 .perk-lock {
@@ -81,7 +122,7 @@
 	background-color: #7d705e;
 }
 
-.mid-col { width: 560dp; gap: 16dp; }
+.mid-col { width: 540dp; gap: 16dp; }
 .contract { padding: 18dp; }
 .contract.locked { opacity: 0.6; }
 .contract-goal { font-size: 24dp; line-height: 28dp; color: #ece3cb; margin-top: 2dp; }
@@ -125,12 +166,41 @@
 .op.red .op-side { background-color: #ef5a4c; }
 .op.blu .op-side { background-color: #7fb2e5; }
 
-.banner-card { padding: 16dp 18dp; }
-.banner-text { margin-left: 18dp; }
-.banner-text .panel-title { margin-bottom: 6dp; }
+/* ------------------------------------------------------------ standing */
+.standing { padding: 16dp 18dp; flex: 1 1 0; }
+.standing .panel-title { margin-bottom: 8dp; }
+.standing .icon-button { margin-top: -6dp; }
+.st-head { padding: 0 8dp 4dp 8dp; gap: 10dp; letter-spacing: 1dp; }
+.st-row {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 10dp;
+	padding: 6dp 8dp;
+	border-radius: 10dp;
+	border-bottom: 1dp #ffffff0a;
+}
+.st-row.me { background-color: #ffc93c14; border-bottom-color: #ffc93c33; }
+.st-rank { width: 26dp; font-size: 18dp; color: #7d705e; text-align: center; }
+.st-row.me .st-rank { color: #ffc93c; }
+.st-pip { width: 6dp; height: 22dp; border-radius: 3dp; }
+.st-who { align-items: center; overflow: hidden; }
+.st-who .clan-tag { font-size: 12dp; }
+.st-name { font-family: "TF2 Build"; font-size: 15dp; margin-left: 8dp; color: #ece3cb; white-space: nowrap; }
+.st-row.me .st-name { color: #ffc93c; }
+.st-lvl { width: 46dp; text-align: right; }
+.st-week { width: 84dp; text-align: right; }
+.st-xp { width: 74dp; text-align: right; font-size: 16dp; color: #d8cdb4; }
+.st-head .st-xp { font-size: 13dp; color: #7d705e; }
+.st-gap { width: 76dp; text-align: right; }
+.st-gap .ahead, .st-gap.ahead { color: #ef8a7c; }
+.st-gap .behind, .st-gap.behind { color: #8fd16a; }
+.st-foot { margin-top: 8dp; font-size: 14dp; }
 
 /* ------------------------------------------------------------ roster */
 .roster { flex: 1 1 0; padding: 16dp; }
+.roster-head { align-items: flex-start; }
+.roster-head .small-button { margin-top: -6dp; }
 .roster-list { flex: 1 1 0; overflow-y: auto; }
 .rm {
 	display: flex;
@@ -164,7 +234,15 @@
 .role-officer { color: #ffc93c; border-color: #ffc93c88; }
 .rm-sub { font-size: 12dp; color: #8a7d68; }
 .rm-xp { font-size: 16dp; color: #d8cdb4; margin-right: 4dp; }
-.rm-acts { display: flex; flex-direction: row; gap: 4dp; }
+/* Rank and kick show on hover, so the list reads as people, not buttons. */
+.rm-admin { display: flex; flex-direction: row; gap: 4dp; visibility: hidden; }
+.rm:hover .rm-admin { visibility: visible; }
+
+/* Invites still standing, under the roster. */
+.invited { margin-top: 8dp; padding-top: 8dp; border-top: 1dp #ffffff14; }
+.invited-title { margin: 0 0 4dp 8dp; letter-spacing: 1dp; }
+.inv-row { display: flex; flex-direction: row; align-items: center; gap: 10dp; padding: 4dp 8dp; }
+.inv-name { font-size: 15dp; color: #b8ab92; white-space: nowrap; }
 .rm-act {
 	font-family: "TF2 Build";
 	font-size: 11dp;
@@ -267,3 +345,71 @@
 .clan-modal { width: 640dp; padding: 26dp 30dp; border-color: #ffc93c; }
 .clan-modal.small { width: 560dp; text-align: center; }
 .clan-modal p { margin: 12dp 0 6dp 0; }
+
+/* ------------------------------------------------------------ invite */
+.invite-modal { width: 700dp; }
+.invite-why { margin-top: 4dp; }
+.search-box { position: relative; margin-top: 14dp; }
+.clan-modal .search-box input.text { width: 100%; box-sizing: border-box; }
+.search-hint { position: absolute; left: 16dp; top: 11dp; pointer-events: none; }
+.cand-list { max-height: 440dp; overflow-y: auto; margin-top: 10dp; }
+.cand {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 12dp;
+	padding: 8dp 8dp;
+	border-radius: 10dp;
+	border-bottom: 1dp #ffffff0a;
+}
+.cand:hover { background-color: #ffffff08; }
+.cand.invited { background-color: #8fd16a0c; }
+.cand-name { font-size: 17dp; color: #ece3cb; white-space: nowrap; }
+.who-level {
+	font-family: "TF2 Build";
+	font-size: 11dp;
+	margin-left: 6dp;
+	padding: 1dp 5dp;
+	border-radius: 4dp;
+	background-color: #ffc93c22;
+	color: #ffc93c;
+}
+.cand-friend {
+	font-size: 11dp;
+	margin-left: 6dp;
+	padding: 1dp 6dp;
+	border-radius: 4dp;
+	color: #9fc4e8;
+	background-color: #7fb2e51e;
+}
+.cand-sent { margin-right: 2dp; }
+.who-dot.steam { background-color: #7fb2e5; }
+
+/* ------------------------------------------------------------ table */
+.top-modal { width: 1180dp; }
+.top-head { padding: 14dp 8dp 6dp 8dp; border-bottom: 1dp #ffffff1a; letter-spacing: 1dp; }
+.top-list { max-height: 560dp; overflow-y: auto; }
+.top-row {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	padding: 6dp 8dp;
+	border-radius: 10dp;
+	border-bottom: 1dp #ffffff0a;
+	font-size: 16dp;
+	color: #d8cdb4;
+}
+.top-row:hover { background-color: #ffffff08; }
+.top-row.me { background-color: #ffc93c14; }
+.top-row.me .st-name, .top-row.me .tc-rank { color: #ffc93c; }
+.tc-rank { width: 40dp; text-align: center; font-size: 18dp; color: #7d705e; }
+.tc-clan { gap: 10dp; align-items: center; }
+.tc-n { width: 80dp; text-align: center; }
+.tc-n2 { width: 110dp; text-align: center; }
+.tc-xp { width: 120dp; text-align: right; }
+.st-pip.c-red { decorator: linear-gradient(to bottom, #d6463d, #7c221e); }
+.st-pip.c-blu { decorator: linear-gradient(to bottom, #5b8fbf, #26425e); }
+.st-pip.c-gold { decorator: linear-gradient(to bottom, #ffd34d, #a8700c); }
+.st-pip.c-green { decorator: linear-gradient(to bottom, #6fb34d, #2f5c22); }
+.st-pip.c-purple { decorator: linear-gradient(to bottom, #9a63c8, #4a2768); }
+.st-pip.c-teal { decorator: linear-gradient(to bottom, #3fb3a8, #1a5751); }

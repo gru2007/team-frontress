@@ -41,6 +41,10 @@
 	// state: idle | searching | preparing | found | joining | live
 	"queue": { "state": "idle", "mode": "", "seconds": 0, "players": 0, "needed": 0, "map": "", "map_image": "" },
 	"modes": [],
+	// The region picker (src/game/client/tf/frontress/fui_servers.cpp): pick is
+	// tf_mm_region ("auto" or a region id); list { id, name, ms (best ping to a
+	// server there, -1 if none), ok (reached within max_ms), measured, on }.
+	"region": { "pick": "auto", "max_ms": 200, "list": [] },
 	"maps": [],
 	// The coordinator's GET /v1/war as it is (services/gc/internal/gc/warview.go):
 	// fronts are sectors { id, name, icon, hq, x, y, owner, frontline, front,
@@ -145,11 +149,17 @@
 	// tag, motto, emblem (a class), color, open, level, xp, xp_from, xp_to,
 	// frac, count, cap, online, wins, battles, banner, gold, role, members[],
 	// perks[{ id, level, on }], contract{ kind, target, progress, frac, paid,
-	// left, on, clan_xp, member_xp }, order, order_name, order_xp, bonus),
-	// officer, leader, invites[] and top[] (clan cards).
-	"clan": { "loaded": false, "has": false, "officer": false, "leader": false, "c": {}, "invites": [], "top": [] },
-	// The create / settings form.
-	"clanform": { "name": "", "tag": "", "motto": "", "emblem": "soldier", "color": "red", "open": true },
+	// left, on, clan_xp, member_xp }, order, order_name, order_xp, bonus,
+	// week_xp, can_invite, invited[{ id, name, ago, online }], rank, clans,
+	// gap_up, gap_top, near[] (clan cards with rank, me, gap), max, next{ level,
+	// perks[], xp_left, wins, together, eta }, next_perk{ id, level, xp_left,
+	// wins, together, eta }, earn{ match, win, together, contract }, daily_xp),
+	// officer, leader, invites[] and top[] (clan cards with rank, me, week_xp).
+	// cands: who the invite dialog offers (fui_social.cpp): [{ id, name,
+	// level, status (menu, queue, match, steam, offline), friend, invited }].
+	"clan": { "loaded": false, "has": false, "officer": false, "leader": false, "c": {}, "invites": [], "top": [], "cands": [] },
+	// The create / settings form; search: the invite dialog's filter.
+	"clanform": { "name": "", "tag": "", "motto": "", "emblem": "soldier", "color": "red", "open": true, "search": "" },
 	// The support tab (services/gc/internal/gc/support.go): offered,
 	// available, loading, busy, sandbox, currency, once[] and monthly[] tiers
 	// { tier, kind, amount, price }, me { supporter, monthly, donations, since },
@@ -158,9 +168,18 @@
 	"support": { "show_wall": true, "simulated": false, "offered": false, "available": false, "loading": false, "busy": false, "sandbox": false, "currency": "",
 		"once": [], "monthly": [], "me": { "supporter": false, "monthly": false, "donations": 0, "since": 0 }, "wall": [],
 		"count": 0, "subscribers": 0, "anon": false, "result": "", "error": "", "problem": "" },
-	// From the coordinator (GET /v1/player/<id>/quests). Each quest:
-	// { key, kind, class, target, progress, frac, xp, done, weekly, photo }
-	"quests": { "daily": [], "weekly": [], "daily_left": 0, "weekly_left": 0, "done": 0, "total": 0 },
+	// From the coordinator: pushed after every match (social "quests"), and
+	// polled from GET /v1/player/<id>/quests (fui_tf.cpp). Each quest:
+	// { key, kind, class, per, target, amount, text_key, progress, frac, xp,
+	// reward, reward_n, tier (1-3, 4 weekly), slot, last (added by the last
+	// match), can_reroll, done, weekly, photo }. bonus: the day's { xp,
+	// reward, reward_n, paid, streak, streak_every, streak_next,
+	// streak_reward }; rewards: unclaimed { total, crate, rare_crate,
+	// recent[{ kind, n, src, quest, ago }] }. stale: the copy is old.
+	"quests": { "daily": [], "weekly": [], "daily_left": 0, "weekly_left": 0, "done": 0, "total": 0,
+		"rerolls_left": 0, "rerolling": false, "loaded": false, "stale": false,
+		"bonus": { "xp": 0, "reward": "", "reward_n": 0, "paid": false, "streak": 0, "streak_every": 7, "streak_next": 7, "streak_reward": "" },
+		"rewards": { "total": 0, "crate": 0, "rare_crate": 0, "recent": [] } },
 	// The match being played, for the pause screen. mode_name: "Control
 	// Points"..., goal: the map's goal for your team, role: attack | defend | "".
 	// war: a war battle { active, sector, stage, stages, kind, attacker,

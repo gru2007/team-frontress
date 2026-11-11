@@ -33,6 +33,7 @@
 
 #include <time.h>
 #include <algorithm>
+#include <set>
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -45,6 +46,7 @@ using fui::Node;
 const uint32 k_EMsgGCFrontress_Social = 51010;		// services/gc/internal/gc/social.go
 const size_t k_nLinesKept = 160;
 const size_t k_nLinesShown = 40;
+const double k_flPendingTimeout = 10.0;		// an own line the coordinator never echoed
 
 std::string UTF8Name( const CSteamID &id )
 {
@@ -112,10 +114,19 @@ private:
 	CCallback< CMicroTxnListener, MicroTxnAuthorizationResponse_t, false > m_Auth;
 };
 
+// A line the player sent, shown at once until the coordinator echoes it back.
+struct PendingLine_t
+{
+	std::string ch, text;
+	double flAt;
+};
+
 struct Social_t
 {
 	std::vector< std::string > events;		// from the coordinator, not yet applied
 	Node lines;								// every chat line kept, oldest first
+	std::vector< PendingLine_t > pending;	// own lines sent, not yet echoed, oldest first
+	bool bClearDraft = false;				// empty the chat box once the change event is over
 	std::string tab = "global";
 	bool bViewDirty = true;
 	bool bHelloSent = false;
@@ -269,6 +280,19 @@ void AddLine( const Node &in )
 	l[ "kind" ] = Str( &in, "kind" );
 	l[ "time" ] = Clock( Num( &in, "at" ) );
 	l[ "me" ] = Str( &in, "from" ) == std::to_string( Me().ConvertToUint64() );
+	l[ "pending" ] = false;
+	// Our own line came back: it replaces the copy shown while it travelled.
+	if ( l[ "me" ].AsBool() && !l[ "sys" ].AsBool() )
+	{
+		for ( auto it = s.pending.begin(); it != s.pending.end(); ++it )
+		{
+			if ( it->ch == l[ "ch" ].AsString() )
+			{
+				s.pending.erase( it );
+				break;
+			}
+		}
+	}
 	const Node *pArgs = in.Find( "args" );
 	for ( int i = 0; i < 4; ++i )
 	{
@@ -335,6 +359,17 @@ void ApplyEvent( fui::Runtime &ui, const std::string &json )
 		{
 			Node &c = clan[ "c" ];
 			c.Assign( ev.Find( "clan" )->Clone() );
+			// Invited people who never played have no name on the coordinator:
+			// Steam knows them if they are friends.
+			if ( Node *pInvited = c.Find( "invited" ) )
+			{
+				for ( size_t i = 0; i < pInvited->Size(); ++i )
+				{
+					Node &inv = *pInvited->At( i );
+					if ( Str( &inv, "name" ).empty() )
+						inv[ "name" ] = UTF8Name( CSteamID( (uint64)strtoull( Str( &inv, "id" ).c_str(), nullptr, 10 ) ) );
+				}
+			}
 			s.myTag = Str( &c, "tag" );
 			const std::string role = Str( &c, "role" );
 			clan[ "officer" ] = role == "leader" || role == "officer";
@@ -359,9 +394,21 @@ void ApplyEvent( fui::Runtime &ui, const std::string &json )
 		if ( !clan[ "top" ].IsArray() )
 			clan[ "top" ].SetArray();
 		clan[ "loaded" ] = true;
+		if ( const Node *pCands = ui.Get( "clan.cands" ) )
+			clan[ "cands" ].Assign( pCands->Clone() );
+		else
+			clan[ "cands" ].SetArray();
 		ui.Set( "clan", std::move( clan ) );
 		ui.Set( "player.tag", Node( s.myTag ) );
 		s.bViewDirty = true;
+	}
+	else if ( t == "quests" )
+	{
+		if ( Node *pQuests = ev.Find( "quests" ) )
+		{
+			if ( pQuests->IsObject() )
+				FuiTF().OnQuests( *pQuests );
+		}
 	}
 	else if ( t == "war_faction" )
 	{
@@ -447,11 +494,20 @@ void ApplyEvent( fui::Runtime &ui, const std::string &json )
 	}
 	else if ( t == "error" )
 	{
-		if ( Str( &ev, "key" ).find( "fui_err_report_" ) == 0 )
+		// The coordinator turned a line down: take back the copy we showed.
+		const std::string key = Str( &ev, "key" );
+		if ( ( key == "fui_err_chat_slow" || key == "fui_err_muted" || key == "fui_err_no_channel" ) && !s.pending.empty() )
+		{
+			s.pending.erase( s.pending.begin() );
+			s.bViewDirty = true;
+		}
+		if ( key.find( "fui_err_report_" ) == 0 )
 		{
 			s.flReportDeadline = 0.;
 			ui.Set( "report.pending", Node( false ) );
 		}
+		if ( key.find( "fui_err_quest_" ) == 0 )
+			ui.Set( "quests.rerolling", Node( false ) );
 		FuiTF().Toast( "error", ui.Translate( "fui_err_title" ), ui.Translate( Str( &ev, "key" ) ), "" );
 	}
 	else if ( t == "toast" )
@@ -476,8 +532,12 @@ void RefreshView( fui::Runtime &ui )
 	if ( !s.bViewDirty )
 		return;
 	s.bViewDirty = false;
+	size_t nPending = 0;
+	for ( const PendingLine_t &p : s.pending )
+		nPending += p.ch == s.tab ? 1 : 0;
+	nPending = Min( nPending, k_nLinesShown );
 	std::vector< const Node * > picked;
-	for ( size_t i = s.lines.IsArray() ? s.lines.Size() : 0; i-- > 0 && picked.size() < k_nLinesShown; )
+	for ( size_t i = s.lines.IsArray() ? s.lines.Size() : 0; i-- > 0 && picked.size() + nPending < k_nLinesShown; )
 	{
 		const Node *l = s.lines.At( i );
 		if ( Str( l, "ch" ) == s.tab )
@@ -487,6 +547,27 @@ void RefreshView( fui::Runtime &ui )
 	view.SetArray();
 	for ( size_t i = picked.size(); i-- > 0; )
 		view.Append( picked[ i ]->Clone() );
+	// Lines on their way to the coordinator, as they will look once there.
+	for ( const PendingLine_t &p : s.pending )
+	{
+		if ( p.ch != s.tab )
+			continue;
+		Node &l = view.Append();
+		l[ "id" ] = 0;
+		l[ "ch" ] = p.ch;
+		l[ "from" ] = std::to_string( Me().ConvertToUint64() );
+		l[ "name" ] = UTF8Name( Me() );
+		l[ "tag" ] = s.myTag;
+		l[ "gold" ] = false;
+		l[ "sup" ] = s.bMeSupporter;
+		l[ "text" ] = p.text;
+		l[ "key" ] = "";
+		l[ "sys" ] = false;
+		l[ "kind" ] = "";
+		l[ "time" ] = Clock( (double)time( NULL ) );
+		l[ "me" ] = true;
+		l[ "pending" ] = true;
+	}
 	ui.Set( "social.view", std::move( view ) );
 	ui.Set( "social.unread_clan", Node( s.nUnreadClan ) );
 	ui.Set( "social.unread_party", Node( s.nUnreadParty ) );
@@ -521,6 +602,84 @@ std::string Path( fui::Runtime &ui, const char *pszPath )
 {
 	const Node *p = ui.Get( pszPath );
 	return p ? p->AsString() : std::string();
+}
+
+std::set< std::string > IdsOf( const Node *pList )
+{
+	std::set< std::string > out;
+	for ( size_t i = 0; pList && i < pList->Size(); ++i )
+		out.insert( Str( pList->At( i ), "id" ) );
+	return out;
+}
+
+// Who the clan could invite (clan.rml, ui.modal 'clan_invite'): people online
+// with no clan, then Steam friends online, then the rest of them. Members and
+// the player are left out; clan.cands[].invited marks invites still standing.
+void RefreshClanCandidates( fui::Runtime &ui )
+{
+	const size_t k_nListed = 60;
+	const Node *pClan = ui.Get( "clan.c" );
+	const std::set< std::string > members = IdsOf( pClan ? pClan->Find( "members" ) : nullptr );
+	const std::set< std::string > invited = IdsOf( pClan ? pClan->Find( "invited" ) : nullptr );
+	const std::string me = std::to_string( Me().ConvertToUint64() );
+	const std::string search = Path( ui, "clanform.search" );
+	ISteamFriends *pFriends = steamapicontext ? steamapicontext->SteamFriends() : nullptr;
+
+	Node out;
+	out.SetArray();
+	std::set< std::string > seen = members;
+	seen.insert( me );
+	auto add = [ & ]( const std::string &id, const std::string &name, int level, const std::string &status, bool bFriend ) {
+		if ( out.Size() >= k_nListed || name.empty() || !seen.insert( id ).second )
+			return;
+		if ( !search.empty() && !V_stristr( name.c_str(), search.c_str() ) )
+			return;
+		Node &c = out.Append();
+		c[ "id" ] = id;
+		c[ "name" ] = name;
+		c[ "level" ] = level;
+		c[ "status" ] = status;
+		c[ "friend" ] = bFriend;
+		c[ "invited" ] = invited.count( id ) > 0;
+	};
+	auto isFriend = [ & ]( const std::string &id ) {
+		return pFriends && pFriends->HasFriend( CSteamID( (uint64)strtoull( id.c_str(), nullptr, 10 ) ), k_EFriendFlagImmediate );
+	};
+
+	// In the game now. Someone already in a clan cannot be invited.
+	if ( const Node *pOnline = ui.Get( "social.online.players" ) )
+	{
+		for ( size_t i = 0; i < pOnline->Size(); ++i )
+		{
+			const Node *p = pOnline->At( i );
+			const std::string id = Str( p, "id" );
+			if ( !Str( p, "tag" ).empty() )
+			{
+				seen.insert( id );
+				continue;
+			}
+			add( id, Str( p, "name" ), (int)Num( p, "level" ), Str( p, "status" ), isFriend( id ) );
+		}
+	}
+	// Steam friends: an invite waits for them until they come.
+	if ( pFriends )
+	{
+		const int count = pFriends->GetFriendCount( k_EFriendFlagImmediate );
+		for ( int pass = 0; pass < 2; ++pass )
+		{
+			for ( int i = 0; i < count; ++i )
+			{
+				const CSteamID id = pFriends->GetFriendByIndex( i, k_EFriendFlagImmediate );
+				if ( !id.IsValid() )
+					continue;
+				const bool bOnline = pFriends->GetFriendPersonaState( id ) != k_EPersonaStateOffline;
+				if ( bOnline != ( pass == 0 ) )
+					continue;
+				add( std::to_string( id.ConvertToUint64() ), UTF8Name( id ), 0, bOnline ? "steam" : "offline", true );
+			}
+		}
+	}
+	ui.Set( "clan.cands", std::move( out ) );
 }
 
 
@@ -792,10 +951,6 @@ void FuiSocialUpdate( fui::Runtime &ui, bool bShown )
 		}
 	}
 
-	std::vector< std::string > events;
-	events.swap( s.events );
-	for ( const std::string &json : events )
-		ApplyEvent( ui, json );
 	if ( s.flReportDeadline > 0. && Plat_FloatTime() >= s.flReportDeadline )
 	{
 		s.flReportDeadline = 0.;
@@ -809,7 +964,39 @@ void FuiSocialUpdate( fui::Runtime &ui, bool bShown )
 		SupportError( ui, "timeout" );
 	}
 	if ( bShown )
+	{
 		RefreshInvites( ui, Path( ui, "ui.modal" ) == "invite" );
+		static double s_flNextCands = 0.;
+		if ( Path( ui, "ui.modal" ) == "clan_invite" && Plat_FloatTime() >= s_flNextCands )
+		{
+			s_flNextCands = Plat_FloatTime() + 0.25;
+			RefreshClanCandidates( ui );
+		}
+	}
+}
+
+void FuiSocialPump( fui::Runtime &ui, bool bShown )
+{
+	Social_t &s = S();
+	if ( s.bClearDraft )
+	{
+		s.bClearDraft = false;
+		ui.Set( "ui.chat_draft", Node( "" ) );
+	}
+
+	std::vector< std::string > events;
+	events.swap( s.events );
+	for ( const std::string &json : events )
+		ApplyEvent( ui, json );
+
+	// A line the coordinator dropped without a word (censored to nothing,
+	// chat turned off) must not hang there forever.
+	const double flNow = Plat_FloatTime();
+	while ( !s.pending.empty() && flNow - s.pending.front().flAt > k_flPendingTimeout )
+	{
+		s.pending.erase( s.pending.begin() );
+		s.bViewDirty = true;
+	}
 
 	const std::string tab = Path( ui, "social.tab" );
 	if ( !tab.empty() && tab != s.tab )
@@ -829,6 +1016,8 @@ void FuiSocialNavigate( fui::Runtime &ui, const std::string &screen )
 {
 	if ( screen == "clan" )
 		Send( Op( "clan_browse" ) );
+	if ( screen == "quests" || screen == "home" )
+		Send( Op( "quests" ) );
 	if ( screen == "support" )
 	{
 		ui.Set( "support.loading", Node( true ) );
@@ -859,11 +1048,25 @@ bool FuiSocialCommand( fui::Runtime &ui, const std::string &name, const std::vec
 			text.pop_back();
 		if ( text.find_first_not_of( " \t" ) == std::string::npos )
 			return true;
+		Social_t &s = S();
+		// The tab open now, even if the frame has not caught up with it yet.
+		std::string ch = Path( ui, "social.tab" );
+		if ( ch.empty() || ch == "online" )
+			ch = s.tab;
 		Node op = Op( "say" );
-		op[ "ch" ] = S().tab;
+		op[ "ch" ] = ch;
 		op[ "text" ] = text;
 		if ( Send( op ) )
+		{
+			// Show the line now; the coordinator's echo replaces it.
+			s.pending.push_back( { ch, text, Plat_FloatTime() } );
+			s.bViewDirty = true;
+			RefreshView( ui );
+			// On Enter this runs inside the box's change event, and data-value
+			// may write the text back after us: clear now and once more after.
 			ui.Set( "ui.chat_draft", Node( "" ) );
+			s.bClearDraft = true;
+		}
 		return true;
 	}
 	if ( name == "lfg_toggle" )
@@ -1001,11 +1204,22 @@ bool FuiSocialCommand( fui::Runtime &ui, const std::string &name, const std::vec
 		ui.Set( "ui.modal", Node( "" ) );
 		return true;
 	}
-	if ( name == "clan_invite" || name == "clan_kick" )
+	if ( name == "clan_invite" || name == "clan_uninvite" || name == "clan_kick" )
 	{
 		Node op = Op( name.c_str() );
 		op[ "who" ] = Digits( arg );
 		Send( op );
+		return true;
+	}
+	// Quests: swap a daily one (by slot) for another of its tier.
+	if ( name == "quest_reroll" )
+	{
+		if ( ui.Get( "quests.rerolling" ) && ui.Get( "quests.rerolling" )->AsBool() )
+			return true;
+		Node op = Op( "quest_reroll" );
+		op[ "slot" ] = atoi( arg.c_str() );
+		if ( Send( op ) )
+			ui.Set( "quests.rerolling", Node( true ) );
 		return true;
 	}
 	if ( name == "clan_role" )

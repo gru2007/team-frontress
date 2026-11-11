@@ -1,7 +1,7 @@
 /* Quests */
-.q-head { margin-bottom: 26dp; }
+.q-head { margin-bottom: 18dp; gap: 34dp; align-items: flex-end; }
 .q-head h1 { font-size: 60dp; line-height: 64dp; }
-.summary { text-align: right; }
+.head-stat { text-align: right; }
 .summary-num { font-size: 56dp; line-height: 58dp; }
 
 .q-body { align-items: flex-start; gap: 36dp; }
@@ -13,7 +13,7 @@
 	display: flex;
 	flex-direction: column;
 	width: 380dp;
-	height: 560dp;
+	height: 520dp;
 	padding: 18dp;
 	border-radius: 14dp;
 	decorator: linear-gradient(to bottom, #efe5cc 0%, #ded2b4 100%);
@@ -28,14 +28,16 @@
 .card:hover { transform: rotate(0deg) translateY(-8dp) scale(1.02); }
 .photo-frame {
 	position: relative;
-	height: 250dp;
+	height: 230dp;
 	padding: 10dp 10dp 30dp 10dp;
 	background-color: #fbf7ee;
 	border-radius: 4dp;
 	transform: rotate(1.5deg);
 }
 .photo { width: 100%; height: 100%; }
-.card-kind { color: #8a7a5c; margin-top: 18dp; letter-spacing: 1dp; }
+.card-top { margin-top: 16dp; align-items: center; }
+.card-kind { color: #8a7a5c; letter-spacing: 1dp; }
+.week-body .card-kind { margin-top: 0; }
 .card-text { font-size: 30dp; line-height: 33dp; color: #2a1f16; margin-top: 6dp; }
 .card-progress { margin-bottom: 10dp; }
 .card-count { font-size: 18dp; color: #2a1f16; }
@@ -78,7 +80,7 @@
 	border-top: 3dp #ffc93c;
 	margin-top: 8dp;
 }
-.week-photo { position: relative; height: 230dp; border-radius: 13dp 13dp 0 0; }
+.week-photo { position: relative; height: 170dp; border-radius: 13dp 13dp 0 0; }
 .week-badge {
 	position: absolute;
 	left: 14dp; top: 14dp;
@@ -91,9 +93,142 @@
 	color: #2a1a05;
 }
 .week-body { padding: 18dp; }
-.week-text { font-size: 30dp; line-height: 33dp; margin: 6dp 0 18dp 0; }
+.week-text { font-size: 28dp; line-height: 31dp; margin: 6dp 0 12dp 0; }
 .week-card .card-count { color: #ece3cb; }
 .big-reward { font-size: 24dp; background-color: #ffc93c; color: #2a1a05; }
 .week-card .big-bar { background-color: #00000066; }
-.tip { margin-top: 20dp; }
-.tip-title { margin-bottom: 6dp; color: #ffc93c; }
+
+
+/* ------------------------------------------------------------ head */
+.streak-num { color: #ff9a3c; }
+.flame {
+	display: inline-block;
+	width: 22dp; height: 30dp;
+	margin-right: 8dp;
+	border-radius: 11dp 11dp 11dp 11dp;
+	decorator: linear-gradient(to top, #ef5a4c, #ffc93c);
+	transform: rotate(8deg);
+}
+.flame.small-flame { width: 12dp; height: 16dp; margin: 2dp 8dp 0 0; }
+.sync-note {
+	margin: -6dp 0 12dp 0;
+	padding: 8dp 14dp;
+	border-radius: 10dp;
+	font-size: 15dp;
+	color: #ffd9a0;
+	background-color: #ef5a4c22;
+	border: 1dp #ef5a4c66;
+}
+
+/* ------------------------------------------------------------ cards */
+.reroll-note { margin-bottom: 14dp; }
+.tier-tag {
+	position: absolute;
+	left: 18dp; bottom: 6dp;
+	font-family: "TF2 Build";
+	font-size: 13dp;
+	text-transform: uppercase;
+	color: #6a5a40;
+}
+.star {
+	display: inline-block;
+	width: 10dp; height: 10dp;
+	margin-right: 3dp;
+	border-radius: 2dp;
+	transform: rotate(45deg);
+	background-color: #cfc3a6;
+}
+.star.on { background-color: #e0a020; }
+.tier3 .star.on { background-color: #d0452a; }
+.tier-name { margin-left: 6dp; }
+.tier3 { border-bottom-color: #b4552a; }
+.reroll {
+	font-family: "TF2 Build";
+	font-size: 12dp;
+	text-transform: uppercase;
+	padding: 4dp 10dp;
+	border-radius: 6dp;
+	color: #2a1f16;
+	background-color: #00000014;
+	border: 1dp #00000026;
+	cursor: pointer;
+	transition: background-color 0.12s cubic-out;
+}
+.reroll:hover { background-color: #00000026; }
+.reroll.busy { opacity: 0.5; cursor: default; }
+.last-match {
+	margin-top: 8dp;
+	font-size: 14dp;
+	color: #3f6a26;
+	font-family: "TF2 Build";
+	text-transform: uppercase;
+}
+.last-match.dark { color: #8fd16a; margin: -4dp 0 8dp 0; }
+.reward-chip {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	margin-left: 8dp;
+	font-family: "TF2 Secondary";
+	font-weight: bold;
+	font-size: 18dp;
+	padding: 5dp 10dp;
+	border-radius: 8dp;
+	color: #2a1f16;
+	background-color: #00000018;
+}
+.reward-chip.dark { color: #ece3cb; background-color: #ffffff14; }
+.reward-chip .crate-icon { margin-right: 6dp; }
+
+/* A crate, drawn: a box with a lid line. Rare ones are purple. */
+.crate-icon {
+	display: inline-block;
+	width: 18dp; height: 14dp;
+	border-radius: 3dp;
+	border: 2dp #6b4a22;
+	border-top-width: 5dp;
+	decorator: linear-gradient(to bottom, #c58b45, #8a5a26);
+}
+.rare_crate .crate-icon, .crate-icon.rare_crate {
+	border-color: #4a2768;
+	decorator: linear-gradient(to bottom, #b383e0, #6a3a98);
+}
+.crate-icon.big { width: 40dp; height: 32dp; border-width: 3dp; border-top-width: 10dp; border-radius: 6dp; margin-right: 14dp; }
+
+/* ------------------------------------------------------------ bonus */
+.bonus-strip { margin-top: 26dp; padding: 16dp 22dp; align-items: center; gap: 22dp; }
+.bonus-strip.paid { border-color: #8fd16a88; }
+.bonus-pips { gap: 8dp; }
+.pip {
+	width: 34dp; height: 34dp;
+	border-radius: 17dp;
+	border: 3dp #ffffff30;
+	background-color: #00000044;
+}
+.pip.on { background-color: #8fd16a; border-color: #b8eb98; }
+.pip .tick { margin: 5dp 0 0 11dp; width: 6dp; height: 12dp; }
+.bonus-title { font-size: 22dp; color: #ece3cb; }
+.streak-box { width: 300dp; text-align: right; align-items: flex-end; }
+.streak-days { font-size: 20dp; color: #ff9a3c; }
+
+/* ------------------------------------------------------------ rewards */
+.rewards { margin-top: 18dp; padding: 18dp; }
+.reward-counts { gap: 16dp; }
+.reward-count {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	flex: 1 1 0;
+	padding: 12dp 14dp;
+	border-radius: 12dp;
+	background-color: #ffffff08;
+	border: 1dp #ffffff14;
+}
+.reward-count.rare_crate { border-color: #b383e055; background-color: #b383e00f; }
+.count-num { font-size: 30dp; line-height: 32dp; color: #ffc93c; }
+.rare_crate .count-num { color: #d6b8f0; }
+.claim-note { margin-top: 12dp; color: #b8ab92; line-height: 19dp; }
+.recent { margin-top: 12dp; padding-top: 10dp; border-top: 1dp #ffffff14; }
+.recent-title { margin-bottom: 6dp; letter-spacing: 1dp; }
+.recent-row { align-items: center; gap: 8dp; padding: 3dp 0; font-size: 14dp; }
+.recent-what { color: #ece3cb; white-space: nowrap; }

@@ -37,6 +37,11 @@ type Record struct {
 	// Quests is progress by quest key (see package quests).
 	Quests       map[string]int                    `json:"-"`
 	Acknowledged map[int32]ProgressAcknowledgement `json:"-"`
+	// Rewards are quest rewards earned and not yet claimed, by kind; the
+	// log is the latest ones earned. See rewards.go.
+	Rewards   map[string]int  `json:"rewards,omitempty"`
+	RewardLog []RewardEntry   `json:"-"`
+	LastQuest *LastQuestMatch `json:"-"`
 }
 
 type ProgressAcknowledgement struct {
@@ -75,6 +80,8 @@ type event struct {
 	Group    int32   `json:"group,omitempty"`
 	Value    int     `json:"value,omitempty"`
 	Rank     int     `json:"rank,omitempty"`
+	// A match's quest progress (or a bonus) in one record; see rewards.go.
+	Items []questItem `json:"items,omitempty"`
 }
 
 const (
@@ -92,8 +99,10 @@ type Store struct {
 	records   map[uint64]*Record
 	played    map[participation]bool
 	abandoned map[participation]bool
-	f         *os.File
-	now       func() time.Time
+	// questsCredited is the matches that already moved a player's quests.
+	questsCredited map[participation]bool
+	f              *os.File
+	now            func() time.Time
 }
 
 type participation struct{ matchID, steamID uint64 }
@@ -101,7 +110,7 @@ type participation struct{ matchID, steamID uint64 }
 // Open opens a store. An empty path keeps everything in memory.
 func Open(path string) (*Store, error) {
 	s := &Store{records: map[uint64]*Record{}, played: map[participation]bool{},
-		abandoned: map[participation]bool{}, now: time.Now}
+		abandoned: map[participation]bool{}, questsCredited: map[participation]bool{}, now: time.Now}
 	if path == "" {
 		return s, nil
 	}
@@ -242,6 +251,8 @@ func (s *Store) apply(ev event) {
 		r.LastAbandon = ev.At
 	case evBonus:
 		r.QuestXP += ev.XP
+	case evQuests:
+		s.applyQuests(r, ev)
 	case evQuest:
 		if r.Quests == nil {
 			r.Quests = map[string]int{}
@@ -272,30 +283,6 @@ func (s *Store) AcknowledgeProgress(id uint64, group int32, predicted uint32, ra
 		s.appendLocked(event{Type: evProgressAck, At: s.now(), SteamID: id, Group: group, Value: value, Rank: rank})
 	}
 	return true
-}
-
-// QuestProgress adds progress to one of a player's quests and reports the new
-// total and whether this finished it. Progress past the target is not kept,
-// and a finished quest pays its XP once.
-func (s *Store) QuestProgress(id uint64, key string, add, target, xp int) (total int, finished bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	r := s.recordLocked(id)
-	before := r.Quests[key]
-	if add <= 0 || before >= target {
-		return before, false
-	}
-	total = before + add
-	if total > target {
-		total = target
-	}
-	finished = total >= target
-	ev := event{Type: evQuest, At: s.now(), SteamID: id, Quest: key, Progress: total}
-	if finished {
-		ev.XP = xp
-	}
-	s.appendLocked(ev)
-	return total, finished
 }
 
 // Bonus pays a player extra experience (a war order's), once per key: the
@@ -392,6 +379,21 @@ func (s *Store) Get(id uint64) Record {
 				out.Acknowledged[group] = ack
 			}
 		}
+		if r.Rewards != nil {
+			out.Rewards = make(map[string]int, len(r.Rewards))
+			for k, v := range r.Rewards {
+				out.Rewards[k] = v
+			}
+		}
+		out.RewardLog = append([]RewardEntry(nil), r.RewardLog...)
+		if r.LastQuest != nil {
+			lq := *r.LastQuest
+			lq.Added = make(map[string]int, len(r.LastQuest.Added))
+			for k, v := range r.LastQuest.Added {
+				lq.Added[k] = v
+			}
+			out.LastQuest = &lq
+		}
 		return out
 	}
 	return Record{SteamID: id, Rating: DefaultRating}
@@ -426,7 +428,7 @@ func (s *Store) List(q, sortBy string, offset, limit int) Page {
 			continue
 		}
 		c := *r
-		c.Quests, c.Acknowledged = nil, nil
+		c.Quests, c.Acknowledged, c.Rewards, c.RewardLog, c.LastQuest = nil, nil, nil, nil, nil
 		out = append(out, c)
 	}
 	s.mu.Unlock()

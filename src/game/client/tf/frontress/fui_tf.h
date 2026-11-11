@@ -18,6 +18,7 @@
 namespace fui
 {
 	class Runtime;
+	class Node;
 }
 
 class CFuiTF
@@ -37,6 +38,9 @@ public:
 	bool GetLook( const std::string &key, struct FuiLook_t &out );
 	// The coordinator's party looks message (JSON).
 	void OnPartyLooks( const char *pszJSON );
+	// The player's quests, pushed by the coordinator (a "quests" document,
+	// the same as GET /v1/player/<id>/quests returns).
+	void OnQuests( fui::Node &doc );
 	// Show the in-match class select for a team; false if the menu is off.
 	bool ShowClassSelect( int iTeam );
 	// Show the in-match team select (arena: play or watch); false if it is off.

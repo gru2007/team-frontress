@@ -24,8 +24,11 @@ namespace fui
 	class Runtime;
 }
 
-// Every frame the menu updates (see CFuiTF::Update).
+// A few times a second (see CFuiTF::Update): the hello, purchases, invites.
 void FuiSocialUpdate( fui::Runtime &runtime, bool bShown );
+// Every frame: the coordinator's events and the chat view, so a line shows
+// the frame it arrives.
+void FuiSocialPump( fui::Runtime &runtime, bool bShown );
 // A document command; true if it was a social one.
 bool FuiSocialCommand( fui::Runtime &runtime, const std::string &name, const std::vector< std::string > &args );
 void FuiSocialNavigate( fui::Runtime &runtime, const std::string &screen );

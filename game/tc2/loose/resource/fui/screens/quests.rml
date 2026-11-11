@@ -1,6 +1,8 @@
 <rml>
 <!-- Quests: what to do in matches today and this week. The coordinator picks
-     them and counts them from match results (services/gc/internal/quests). -->
+     them, counts them from match results and pushes them here after every
+     match (services/gc/internal/quests, gc/quests.go). Each pays XP and a
+     reward; rewards are counted until items can be claimed. -->
 <head>
 	<title>Quests</title>
 	<link type="text/rcss" href="../style/base.rcss"/>
@@ -17,55 +19,120 @@
 				<div class="dim">#fui_quests_sub</div>
 			</div>
 			<div class="spacer"></div>
-			<div class="summary">
+			<div class="head-stat" data-if="quests.bonus.streak &gt; 0">
+				<div class="summary-num title streak-num"><span class="flame"></span>{{ quests.bonus.streak }}</div>
+				<div class="dim tiny upper">#fui_quests_streak</div>
+			</div>
+			<div class="head-stat">
+				<div class="summary-num title"><span class="gold">{{ quests.rewards.total }}</span></div>
+				<div class="dim tiny upper">#fui_quests_rewards_short</div>
+			</div>
+			<div class="head-stat">
 				<div class="summary-num title"><span class="gold">{{ quests.done }}</span><span class="dimmer">/{{ quests.total }}</span></div>
 				<div class="dim tiny upper">#fui_quests_done</div>
 			</div>
 		</div>
 
-		<div class="row q-body">
+		<!-- The copy shown is old: say so, and that nothing is lost. -->
+		<div class="sync-note in0" data-if="quests.loaded && quests.stale">#fui_quests_stale</div>
+
+		<div class="row q-body" data-if="quests.total &gt; 0">
 			<div class="col daily">
-				<div class="panel-title in0">#fui_quests_today <span class="sub">· #fui_quests_reset {{ quests.daily_left | duration }}</span></div>
+				<div class="row in0">
+					<div class="panel-title grow">#fui_quests_today <span class="sub">· #fui_quests_reset {{ quests.daily_left | duration }}</span></div>
+					<div class="reroll-note dim small" data-if="quests.rerolls_left &gt; 0">#fui_quests_reroll_hint</div>
+					<div class="reroll-note dimmer small" data-if="quests.rerolls_left == 0">#fui_quests_reroll_used</div>
+				</div>
 				<div class="cards">
-					<div data-for="q, i : quests.daily" data-attr-class="'card in' + (i + 1) + ' tilt' + i + (q.done ? ' done' : '')">
+					<div data-for="q, i : quests.daily" data-attr-class="'card in' + (i + 1) + ' tilt' + i + ' tier' + q.tier + (q.done ? ' done' : '')">
 						<div class="photo-frame">
 							<div class="photo" data-style-decorator="'image(tex:' + q.photo + ' cover)'"></div>
+							<div class="tier-tag">
+								<span class="star on"></span><span data-attr-class="'star' + (q.tier &gt;= 2 ? ' on' : '')"></span><span data-attr-class="'star' + (q.tier &gt;= 3 ? ' on' : '')"></span>
+								<span class="tier-name">{{ ('fui_quest_tier' + q.tier) | t }}</span>
+							</div>
 							<div class="stamp big-stamp" data-if="q.done">#fui_quest_done</div>
 						</div>
-						<div class="card-kind dimmer tiny upper">{{ ('fui_qk_' + q.kind) | t }}</div>
-						<div class="card-text title">{{ ('fui_q_' + q.kind) | t(q.target, '#fui_class_' + q.class) }}</div>
+						<div class="row card-top">
+							<div class="card-kind dimmer tiny upper grow">{{ ('fui_qk_' + q.kind) | t }}</div>
+							<div class="reroll" sfx="" data-if="q.can_reroll && !quests.rerolling" data-event-click="cmd('quest_reroll', q.slot)">#fui_quest_reroll</div>
+							<div class="reroll busy" data-if="q.can_reroll && quests.rerolling">#fui_quest_rerolling</div>
+						</div>
+						<div class="card-text title">{{ q.text_key | t(q.amount, '#fui_class_' + q.class) }}</div>
+						<div class="last-match" data-if="q.last &gt; 0">{{ 'fui_quest_last' | t(q.last) }}</div>
 						<div class="spacer"></div>
 						<div class="row card-progress">
 							<div class="card-count"><span class="title">{{ q.progress | thousands }}</span><span class="dimmer"> / {{ q.target | thousands }}</span></div>
 							<div class="spacer"></div>
 							<div class="reward">+{{ q.xp }} XP</div>
+							<div data-attr-class="'reward-chip ' + q.reward"><span class="crate-icon"></span><span>×{{ q.reward_n }}</span></div>
 						</div>
 						<div class="bar big-bar"><div class="fill" data-style-width="(q.frac * 100) + '%'"></div></div>
 					</div>
 				</div>
+
+				<!-- All three: the day's bonus; days in a row: the streak. -->
+				<div class="row bonus-strip panel in4" data-class-paid="quests.bonus.paid">
+					<div class="row bonus-pips">
+						<div data-for="q : quests.daily" data-attr-class="'pip' + (q.done ? ' on' : '')"><div class="tick" data-if="q.done"></div></div>
+					</div>
+					<div class="col grow">
+						<div class="title bonus-title" data-if="!quests.bonus.paid">#fui_quests_bonus</div>
+						<div class="title bonus-title good" data-if="quests.bonus.paid">#fui_quests_bonus_paid</div>
+						<div class="dim small">{{ 'fui_quests_bonus_d' | t(quests.bonus.xp, ('fui_reward_' + quests.bonus.reward) | t) }}</div>
+					</div>
+					<div class="col streak-box">
+						<div class="row"><span class="flame small-flame"></span><span class="title streak-days">{{ 'fui_quests_streak_days' | t(quests.bonus.streak) }}</span></div>
+						<div class="dim tiny">{{ 'fui_quests_streak_next' | t(quests.bonus.streak_next, ('fui_reward_' + quests.bonus.streak_reward) | t) }}</div>
+					</div>
+				</div>
 			</div>
 
-			<div class="col weekly in3">
-				<div class="panel-title">#fui_quests_week <span class="sub">· #fui_quests_reset {{ quests.weekly_left | duration }}</span></div>
-				<div data-for="q : quests.weekly" data-attr-class="'week-card' + (q.done ? ' done' : '')">
+			<div class="col weekly">
+				<div class="panel-title in3">#fui_quests_week <span class="sub">· #fui_quests_reset {{ quests.weekly_left | duration }}</span></div>
+				<div data-for="q : quests.weekly" data-attr-class="'week-card in3' + (q.done ? ' done' : '')">
 					<div class="week-photo" data-style-decorator="'image(tex:' + q.photo + ' cover)'">
 						<div class="week-badge">#fui_quests_week_badge</div>
 						<div class="stamp big-stamp" data-if="q.done">#fui_quest_done</div>
 					</div>
 					<div class="week-body">
 						<div class="card-kind dimmer tiny upper">{{ ('fui_qk_' + q.kind) | t }}</div>
-						<div class="week-text title">{{ ('fui_q_' + q.kind) | t(q.target, '#fui_class_' + q.class) }}</div>
+						<div class="week-text title">{{ q.text_key | t(q.amount, '#fui_class_' + q.class) }}</div>
+						<div class="last-match dark" data-if="q.last &gt; 0">{{ 'fui_quest_last' | t(q.last) }}</div>
 						<div class="row card-progress">
 							<div class="card-count"><span class="title">{{ q.progress | thousands }}</span><span class="dimmer"> / {{ q.target | thousands }}</span></div>
 							<div class="spacer"></div>
 							<div class="reward big-reward">+{{ q.xp }} XP</div>
+							<div data-attr-class="'reward-chip dark ' + q.reward"><span class="crate-icon"></span><span>×{{ q.reward_n }}</span></div>
 						</div>
 						<div class="bar big-bar"><div class="fill" data-style-width="(q.frac * 100) + '%'"></div></div>
 					</div>
 				</div>
-				<div class="tip panel flat">
-					<div class="tip-title title small">#fui_quests_how</div>
-					<div class="dim small">#fui_quests_how_body</div>
+
+				<!-- Rewards: counted now, items later. -->
+				<div class="panel rewards in4">
+					<div class="panel-title">#fui_quests_rewards</div>
+					<div class="row reward-counts">
+						<div class="reward-count crate">
+							<span class="crate-icon big"></span>
+							<div class="col"><div class="title count-num">{{ quests.rewards.crate }}</div><div class="dim tiny">#fui_reward_crate</div></div>
+						</div>
+						<div class="reward-count rare_crate">
+							<span class="crate-icon big"></span>
+							<div class="col"><div class="title count-num">{{ quests.rewards.rare_crate }}</div><div class="dim tiny">#fui_reward_rare_crate</div></div>
+						</div>
+					</div>
+					<div class="claim-note small">#fui_quests_claim_later</div>
+					<div class="recent" data-if="quests.rewards.recent.size &gt; 0">
+						<div class="dimmer tiny upper recent-title">#fui_quests_recent</div>
+						<div class="row recent-row" data-for="r, i : quests.rewards.recent" data-if="i &lt; 4">
+							<span data-attr-class="'crate-icon ' + r.kind"></span>
+							<span class="recent-what">{{ ('fui_reward_' + r.kind) | t }}<span data-if="r.n &gt; 1"> ×{{ r.n }}</span></span>
+							<span class="dim grow">· {{ ('fui_reward_src_' + r.src) | t }}</span>
+							<span class="dimmer tiny">{{ 'fui_quests_ago' | t(r.ago | duration) }}</span>
+						</div>
+					</div>
+					<div class="dim small" data-if="quests.rewards.recent.size == 0">#fui_quests_no_rewards</div>
 				</div>
 			</div>
 		</div>

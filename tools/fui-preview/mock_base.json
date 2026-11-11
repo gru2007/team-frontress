@@ -1178,13 +1178,22 @@
   "total": 4,
   "daily": [
    {
-    "key": "d:kills_25",
+    "key": "d:kills_15",
     "kind": "kills",
     "class": "",
-    "target": 25,
-    "progress": 18,
-    "frac": 0.72,
-    "xp": 150,
+    "per": 0,
+    "target": 15,
+    "amount": 15,
+    "text_key": "fui_q_kills",
+    "progress": 11,
+    "frac": 0.7333333333333333,
+    "xp": 120,
+    "reward": "crate",
+    "reward_n": 1,
+    "tier": 1,
+    "slot": 0,
+    "last": 7,
+    "can_reroll": true,
     "done": false,
     "weekly": false,
     "photo": "vgui/contracts/photo_headhunter"
@@ -1193,41 +1202,117 @@
     "key": "d:medic_win",
     "kind": "class_wins",
     "class": "medic",
+    "per": 0,
     "target": 1,
+    "amount": 1,
+    "text_key": "fui_q_class_wins",
     "progress": 1,
     "frac": 1,
     "xp": 200,
+    "reward": "crate",
+    "reward_n": 1,
+    "tier": 2,
+    "slot": 1,
+    "last": 1,
+    "can_reroll": false,
     "done": true,
     "weekly": false,
     "photo": "vgui/contracts/photo_medic1"
    },
    {
-    "key": "d:damage_6000",
-    "kind": "damage",
+    "key": "d:kills_one_15",
+    "kind": "kills",
     "class": "",
-    "target": 6000,
-    "progress": 2380,
-    "frac": 0.4,
-    "xp": 180,
+    "per": 15,
+    "target": 1,
+    "amount": 15,
+    "text_key": "fui_q1_kills",
+    "progress": 0,
+    "frac": 0,
+    "xp": 320,
+    "reward": "crate",
+    "reward_n": 2,
+    "tier": 3,
+    "slot": 2,
+    "last": 0,
+    "can_reroll": true,
     "done": false,
     "weekly": false,
-    "photo": "vgui/contracts/photo_powerhouse1"
+    "photo": "vgui/contracts/photo_headhunter"
    }
   ],
   "weekly": [
    {
-    "key": "w:war_wins_5",
-    "kind": "war_wins",
+    "key": "w:party_wins_5",
+    "kind": "party_wins",
     "class": "",
+    "per": 0,
     "target": 5,
+    "amount": 5,
+    "text_key": "fui_q_party_wins",
     "progress": 3,
     "frac": 0.6,
-    "xp": 900,
+    "xp": 1000,
+    "reward": "rare_crate",
+    "reward_n": 1,
+    "tier": 4,
+    "slot": 3,
+    "last": 1,
+    "can_reroll": false,
     "done": false,
     "weekly": true,
-    "photo": "vgui/contracts/photo_any_cp"
+    "photo": "vgui/contracts/photo_group1"
    }
-  ]
+  ],
+  "rerolls_left": 1,
+  "rerolling": false,
+  "loaded": true,
+  "stale": false,
+  "bonus": {
+   "xp": 150,
+   "reward": "crate",
+   "reward_n": 1,
+   "paid": false,
+   "streak": 3,
+   "streak_every": 7,
+   "streak_next": 4,
+   "streak_reward": "rare_crate"
+  },
+  "rewards": {
+   "total": 6,
+   "crate": 5,
+   "rare_crate": 1,
+   "recent": [
+    {
+     "kind": "crate",
+     "n": 1,
+     "src": "daily",
+     "quest": "medic_win",
+     "ago": 1800
+    },
+    {
+     "kind": "crate",
+     "n": 1,
+     "src": "daily_bonus",
+     "quest": "",
+     "ago": 90000
+    },
+    {
+     "kind": "crate",
+     "n": 2,
+     "src": "daily",
+     "quest": "damage_one_5000",
+     "ago": 92000
+    },
+    {
+     "kind": "rare_crate",
+     "n": 1,
+     "src": "weekly",
+     "quest": "wins_10",
+     "ago": 400000
+    }
+   ]
+  }
  },
  "toasts": [
   {
@@ -2055,7 +2140,165 @@
    "order": "front-4",
    "order_name": "Развязка",
    "order_xp": 50,
-   "bonus": 10
+   "bonus": 10,
+   "week_xp": 1310,
+   "can_invite": true,
+   "invited": [
+    {
+     "id": "76561198000000031",
+     "name": "Heavy Weapons Guy",
+     "ago": 5400,
+     "online": true
+    },
+    {
+     "id": "76561198000000032",
+     "name": "Miss Pauling",
+     "ago": 190000,
+     "online": false
+    }
+   ],
+   "earn": {
+    "match": 20,
+    "win": 10,
+    "together": 50,
+    "contract": 1500
+   },
+   "daily_xp": 437,
+   "max": false,
+   "next": {
+    "xp_left": 2080,
+    "eta": 411554,
+    "wins": 70,
+    "together": 47,
+    "level": 6,
+    "perks": [
+     "roster"
+    ]
+   },
+   "next_perk": {
+    "xp_left": 2080,
+    "eta": 411554,
+    "wins": 70,
+    "together": 47,
+    "id": "roster",
+    "level": 6
+   },
+   "rank": 2,
+   "clans": 5,
+   "gap_up": 21581,
+   "gap_top": 21581,
+   "near": [
+    {
+     "id": "tfc001",
+     "name": "Team Fortress Classic",
+     "tag": "TFC",
+     "motto": "Старая школа",
+     "emblem": "scout",
+     "color": "blu",
+     "open": true,
+     "level": 8,
+     "xp": 29000,
+     "count": 31,
+     "cap": 40,
+     "online": 9,
+     "wins": 214,
+     "battles": 380,
+     "banner": "Развилка",
+     "gold": true,
+     "rank": 1,
+     "me": false,
+     "week_xp": 2140,
+     "gap": 21580
+    },
+    {
+     "id": "rk7q2m",
+     "name": "Ржавые Ключи",
+     "tag": "РК",
+     "motto": "Где ключ — там и раздатчик",
+     "emblem": "engineer",
+     "color": "gold",
+     "open": true,
+     "level": 5,
+     "xp": 7420,
+     "count": 6,
+     "cap": 20,
+     "online": 4,
+     "wins": 61,
+     "battles": 104,
+     "banner": "Литейный завод",
+     "gold": false,
+     "rank": 2,
+     "me": true,
+     "week_xp": 1310,
+     "gap": 0
+    },
+    {
+     "id": "mdc010",
+     "name": "Медицинский корпус",
+     "tag": "MED",
+     "motto": "Убер готов",
+     "emblem": "medic",
+     "color": "red",
+     "open": false,
+     "level": 4,
+     "xp": 4100,
+     "count": 14,
+     "cap": 20,
+     "online": 3,
+     "wins": 40,
+     "battles": 77,
+     "banner": "",
+     "gold": false,
+     "rank": 3,
+     "me": false,
+     "week_xp": 640,
+     "gap": -3320
+    },
+    {
+     "id": "spy777",
+     "name": "Spycrab Society",
+     "tag": "CRAB",
+     "motto": "",
+     "emblem": "spy",
+     "color": "purple",
+     "open": true,
+     "level": 2,
+     "xp": 900,
+     "count": 5,
+     "cap": 20,
+     "online": 1,
+     "wins": 7,
+     "battles": 19,
+     "banner": "",
+     "gold": false,
+     "rank": 4,
+     "me": false,
+     "week_xp": 310,
+     "gap": -6520
+    },
+    {
+     "id": "hvy001",
+     "name": "Сэндвичи",
+     "tag": "SNDV",
+     "motto": "Пушка не стреляет сама",
+     "emblem": "heavy",
+     "color": "green",
+     "open": true,
+     "level": 1,
+     "xp": 120,
+     "count": 2,
+     "cap": 20,
+     "online": 0,
+     "wins": 0,
+     "battles": 3,
+     "banner": "",
+     "gold": false,
+     "rank": 5,
+     "me": false,
+     "week_xp": 120,
+     "gap": -7300
+    }
+   ]
   },
   "invites": [
    {
@@ -2094,7 +2337,10 @@
     "wins": 214,
     "battles": 380,
     "banner": "Развилка",
-    "gold": true
+    "gold": true,
+    "rank": 1,
+    "me": false,
+    "week_xp": 2140
    },
    {
     "id": "rk7q2m",
@@ -2112,7 +2358,10 @@
     "wins": 61,
     "battles": 104,
     "banner": "Литейный завод",
-    "gold": false
+    "gold": false,
+    "rank": 2,
+    "me": true,
+    "week_xp": 1310
    },
    {
     "id": "mdc010",
@@ -2130,7 +2379,10 @@
     "wins": 40,
     "battles": 77,
     "banner": "",
-    "gold": false
+    "gold": false,
+    "rank": 3,
+    "me": false,
+    "week_xp": 640
    },
    {
     "id": "spy777",
@@ -2148,7 +2400,10 @@
     "wins": 7,
     "battles": 19,
     "banner": "",
-    "gold": false
+    "gold": false,
+    "rank": 4,
+    "me": false,
+    "week_xp": 310
    },
    {
     "id": "hvy001",
@@ -2166,7 +2421,68 @@
     "wins": 0,
     "battles": 3,
     "banner": "",
-    "gold": false
+    "gold": false,
+    "rank": 5,
+    "me": false,
+    "week_xp": 120
+   }
+  ],
+  "cands": [
+   {
+    "id": "76561198000000011",
+    "name": "Медведь",
+    "level": 9,
+    "status": "menu",
+    "friend": false,
+    "invited": false
+   },
+   {
+    "id": "76561198000000013",
+    "name": "Spycrab",
+    "level": 21,
+    "status": "queue",
+    "friend": true,
+    "invited": false
+   },
+   {
+    "id": "76561198000000015",
+    "name": "Saxton",
+    "level": 3,
+    "status": "match",
+    "friend": false,
+    "invited": false
+   },
+   {
+    "id": "76561198000000031",
+    "name": "Heavy Weapons Guy",
+    "level": 0,
+    "status": "steam",
+    "friend": true,
+    "invited": true
+   },
+   {
+    "id": "76561198000000033",
+    "name": "Scout",
+    "level": 0,
+    "status": "steam",
+    "friend": true,
+    "invited": false
+   },
+   {
+    "id": "76561198000000032",
+    "name": "Miss Pauling",
+    "level": 0,
+    "status": "offline",
+    "friend": true,
+    "invited": true
+   },
+   {
+    "id": "76561198000000034",
+    "name": "Merasmus",
+    "level": 0,
+    "status": "offline",
+    "friend": true,
+    "invited": false
    }
   ]
  },
@@ -2176,7 +2492,8 @@
   "motto": "",
   "emblem": "engineer",
   "color": "gold",
-  "open": true
+  "open": true,
+  "search": ""
  },
  "support": {
   "offered": true,
@@ -2311,5 +2628,43 @@
  "mute": {
   "players": [],
   "all_comms": false
+ },
+ "region": {
+  "pick": "auto",
+  "max_ms": 180,
+  "list": [
+   {
+    "id": "auto",
+    "name": "",
+    "ms": -1,
+    "ok": true,
+    "measured": false,
+    "on": true
+   },
+   {
+    "id": "ru",
+    "name": "RU/Asia",
+    "ms": 38,
+    "ok": true,
+    "measured": true,
+    "on": false
+   },
+   {
+    "id": "eu",
+    "name": "EU/Germany",
+    "ms": 61,
+    "ok": true,
+    "measured": true,
+    "on": false
+   },
+   {
+    "id": "na",
+    "name": "NA/Canada",
+    "ms": -1,
+    "ok": false,
+    "measured": true,
+    "on": false
+   }
+  ]
  }
 }

@@ -377,12 +377,25 @@ void CTFGCClientSystem::InvalidatePingData()
 
 static void SendDataCenterPings( CMsgGCDataCenterPing_Update &cache )
 {
+	static bool s_bWasConnected = false;
 	if ( !FrontressGC() || !FrontressGC()->BConnected() )
+	{
+		s_bWasConnected = false;
 		return;
+	}
+	// A new session may be a restarted coordinator that has forgotten the
+	// region pick and the pings: send both again.
+	if ( !s_bWasConnected )
+	{
+		s_bWasConnected = true;
+		s_bRegionDirty = true;
+		s_flNextPingSend = 0.0;
+	}
 	const double flNow = Plat_FloatTime();
 	if ( s_bRegionDirty )
 	{
 		// 51020 (the coordinator's region message): JSON in a party chat message.
+		// "ping": this game measures servers when asked (fui_servers.cpp).
 		char szRegion[ 32 ] = "";
 		const char *pszRegion = tf_mm_region.GetString();
 		for ( int i = 0, n = 0; pszRegion[ i ] && n < (int)sizeof( szRegion ) - 1; ++i )
@@ -392,7 +405,7 @@ static void SendDataCenterPings( CMsgGCDataCenterPing_Update &cache )
 				szRegion[ n++ ] = c, szRegion[ n ] = 0;
 		}
 		GCSDK::CProtoBufMsg< CMsgPartyChatMsg > msg( 51020 );
-		msg.Body().set_msg( CFmtStr( "{\"region\":\"%s\"}", V_stricmp( szRegion, "auto" ) ? szRegion : "" ).Get() );
+		msg.Body().set_msg( CFmtStr( "{\"region\":\"%s\",\"ping\":1}", V_stricmp( szRegion, "auto" ) ? szRegion : "" ).Get() );
 		if ( GCClientSystem()->BSendMessage( msg ) )
 			s_bRegionDirty = false;
 	}

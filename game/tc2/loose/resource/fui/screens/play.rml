@@ -30,6 +30,18 @@
 			</div>
 		</div>
 
+		<div id="regions" class="row" data-if="region.list.size > 0">
+			<span class="regions-title">#fui_region</span>
+			<div class="region chip" data-for="r : region.list" data-class-on="r.on" data-class-bad="r.measured && !r.ok"
+				data-event-click="cmd('set_region', r.id)">
+				<span data-if="r.id == 'auto'">#fui_region_auto</span>
+				<span data-if="r.id != 'auto'">{{ r.name }}</span>
+				<span class="region-ms" data-if="r.id != 'auto' && r.ok && r.ms >= 0">{{ r.ms }} #fui_ms</span>
+				<span class="region-ms" data-if="r.id != 'auto' && r.measured && !r.ok">#fui_region_unreachable</span>
+			</div>
+		</div>
+		<div class="dimmer small regions-hint" data-if="region.list.size > 0">#fui_region_hint</div>
+
 		<div id="pool" class="panel" data-if="ui.mode == 'casual' || ui.mode == 'ranked'">
 			<div class="panel-title pool-title">#fui_map_pool</div>
 			<div class="dimmer small pool-hint">#fui_map_pool_hint</div>

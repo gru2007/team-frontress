@@ -95,4 +95,15 @@
 	background-color: #ffc93c;
 }
 .pool-title { margin-bottom: 2dp; }
+
+/* Region picker */
+#regions { align-items: center; gap: 10dp; margin-top: 26dp; width: 1300dp; flex-wrap: wrap; }
+.regions-title { font-family: "TF2 Build"; font-size: 19dp; text-transform: uppercase; margin-right: 6dp; }
+.region { cursor: pointer; border: 2dp #ffffff10; transition: border-color 0.12s cubic-out; }
+.region:hover { border-color: #ece3cb66; }
+.region.on { border-color: #ffc93c; color: #ffc93c; }
+.region.bad { color: #8a7d6a; }
+.region-ms { margin-left: 8dp; color: #8fd16a; font-size: 13dp; }
+.region.bad .region-ms { color: #d0605a; }
+.regions-hint { margin-top: 8dp; }
 .pool-hint { margin-bottom: 14dp; }

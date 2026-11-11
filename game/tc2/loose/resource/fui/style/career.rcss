@@ -40,3 +40,7 @@
 .match-result { width: 140dp; text-align: center; }
 .match-result .title { font-size: 22dp; }
 .match-xp { width: 130dp; text-align: right; }
+
+/* Where the rest of the account lives: mm.team-frontress.org. */
+.site-panel { align-items: center; margin-bottom: 16dp; }
+.site-panel .button { margin-left: 16dp; }

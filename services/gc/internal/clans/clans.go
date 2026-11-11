@@ -99,6 +99,28 @@ func LevelSpan(level int) (from, to int) {
 	return levelXP[level-1], levelXP[level]
 }
 
+// LevelStart is the clan XP a level starts at.
+func LevelStart(level int) int {
+	if level < 1 {
+		level = 1
+	}
+	if level > MaxLevel {
+		level = MaxLevel
+	}
+	return levelXP[level-1]
+}
+
+// NextPerk is the first perk above a level, or nil at the top.
+func NextPerk(level int) *Perk {
+	for _, p := range Perks {
+		if p.Level > level {
+			p := p
+			return &p
+		}
+	}
+	return nil
+}
+
 // Has reports whether a level has a perk.
 func Has(level int, perk string) bool {
 	for _, p := range Perks {
@@ -165,8 +187,26 @@ type Clan struct {
 	Week     int  `json:"week"`
 	Progress int  `json:"progress"`
 	Paid     bool `json:"paid"`
-	// Invites by SteamID, to when they were sent.
+	// Invites by SteamID, to when they were sent. Older than InviteTTL they
+	// no longer count.
 	Invites map[uint64]time.Time `json:"-"`
+}
+
+// InviteTTL is how long an invite stands.
+const InviteTTL = 7 * 24 * time.Hour
+
+// CanInvite reports whether a member of this rank may invite: officers
+// always, anyone in an open clan (a stranger could walk in anyway).
+func (c *Clan) CanInvite(r Role) bool { return r != Soldier || c.Open }
+
+// WeekXP is the clan XP its members earned this week. Right on copies the
+// Store hands out, which drop last week's numbers.
+func (c *Clan) WeekXP() int {
+	n := 0
+	for _, m := range c.Members {
+		n += m.WeekXP
+	}
+	return n
 }
 
 // Level is the clan's level.
@@ -482,7 +522,7 @@ func (s *Store) InvitesFor(id uint64) []*Clan {
 	defer s.mu.Unlock()
 	var out []*Clan
 	for _, c := range s.clans {
-		if _, ok := c.Invites[id]; ok {
+		if s.invitedLocked(c, id) {
 			out = append(out, s.copyLocked(c))
 		}
 	}
@@ -490,8 +530,17 @@ func (s *Store) InvitesFor(id uint64) []*Clan {
 	return out
 }
 
-// Top is the clans, best first: by level, then war wins, then age.
+// Top is the clans, best first: by clan XP, then war wins, then age.
 func (s *Store) Top(n int) []*Clan {
+	out := s.Ranked()
+	if n > 0 && len(out) > n {
+		out = out[:n]
+	}
+	return out
+}
+
+// Ranked is every clan, best first, as Top orders them.
+func (s *Store) Ranked() []*Clan {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := make([]*Clan, 0, len(s.clans))
@@ -505,11 +554,11 @@ func (s *Store) Top(n int) []*Clan {
 		if out[i].Wins != out[j].Wins {
 			return out[i].Wins > out[j].Wins
 		}
-		return out[i].Created.Before(out[j].Created)
+		if !out[i].Created.Equal(out[j].Created) {
+			return out[i].Created.Before(out[j].Created)
+		}
+		return out[i].ID < out[j].ID
 	})
-	if n > 0 && len(out) > n {
-		out = out[:n]
-	}
 	return out
 }
 
@@ -543,6 +592,11 @@ func (s *Store) Count() int {
 	return len(s.clans)
 }
 
+func (s *Store) invitedLocked(c *Clan, id uint64) bool {
+	at, ok := c.Invites[id]
+	return ok && s.now().Sub(at) < InviteTTL
+}
+
 func (s *Store) copyLocked(c *Clan) *Clan {
 	if c == nil {
 		return nil
@@ -562,7 +616,9 @@ func (s *Store) copyLocked(c *Clan) *Clan {
 	}
 	out.Invites = make(map[uint64]time.Time, len(c.Invites))
 	for k, v := range c.Invites {
-		out.Invites[k] = v
+		if s.now().Sub(v) < InviteTTL {
+			out.Invites[k] = v
+		}
 	}
 	if c.Week != Week(s.now()) {
 		out.Week, out.Progress, out.Paid = Week(s.now()), 0, false
@@ -683,7 +739,7 @@ func (s *Store) Join(id uint64, name, clan string) error {
 	if c == nil {
 		return ErrNoClan
 	}
-	if _, invited := c.Invites[id]; !c.Open && !invited {
+	if !c.Open && !s.invitedLocked(c, id) {
 		return ErrClosed
 	}
 	if len(c.Members) >= c.Cap() {
@@ -775,7 +831,8 @@ func (s *Store) SetRole(by, who uint64, role Role) error {
 	return nil
 }
 
-// Invite lets a player into a closed clan. Officers and the leader can.
+// Invite lets a player into the clan, closed or not. Officers can, and in an
+// open clan anyone (see CanInvite).
 func (s *Store) Invite(by, who uint64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -783,8 +840,14 @@ func (s *Store) Invite(by, who uint64) error {
 	if c == nil {
 		return ErrNotInClan
 	}
-	if me.Role == Soldier {
+	if !c.CanInvite(me.Role) {
 		return ErrRank
+	}
+	if by == who {
+		return ErrSelf
+	}
+	if who == 0 {
+		return ErrNotMember
 	}
 	if s.of[who] != "" {
 		return ErrInClan
@@ -793,6 +856,23 @@ func (s *Store) Invite(by, who uint64) error {
 		return ErrFull
 	}
 	s.write(event{Type: evInvite, Clan: c.ID, By: by, Who: who})
+	return nil
+}
+
+// Uninvite takes back an invite the clan sent. Whoever may invite may.
+func (s *Store) Uninvite(by, who uint64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, me := s.memberLocked(by)
+	if c == nil {
+		return ErrNotInClan
+	}
+	if !c.CanInvite(me.Role) {
+		return ErrRank
+	}
+	if _, ok := c.Invites[who]; ok {
+		s.write(event{Type: evUninvite, Clan: c.ID, By: by, Who: who})
+	}
 	return nil
 }
 

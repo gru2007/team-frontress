@@ -291,6 +291,7 @@
 	color: #ece3cb;
 }
 .line.mine { background-color: #ffc93c0d; }
+.line.pending { opacity: 0.6; }
 .l-time { font-size: 11dp; color: #6a5f50; margin-right: 6dp; }
 .l-tag {
 	font-family: "TF2 Build";

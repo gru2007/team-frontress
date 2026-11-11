@@ -20,6 +20,7 @@
 #include "../game/shared/tf/tf_gamestats_shared.h"
 #include "tf_hud_playerstatus.h"
 #include "tf_hud_arena_class_layout.h"
+#include "frontress/fui_paint.h"
 
 using namespace vgui;
 
@@ -42,6 +43,8 @@ class CTFStatPanel : public EditablePanel, public CHudElement
 {
 private:
 	DECLARE_CLASS_SIMPLE( CTFStatPanel, EditablePanel );
+	FRONTRESS_HUD_PAINTS( "notices" )	// shown as a notice by the Frontress HUD
+private:
 
 public:
 	CTFStatPanel( const char *pElementName );

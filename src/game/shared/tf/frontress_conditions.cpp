@@ -20,6 +20,11 @@
 
 // "lowgrav,nocrits": what this battle is fought under.
 ConVar tf_war_conditions( "tf_war_conditions", "", FCVAR_REPLICATED | FCVAR_HIDDEN, "The war battle's conditions (set by the server from the coordinator)." );
+// Respawn wave length a condition imposes ("longwaves", "quickwaves"), in
+// seconds; -1 leaves it to the map and mp_respawnwavetime. Most maps set their
+// own team wave times, which mp_respawnwavetime cannot override; this does
+// (CTeamplayRoundBasedRules::GetRespawnWaveMaxLength).
+ConVar tf_war_respawnwave( "tf_war_respawnwave", "-1", FCVAR_REPLICATED | FCVAR_HIDDEN, "Respawn wave length a war battle condition imposes, in seconds (-1: the map's)." );
 // "<stage>|<stages>|<kind>|<attacker side>|<attacker team>|<order>|<sector>"
 ConVar tf_war_battle( "tf_war_battle", "", FCVAR_REPLICATED | FCVAR_HIDDEN, "The war battle being fought (set by the server from the coordinator)." );
 

@@ -26,7 +26,7 @@ func TestMatchResultCreditsEveryKind(t *testing.T) {
 	warQuest := ""
 	for warQuest == "" {
 		now = now.Add(24 * time.Hour)
-		for _, q := range quests.For(winner, now) {
+		for _, q := range quests.For(winner, now, nil) {
 			if q.Kind == quests.WarWins {
 				warQuest = q.Key
 			}

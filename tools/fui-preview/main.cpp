@@ -329,6 +329,33 @@ public:
 			runtime->Set( "clan.has", Node( true ) );
 		else if ( name == "clan_settings" )
 			runtime->Set( "ui.modal", Node( "" ) );
+		else if ( ( name == "clan_invite" || name == "clan_uninvite" ) && !args.empty() )
+		{
+			// The coordinator would answer with the invite listed (or gone).
+			const bool bInvite = name == "clan_invite";
+			if ( fui::Node *pCands = runtime->Get( "clan.cands" ) )
+			{
+				fui::Node cands = pCands->Clone();
+				for ( size_t i = 0; i < cands.Size(); ++i )
+				{
+					if ( cands.At( i )->Find( "id" )->AsString() == args[ 0 ] )
+						( *cands.At( i ) )[ "invited" ] = bInvite;
+				}
+				runtime->Set( "clan.cands", std::move( cands ) );
+			}
+			if ( !bInvite )
+			{
+				fui::Node *pInvited = runtime->Get( "clan.c.invited" );
+				fui::Node kept;
+				kept.SetArray();
+				for ( size_t i = 0; pInvited && i < pInvited->Size(); ++i )
+				{
+					if ( pInvited->At( i )->Find( "id" )->AsString() != args[ 0 ] )
+						kept.Append( pInvited->At( i )->Clone() );
+				}
+				runtime->Set( "clan.c.invited", std::move( kept ) );
+			}
+		}
 		else if ( name == "hud_style" && !args.empty() )
 			runtime->Set( "settings.hud_style", Node( args[ 0 ] ) );
 		else if ( name == "unqueue" )

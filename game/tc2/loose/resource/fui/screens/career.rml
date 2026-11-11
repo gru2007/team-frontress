@@ -26,6 +26,14 @@
 			<div class="big-stat"><div class="num">{{ career.mvp }}</div><div class="dim tiny upper">#fui_career_mvp</div></div>
 		</div>
 
+		<div class="panel site-panel row">
+			<div class="col grow">
+				<div class="panel-title">#fui_site_title</div>
+				<div class="dim small">#fui_site_hint</div>
+			</div>
+			<div class="button primary" sfx="" data-event-click="cmd('open_site', 'profile')">#fui_site_open</div>
+		</div>
+
 		<div class="row cols">
 			<div class="col left">
 				<div class="panel">

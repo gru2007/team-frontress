@@ -963,6 +963,8 @@ $Project "Client (TF)"
 				$File	"$SRCDIR\game\client\tf\frontress\fui_ingame.h"
 				$File	"$SRCDIR\game\client\tf\frontress\fui_social.cpp"
 				$File	"$SRCDIR\game\client\tf\frontress\fui_social.h"
+				$File	"$SRCDIR\game\client\tf\frontress\fui_servers.cpp"
+				$File	"$SRCDIR\game\client\tf\frontress\fui_servers.h"
 			}
 
 			$Folder	"Matchmaking (stock)"

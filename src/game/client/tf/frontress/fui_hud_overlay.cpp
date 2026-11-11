@@ -24,6 +24,7 @@
 
 #include "fui_hud.h"
 #include "fui_host.h"
+#include "baseviewport.h"
 #include "iclientmode.h"
 #include "ienginevgui.h"
 #include "tf/frontress_uniform.h"
@@ -605,6 +606,7 @@ void WriteNotices( Node &out )
 		{ "CHudNotificationPanel", "notify" },
 		{ "CStrandedSpawnPanel", "notify" },
 		{ "CTFStreakNotice", "streak" },
+		{ "CTFStatPanel", "record" },
 	};
 	for ( const auto &notice : s_Notices )
 	{
@@ -936,6 +938,31 @@ void FuiHudOverlayUpdate( fui::Runtime &runtime, Node &hud )
 	// The chat field takes the keyboard once it is on screen.
 	if ( s_bChatFocus && runtime.FocusHud( "say" ) )
 		s_bChatFocus = false;
+}
+
+//-----------------------------------------------------------------------------
+// Stock viewport panels that opened before the HUD could say it draws them
+// (joining, a map change): asked to show again, they go through the hooks
+// (FuiHudShowSpectator, FuiHudShowScores) and hide.
+//-----------------------------------------------------------------------------
+void FuiHudOverlayHideStock()
+{
+	if ( !gViewPortInterface || IsMvM() )
+		return;
+	static const struct
+	{
+		const char *pszPanel;
+		const char *pszPart;
+	} s_Panels[] = {
+		{ PANEL_SPECGUI, "spectator" },
+		{ PANEL_SCOREBOARD, "scoreboard" },
+	};
+	for ( const auto &p : s_Panels )
+	{
+		IViewPortPanel *pPanel = gViewPortInterface->FindPanelByName( p.pszPanel );
+		if ( pPanel && pPanel->IsVisible() && FrontressHudReplaces( p.pszPart ) )
+			gViewPortInterface->ShowPanel( pPanel, true );
+	}
 }
 
 void FuiHudOverlayReset()

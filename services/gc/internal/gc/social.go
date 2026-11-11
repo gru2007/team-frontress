@@ -82,6 +82,7 @@ type socialOp struct {
 	Order  string `json:"order"`
 	Status string `json:"status"`
 	OK     bool   `json:"ok"`
+	Slot   int    `json:"slot"`
 }
 
 func init() {
@@ -112,6 +113,10 @@ func (g *GC) handleSocial(id uint64, op socialOp) {
 		g.presenceAt = time.Time{} // push now
 	case "presence":
 		g.sendPresence(id)
+	case "quests":
+		g.sendQuests(id)
+	case "quest_reroll":
+		g.rerollQuest(id, op.Slot)
 	default:
 		if strings.HasPrefix(op.Op, "clan_") {
 			g.handleClan(id, op)
@@ -171,6 +176,7 @@ func (g *GC) hello(id uint64, op socialOp) {
 	g.sendSupportSummary(id)
 	g.sendFaction(id)
 	g.sendReportFeedback(id)
+	g.sendQuests(id)
 }
 
 // --- chat --------------------------------------------------------------------

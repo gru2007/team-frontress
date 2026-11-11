@@ -13,7 +13,7 @@
 	<div id="tracker" data-if="quests.total > 0 && quests.done < quests.total">
 		<div class="tracker-title">#fui_tab_quests <span class="dimmer">{{ quests.done }}/{{ quests.total }}</span></div>
 		<div class="track" data-for="q : quests.daily" data-if="!q.done">
-			<div class="track-text">{{ ('fui_q_' + q.kind) | t(q.target, '#fui_class_' + q.class) }}</div>
+			<div class="track-text">{{ q.text_key | t(q.amount, '#fui_class_' + q.class) }}</div>
 			<div class="row">
 				<div class="bar grow"><div class="fill" data-style-width="(q.frac * 100) + '%'"></div></div>
 				<div class="track-count">{{ q.progress | thousands }}/{{ q.target | thousands }}</div>

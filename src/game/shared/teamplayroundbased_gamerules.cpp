@@ -1698,7 +1698,16 @@ void CTeamplayRoundBasedRules::State_Enter_PREROUND( void )
 		gameeventmanager->FireEvent( event );
 	}
 
-	if ( IsInArenaMode() )
+	// Team Frontress: a matchmade arena match (ready-status mode) readies up
+	// between rounds like every other match first. The arena preround below
+	// has no ready-up, so in tournament mode it would never leave "waiting
+	// for players" and nobody would ever spawn.
+	bool bReadyUpFirst = false;
+#ifdef TF_DLL
+	bReadyUpFirst = TFGameRules() && TFGameRules()->UsePlayerReadyStatusMode() && m_bAllowBetweenRounds;
+#endif
+
+	if ( IsInArenaMode() && !bReadyUpFirst )
 	{
 		if ( BHavePlayers() )
 		{
@@ -4324,6 +4333,16 @@ float CTeamplayRoundBasedRules::GetRespawnWaveMaxLength( int iTeam, bool bScaleW
 #endif
 
 	float flTime = ( ( m_TeamRespawnWaveTimes[iTeam] >= 0 ) ? m_TeamRespawnWaveTimes[iTeam] : mp_respawnwavetime.GetFloat() );
+
+#if defined( TF_DLL ) || defined( TF_CLIENT_DLL )
+	// Team Frontress: a war battle's respawn condition beats the map's own
+	// team wave times (frontress_cond_longwaves.cfg / quickwaves.cfg).
+	static ConVarRef tf_war_respawnwave( "tf_war_respawnwave" );
+	if ( tf_war_respawnwave.IsValid() && tf_war_respawnwave.GetFloat() >= 0.f )
+	{
+		flTime = tf_war_respawnwave.GetFloat();
+	}
+#endif
 
 	// For long respawn times, scale the time as the number of players drops
 	if ( bScaleWithNumPlayers && flTime > 5 )

@@ -169,6 +169,9 @@
 				<div class="set-tile" sfx="" data-event-click="cmd('classic', 'console')">
 					<div class="set-title">#fui_set_console</div><div class="dim tiny">#fui_set_console_d</div>
 				</div>
+				<div class="set-tile" sfx="" data-event-click="cmd('open_site', 'profile')">
+					<div class="set-title">#fui_site</div><div class="dim tiny">#fui_site_d</div>
+				</div>
 
 			</div>
 			<div class="set-tile" sfx="" data-event-click="cmd('toggle_menu_3d')">

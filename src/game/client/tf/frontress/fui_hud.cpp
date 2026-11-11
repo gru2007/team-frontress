@@ -698,6 +698,52 @@ void WriteObjective( Node &hud )
 } // namespace
 
 //-----------------------------------------------------------------------------
+// The HUD document's <body data-replaces="...">, read from its file (and read
+// again when it changes, for fui_hot_reload).
+//-----------------------------------------------------------------------------
+static void ReadReplaces()
+{
+	static CUtlString s_strPath;
+	static long s_nTime = -1;
+	static float s_flNextCheck = 0.f;
+	const char *pszDoc = FuiHudDocument();
+	if ( s_Replaces.Count() && !V_strcmp( s_strPath, pszDoc ) && Plat_FloatTime() < s_flNextCheck )
+		return;
+	s_flNextCheck = (float)Plat_FloatTime() + 2.f;
+	CFmtStr path( "resource/fui/%s", pszDoc );
+	const long nTime = g_pFullFileSystem->GetFileTime( path, "GAME" );
+	if ( s_Replaces.Count() && !V_strcmp( s_strPath, pszDoc ) && nTime == s_nTime )
+		return;
+	s_strPath = pszDoc;
+	s_nTime = nTime;
+	s_Replaces.PurgeAndDeleteElements();
+
+	CUtlBuffer buf( 0, 0, CUtlBuffer::TEXT_BUFFER );
+	if ( !g_pFullFileSystem->ReadFile( path, "GAME", buf ) )
+		return;
+	buf.PutChar( 0 );
+	const char *pszText = (const char *)buf.Base();
+	const char *pszBody = V_strstr( pszText, "<body" );
+	const char *pszEnd = pszBody ? V_strstr( pszBody, ">" ) : NULL;
+	const char *pszAttr = pszBody ? V_strstr( pszBody, "data-replaces=\"" ) : NULL;
+	if ( !pszAttr || !pszEnd || pszAttr > pszEnd )
+		return;
+	pszAttr += V_strlen( "data-replaces=\"" );
+	const char *pszClose = V_strstr( pszAttr, "\"" );
+	if ( !pszClose )
+		return;
+	CUtlString words;
+	words.SetDirect( pszAttr, pszClose - pszAttr );
+	CUtlStringList parts;
+	V_SplitString( words, " ", parts );
+	for ( int i = 0; i < parts.Count(); ++i )
+	{
+		if ( parts[ i ][ 0 ] )
+			s_Replaces.CopyAndAddToTail( parts[ i ] );
+	}
+}
+
+//-----------------------------------------------------------------------------
 const char *FuiHudDocument()
 {
 	static CUtlString s_strPath;
@@ -725,7 +771,7 @@ void FuiHudUpdate( fui::Runtime &runtime, bool bShown )
 {
 	s_KillFeed.Listen();
 	C_TFPlayer *pPlayer = C_TFPlayer::GetLocalTFPlayer();
-	if ( !engine->IsInGame() || !pPlayer )
+	if ( !engine->IsInGame() || !pPlayer || engine->IsLevelMainMenuBackground() )
 	{
 		s_Replaces.PurgeAndDeleteElements();
 		s_KillFeed.Clear();
@@ -733,14 +779,11 @@ void FuiHudUpdate( fui::Runtime &runtime, bool bShown )
 		return;
 	}
 
-	// What the HUD document draws itself: kept for the whole match, so the
-	// stock parts do not flash back while a menu is open over it.
-	if ( runtime.IsHud() )
-	{
-		const std::string replaces = runtime.HudAttribute( "data-replaces" );
-		s_Replaces.PurgeAndDeleteElements();
-		V_SplitString( replaces.c_str(), " ", s_Replaces );
-	}
+	// What the HUD document draws itself, from the moment the match starts:
+	// read off its file, so the stock parts stay hidden under the team and
+	// class select too, before the HUD itself is ever shown.
+	ReadReplaces();
+	FuiHudOverlayHideStock();
 
 	if ( !bShown || Plat_FloatTime() < s_flNextRefresh )
 		return;

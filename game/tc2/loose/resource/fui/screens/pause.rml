@@ -75,7 +75,7 @@
 			<div class="panel-title">#fui_quests_today</div>
 			<div class="mini-quest" data-for="q : quests.daily" data-class-done="q.done">
 				<div class="row">
-					<div class="grow small">{{ ('fui_q_' + q.kind) | t(q.target, '#fui_class_' + q.class) }}</div>
+					<div class="grow small">{{ q.text_key | t(q.amount, '#fui_class_' + q.class) }}</div>
 					<div class="tiny dim">{{ q.progress | thousands }}/{{ q.target | thousands }}</div>
 				</div>
 				<div class="bar"><div class="fill" data-style-width="(q.frac * 100) + '%'"></div></div>

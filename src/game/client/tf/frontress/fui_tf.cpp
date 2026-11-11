@@ -17,6 +17,7 @@
 #include "fui_stage.h"
 #include "fui_host.h"
 #include "fui_social.h"
+#include "fui_servers.h"
 #include "fui_hud.h"
 #include "fui_ingame.h"
 
@@ -33,6 +34,8 @@
 #include "filesystem.h"
 #include "steam/steam_api.h"
 #include "vgui/ILocalize.h"
+#include "vgui/ISystem.h"
+#include "vgui_controls/Controls.h"
 #include "c_team.h"
 #include "c_tf_team.h"
 #include "c_tf_player.h"
@@ -60,6 +63,31 @@ const float k_flToastSeconds = 6.0f;
 
 ConVar fui_fake_party( "fui_fake_party", "0", FCVAR_NONE, "Fill the menu's party with this many made-up members (0-5), to work on the lobby alone." );
 ConVar fui_fake_skins( "fui_fake_skins", "1", FCVAR_NONE, "Made-up party members (fui_fake_party) wear war paints, unusual effects and paint, to check how skins draw." );
+ConVar tf_frontress_site_url( "tf_frontress_site_url", "https://mm.team-frontress.org", FCVAR_NONE,
+	"The Frontress website: match history, scoreboards, your account and its standing." );
+
+// Opens the Frontress website in the Steam overlay, or in the browser when the
+// overlay is off. "profile" goes to the player's own page.
+static void OpenFrontressSite( const std::string &where )
+{
+	std::string url = tf_frontress_site_url.GetString();
+	while ( !url.empty() && url.back() == '/' )
+		url.pop_back();
+	if ( url.rfind( "https://", 0 ) != 0 && url.rfind( "http://", 0 ) != 0 )
+		return;
+	if ( where == "profile" && steamapicontext && steamapicontext->SteamUser() )
+		url += "/players/" + std::to_string( steamapicontext->SteamUser()->GetSteamID().ConvertToUint64() );
+	if ( steamapicontext && steamapicontext->SteamFriends() && steamapicontext->SteamUtils() &&
+		steamapicontext->SteamUtils()->IsOverlayEnabled() )
+		steamapicontext->SteamFriends()->ActivateGameOverlayToWebPage( url.c_str() );
+	else
+		vgui::system()->ShellExecute( "open", url.c_str() );
+}
+
+CON_COMMAND( frontress_site, "Open the Frontress website (mm.team-frontress.org). frontress_site profile opens your own page." )
+{
+	OpenFrontressSite( args.ArgC() > 1 ? args[ 1 ] : "" );
+}
 
 std::string UTF8( const wchar_t *pwsz )
 {
@@ -295,9 +323,16 @@ struct CFuiTF::Impl
 	float flNextLookSend = 0.f;
 	double flLastLookSend = 0.;
 
+	// Quests come pushed by the coordinator after every match, and polled
+	// as a fallback; the newest copy (by its stamp) wins.
 	CFuiFetch quests;
 	std::set< std::string > questsDone;		// keys already finished, for toasts
 	bool bQuestsKnown = false;
+	bool bQuestBonusPaid = false;
+	double flQuestStamp = 0.;				// the coordinator's clock on the copy shown
+	double flQuestsAt = 0.;					// when it came (Plat_FloatTime)
+	double flDailyLeft = 0., flWeeklyLeft = 0.;	// seconds left, as of flQuestsAt
+	double flRerollSent = 0.;
 
 	std::set< uint64 > partySeen;			// members already greeted, for toasts
 	bool bPartyKnown = false;
@@ -324,6 +359,7 @@ struct CFuiTF::Impl
 	void RefreshSettings();
 	void FakeParty( std::vector< CSteamID > &members );
 	void RefreshQuests( Node &doc );
+	void TickQuests();
 	void RefreshHistory( const Node &doc, const CSteamID &owner );
 	void RefreshMatch();
 	void RefreshToasts();
@@ -1126,13 +1162,17 @@ void FuiOnPartyLooks( const char *pszJSON )
 static const char *QuestPhoto( const std::string &kind, const std::string &cls )
 {
 	static std::string s_Photo;
-	if ( kind == "class_wins" && !cls.empty() )
+	if ( ( kind == "class_wins" || kind == "class_play" ) && !cls.empty() )
 	{
 		s_Photo = "vgui/contracts/photo_" + ( cls == "demoman" ? std::string( "demo" ) : cls ) + "1";
 		return s_Photo.c_str();
 	}
-	if ( kind == "kills" )
+	if ( kind == "kills" || kind == "positive_kd" )
 		return "vgui/contracts/photo_headhunter";
+	if ( kind == "party_wins" || kind == "clan_matches" )
+		return "vgui/contracts/photo_group1";
+	if ( kind == "medals" || kind == "gold_medals" )
+		return "vgui/contracts/photo_powerhouse1";
 	if ( kind == "war_wins" )
 		return "vgui/contracts/photo_any_cp";
 	if ( kind == "healing" )
@@ -1144,8 +1184,40 @@ static const char *QuestPhoto( const std::string &kind, const std::string &cls )
 	return "vgui/contracts/photo_play_any_class";
 }
 
+static double QNum( const Node *p, const char *pszKey, double flDefault = 0.0 )
+{
+	const Node *v = p ? p->Find( pszKey ) : nullptr;
+	return v ? v->AsNumber( flDefault ) : flDefault;
+}
+
+static std::string QStr( const Node *p, const char *pszKey )
+{
+	const Node *v = p ? p->Find( pszKey ) : nullptr;
+	return v ? v->AsString() : std::string();
+}
+
+static bool QBool( const Node *p, const char *pszKey )
+{
+	const Node *v = p ? p->Find( pszKey ) : nullptr;
+	return v && v->AsBool();
+}
+
 void CFuiTF::Impl::RefreshQuests( Node &doc )
 {
+	// A poll that left before a push may land after it: keep the newest.
+	const double flStamp = QNum( &doc, "stamp" );
+	if ( flStamp > 0. && flStamp < flQuestStamp )
+		return;
+	flQuestStamp = flStamp;
+	flQuestsAt = Plat_FloatTime();
+	flDailyLeft = QNum( &doc, "daily_left" );
+	flWeeklyLeft = QNum( &doc, "weekly_left" );
+	flRerollSent = 0.;
+
+	auto rewardText = [ this ]( const std::string &kind, int n ) {
+		return pRuntime->Translate( "fui_reward_" + kind ) + ( n > 1 ? " \xC3\x97" + std::to_string( n ) : std::string() );
+	};
+
 	Node out;
 	int nDone = 0, nTotal = 0;
 	for ( const char *pszList : { "daily", "weekly" } )
@@ -1155,39 +1227,132 @@ void CFuiTF::Impl::RefreshQuests( Node &doc )
 		const Node *pIn = doc.Find( pszList );
 		for ( size_t i = 0; pIn && i < pIn->Size(); ++i )
 		{
-			const Node &q = *pIn->At( i );
+			const Node *q = pIn->At( i );
 			Node &e = list.Append();
-			const std::string kind = q.Find( "kind" ) ? q.Find( "kind" )->AsString() : "";
-			const std::string cls = q.Find( "class" ) ? q.Find( "class" )->AsString() : "";
-			const double target = q.Find( "target" ) ? MAX( 1.0, q.Find( "target" )->AsNumber() ) : 1.0;
-			const double progress = q.Find( "progress" ) ? q.Find( "progress" )->AsNumber() : 0.0;
-			const bool bDone = q.Find( "done" ) && q.Find( "done" )->AsBool();
-			const std::string key = q.Find( "key" ) ? q.Find( "key" )->AsString() : "";
+			const std::string kind = QStr( q, "kind" );
+			const std::string cls = QStr( q, "class" );
+			const double target = MAX( 1.0, QNum( q, "target", 1.0 ) );
+			const double progress = QNum( q, "progress" );
+			const bool bDone = QBool( q, "done" );
+			const std::string key = QStr( q, "key" );
+			const std::string reward = QStr( q, "reward" );
+			const int nReward = (int)QNum( q, "reward_n" );
 			e[ "key" ] = key;
 			e[ "kind" ] = kind;
 			e[ "class" ] = cls;
+			e[ "per" ] = QNum( q, "per" );
+			// The card's line: "in one match" quests and repeated class wins
+			// read differently. %1 is the amount, %2 the class.
+			const double per = QNum( q, "per" );
+			if ( per > 0 )
+				e[ "text_key" ] = "fui_q1_" + kind;
+			else if ( kind == "class_wins" && target > 1 )
+				e[ "text_key" ] = "fui_q_class_wins_n";
+			else
+				e[ "text_key" ] = "fui_q_" + kind;
+			e[ "amount" ] = per > 0 ? per : target;
 			e[ "target" ] = target;
 			e[ "progress" ] = progress;
 			e[ "frac" ] = clamp( progress / target, 0.0, 1.0 );
-			e[ "xp" ] = q.Find( "xp" ) ? q.Find( "xp" )->AsNumber() : 0.0;
+			e[ "xp" ] = QNum( q, "xp" );
+			e[ "reward" ] = reward;
+			e[ "reward_n" ] = nReward;
+			e[ "tier" ] = QNum( q, "tier" );
+			e[ "slot" ] = QNum( q, "slot" );
+			e[ "last" ] = QNum( q, "last" );
+			e[ "can_reroll" ] = QBool( q, "can_reroll" );
 			e[ "done" ] = bDone;
 			e[ "weekly" ] = !V_strcmp( pszList, "weekly" );
 			e[ "photo" ] = QuestPhoto( kind, cls );
 			++nTotal;
 			nDone += bDone;
 			if ( bDone && bQuestsKnown && !questsDone.count( key ) )
-				Toast( "quest", pRuntime->Translate( "fui_toast_quest" ), "+" + std::to_string( (int)e[ "xp" ].AsNumber() ) + " XP", std::string( "tex:" ) + QuestPhoto( kind, cls ) );
+			{
+				std::string body = "+" + std::to_string( (int)e[ "xp" ].AsNumber() ) + " XP";
+				if ( !reward.empty() && nReward > 0 )
+					body += " \xC2\xB7 " + rewardText( reward, nReward );
+				Toast( "quest", pRuntime->Translate( "fui_toast_quest" ), body, std::string( "tex:" ) + QuestPhoto( kind, cls ) );
+			}
 			if ( bDone )
 				questsDone.insert( key );
 		}
 		out[ pszList ].Assign( std::move( list ) );
 	}
+
+	// The day's bonus and the streak.
+	const Node *pBonus = doc.Find( "bonus" );
+	Node &bonus = out[ "bonus" ];
+	bonus[ "xp" ] = QNum( pBonus, "xp" );
+	bonus[ "reward" ] = QStr( pBonus, "reward" );
+	bonus[ "reward_n" ] = QNum( pBonus, "reward_n" );
+	bonus[ "paid" ] = QBool( pBonus, "paid" );
+	bonus[ "streak" ] = QNum( pBonus, "streak" );
+	bonus[ "streak_every" ] = QNum( pBonus, "streak_every", 7.0 );
+	bonus[ "streak_next" ] = QNum( pBonus, "streak_next" );
+	bonus[ "streak_reward" ] = QStr( pBonus, "streak_reward" );
+	if ( QBool( pBonus, "paid" ) && bQuestsKnown && !bQuestBonusPaid )
+		Toast( "quest", pRuntime->Translate( "fui_toast_quest_bonus" ), "+" + std::to_string( (int)QNum( pBonus, "xp" ) ) + " XP \xC2\xB7 " + rewardText( QStr( pBonus, "reward" ), (int)QNum( pBonus, "reward_n" ) ), "" );
+	bQuestBonusPaid = QBool( pBonus, "paid" );
+
+	// Rewards waiting for the day items can be claimed.
+	const Node *pRewards = doc.Find( "rewards" );
+	const Node *pCounts = pRewards ? pRewards->Find( "counts" ) : nullptr;
+	Node &rewards = out[ "rewards" ];
+	rewards[ "total" ] = QNum( pRewards, "total" );
+	rewards[ "crate" ] = QNum( pCounts, "crate" );
+	rewards[ "rare_crate" ] = QNum( pCounts, "rare_crate" );
+	Node &recent = rewards[ "recent" ];
+	recent.SetArray();
+	const Node *pRecent = pRewards ? pRewards->Find( "recent" ) : nullptr;
+	for ( size_t i = 0; pRecent && i < pRecent->Size(); ++i )
+		recent.Append( pRecent->At( i )->Clone() );
+
 	bQuestsKnown = true;
-	out[ "daily_left" ] = doc.Find( "daily_left" ) ? doc.Find( "daily_left" )->AsNumber() : 0.0;
-	out[ "weekly_left" ] = doc.Find( "weekly_left" ) ? doc.Find( "weekly_left" )->AsNumber() : 0.0;
+	out[ "daily_left" ] = flDailyLeft;
+	out[ "weekly_left" ] = flWeeklyLeft;
+	out[ "rerolls_left" ] = QNum( &doc, "rerolls_left" );
+	out[ "rerolling" ] = false;
+	out[ "loaded" ] = true;
+	out[ "stale" ] = false;
 	out[ "done" ] = nDone;
 	out[ "total" ] = nTotal;
 	pRuntime->Set( "quests", std::move( out ) );
+}
+
+// Between copies the clocks keep running; a copy gone stale is said so, and
+// a new day asks for its quests at once.
+void CFuiTF::Impl::TickQuests()
+{
+	if ( flQuestsAt <= 0. )
+		return;
+	const double flAge = Plat_FloatTime() - flQuestsAt;
+	const double flDaily = MAX( 0.0, flDailyLeft - flAge );
+	pRuntime->Set( "quests.daily_left", Node( flDaily ) );
+	pRuntime->Set( "quests.weekly_left", Node( MAX( 0.0, flWeeklyLeft - flAge ) ) );
+	pRuntime->Set( "quests.stale", Node( flAge > 3.0 * k_flQuestPoll + 10.0 ) );
+	if ( flDaily <= 0. && flAge < 3600. )
+	{
+		quests.Soon();
+		flDailyLeft = flAge + 60.0;	// ask once a minute until the new day's copy comes
+	}
+	// A swap the coordinator never answered (or turned down) frees the button.
+	const Node *pRerolling = pRuntime->Get( "quests.rerolling" );
+	if ( pRerolling && pRerolling->AsBool() )
+	{
+		if ( flRerollSent <= 0. )
+			flRerollSent = Plat_FloatTime();
+		else if ( Plat_FloatTime() - flRerollSent > 6.0 )
+		{
+			flRerollSent = 0.;
+			pRuntime->Set( "quests.rerolling", Node( false ) );
+		}
+	}
+}
+
+void CFuiTF::OnQuests( Node &doc )
+{
+	if ( m_pImpl && m_pImpl->pRuntime )
+		m_pImpl->RefreshQuests( doc );
 }
 
 //-----------------------------------------------------------------------------
@@ -1489,6 +1654,8 @@ void CFuiTF::Update( fui::Runtime &runtime, bool bShown )
 		Attach( runtime );
 	Impl &d = *m_pImpl;
 
+	FuiSocialPump( runtime, bShown );
+
 	const float flNow = (float)Plat_FloatTime();
 	if ( flNow < d.flNextRefresh )
 		return;
@@ -1497,6 +1664,7 @@ void CFuiTF::Update( fui::Runtime &runtime, bool bShown )
 	d.RefreshQueue();
 	d.RefreshMatch();
 	FuiSocialUpdate( runtime, bShown );
+	FuiServersUpdate( runtime );
 	d.RefreshToasts();
 
 	// Quests show in the HUD too, so they are kept fresh in a match.
@@ -1506,6 +1674,7 @@ void CFuiTF::Update( fui::Runtime &runtime, bool bShown )
 	Node questDoc;
 	if ( d.quests.Take( questDoc ) )
 		d.RefreshQuests( questDoc );
+	d.TickQuests();
 	d.SendOwnLook();
 
 	if ( !bShown )
@@ -1598,6 +1767,8 @@ void CFuiTF::OnCommand( const std::string &name, const std::vector< std::string 
 	const std::string arg = args.empty() ? std::string() : args[ 0 ];
 
 	if ( FuiSocialCommand( ui, name, args ) )
+		return;
+	if ( FuiServersCommand( ui, name, args ) )
 		return;
 	if ( FuiHudCommand( ui, name, args ) )
 		return;
@@ -1739,6 +1910,8 @@ void CFuiTF::OnCommand( const std::string &name, const std::vector< std::string 
 			ui.Set( "settings.hud_style", Node( style ) );
 		}
 	}
+	else if ( name == "open_site" )
+		OpenFrontressSite( arg );
 	else if ( name == "quit" )
 		engine->ClientCmd_Unrestricted( "quit\n" );
 	// In a match.

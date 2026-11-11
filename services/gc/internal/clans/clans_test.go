@@ -148,3 +148,56 @@ func TestNamesAndTags(t *testing.T) {
 		t.Errorf("tag %q %v", tag, err)
 	}
 }
+
+func TestInvitesRanksAndExpiry(t *testing.T) {
+	now := time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC)
+	s, _ := Open("")
+	s.UseClock(clock(&now))
+	c, _ := s.Create(1, "A", Settings{Name: "Alpha", Tag: "ALP"})
+	_ = s.Invite(1, 2)
+	if err := s.Join(2, "B", c.ID); err != nil {
+		t.Fatal(err)
+	}
+	// A member of a closed clan cannot invite; of an open one can.
+	if err := s.Invite(2, 3); err != ErrRank {
+		t.Fatalf("member invited into a closed clan: %v", err)
+	}
+	_ = s.Configure(1, Settings{Open: true})
+	if err := s.Invite(2, 3); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Invite(2, 2); err != ErrSelf {
+		t.Fatalf("invited themself: %v", err)
+	}
+	// Taken back, the invite is gone.
+	if err := s.Uninvite(1, 3); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.InvitesFor(3)) != 0 {
+		t.Fatal("the invite outlived its taking back")
+	}
+	// A stale invite neither lists nor opens a closed clan.
+	_ = s.Configure(1, Settings{Open: false})
+	_ = s.Invite(1, 4)
+	now = now.Add(InviteTTL + time.Hour)
+	if len(s.InvitesFor(4)) != 0 || len(s.Of(1).Invites) != 0 {
+		t.Fatal("a stale invite still lists")
+	}
+	if err := s.Join(4, "D", c.ID); err != ErrClosed {
+		t.Fatalf("a stale invite let them in: %v", err)
+	}
+
+	// The table: by clan XP.
+	d, _ := s.Create(5, "E", Settings{Name: "Bravo", Tag: "BRV"})
+	s.RecordMatch([]Played{{SteamID: 5, Won: true}})
+	r := s.Ranked()
+	if len(r) != 2 || r[0].ID != d.ID || r[0].WeekXP() != XPPerMatch+XPWinBonus {
+		t.Fatalf("ranked %+v", r)
+	}
+	if p := NextPerk(5); p == nil || p.ID != "roster" {
+		t.Fatalf("next perk after 5: %+v", p)
+	}
+	if NextPerk(MaxLevel) != nil || LevelStart(2) != 600 {
+		t.Fatal("level table")
+	}
+}
