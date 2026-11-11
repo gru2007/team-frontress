@@ -2,6 +2,7 @@
 
 #include "cbase.h"
 #include "tf_partyclient.h"
+#include "frontress/frontress_discord.h"
 #include "confirm_dialog.h"
 #include "tf_gc_shared.h"
 #include "tf_gc_client.h"
@@ -468,7 +469,12 @@ bool CTFPartyClient::BCanInvitePlayer( CSteamID steamID )
 {
 	// Note that auto-invites/rejects check AllowedToPartyWith directly as we never actually have a visible incoming
 	// join request
-	if ( !BControllingPartyActions() || !BAllowedToPartyWith( steamID ) )
+	//
+	// Team Frontress: accepting a join request is inviting too, and a request
+	// is only ever shown from someone this player may let in (friends, or
+	// Discord friends while joins are offered there; see UpdateActiveParty).
+	if ( !BControllingPartyActions() ||
+	     !( BAllowedToPartyWith( steamID ) || BHaveIncomingJoinRequestForSteamID( steamID ) ) )
 		{ return false; }
 
 	// Must have a free slot unless they are a pending join request already
@@ -577,7 +583,11 @@ bool CTFPartyClient::BCanRequestToJoinPlayer( CSteamID steamID )
 	//
 	// Note that auto-invites/rejects check AllowedToPartyWith directly as we never actually have a visible incoming
 	// join request
-	return BAllowedToPartyWith( steamID ) || BHaveIncomingInviteForSteamID( steamID );
+	//
+	// Team Frontress: or a party that let this player in through Discord,
+	// who may not be a Steam friend (frontress_discord.h).
+	return BAllowedToPartyWith( steamID ) || BHaveIncomingInviteForSteamID( steamID ) ||
+	       FrontressDiscord_BApprovedJoinTarget( steamID );
 }
 
 //-----------------------------------------------------------------------------
@@ -1862,12 +1872,16 @@ bool CTFPartyClient::UpdateActiveParty()
 				// Are we going to auto-handle this?
 				if ( BControllingPartyActions() )
 				{
-					if ( bAutoReject || !BAllowedToPartyWith( steamID ) )
+					// Team Frontress: someone who is not a Steam friend is turned
+					// down unseen, unless this player offers party joins on
+					// Discord -- then they decide, never the auto-accept.
+					const bool bFriend = BAllowedToPartyWith( steamID );
+					if ( bAutoReject || ( !bFriend && !FrontressDiscord_BTakesJoinRequestsFromStrangers() ) )
 					{
 						vecAutoRejectJoinRequests.AddToTail( steamID );
 						bHandled = true;
 					}
-					else if ( bAutoAccept )
+					else if ( bAutoAccept && bFriend )
 					{
 						vecAutoAcceptJoinRequests.AddToTail( steamID );
 						bHandled = true;

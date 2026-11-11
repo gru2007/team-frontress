@@ -945,6 +945,21 @@ $Project "Client (TF)"
 				// Easy Anti-Cheat, client half (see frontress_eac.vpc).
 				$File	"$SRCDIR\game\client\tf\frontress\frontress_anticheat_client.h"
 				$File	"$SRCDIR\game\client\tf\frontress\frontress_anticheat_client.cpp"
+				// Discord Rich Presence and joins, over Discord's local pipe
+				// (no Discord library in the process).
+				$File	"$SRCDIR\game\client\tf\frontress\frontress_discord.h"
+				$File	"$SRCDIR\game\client\tf\frontress\frontress_discord.cpp"
+				$File	"$SRCDIR\game\client\tf\frontress\frontress_discord_ipc.h"
+				$File	"$SRCDIR\game\client\tf\frontress\frontress_discord_ipc.cpp"
+				{
+					$Configuration
+					{
+						$Compiler
+						{
+							$Create/UsePrecompiledHeader	"Not Using Precompiled Headers"
+						}
+					}
+				}
 			}
 
 			$Folder	"Frontress UI"
