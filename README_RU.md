@@ -139,6 +139,7 @@ src/                         игра (Source SDK 2013 + TC2 + наше)
 services/gc/                 координатор на Go
 game/tc2/loose/resource/fui/ Frontress UI: экраны, HUD, стили, переводы
 deploy/frontress/            как поднять всё на сервере
+site/                        team-frontress.org, лендинг (Cloudflare Workers)
 ```
 
 - Координатор локально: `cd services/gc && make run`. Подробно — [`services/gc/README.md`](services/gc/README.md).

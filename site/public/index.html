@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Team Frontress: one war, thousands of battles</title>
+  <meta name="description" content="A Team Fortress 2 mod where every match is a piece of one big RED vs BLU war: our own matchmaking, a live war map, clans, quests and Easy Anti-Cheat.">
+  <meta name="theme-color" content="#120d0a">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://team-frontress.org/">
+  <meta property="og:title" content="Team Frontress: one war, thousands of battles">
+  <meta property="og:description" content="A Team Fortress 2 mod where every match is a piece of one big RED vs BLU war.">
+  <meta property="og:image" content="https://team-frontress.org/hero.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&family=Russo+One&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="nav">
+  <a class="nav-logo" href="#top" aria-label="Team Frontress"><img src="/logo.png" alt="Team Frontress" width="900" height="285"></a>
+  <nav class="nav-links">
+    <a href="#war" data-i18n="nav_war">The war</a>
+    <a href="#features" data-i18n="nav_features">Features</a>
+    <a href="#join" data-i18n="nav_join">Play &amp; host</a>
+    <a href="https://mm.team-frontress.org" data-i18n="nav_account">Account</a>
+  </nav>
+  <div class="nav-end">
+    <button class="lang" type="button" id="lang" aria-label="Switch language">RU</button>
+    <a class="btn btn-gold btn-sm" href="https://store.steampowered.com/app/5147380/" data-i18n="nav_steam">Steam</a>
+  </div>
+</header>
+
+<main id="top">
+
+  <section class="hero">
+    <div class="hero-art" aria-hidden="true"></div>
+    <div class="hero-inner">
+      <img class="hero-logo" src="/logo.png" alt="Team Frontress" width="900" height="285">
+      <h1 data-i18n="hero_title">One war. Thousands of battles.</h1>
+      <p class="hero-sub" data-i18n="hero_sub">A Team Fortress 2 mod where every match is a piece of one big RED vs BLU war. The shooting is the TF2 you know. Everything around it is new.</p>
+      <div class="hero-cta">
+        <a class="btn btn-gold" href="https://store.steampowered.com/app/5147380/" data-i18n="cta_steam">Wishlist&Playtest</a>
+        <a class="btn btn-line" href="https://mm.team-frontress.org" data-i18n="cta_account">Matches &amp; your account</a>
+        <a class="btn btn-ghost" href="https://github.com/gru2007/team-frontress" data-i18n="cta_github">Source on GitHub</a>
+      </div>
+      <p class="hero-eac" data-i18n="hero_eac">Easy Anti-Cheat instead of VAC. Dear cheaters, the exit is over there.</p>
+    </div>
+
+    <div class="live" id="live" aria-live="polite">
+      <div class="live-state"><span class="dot" id="live-dot"></span><span id="live-label" data-i18n="live_checking">Checking the coordinator…</span></div>
+      <div class="live-stat"><b id="st-online">–</b><span data-i18n="st_online">online</span></div>
+      <div class="live-stat"><b id="st-match">–</b><span data-i18n="st_match">in a match</span></div>
+      <div class="live-stat"><b id="st-queue">–</b><span data-i18n="st_queue">searching</span></div>
+      <div class="live-stat"><b id="st-servers">–</b><span data-i18n="st_servers">servers</span></div>
+      <div class="live-stat"><b id="st-clans">–</b><span data-i18n="st_clans">clans</span></div>
+    </div>
+  </section>
+
+  <section class="intro wrap">
+    <p class="kicker" data-i18n="intro_kicker">Why</p>
+    <h2 data-i18n="intro_title">Every match should mean something</h2>
+    <p class="lead" data-i18n="intro_p1">Almost every matchmade game has the same problem: you play, the scoreboard closes, and it's gone. We want the community to live right in the lobby: log in, see people you know, see how many are playing, feel that things are happening in the background.</p>
+    <p class="lead" data-i18n="intro_p2">The inspiration is Helldivers 2, Frontline and other games with a global story, where what players do moves the story forward.</p>
+  </section>
+
+  <section class="war" id="war">
+    <div class="wrap">
+      <p class="kicker" data-i18n="war_kicker">The war, live</p>
+      <h2 id="war-title" data-i18n="war_title">The front right now</h2>
+      <p class="muted" id="war-sub" data-i18n="war_sub">Every match feeds one campaign on a map of sectors. A win pushes an offensive forward, a loss pushes it back.</p>
+
+      <div class="war-stage card">
+        <div class="planet" id="planet">
+          <svg id="war-map" viewBox="0 0 1140 640" role="img" aria-label="War map"></svg>
+          <p class="planet-hint" data-i18n="war_hint">Drag to turn the planet. Pick a sector to see what is fought there.</p>
+        </div>
+        <div class="dossier" id="dossier" hidden></div>
+        <div class="war-balance">
+          <span class="side red">RED <b id="war-red">–</b></span>
+          <div class="bar"><i id="war-bar"></i></div>
+          <span class="side blu"><b id="war-blu">–</b> BLU</span>
+        </div>
+        <p class="war-empty muted" id="war-empty" hidden data-i18n="war_offline">The war map is offline right now. It shows up here when the coordinator is reachable.</p>
+      </div>
+      <div class="war-below">
+        <div class="card">
+          <h3 data-i18n="war_ops">Offensives</h3>
+          <ul class="ops" id="war-ops"><li class="muted" data-i18n="war_loading">Loading…</li></ul>
+        </div>
+        <div class="card">
+          <h3 data-i18n="war_feed">Front-line report</h3>
+          <ul class="feed" id="war-feed"><li class="muted" data-i18n="war_loading">Loading…</li></ul>
+        </div>
+      </div>
+
+      <div class="cards4">
+        <div class="card">
+          <h3 data-i18n="w1_t">A sector is an operation</h3>
+          <p data-i18n="w1_p">Not one map but a chain: a breakthrough on 5CP, an advance on Payload, an assault on A/D. Clear the last stage and the sector is yours.</p>
+        </div>
+        <div class="card">
+          <h3 data-i18n="w2_t">It widens with the player count</h3>
+          <p data-i18n="w2_p">Few players, one front. More players, several. Even eight people should feel like they're fighting a war, not sitting on empty servers.</p>
+        </div>
+        <div class="card">
+          <h3 data-i18n="w3_t">Pick a side</h3>
+          <p data-i18n="w3_p">At the start of a campaign you join RED or BLU and stay with them until it ends. A new campaign starts a day after the last one.</p>
+        </div>
+        <div class="card">
+          <h3 data-i18n="w4_t">Conditions and orders</h3>
+          <p data-i18n="w4_p">Battles can be fought with no crits, low gravity, grappling hooks or odd respawn waves. A battle on the war's order pays bonus XP, win or lose.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="features wrap" id="features">
+    <p class="kicker" data-i18n="f_kicker">What's new</p>
+    <h2 data-i18n="f_title">Everything around the shooting</h2>
+    <div class="grid">
+      <article class="feat">
+        <h3 data-i18n="f1_t">Our own coordinator</h3>
+        <p data-i18n="f1_p">Valve's Game Coordinator isn't in the SDK, so we wrote our own. Parties are never split, teams are balanced by size and rating, and a match only forms when a server is free for it.</p>
+      </article>
+      <article class="feat">
+        <h3 data-i18n="f2_t">Regions with real ping</h3>
+        <p data-i18n="f2_p">RU/Asia, EU/Germany, NA/Canada. Your game pings our servers itself, and a match goes only where every player gets a decent ping. No more Russia to Canada.</p>
+      </article>
+      <article class="feat">
+        <h3 data-i18n="f3_t">Back-to-back matches</h3>
+        <p data-i18n="f3_p">After a map the lobby rolls on to the next one. No new search, no lost teammates.</p>
+      </article>
+      <article class="feat">
+        <h3 data-i18n="f4_t">Clans that matter</h3>
+        <p data-i18n="f4_p">Play and your clan levels up, faster with clanmates. Perks: bonus XP, your banner on the war map, a weekly contract, the clan's own order.</p>
+      </article>
+      <article class="feat">
+        <h3 data-i18n="f5_t">A lobby that's alive</h3>
+        <p data-i18n="f5_p">Global, clan and party chat in the main menu. See who's online and what they're doing. A "looking for a squad" button.</p>
+      </article>
+      <article class="feat">
+        <h3 data-i18n="f6_t">Quests and career</h3>
+        <p data-i18n="f6_p">Three daily quests and a weekly one, from kills, damage, healing, wins and classes. XP, levels and match results.</p>
+      </article>
+      <article class="feat">
+        <h3 data-i18n="f7_t">Fair teams, no ranked</h3>
+        <p data-i18n="f7_p">There's no ranked mode. Elo is there only to make teams even: everyone starts at 1500 and is measured against the other team.</p>
+      </article>
+      <article class="feat">
+        <h3 data-i18n="f8_t">A brand-new UI</h3>
+        <p data-i18n="f8_p">Every menu and HUD rebuilt from scratch on RmlUi: home, play, war, clan, career, quests, locker, results. Two HUDs to choose from.</p>
+      </article>
+      <article class="feat">
+        <h3 data-i18n="f9_t">Easy Anti-Cheat</h3>
+        <p data-i18n="f9_p">EAC replaces VAC. It's still being tested, but TF2 has a cheater problem, and solving it is worth the try.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="evening">
+    <div class="wrap narrow">
+      <p class="kicker" data-i18n="ev_kicker">An evening in Frontress</p>
+      <blockquote data-i18n="ev_text">You log in. Twenty people are already in chat, and someone from your clan invites you to a party. On the war map BLU is pushing on the Foundry, and tonight there's a battle there on orders. You hit Play, and a minute later you're on Payload, one stage of the offensive. You win: the offensive moves, a line shows up in the feed, your clan gets XP and a quest is done. The next map rolls in on its own.</blockquote>
+      <p class="punch" data-i18n="ev_punch">Every match means something. That's the whole idea.</p>
+    </div>
+  </section>
+
+  <section class="split wrap">
+    <div>
+      <p class="kicker" data-i18n="tc2_kicker">Built on</p>
+      <h2 data-i18n="tc2_title">Thanks, Team Comtress 2</h2>
+      <p data-i18n="tc2_p">Team Frontress is a fork of <a href="https://github.com/mastercomfig/tc2">Team Comtress 2</a>, which fixes TF2's bugs, makes it faster and adds quality of life. From them we got:</p>
+      <ul class="ticks">
+        <li data-i18n="tc2_1">Hundreds of bug fixes</li>
+        <li data-i18n="tc2_2">Faster menus and threaded rendering fixes</li>
+        <li data-i18n="tc2_3">Subtick aim: your shot uses your aim between ticks</li>
+        <li data-i18n="tc2_4">A reworked crosshair, glow outlines, FOV fixes</li>
+        <li data-i18n="tc2_5">Dozens of MvM fixes</li>
+      </ul>
+    </div>
+    <div>
+      <p class="kicker" data-i18n="no_kicker">Being upfront</p>
+      <h2 data-i18n="no_title">What's not there yet</h2>
+      <ul class="crosses">
+        <li data-i18n="no_1">Ranked. Only casual and the war.</li>
+        <li data-i18n="no_2">A big player base. It's a small project, built to be fun with ten people.</li>
+        <li data-i18n="no_3">A finished anti-cheat. EAC is wired in but not proven in production yet.</li>
+        <li data-i18n="no_4">Much gameplay of our own beyond TC2. It's coming.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="join" id="join">
+    <div class="wrap">
+      <p class="kicker" data-i18n="j_kicker">Get involved</p>
+      <h2 data-i18n="j_title">Play, host, build</h2>
+      <div class="cards3">
+        <div class="card join-card">
+          <h3 data-i18n="j1_t">Players</h3>
+          <p data-i18n="j1_p">Add Team Frontress to your Steam wishlist to hear when it opens. Your matches, record, quests and whether you can queue are on the match site, and in the game under Career.</p>
+          <div class="join-cta">
+            <a class="btn btn-gold btn-sm" href="https://store.steampowered.com/app/5147380/" data-i18n="cta_steam">Wishlist on Steam</a>
+            <a class="btn btn-line btn-sm" href="https://mm.team-frontress.org">mm.team-frontress.org</a>
+          </div>
+        </div>
+        <div class="card join-card">
+          <h3 data-i18n="j2_t">Server hosts</h3>
+          <p data-i18n="j2_p">Any dedicated server can join the pool: it gets a key, connects to the coordinator and is handed matches as they form. Communities get their own keys. The guide is in the repository.</p>
+          <div class="join-cta">
+            <a class="btn btn-line btn-sm" href="https://github.com/gru2007/team-frontress/tree/HEAD/deploy/frontress" data-i18n="j2_cta">Hosting guide</a>
+          </div>
+        </div>
+        <div class="card join-card">
+          <h3 data-i18n="j3_t">Developers</h3>
+          <p data-i18n="j3_p">The game, the coordinator (Go) and the UI are all open. We need help everywhere: bugs, matchmaking tests, servers, UI, maps. Talk to us before a big PR.</p>
+          <div class="join-cta">
+            <a class="btn btn-line btn-sm" href="https://github.com/gru2007/team-frontress">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-inner">
+    <div class="foot-links">
+      <a href="https://store.steampowered.com/app/5147380/">Steam</a>
+      <a href="https://mm.team-frontress.org" data-i18n="foot_mm">Match site</a>
+      <a href="https://github.com/gru2007/team-frontress">GitHub</a>
+      <a href="https://github.com/mastercomfig/tc2">Team Comtress 2</a>
+    </div>
+    <p class="legal" data-i18n="legal">Valve, Steam, Source, Team Fortress and related names, logos and assets are trademarks of Valve Corporation. Team Frontress is a community project and is not sponsored, endorsed, licensed by, or affiliated with Valve Corporation.</p>
+    <p class="redblu"><span class="r">RED</span> ────── ⚔ ────── <span class="b">BLU</span></p>
+  </div>
+</footer>
+
+<script src="/app.js" defer></script>
+</body>
+</html>

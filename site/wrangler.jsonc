@@ -1,0 +1,22 @@
+// team-frontress.org on Cloudflare Workers: `npm run deploy` from this folder.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "team-frontress-site",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-06-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    // The worker sees every request, for the www redirect and /api/*;
+    // everything else it hands straight to the static files.
+    "run_worker_first": true
+  },
+  "routes": [
+    { "pattern": "team-frontress.org", "custom_domain": true },
+    { "pattern": "www.team-frontress.org", "custom_domain": true }
+  ],
+  "vars": {
+    "GC_URL": "https://gc.team-frontress.org"
+  },
+  "observability": { "enabled": true }
+}

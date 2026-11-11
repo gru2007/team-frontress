@@ -140,6 +140,7 @@ src/                         the game (Source SDK 2013 + TC2 + ours)
 services/gc/                 the coordinator, in Go
 game/tc2/loose/resource/fui/ Frontress UI: screens, HUDs, styles, translations
 deploy/frontress/            how to run it all on a server
+site/                        team-frontress.org, the landing page (Cloudflare Workers)
 ```
 
 - Run the coordinator locally: `cd services/gc && make run`. Details in [`services/gc/README.md`](services/gc/README.md).
