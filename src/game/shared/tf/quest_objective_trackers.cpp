@@ -56,13 +56,23 @@ CBaseQuestObjectiveTracker::CBaseQuestObjectiveTracker( const QuestObjectiveInst
 	, m_pEvaluator( NULL )
 	, m_steamIDOwner( ownerSteamID )
 {
+	// A tracker that cannot be built is left without an evaluator: it makes
+	// no progress and every use of it checks for that. A broken quest must
+	// never take the game down.
 	KeyValues *pKVConditions = m_objectiveInstance.GetObjectiveDef()->GetConditionsKeyValues();
-	
-	AssertMsg( !m_pEvaluator, "%s", CFmtStr( "Too many input for operator '%s'.", GetConditionName() ).Get() );
+	if ( !pKVConditions )
+	{
+		DevWarning( "Quest objective %d has no conditions; not tracking it\n", GetObjectiveDefIndex() );
+		return;
+	}
 
 	const char *pszType = pKVConditions->GetString( "type" );
 	m_pEvaluator = CreateEvaluatorByName( pszType, this );
-	AssertMsg( m_pEvaluator != NULL, "%s", CFmtStr( "Failed to create quest condition name '%s' for '%s'", pszType, GetConditionName() ).Get() );
+	if ( !m_pEvaluator )
+	{
+		DevWarning( "Quest objective %d: unknown condition type '%s'; not tracking it\n", GetObjectiveDefIndex(), pszType );
+		return;
+	}
 
 	SO_TRACKER_SPEW( CFmtStr( "Creating objective tracker def %d for quest def %d on item %llu for user %s\n",
 							  GetObjectiveDefIndex(),
@@ -98,6 +108,8 @@ CBaseQuestObjectiveTracker::~CBaseQuestObjectiveTracker()
 //-----------------------------------------------------------------------------
 bool CBaseQuestObjectiveTracker::IsValidForPlayer( const CTFPlayer *pOwner, InvalidReasonsContainer_t& invalidReasons ) const
 {
+	if ( !m_pEvaluator )
+		return false;
 	return m_pEvaluator->IsValidForPlayer( pOwner, invalidReasons );
 }
 
@@ -127,7 +139,8 @@ void CBaseQuestObjectiveTracker::EvaluateCondition( CTFQuestEvaluator *pSender, 
 //-----------------------------------------------------------------------------
 void CBaseQuestObjectiveTracker::ResetCondition()
 {
-	m_pEvaluator->ResetCondition();
+	if ( m_pEvaluator )
+		m_pEvaluator->ResetCondition();
 }
 
 //-----------------------------------------------------------------------------
@@ -142,8 +155,12 @@ bool CBaseQuestObjectiveTracker::UpdateConditions()
 		m_pEvaluator = NULL;
 	}
 
+	KeyValues *pKVConditions = m_objectiveInstance.GetObjectiveDef()->GetConditionsKeyValues();
+	if ( !pKVConditions )
+		return false;
+
 	CUtlVector< CUtlString > vecErrors;
-	return BInitFromKV( m_objectiveInstance.GetObjectiveDef()->GetConditionsKeyValues(), &vecErrors );
+	return BInitFromKV( pKVConditions, &vecErrors );
 }
 
 //-----------------------------------------------------------------------------
@@ -673,6 +690,13 @@ bool CQuestItemTracker::DoesObjectiveNeedToBeTracked( const QuestObjectiveInstan
 	auto pQuestDef = m_pQuest->GetDefinition();
 
 	Assert( objective.GetObjectiveDef() );
+	// An objective whose conditions are not in the schema ("No conditions for
+	// quest objective ..." at startup) cannot be tracked: its tracker would
+	// read the missing conditions and crash the game as soon as the quest's
+	// owner has it active.
+	if ( objective.GetObjectiveDef() && !objective.GetObjectiveDef()->GetConditionsKeyValues() )
+		return false;
+
 	if ( objective.GetObjectiveDef() && pQuestDef )
 	{
 		// Check if any of the point types equal to or less than this objective's

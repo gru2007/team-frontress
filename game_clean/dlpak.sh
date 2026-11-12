@@ -64,6 +64,9 @@ if ! $CMD_7Z t pak.zip > /dev/null; then
   exit 1
 fi
 
+# A pak of another version can have more archives (pak1_001.vpk...) than
+# this one: leftovers would ship with it.
+rm -f "${DEV_DIR}"/tc2/pak1*.vpk
 $CMD_7Z e pak.zip -y "-o${DEV_DIR}/tc2"
 
 echo $PAK_VERSION > $PAK_VERSION_FILE

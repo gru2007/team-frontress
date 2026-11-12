@@ -56,9 +56,17 @@ minidump.
 
 ### 1. Bugsink на Coolify
 
-Ресурс Docker Image `bugsink/bugsink:latest`, порт 8000, домен, например
+Ресурс Docker Image `ghcr.io/gru2007/bugsink:frontress`, порт 8000, домен, например
 `crash.team-frontress.org`. **Постоянный том на `/data`** обязателен, иначе
 база пропадёт при пересоздании контейнера.
+
+Образ собирается из нашего форка
+[gru2007/bugsink](https://github.com/gru2007/bugsink), ветка `frontress`: это
+upstream Bugsink с исправлениями, которых там ещё нет. Без них **минидампы с
+Windows пропадают**: Bugsink отвечает игре 200, а потом падает на debug_id
+модулей с PDB (`<uuid>-<age>`) и удаляет дамп, не создав события. Список
+исправлений и обновление до новой версии Bugsink описаны в `FRONTRESS.md` форка.
+Не возвращайте `bugsink/bugsink:latest`, пока исправление не появится в upstream.
 
 ```
 SECRET_KEY=<openssl rand -base64 50>

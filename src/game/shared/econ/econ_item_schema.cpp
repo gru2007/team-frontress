@@ -2894,6 +2894,11 @@ void CEconStyleInfo::GeneratePrecacheModelStringsForStyle( CUtlVector<const char
 //-----------------------------------------------------------------------------
 // Purpose:	Item definition initialization helpers.
 //-----------------------------------------------------------------------------
+
+// A value that removes the key it is set on instead of setting it, so that a
+// patch (items_mod.txt) can take a key out of the schema it is applied to.
+static const char k_szDeleteKeyValue[] = "!!delete";
+
 static void RecursiveInheritKeyValues( KeyValues *out_pValues, KeyValues *pInstance )
 {
 	KeyValues *pPrevSubKey = NULL;
@@ -2904,6 +2909,17 @@ static void RecursiveInheritKeyValues( KeyValues *out_pValues, KeyValues *pInsta
 			"Item definition \"%s\" has multiple attributes of the same name (%s) can't use prefabs", pInstance->GetName(), pSubKey->GetName() );
 
 		KeyValues::types_t eType = pSubKey->GetDataType();
+		if ( eType == KeyValues::TYPE_STRING && !V_strcmp( pSubKey->GetString(), k_szDeleteKeyValue ) )
+		{
+			KeyValues *pExisting = out_pValues->FindKey( pSubKey->GetName() );
+			if ( pExisting )
+			{
+				out_pValues->RemoveSubKey( pExisting );
+				pExisting->deleteThis();
+			}
+			continue;
+		}
+
 		switch ( eType )
 		{
 		case KeyValues::TYPE_STRING:		out_pValues->SetString( pSubKey->GetName(), pSubKey->GetString() );			break;
@@ -5338,7 +5354,25 @@ bool CEconItemSchema::BInitItems( KeyValues *pKVItems, CUtlVector<CUtlString> *p
 				CEconItemDefinition *pItemDef = CreateEconItemDefinition();
 				nMapIndex = m_mapItems.Insert( nItemIndex, pItemDef );
 				m_mapItemsSorted.Insert( nItemIndex, pItemDef );
-				SCHEMA_INIT_SUBSTEP( m_mapItems[nMapIndex]->BInitFromKV( pKVItem, pVecErrors ) );
+
+				// One item the code cannot read (an attribute it does not know,
+				// after an update of the TF2 schema or of our items_mod.txt) is
+				// left out with a warning. Failing here would leave every item
+				// after it, and the rest of the schema (quest conditions, sets,
+				// recipes, maps...), unloaded.
+				CUtlVector< CUtlString > vecItemErrors;
+				if ( !pItemDef->BInitFromKV( pKVItem, &vecItemErrors ) )
+				{
+					Warning( "Item schema: leaving out item %d (%s):\n", nItemIndex, pKVItem->GetString( "name", "unnamed" ) );
+					FOR_EACH_VEC( vecItemErrors, nError )
+					{
+						Warning( "  %s\n", vecItemErrors[ nError ].Get() );
+					}
+					m_mapItems.Remove( nItemIndex );
+					m_mapItemsSorted.Remove( nItemIndex );
+					delete pItemDef;
+					continue;
+				}
 				m_mapItemsName.Insert( pItemDef->GetDefinitionName(), pItemDef );
 
 				// Cache off Tools references
