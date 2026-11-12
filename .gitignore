@@ -161,7 +161,7 @@ bld/
 !**/[Bb]in/linux64/libsteam_api.so
 !**/[Bb]in/linux64/libsentry.so
 
-!**/[Bb]in/x64/crashpad_handler.exe
+!**/[Bb]in/x64/CrashReportHandler.exe
 !**/[Bb]in/x64/crashpad_wer.dll
 !**/[Bb]in/linux64/crashpad_handler
 
@@ -678,3 +678,6 @@ base_private.key
 !/game/bin/x64/libfreetype-6.dll
 !/game/bin/x64/libfontconfig-1.dll
 !/game/bin/x64/dxvk_d3d9.dll
+
+# Crash reporter output (crashreport.cpp)
+game/crashreports/

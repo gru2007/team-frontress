@@ -22,6 +22,18 @@ $Project
     $Folder "Crash Reporter"
     {
       $File "$SRCDIR\game\shared\crashreport\crashreport.h"
+      $File "$SRCDIR\game\shared\crashreport\crashreport_native.h"
+      // Platform headers only: no cbase.h, no precompiled header
+      $File "$SRCDIR\game\shared\crashreport\crashreport_native.cpp"
+      {
+        $Configuration
+        {
+          $Compiler
+          {
+            $Create/UsePrecompiledHeader	"Not Using Precompiled Headers"
+          }
+        }
+      }
       // Not using precompiled header cbase.h
       $File "$SRCDIR\game\shared\crashreport\crashreport.cpp"
       {

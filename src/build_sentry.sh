@@ -23,7 +23,8 @@ cp -r ./install ../sentry_native
 if [ "$PLATFORM" = "win" ]; then
   cp thirdparty/sentry_native/bin/sentry.dll ../game/tc2/bin/x64/sentry.dll
   cp thirdparty/sentry_native/bin/sentry.pdb ../game/tc2/bin/x64/sentry.pdb
-  cp thirdparty/sentry_native/bin/crashpad_handler.exe ../game/bin/x64/crashpad_handler.exe
+  # Renamed: Easy Anti-Cheat only lets a crash dumper named CrashReport* in.
+  cp thirdparty/sentry_native/bin/crashpad_handler.exe ../game/bin/x64/CrashReportHandler.exe
   cp thirdparty/sentry_native/bin/crashpad_wer.dll ../game/bin/x64/crashpad_wer.dll
 else
   cp thirdparty/sentry_native/lib/libsentry.so ../game/bin/linux64/libsentry.so

@@ -42,7 +42,9 @@ if [ $PLATFORM = "win" ]; then
   declare -a EXES=(
     tc2_win64
     bin/$PLAT_DIR/captioncompiler
-    bin/$PLAT_DIR/crashpad_handler
+    # crashpad_handler, renamed: Easy Anti-Cheat lets a crash dumper whose
+    # file name starts with "CrashReport" open the game after a crash.
+    bin/$PLAT_DIR/CrashReportHandler
     bin/$PLAT_DIR/glview
     bin/$PLAT_DIR/height2normal
     bin/$PLAT_DIR/motionmapper
@@ -76,6 +78,9 @@ if [ $PLATFORM = "win" ]; then
     bin/$PLAT_DIR/libfreetype-6
     bin/$PLAT_DIR/libfontconfig-1
     bin/$PLAT_DIR/dxvk_d3d9
+    # Lets WER hand crashpad the crashes that skip in-process handlers
+    # (heap corruption, security checks).
+    bin/$PLAT_DIR/crashpad_wer
   )
 
   FILES_REP+=(

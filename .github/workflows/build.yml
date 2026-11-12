@@ -434,6 +434,20 @@ jobs:
           compression-level: 1
           if-no-files-found: warn
 
+      # Crash reports are symbolicated from the PDBs and, for their unwind
+      # tables, the binaries they belong to.
+      - name: Put the Windows binaries beside their PDBs
+        if: ${{ always() && matrix.target == 'windows' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in tc2_win64.exe tc2/bin/x64/client.dll tc2/bin/x64/server.dll tc2/bin/x64/game_shader_generic_std.dll; do
+            if [ -f "game_dist/$f" ]; then
+              mkdir -p "game_dist_debug/$(dirname "$f")"
+              cp -f "game_dist/$f" "game_dist_debug/$f"
+            fi
+          done
+
       - name: Upload client debug info
         if: always()
         uses: actions/upload-artifact@v7
@@ -622,3 +636,42 @@ jobs:
           files: release/*
           fail_on_unmatched_files: true
           generate_release_notes: true
+
+  # Debug symbols to the crash server, so its minidumps show function names
+  # and lines. Optional: set the repository variable CRASH_SERVER_URL (e.g.
+  # https://crash.team-frontress.org) and CRASH_SERVER_PROJECT (the project's
+  # slug or id), and the secret CRASH_SERVER_TOKEN (a token allowed to upload
+  # debug files). Never holds up a release.
+  crash-symbols:
+    name: Crash server / debug symbols
+    needs: [build]
+    if: ${{ !cancelled() && vars.CRASH_SERVER_URL != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - name: Download the debug info
+        uses: actions/download-artifact@v7
+        with:
+          pattern: "debug-client-*"
+          path: debug
+
+      - name: Upload debug files
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.CRASH_SERVER_TOKEN }}
+          CRASH_SERVER_URL: ${{ vars.CRASH_SERVER_URL }}
+          # Bugsink has no organisations and takes any name here.
+          CRASH_SERVER_ORG: ${{ vars.CRASH_SERVER_ORG || 'bugsinkhasnoorgs' }}
+          CRASH_SERVER_PROJECT: ${{ vars.CRASH_SERVER_PROJECT }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SENTRY_AUTH_TOKEN}" ] || [ -z "${CRASH_SERVER_PROJECT}" ]; then
+            echo "::warning::CRASH_SERVER_TOKEN or CRASH_SERVER_PROJECT is not set; no symbols uploaded."
+            exit 0
+          fi
+          npm install -g @sentry/cli@2.39.1
+          sentry-cli --version
+          sentry-cli --url "${CRASH_SERVER_URL}" debug-files check debug/debug-client-windows/tc2/bin/x64/client.pdb || true
+          sentry-cli --url "${CRASH_SERVER_URL}" debug-files upload \
+            --org "${CRASH_SERVER_ORG}" --project "${CRASH_SERVER_PROJECT}" \
+            debug

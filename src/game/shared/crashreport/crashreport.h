@@ -1,6 +1,6 @@
 //========= Copyright Valve Corporation, All rights reserved. ============//
 //
-// Purpose: 
+// Purpose: Crash reporter. See crashreport.cpp.
 //
 //=============================================================================
 
@@ -11,6 +11,8 @@
 #pragma once
 #endif
 
+#include <string>
+
 #include "igamesystem.h"
 
 class CCrashReporter : public CAutoGameSystemPerFrame
@@ -20,6 +22,11 @@ public:
 
 	virtual bool Init();
 	virtual void Shutdown();
+#ifdef CLIENT_DLL
+	virtual void Update( float frametime );
+#else
+	virtual void FrameUpdatePostEntityThink();
+#endif
 
 	static void AssertCallbackFunc( const char *pchFile, int nLine, const char *pchMessage );
 	static SpewRetval_t SpewFunc( SpewType_t type, const tchar* pMsg );
@@ -29,8 +36,16 @@ public:
 	void ReportError( const char* logger, const char* message );
 
 private:
+	void SendPendingReports();
+	void Tick();
+
 	bool m_bInit = false;
-	SpewOutputFunc_t m_OutputFuncPrev;
+	bool m_bInProcess = false;	// the game writes its own dumps (Windows)
+	bool m_bUserSet = false;
+	double m_flNextSave = 0.0;
+	std::string m_ReportsDir;	// pending dumps and console output
+	std::string m_SessionPath;	// this session's console output
+	SpewOutputFunc_t m_OutputFuncPrev = NULL;
 };
 
 extern CCrashReporter* GetCrashReporter();
