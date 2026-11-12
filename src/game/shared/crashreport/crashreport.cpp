@@ -6,7 +6,8 @@
 // Sentry). What each report carries:
 //  - a minidump of the crash (where every thread was, symbolicated on the
 //    server from the PDBs / .dbg files CI uploads);
-//  - the last ~64 KB of console output before it;
+//  - the last ~64 KB of console output before it, in the event itself
+//    (extra "console"): Bugsink drops every attachment but the minidump;
 //  - the build, the platform and the player's SteamID.
 //
 // How the dump is made: crashpad, as Sentry ships it. Its handler, a second
@@ -15,10 +16,14 @@
 // lets a crash dumper that waits for the crash like this in only when its
 // file name starts with "CrashReport" (Epic's "External Crash Dumpers").
 // crashpad_wer.dll beside it gets the crashes Windows ends without asking
-// the game (heap corruption, security checks) through WER.
+// the game (heap corruption, security checks) through WER. Crashes the
+// engine's tier0 catches itself (CatchAndWriteMiniDump*) are handed to
+// crashpad through tier0's SetMiniDumpFunction.
 //
 // Sessions that end with no crash report at all (the process killed from
-// outside) are reported on the next launch, with their console output.
+// outside) are reported on the next launch, with their console output. So
+// is the console of a session crashpad sent a minidump for, because the
+// minidump goes up without it.
 //
 // Without the handler (or with -crashinprocess) the Windows game writes its
 // own dumps instead (crashreport_native.cpp) and uploads them on the next
@@ -104,20 +109,67 @@ static std::string ProductVersion()
 	return "unknown";
 }
 
-static void AttachIfExists( const std::string &path, std::vector< sentry_attachment_t * > &attached )
+// Bytes of console output that go into a report.
+static const size_t k_nConsoleBytes = 64 * 1024;
+
+// The console output may hold bytes that are not UTF-8 (a name typed in a
+// local code page); a JSON parser on the server would drop the whole event
+// for them. Each bad byte becomes '?'.
+static std::string ValidUTF8( const std::string &text )
 {
-	if ( CrashNative::FileExists( path.c_str() ) )
+	std::string out;
+	out.reserve( text.size() );
+	const unsigned char *p = (const unsigned char *)text.data();
+	const size_t n = text.size();
+	for ( size_t i = 0; i < n; )
 	{
-		if ( sentry_attachment_t *p = sentry_attach_file( path.c_str() ) )
-			attached.push_back( p );
+		const unsigned char c = p[ i ];
+		size_t nLen = 0;
+		if ( c < 0x80 )
+			nLen = 1;
+		else if ( c >= 0xC2 && c <= 0xDF )
+			nLen = 2;
+		else if ( c >= 0xE0 && c <= 0xEF )
+			nLen = 3;
+		else if ( c >= 0xF0 && c <= 0xF4 )
+			nLen = 4;
+		bool bOK = nLen > 0 && i + nLen <= n;
+		for ( size_t k = 1; bOK && k < nLen; ++k )
+			bOK = ( p[ i + k ] & 0xC0 ) == 0x80;
+		// Overlong forms, surrogates and code points past U+10FFFF.
+		if ( bOK && nLen == 3 )
+			bOK = !( c == 0xE0 && p[ i + 1 ] < 0xA0 ) && !( c == 0xED && p[ i + 1 ] >= 0xA0 );
+		if ( bOK && nLen == 4 )
+			bOK = !( c == 0xF0 && p[ i + 1 ] < 0x90 ) && !( c == 0xF4 && p[ i + 1 ] >= 0x90 );
+		if ( bOK )
+		{
+			out.append( text, i, nLen );
+			i += nLen;
+		}
+		else
+		{
+			out += '?';
+			++i;
+		}
 	}
+	return out;
 }
 
-static void DetachAll( std::vector< sentry_attachment_t * > &attached )
+// The console output of a file goes into the reports sent until
+// ClearConsole(), as the event's "console" extra. Attachments are not
+// enough: Bugsink keeps none but the minidump.
+static void SetConsole( const std::string &path )
 {
-	for ( sentry_attachment_t *p : attached )
-		sentry_remove_attachment( p );
-	attached.clear();
+	const std::string text = ValidUTF8( CrashNative::ReadFileTail( path.c_str(), k_nConsoleBytes ) );
+	if ( text.empty() )
+		sentry_remove_extra( "console" );
+	else
+		sentry_set_extra( "console", sentry_value_new_string( text.c_str() ) );
+}
+
+static void ClearConsole()
+{
+	sentry_remove_extra( "console" );
 }
 
 // Whether crashpad wrote a dump after this time: its database keeps reports
@@ -199,9 +251,10 @@ bool CCrashReporter::Init()
 	}
 	sentry_options_set_release( options, release.c_str() );
 	// This session's console output, saved on a timer, goes with every
-	// report. Given before sentry_init: crashpad on macOS takes no
-	// attachments added later. The file still holds the last session's
-	// output until SendPendingReports() is done with it.
+	// report as a file too, for servers that keep attachments. Given before
+	// sentry_init: crashpad on macOS takes no attachments added later. The
+	// file still holds the last session's output until SendPendingReports()
+	// is done with it.
 	sentry_options_add_attachment( options, m_SessionPath.c_str() );
 	sentry_options_set_environment( options, SENTRY_ENVIRONMENT );
 	if ( CommandLine()->FindParm( "-sentrydebug" ) )
@@ -243,6 +296,10 @@ bool CCrashReporter::Init()
 		// crashpad's filter, to put back if something loaded later replaces it.
 		CrashNative::PinExceptionFilter();
 	}
+	// Crashes in code the engine runs under tier0's own __try/__except never
+	// become unhandled; without this they end the game with no report.
+	if ( !CrashNative::HookEngineMinidumps() )
+		DevWarning( "Crash reporting: tier0 has no SetMiniDumpFunction; crashes it catches will not be reported.\n" );
 #endif
 
 	// From now on the file is this session's.
@@ -277,25 +334,24 @@ void CCrashReporter::SendPendingReports()
 	bool bCrashpadCrashed = sentry_get_crashed_last_run() == 1;
 	if ( bCrashpadCrashed )
 		sentry_clear_crashed_last_run();
+	// The last session's file is still there when it did not get to
+	// Shutdown().
 	const double flSessionTime = CrashNative::FileTime( m_SessionPath.c_str() );
-	if ( !bCrashpadCrashed && flSessionTime > 0.0 && !m_bInProcess )
+	const bool bSessionLeft = flSessionTime > 0.0;
+	if ( !bCrashpadCrashed && bSessionLeft && !m_bInProcess )
 		bCrashpadCrashed = CrashpadDumpedSince( m_DatabasePath, flSessionTime );
-	const bool bSessionLeft = flSessionTime > 0.0 && !bCrashpadCrashed;
-	if ( !bSessionLeft )
-		CrashNative::RemoveFile( m_SessionPath.c_str() );
 	if ( dumps.empty() && logs.empty() && !bSessionLeft )
 		return;
 
 	std::vector< std::string > sent;
-	std::vector< sentry_attachment_t * > attached;
 	int nReports = 0;
 
 	for ( const std::string &dump : dumps )
 	{
 		const std::string log = dump.substr( 0, dump.size() - 4 ) + ".log";
-		AttachIfExists( log, attached );
+		SetConsole( log );
 		sentry_capture_minidump( dump.c_str() );
-		DetachAll( attached );
+		ClearConsole();
 		sent.push_back( dump );
 		sent.push_back( log );
 		++nReports;
@@ -309,24 +365,35 @@ void CCrashReporter::SendPendingReports()
 			bHasDump = bHasDump || d == dump;
 		if ( bHasDump )
 			continue;
-		AttachIfExists( log, attached );
+		SetConsole( log );
 		sentry_capture_event( sentry_value_new_message_event( SENTRY_LEVEL_FATAL, "crash",
 			"The game crashed, but its minidump could not be written" ) );
-		DetachAll( attached );
+		ClearConsole();
 		sent.push_back( log );
 		++nReports;
 	}
 
-	// The last session's file is still there when it did not get to
-	// Shutdown(). If no crash was caught either, the process was ended from
-	// outside or by the runtime itself (heap corruption, a security check,
-	// the anti-cheat, the task manager).
+	// The last session did not get to Shutdown().
 	if ( bSessionLeft && nReports == 0 )
 	{
-		// The session file goes with it already (see Init()).
-		sentry_value_t event = sentry_value_new_message_event( SENTRY_LEVEL_ERROR, "session",
-			"The previous session ended without a clean shutdown and without a crash dump" );
-		sentry_capture_event( event );
+		SetConsole( m_SessionPath );
+		if ( bCrashpadCrashed )
+		{
+			// crashpad has sent the minidump already, but a server that
+			// takes it from crashpad's upload form (Bugsink) keeps no
+			// console with it; this event carries it.
+			sentry_capture_event( sentry_value_new_message_event( SENTRY_LEVEL_ERROR, "session",
+				"Console output before the last crash (its minidump was sent separately)" ) );
+		}
+		else
+		{
+			// No crash was caught: the process was ended from outside or by
+			// the runtime itself (heap corruption, a security check, the
+			// anti-cheat, the task manager), or it hung and was killed.
+			sentry_capture_event( sentry_value_new_message_event( SENTRY_LEVEL_ERROR, "session",
+				"The previous session ended without a clean shutdown and without a crash dump" ) );
+		}
+		ClearConsole();
 		++nReports;
 	}
 

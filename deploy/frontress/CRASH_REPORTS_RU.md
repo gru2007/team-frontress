@@ -8,10 +8,14 @@ GlitchTip, и Sentry.
 
 | Случай | Что в отчёте |
 |---|---|
-| Вылет (access violation, переполнение стека, pure virtual, `abort()`) | minidump всех потоков и последние ~64 КБ консоли |
+| Вылет (access violation, переполнение стека, pure virtual, `abort()`) | minidump всех потоков; при следующем запуске — событие «Console output before the last crash» с консолью |
 | Порча кучи, `__fastfail` (Windows) | minidump через WER (`crashpad_wer.dll`) |
-| Процесс исчез без вылета (EAC, диспетчер задач) | консоль прошлой сессии, событие «ended without a clean shutdown» |
+| Процесс исчез без вылета (EAC, диспетчер задач, зависание) | событие «ended without a clean shutdown» с консолью прошлой сессии |
 | `Error()` движка | текст ошибки и консоль |
+
+Консоль (последние ~64 КБ) лежит в разделе **Extra** события, ключ
+`console`. Вложением она тоже уходит, но Bugsink хранит из вложений только
+minidump.
 
 У каждого отчёта есть release `frontress@<PatchVersion из steam.inf>`, теги
 `side`, `eac_build`, `crash_backend` и SteamID игрока (`user.id`).
@@ -33,6 +37,12 @@ GlitchTip, и Sentry.
   Дампер, открывающий игру сразу при старте, вызвал бы зависание и закрытие
   игры. `crashpad_wer.dll` рядом с хендлером ловит через WER вылеты, которые
   Windows завершает в обход игры.
+- **Вылеты, которые ловит движок (Windows).** `tier0` движка запускает код
+  под своим `__try/__except` (`CatchAndWriteMiniDump*`): такой вылет не
+  доходит до необработанного исключения, `tier0` пишет свой дамп и
+  завершает процесс. Мы подменяем его функцию дампа (`SetMiniDumpFunction`)
+  и отдаём настоящие вылеты crashpad. Без этого игроки присылали только
+  «ended without a clean shutdown».
 - **Запасной вариант (Windows).** Если хендлера нет или задан
   `-crashinprocess`, minidump пишет сама игра
   ([crashreport_native.cpp](../../src/game/shared/crashreport/crashreport_native.cpp))
@@ -94,8 +104,8 @@ FEATURE_MINIDUMPS=True
    `Crash reporting on (frontress@..., crashpad).` и в диспетчере задач
    процесс `CrashReportHandler.exe`. Игра не должна зависать на старте.
 3. Уроните игру. Выход через `quit` не годится: это чистое завершение.
-4. В Bugsink появится событие с minidump и вложенным `session_client.txt`
-   (консоль).
+4. В Bugsink появится событие с minidump, а после следующего запуска —
+   «Console output before the last crash» с консолью в разделе Extra.
 
 ## Ограничения
 

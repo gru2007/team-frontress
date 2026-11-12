@@ -335,6 +335,36 @@ void ListFiles( const char *pszDir, const char *pszSuffix, std::vector< std::str
 
 #endif
 
+std::string ReadFileTail( const char *pszPath, size_t nMaxBytes )
+{
+#ifdef _WIN32
+	FILE *f = _wfopen( Widen( pszPath ).c_str(), L"rb" );
+#else
+	FILE *f = fopen( pszPath, "rb" );
+#endif
+	if ( !f )
+		return std::string();
+	std::string text;
+	if ( fseek( f, 0, SEEK_END ) == 0 )
+	{
+		const long nSize = ftell( f );
+		const long nStart = nSize > (long)nMaxBytes ? nSize - (long)nMaxBytes : 0;
+		if ( nSize > 0 && fseek( f, nStart, SEEK_SET ) == 0 )
+		{
+			text.resize( (size_t)( nSize - nStart ) );
+			text.resize( fread( &text[ 0 ], 1, text.size(), f ) );
+			// Start on a whole line.
+			if ( nStart > 0 )
+			{
+				const size_t nNewline = text.find( '\n' );
+				text.erase( 0, nNewline == std::string::npos ? 0 : nNewline + 1 );
+			}
+		}
+	}
+	fclose( f );
+	return text;
+}
+
 //-----------------------------------------------------------------------------
 // Windows minidumps
 //
@@ -512,12 +542,94 @@ bool InstallDumpHandler( const char *pszDumpDir )
 	return true;
 }
 
+// tier0's CatchAndWriteMiniDump*() runs code under __try/__except: a crash
+// there is caught before it is unhandled, written by tier0's own minidump
+// function, and the process is ended. Neither our filter nor crashpad's
+// would see it. tier0 lets that function be replaced (SetMiniDumpFunction),
+// and calls it from the __except filter, with the crash still in place.
+typedef void ( *EngineMiniDump_t )( unsigned int uCode, EXCEPTION_POINTERS *pException, const char *pszSuffix );
+typedef EngineMiniDump_t ( *SetMiniDumpFunction_t )( EngineMiniDump_t pfn );
+
+static SetMiniDumpFunction_t s_pfnSetMiniDumpFunction = NULL;
+static EngineMiniDump_t s_pfnPrevEngineMiniDump = NULL;
+
+// What tier0 also uses the function for, WriteMiniDump() on request, comes
+// as a breakpoint; that, and anything else that is not a crash, keeps going
+// to tier0's writer.
+static bool IsCrash( DWORD dwCode )
+{
+	switch ( dwCode )
+	{
+	case EXCEPTION_ACCESS_VIOLATION:
+	case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
+	case EXCEPTION_DATATYPE_MISALIGNMENT:
+	case EXCEPTION_FLT_DENORMAL_OPERAND:
+	case EXCEPTION_FLT_DIVIDE_BY_ZERO:
+	case EXCEPTION_FLT_INEXACT_RESULT:
+	case EXCEPTION_FLT_INVALID_OPERATION:
+	case EXCEPTION_FLT_OVERFLOW:
+	case EXCEPTION_FLT_STACK_CHECK:
+	case EXCEPTION_FLT_UNDERFLOW:
+	case EXCEPTION_ILLEGAL_INSTRUCTION:
+	case EXCEPTION_IN_PAGE_ERROR:
+	case EXCEPTION_INT_DIVIDE_BY_ZERO:
+	case EXCEPTION_INT_OVERFLOW:
+	case EXCEPTION_INVALID_DISPOSITION:
+	case EXCEPTION_NONCONTINUABLE_EXCEPTION:
+	case EXCEPTION_PRIV_INSTRUCTION:
+	case EXCEPTION_STACK_OVERFLOW:
+	case 0xC0000374: // STATUS_HEAP_CORRUPTION
+	case 0xC0000409: // STATUS_STACK_BUFFER_OVERRUN
+	case 0xE06D7363: // a C++ exception nothing caught
+		return true;
+	default:
+		return false;
+	}
+}
+
+static void EngineMiniDump( unsigned int uCode, EXCEPTION_POINTERS *pException, const char *pszSuffix )
+{
+	if ( pException && IsCrash( uCode ) )
+	{
+		if ( s_bInstalled )
+		{
+			// tier0 ends the process once this returns.
+			DumpFromHere( pException );
+			return;
+		}
+		// crashpad's filter has the handler write the dump, then ends the
+		// process itself.
+		if ( s_pfnPinnedFilter )
+			s_pfnPinnedFilter( pException );
+	}
+	if ( s_pfnPrevEngineMiniDump )
+		s_pfnPrevEngineMiniDump( uCode, pException, pszSuffix );
+}
+
+bool HookEngineMinidumps()
+{
+	if ( !s_pfnSetMiniDumpFunction )
+	{
+		HMODULE hTier0 = GetModuleHandleW( L"tier0.dll" );
+		if ( hTier0 )
+			s_pfnSetMiniDumpFunction = (SetMiniDumpFunction_t)GetProcAddress( hTier0, "SetMiniDumpFunction" );
+		if ( !s_pfnSetMiniDumpFunction )
+			return false;
+	}
+	const EngineMiniDump_t pfnPrev = s_pfnSetMiniDumpFunction( EngineMiniDump );
+	if ( pfnPrev != EngineMiniDump )
+		s_pfnPrevEngineMiniDump = pfnPrev;
+	return true;
+}
+
 void ReassertDumpHandler()
 {
 	if ( s_bInstalled )
 		SetUnhandledExceptionFilter( UnhandledFilter );
 	else if ( s_pfnPinnedFilter )
 		SetUnhandledExceptionFilter( s_pfnPinnedFilter );
+	if ( s_pfnSetMiniDumpFunction )
+		HookEngineMinidumps();
 }
 
 void PinExceptionFilter()

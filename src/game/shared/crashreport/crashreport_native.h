@@ -9,7 +9,8 @@
 //  - On Windows, a fallback for when crashpad cannot run (its handler is
 //    missing, or -crashinprocess): minidumps written from inside the game,
 //    uploaded on the next launch.
-//  - On Windows, keeping crashpad's exception filter on top.
+//  - On Windows, keeping crashpad's exception filter on top, and getting the
+//    crashes the engine's tier0 catches itself.
 //
 //=============================================================================
 
@@ -43,6 +44,9 @@ namespace CrashNative
 	void MakeDirs( const char *pszPath );
 	// Files in a folder whose names end in pszSuffix, full paths, oldest first.
 	void ListFiles( const char *pszDir, const char *pszSuffix, std::vector< std::string > &out );
+	// The last nMaxBytes of a file, from the start of a line. Empty if it
+	// cannot be read.
+	std::string ReadFileTail( const char *pszPath, size_t nMaxBytes );
 
 #ifdef _WIN32
 	// Unhandled exceptions, pure virtual calls, invalid CRT parameters and
@@ -56,6 +60,9 @@ namespace CrashNative
 	// Remembers the current top-level exception filter (crashpad's, right
 	// after sentry_init) for ReassertDumpHandler().
 	void PinExceptionFilter();
+	// Has crashes that tier0's CatchAndWriteMiniDump*() catches go to our
+	// dump writer or crashpad too. False if tier0 has no SetMiniDumpFunction.
+	bool HookEngineMinidumps();
 #endif
 }
 
