@@ -21,7 +21,7 @@
 	<link type="text/rcss" href="../../style/base.rcss"/>
 	<link type="text/rcss" href="hud.rcss"/>
 </head>
-<body id="hud" data-replaces="health ammo medic class buildmenu objective goal killfeed scoreboard winpanel freezecam spectator chat vote notices quests">
+<body id="hud" data-replaces="health ammo medic class buildmenu servermenu voice queue mapvote objective goal killfeed scoreboard winpanel freezecam spectator chat vote notices quests">
 <div class="root" data-model="fr" data-class-world="app.world">
 	<div class="world-standin game-still" data-if="app.preview"></div>
 	<div class="hud" data-if="hud.visible" data-class-team-blu="hud.team == 'blu'">
@@ -42,6 +42,7 @@
 			<!-- Control points (and King of the Hill: the hill between the clocks) -->
 			<div id="points" class="row" data-if="hud.mode == 'cp' || hud.mode == 'koth'">
 				<div class="koth-clock blu-side" data-if="hud.mode == 'koth'">{{ hud.koth_blu | clock }}</div>
+				<div class="arena-count blu-side" data-if="hud.arena_blu >= 0">{{ 'fui_hud_alive' | t(hud.arena_blu) }}</div>
 				<div class="cp" data-for="p, i : hud.points" data-class-capping="p.capping != ''" data-class-locked="p.locked"
 					data-class-red="p.owner == 'red'" data-class-blu="p.owner == 'blu'">
 					<div class="cp-disc"><span>{{ i + 1 }}</span></div>
@@ -51,6 +52,7 @@
 					<div class="cp-cappers" data-if="p.cappers > 1">×{{ p.cappers }}</div>
 				</div>
 				<div class="koth-clock red-side" data-if="hud.mode == 'koth'">{{ hud.koth_red | clock }}</div>
+				<div class="arena-count red-side" data-if="hud.arena_red >= 0">{{ 'fui_hud_alive' | t(hud.arena_red) }}</div>
 			</div>
 
 			<!-- Payload: the track, the cart on it, its speed -->
@@ -92,7 +94,32 @@
 		</div>
 
 		<!-- Kill feed -->
-		<div id="killfeed">
+		<!-- Searching for the next match while this one is on -->
+		<div id="queue-pill" data-if="queue.state == 'searching' || queue.state == 'preparing' || queue.state == 'found'" data-class-found="queue.state == 'found'">
+			<span class="qp-dot"></span>
+			<span>{{ queue.state == 'found' ? ('fui_hud_queue_found' | t) : (queue.state == 'preparing' ? ('fui_queue_preparing' | t) : ('fui_searching' | t)) }}</span>
+			<span class="qp-time" data-if="queue.state == 'searching'">{{ queue.seconds | clock }}</span>
+		</div>
+
+		<!-- Who is talking -->
+		<div id="voice" data-if="hud.voice.self || hud.voice.talking.size > 0">
+			<div class="talker me row" data-if="hud.voice.self"><span class="mic"></span><span>#fui_hud_you_talk</span></div>
+			<div class="talker row" data-for="v : hud.voice.talking" data-class-blu="v.team == 'blu'" data-class-red="v.team == 'red'">
+				<span class="mic"></span>
+				<img class="talker-avatar" data-if="v.avatar != ''" data-attr-src="v.avatar"/>
+				<span class="talker-name">{{ v.name }}</span>
+			</div>
+		</div>
+
+		<!-- A server plugin's menu: the number keys pick -->
+		<div id="servermenu" data-if="hud.servermenu.shown">
+			<div class="sm-line" data-for="l : hud.servermenu.lines" data-class-item="l.key > 0">
+				<span class="cm-key" data-if="l.key > 0">{{ l.key }}</span>
+				<span>{{ l.text }}</span>
+			</div>
+		</div>
+
+		<div id="killfeed" data-class-low="queue.state == 'searching' || queue.state == 'preparing' || queue.state == 'found'">
 			<div class="kill" data-for="k : hud.kills" data-class-me="k.me" data-class-crit="k.crit">
 				<span class="kname" data-if="k.killer != ''" data-class-blu="k.killer_team == 'blu'">{{ k.killer }}</span>
 				<span class="kassist" data-if="k.assist != ''" data-class-blu="k.killer_team == 'blu'">+ {{ k.assist }}</span>
@@ -425,6 +452,20 @@
 					</div>
 				</div>
 				<div class="scores-spec" data-if="hud.scores.spec.size > 0">#fui_scores_spectators <span data-for="n, i : hud.scores.spec">{{ i > 0 ? ', ' : '' }}{{ n }}</span></div>
+				<div class="mapvote" data-if="hud.mapvote.shown">
+					<div class="row mv-head">
+						<span class="mv-title">{{ hud.mapvote.voting ? ('fui_mapvote_title' | t) : ('fui_mapvote_chosen' | t) }}</span>
+						<span class="spacer"></span>
+						<span class="dim small" data-if="hud.mapvote.voting">{{ hud.mapvote.voted ? ('fui_mapvote_voted' | t) : ('fui_mapvote_pick' | t) }} · {{ hud.mapvote.seconds }}</span>
+					</div>
+					<div class="row mv-maps">
+						<div class="mv-map" data-for="m : hud.mapvote.maps" data-class-mine="m.mine" data-class-winning="m.winning"
+							data-class-open="hud.mapvote.voting && !hud.mapvote.voted" data-event-click="cmd('map_vote', m.idx)">
+							<div class="mv-img" data-style-decorator="'image(' + m.image + ' cover)'"></div>
+							<div class="row mv-foot"><span class="grow mv-name">{{ m.name }}</span><span class="mv-pct">{{ m.pct }}%</span></div>
+						</div>
+					</div>
+				</div>
 				<div class="row scores-me">
 					<div class="stat"><span class="v">{{ hud.scores.me.kills }}</span>#fui_scores_kills</div>
 					<div class="stat"><span class="v">{{ hud.scores.me.deaths }}</span>#fui_scores_deaths</div>

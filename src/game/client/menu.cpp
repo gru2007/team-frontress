@@ -148,6 +148,16 @@ bool CHudMenu::ShouldDraw( void )
 //			x - 
 //			y - 
 //-----------------------------------------------------------------------------
+#ifdef TF_CLIENT_DLL
+extern bool FrontressHudReplaces( const char *pszPart );
+void CHudMenu::PaintTraverse( bool Repaint, bool allowForce )
+{
+	if ( FrontressHudReplaces( "servermenu" ) )
+		return;
+	BaseClass::PaintTraverse( Repaint, allowForce );
+}
+#endif
+
 void CHudMenu::PaintString( const wchar_t *text, int textlen, vgui::HFont& font, int x, int y )
 {
 	vgui::surface()->DrawSetTextFont( font );

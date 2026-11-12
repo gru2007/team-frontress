@@ -44,6 +44,11 @@ type Party struct {
 	Queues map[int32]time.Time
 	// Standby is the members asking to be let into the party's match.
 	Standby map[uint64]bool
+	// reachDoubt is when the party first looked like no server suits it; its
+	// members are measuring again. reachRelaxed: none does, so it plays on
+	// the best server there is (probe.go, checkPartyReach).
+	reachDoubt   time.Time
+	reachRelaxed bool
 
 	// inviteHolders is who has an invite object for this party, so stale ones
 	// are destroyed.

@@ -82,6 +82,12 @@
 	"fui_ms": "ms",
 	"fui_region_unreachable": "no answer",
 	"fui_region_hint": "Your game pings our servers: you are only matched on a server it reaches. Auto picks the region you ping best.",
+	"fui_region_none_ok": "None of our servers answers your game within %1 ms. A search will still find a match, on the best server there is; expect a high ping. A closer region or a VPN may help.",
+	"fui_reach_title": "Playing on the best server there is",
+	"fui_reach_self": "No server answers you within %1 ms.",
+	"fui_reach_member": "No server answers %1 within %2 ms.",
+	"fui_reach_party": "No server answers everyone in your party within %1 ms.",
+	"fui_reach_best": "Searching on %1",
 	"fui_players_now": "playing now",
 	"fui_war_title": "Campaign",
 	"fui_war_day": "Day",
@@ -856,5 +862,12 @@
 	"fui_cm_destroy_none": "Not built",
 	"fui_cm_destroy_off": "Unavailable",
 	"fui_cm_hint": "Number keys pick · 0 closes",
-	"fui_cm_disguise_hint": "Number keys pick · R switches team · 0 closes"
+	"fui_cm_disguise_hint": "Number keys pick · R switches team · 0 closes",
+	"fui_hud_alive": "%1 alive",
+	"fui_hud_queue_found": "Match found!",
+	"fui_hud_you_talk": "You are talking",
+	"fui_mapvote_title": "Next map",
+	"fui_mapvote_chosen": "Next map chosen",
+	"fui_mapvote_pick": "Click a map",
+	"fui_mapvote_voted": "Your vote is in"
 }

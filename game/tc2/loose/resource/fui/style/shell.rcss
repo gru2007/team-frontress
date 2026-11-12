@@ -199,6 +199,7 @@ body#shell { pointer-events: none; }
 .toast.k-clan { border-left-color: #ffc93c; }
 .toast.k-support { border-left-color: #ff9ec4; }
 .toast.k-error { border-left-color: #ef5a4c; }
+.toast.k-warn { border-left-color: #ffc93c; }
 .clan-tab-tag {
 	display: inline-block;
 	font-size: 12dp;
@@ -288,6 +289,9 @@ body#shell { pointer-events: none; }
 	border-bottom-color: #6e1f1b;
 }
 .play-button.searching .label { font-size: 44dp; line-height: 64dp; padding-top: 12dp; color: #fff4e8; font-effect: shadow(0 3dp #00000066); }
+.reach-note { margin-bottom: 10dp; padding: 10dp 14dp; border-radius: 10dp; background-color: #1c140bdd; border-left: 4dp #ffc93c; }
+.reach-note-title { font-family: "TF2 Build"; font-size: 15dp; color: #ffc93c; }
+.reach-note-why { font-size: 13dp; color: #d8cdb4; margin-top: 2dp; }
 .play-button.searching .sub { font-family: "TF2 Build"; font-size: 26dp; color: #ffd9d2; }
 
 /* ---------------------------------------------------------------- modals */

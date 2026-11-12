@@ -38,6 +38,13 @@ only removed the pipe to Steam. That pipe now points here.
    pings the pool when the GC asks (`server_ping`, `internal/gc/probe.go`), so
    a player whose network cannot reach a host -- Russia and a server in
    Canada, say -- is never sent there, not even after `region_wait_secs`.
+   The ping limit is a preference, not a wall: a party no server suits
+   (one of them reaches none within the limit, or no server suits all of
+   them) plays on the best server there is -- the lowest average ping,
+   servers that do not answer last -- once a second measurement agrees, and
+   its game says so (msg 51023: a toast and a line under the searching
+   button). Searching again measures again, so a player who turned a VPN on
+   gets a good server when there is one.
 5. **A server takes it.** A free server from the pool (the dedicated servers
    connected with a server key) is given the lobby in state `SERVERSETUP`.
    The server's own `CTFGCServerSystem` builds the match and changes level.

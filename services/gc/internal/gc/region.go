@@ -40,6 +40,7 @@ func init() {
 		}
 		p := g.player(s.SteamID)
 		p.RegionPref = region
+		p.ReachDialog = pick.Ping >= 2
 		if pick.Ping > 0 && !p.CanPing {
 			p.CanPing = true
 			p.probeSentAt = time.Time{}

@@ -46,6 +46,14 @@ func (g *GC) handleQueue(s *session.Session, m *wire.Msg) {
 	}
 	if _, already := p.Queues[grp.MatchGroup]; !already {
 		p.Queues[grp.MatchGroup] = g.now()
+		// Measure the servers again: a player who just turned a VPN on (or
+		// off) is judged on what their network does now.
+		p.reachDoubt = time.Time{}
+		for _, id := range p.Members {
+			if pl := g.online[id]; pl != nil && pl.CanPing {
+				pl.probeWanted = true
+			}
+		}
 		g.log.Info("party queued", "party", p.ID, "group", grp.Name, "players", len(p.Members), "steamids", p.Members)
 	}
 	g.publishParty(p)

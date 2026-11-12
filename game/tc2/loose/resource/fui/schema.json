@@ -44,7 +44,12 @@
 	// The region picker (src/game/client/tf/frontress/fui_servers.cpp): pick is
 	// tf_mm_region ("auto" or a region id); list { id, name, ms (best ping to a
 	// server there, -1 if none), ok (reached within max_ms), measured, on }.
-	"region": { "pick": "auto", "max_ms": 200, "list": [] },
+	// none_ok: every server was measured and none answers within max_ms.
+	"region": { "pick": "auto", "max_ms": 200, "list": [], "none_ok": false },
+	// No server suits the party within the ping limit, so it searches on the
+	// best one there is (fui_servers.cpp): relaxed, why (a sentence), best
+	// (server name and region), best_ms (your ping to it, -1 unknown).
+	"reach": { "relaxed": false, "why": "", "best": "", "best_ms": -1 },
 	"maps": [],
 	// The coordinator's GET /v1/war as it is (services/gc/internal/gc/warview.go):
 	// fronts are sectors { id, name, icon, hq, x, y, owner, frontline, front,
@@ -65,7 +70,7 @@
 		"health": 0, "max": 1, "frac": 0, "overheal": 0, "low": false,
 		"weapon": "", "weapon_icon": "", "clip": -1, "reserve": -1, "clip_max": 0, "clip_low": false,
 		"charge": -1, "charge_ready": false, "respawn": -1, "killed_by": "",
-		"mode": "", "timer": -1, "setup": false, "overtime": false, "waiting": false, "restart": -1,
+		"mode": "", "timer": -1, "setup": false, "overtime": false, "waiting": false, "restart": -1, "arena_red": -1, "arena_blu": -1,
 		"score_red": 0, "score_blu": 0, "koth_red": -1, "koth_blu": -1,
 		"points": [], "cart": { "progress": -1, "speed": 0, "team": "blu" }, "flags": [], "kills": [],
 		// What the class carries (fui_hud.cpp, from the stock panels' logic).
@@ -111,6 +116,12 @@
 		// (fui_ingame.cpp) { shown, kind (build, destroy, disguise), metal, team,
 		// group, simple, slots[ { key, kind, state, cost } | { key, cls, group, selected } ] }.
 		// state: build: ready, built, short, off; destroy: built, none, off.
+		// voice: { self (you are talking), talking[ { name, team, avatar } ] };
+		// servermenu: a server plugin's menu { shown, lines[ { key (0: text), text } ] }.
+		// mapvote: the next map, voted on at the end of a matchmade match
+		// { shown, voting, voted, seconds, maps[ { idx, name, image, pct, mine, winning } ] }.
+		"mapvote": { "shown": false, "voting": false, "voted": false, "seconds": 0, "maps": [] },
+		"voice": { "self": false, "talking": [] }, "servermenu": { "shown": false, "lines": [] },
 		"menu": { "shown": false, "kind": "", "metal": 0, "team": "red", "group": -1, "simple": false, "slots": [] }
 	},
 	// The settings window: the HUDs installed (resource/fui/huds) and the one in use.

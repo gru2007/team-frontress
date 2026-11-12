@@ -395,7 +395,8 @@ static void SendDataCenterPings( CMsgGCDataCenterPing_Update &cache )
 	if ( s_bRegionDirty )
 	{
 		// 51020 (the coordinator's region message): JSON in a party chat message.
-		// "ping": this game measures servers when asked (fui_servers.cpp).
+		// "ping": this game measures servers when asked (fui_servers.cpp);
+		// 2: and shows the coordinator's best-server fallback (51023).
 		char szRegion[ 32 ] = "";
 		const char *pszRegion = tf_mm_region.GetString();
 		for ( int i = 0, n = 0; pszRegion[ i ] && n < (int)sizeof( szRegion ) - 1; ++i )
@@ -405,7 +406,7 @@ static void SendDataCenterPings( CMsgGCDataCenterPing_Update &cache )
 				szRegion[ n++ ] = c, szRegion[ n ] = 0;
 		}
 		GCSDK::CProtoBufMsg< CMsgPartyChatMsg > msg( 51020 );
-		msg.Body().set_msg( CFmtStr( "{\"region\":\"%s\",\"ping\":1}", V_stricmp( szRegion, "auto" ) ? szRegion : "" ).Get() );
+		msg.Body().set_msg( CFmtStr( "{\"region\":\"%s\",\"ping\":2}", V_stricmp( szRegion, "auto" ) ? szRegion : "" ).Get() );
 		if ( GCClientSystem()->BSendMessage( msg ) )
 			s_bRegionDirty = false;
 	}

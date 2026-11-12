@@ -47,6 +47,7 @@ static const uint32 k_EMsgGCFrontress_Notice = 51000;
 static const uint32 k_EMsgGCFrontress_PartyLooks = 51002;	// see services/gc/internal/gc/looks.go
 static const uint32 k_EMsgGCFrontress_SocialEvent = 51011;	// see services/gc/internal/gc/social.go
 static const uint32 k_EMsgGCFrontress_ServerList = 51021;	// see services/gc/internal/gc/probe.go
+static const uint32 k_EMsgGCFrontress_Unreachable = 51023;	// see services/gc/internal/gc/probe.go
 
 static const float k_flMaxBackoff = 60.f;
 static const uint32 k_cubMaxBatch = 256 * 1024;
@@ -885,6 +886,22 @@ public:
 	}
 };
 GC_REG_JOB( GCSDK::CGCClient, CGCFrontressServerList, "CGCFrontressServerList", k_EMsgGCFrontress_ServerList, GCSDK::k_EServerTypeGCClient );
+
+// No server suits the party within the ping limit: it searches on the best
+// one there is, and the menu says so (fui_servers.cpp).
+extern void FuiOnUnreachable( const char *pszJSON );
+class CGCFrontressUnreachable : public GCSDK::CGCClientJob
+{
+public:
+	CGCFrontressUnreachable( GCSDK::CGCClient *pClient ) : GCSDK::CGCClientJob( pClient ) {}
+	virtual bool BYieldingRunGCJob( GCSDK::IMsgNetPacket *pNetPacket ) OVERRIDE
+	{
+		GCSDK::CProtoBufMsg< CMsgPartyChatMsg > msg( pNetPacket );
+		FuiOnUnreachable( msg.Body().msg().c_str() );
+		return true;
+	}
+};
+GC_REG_JOB( GCSDK::CGCClient, CGCFrontressUnreachable, "CGCFrontressUnreachable", k_EMsgGCFrontress_Unreachable, GCSDK::k_EServerTypeGCClient );
 
 #endif // CLIENT_DLL
 

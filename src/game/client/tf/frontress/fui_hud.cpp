@@ -20,6 +20,7 @@
 #include "c_tf_player.h"
 #include "c_tf_team.h"
 #include "c_playerresource.h"
+#include "c_tf_playerresource.h"
 #include "c_team_objectiveresource.h"
 #include "c_team_train_watcher.h"
 #include "entity_capture_flag.h"
@@ -646,6 +647,11 @@ void WriteObjective( Node &hud )
 		hud[ "koth_red" ] = Node( redTime ); hud[ "koth_blu" ] = Node( bluTime );
 	}
 
+	// Arena: who is still alive on each side (the stock player count).
+	const bool bArena = pRules && pRules->IsInArenaMode() && g_TF_PR;
+	hud[ "arena_red" ] = Node( bArena ? g_TF_PR->GetNumPlayersForTeam( frontress::DisplayTeam( TF_TEAM_RED ), true ) : -1 );
+	hud[ "arena_blu" ] = Node( bArena ? g_TF_PR->GetNumPlayersForTeam( frontress::DisplayTeam( TF_TEAM_BLUE ), true ) : -1 );
+
 	// Control points, in the map's order.
 	Node &points = hud[ "points" ];
 	points.SetArray();
@@ -845,12 +851,19 @@ bool FrontressHudReplaces( CHudElement *pElement )
 		{ "objective", "CTFHudObjectiveStatus" },
 		{ "objective", "CTFHudKothTimeStatus" },
 		{ "objective", "CTFHudMatchStatus" },
+		{ "objective", "CHudArenaPlayerCount" },
+		{ "objective", "CHudCapturePanel" },	// capturing a point: the points row shows it
 		{ "goal", "CHudTeamGoal" },
 		{ "freezecam", "CTFFreezePanel" },
 		{ "winpanel", "CTFWinPanel" },
 		{ "winpanel", "CTFMatchSummary" },
 		{ "chat", "CHudChat" },
 		{ "quests", "CHudItemAttributeTracker" },
+		{ "quests", "CHudAchievementTracker" },	// Steam achievements being tracked
+		{ "objective", "CHudTournament" },		// "waiting for players": the clock says it, the countdown follows
+		{ "voice", "CHudVoiceStatus" },
+		{ "voice", "CHudVoiceSelfStatus" },
+		{ "queue", "CQueueHUDStatus" },			// searching for the next match: the HUD reads queue.*
 		{ "quests", "CQuestNotificationPanel" },
 	};
 	const char *pszElement = pElement->GetName();

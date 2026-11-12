@@ -34,7 +34,9 @@ type Player struct {
 	probeKey      string
 	probeSentAt   time.Time
 	probeAnswered bool
-	reachNoticeAt time.Time
+	probeWanted   bool // measure again as soon as probeMinGap allows
+	// ReachDialog: the game shows msgUnreachable as a dialog ({"ping": 2}).
+	ReachDialog bool
 
 	// Social (social.go): their name as the game told us, their language,
 	// whether they are looking for a squad, their chat allowance.

@@ -7,7 +7,12 @@
 // whose network cannot reach a host is never sent there.
 //
 // The same pings make the region picker on the play screen: region.list
-// { id, name, ms, ok, measured, on } and region.pick (resource/fui/schema.json).
+// { id, name, ms, ok, measured, on }, region.pick and region.none_ok (no
+// server answers in time; resource/fui/schema.json).
+//
+// A party no server suits within the ping limit plays on the best one there
+// is; the coordinator says so (51023) and FuiOnUnreachable shows it: a toast,
+// and reach (schema.json) under the searching button.
 //
 //=============================================================================
 #ifndef FUI_SERVERS_H
@@ -26,6 +31,9 @@ namespace fui
 
 // The coordinator's server list (JSON), from frontress_gc.cpp.
 void FuiOnServerList( const char *pszJSON );
+// No server suits the party within the ping limit, so it searches on the best
+// one there is (51023): a toast and reach on the next menu refresh.
+void FuiOnUnreachable( const char *pszJSON );
 // Every menu refresh: the region picker.
 void FuiServersUpdate( fui::Runtime &runtime );
 // A document command; true if it was a region one.

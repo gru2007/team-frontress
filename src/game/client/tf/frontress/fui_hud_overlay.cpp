@@ -37,6 +37,8 @@
 #include "hud.h"
 #include "hud_basechat.h"
 #include "hud_vote.h"
+#include "menu.h"
+#include "tf_gc_client.h"
 #include "tf_gamerules.h"
 #include "econ_item_system.h"
 #include "steam/steam_api.h"
@@ -121,6 +123,7 @@ bool IsMvM()
 //=============================================================================
 bool s_bScores = false;
 bool s_bScoresMouse = false;
+bool s_bMapVoteOpen = false;	// the next map is being voted on, and you have not picked yet
 
 void WritePlayerRow( int i, int iLocalTeam, C_TFPlayer *pLocal, Node &row )
 {
@@ -607,6 +610,8 @@ void WriteNotices( Node &out )
 		{ "CStrandedSpawnPanel", "notify" },
 		{ "CTFStreakNotice", "streak" },
 		{ "CTFStatPanel", "record" },
+		{ "CHudHintDisplay", "hint" },
+		{ "CHudHintKeyDisplay", "hint" },
 	};
 	for ( const auto &notice : s_Notices )
 	{
@@ -614,7 +619,7 @@ void WriteNotices( Node &out )
 		// paint, fui_paint.h): it is up when it says it is visible.
 		CHudElement *pElement = gHUD.FindElement( notice.pszElement );
 		vgui::Panel *pPanel = dynamic_cast< vgui::Panel * >( pElement );
-		if ( !pElement || !pPanel || !pPanel->IsVisible() )
+		if ( !pElement || !pPanel || !pPanel->IsVisible() || pPanel->GetAlpha() <= 0 )
 			continue;
 		Node n;
 		n[ "kind" ] = Node( notice.pszKind );
@@ -866,7 +871,7 @@ bool FuiHudWantsKeyboard()
 
 bool FuiHudWantsMouse()
 {
-	return s_iChatMode != 0 || ( s_bScores && s_bScoresMouse );
+	return s_iChatMode != 0 || ( s_bScores && s_bScoresMouse ) || s_bMapVoteOpen;
 }
 
 bool FuiHudCloseChat()
@@ -898,6 +903,13 @@ bool FuiHudCommand( fui::Runtime &runtime, const std::string &name, const std::v
 		}
 		return true;
 	}
+	if ( name == "map_vote" )
+	{
+		const int iMap = V_atoi( arg.c_str() );
+		if ( arg.size() == 1 && iMap >= 0 && iMap < NEXT_MAP_VOTE_OPTIONS )
+			engine->ClientCmd( CFmtStr( "next_map_vote %d\n", iMap ) );
+		return true;
+	}
 	if ( name == "say_close" )
 	{
 		FuiHudCloseChat();
@@ -921,6 +933,111 @@ bool FuiHudCommand( fui::Runtime &runtime, const std::string &name, const std::v
 	return false;
 }
 
+//-----------------------------------------------------------------------------
+// Who is talking (CHudVoiceStatus, CHudVoiceSelfStatus).
+//-----------------------------------------------------------------------------
+static void WriteVoice( Node &out )
+{
+	CVoiceStatus *pVoice = GetClientVoiceMgr();
+	out[ "self" ] = Node( pVoice && pVoice->IsLocalPlayerSpeaking() );
+	Node &talking = out[ "talking" ];
+	talking.SetArray();
+	for ( int i = 1; pVoice && g_PR && i <= gpGlobals->maxClients; ++i )
+	{
+		if ( i == GetLocalPlayerIndex() || !g_PR->IsConnected( i ) || !pVoice->IsPlayerSpeaking( i ) )
+			continue;
+		Node &t = talking.Append();
+		t[ "name" ] = Node( g_PR->GetPlayerName( i ) );
+		t[ "team" ] = Node( TeamName( g_PR->GetTeam( i ) ) );
+		t[ "avatar" ] = Node( Avatar( i ) );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// A server plugin's menu (CHudMenu: "->1. Item" lines in g_szMenuString).
+//-----------------------------------------------------------------------------
+extern wchar_t g_szMenuString[];
+
+static void WriteServerMenu( Node &out )
+{
+	CHudMenu *pMenu = GET_HUDELEMENT( CHudMenu );
+	const bool bShown = pMenu && pMenu->IsMenuOpen() && FrontressHudReplaces( "servermenu" );
+	out[ "shown" ] = Node( bShown );
+	Node &lines = out[ "lines" ];
+	lines.SetArray();
+	if ( !bShown )
+		return;
+	const std::string text = UTF8( g_szMenuString );
+	size_t nStart = 0;
+	while ( nStart <= text.size() )
+	{
+		size_t nEnd = text.find( '\n', nStart );
+		if ( nEnd == std::string::npos )
+			nEnd = text.size();
+		std::string line = text.substr( nStart, nEnd - nStart );
+		nStart = nEnd + 1;
+		int iItem = 0;
+		if ( line.compare( 0, 2, "->" ) == 0 )
+		{
+			iItem = atoi( line.c_str() + 2 );
+			const size_t nDot = line.find( '.' );
+			line = nDot != std::string::npos ? line.substr( nDot + 1 ) : line.substr( 2 );
+		}
+		while ( !line.empty() && line[ 0 ] == ' ' )
+			line.erase( 0, 1 );
+		if ( line.empty() && !iItem )
+			continue;
+		Node &l = lines.Append();
+		l[ "key" ] = Node( iItem );
+		l[ "text" ] = Node( line );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// The vote for the next map at the end of a matchmade match (the dashboard's
+// next map popups): the three maps, how the votes stand, your pick.
+//-----------------------------------------------------------------------------
+
+static void WriteMapVote( Node &out )
+{
+	CTFGameRules *pRules = TFGameRules();
+	const CTFGameRules::ENextMapVotingState eState = pRules ? pRules->GetCurrentNextMapVotingState() : CTFGameRules::NEXT_MAP_VOTE_STATE_NONE;
+	const bool bShown = eState != CTFGameRules::NEXT_MAP_VOTE_STATE_NONE && FrontressHudReplaces( "mapvote" ) &&
+		GTFGCClientSystem() && GTFGCClientSystem()->BConnectedToMatchServer( false );
+	out[ "shown" ] = Node( bShown );
+	s_bMapVoteOpen = false;
+	if ( !bShown )
+		return;
+	int nVotes[ CTFGameRules::NUM_VOTE_STATES ];
+	memset( nVotes, 0, sizeof( nVotes ) );
+	const CTFGameRules::EUserNextMapVote eWinning = pRules->GetWinningVote( nVotes );
+	const CTFGameRules::EUserNextMapVote eMine = pRules->PlayerNextMapVoteState( GetLocalPlayerIndex() );
+	const bool bVoting = eState == CTFGameRules::NEXT_MAP_VOTE_STATE_WAITING_FOR_USERS_TO_VOTE;
+	s_bMapVoteOpen = bVoting && eMine == CTFGameRules::USER_NEXT_MAP_VOTE_UNDECIDED;
+	out[ "voting" ] = Node( bVoting );
+	out[ "voted" ] = Node( eMine != CTFGameRules::USER_NEXT_MAP_VOTE_UNDECIDED );
+	static ConVarRef tf_mm_next_map_vote_time( "tf_mm_next_map_vote_time" );
+	const float flLeft = bVoting && tf_mm_next_map_vote_time.IsValid() ?
+		tf_mm_next_map_vote_time.GetFloat() - ( gpGlobals->curtime - pRules->GetLastRoundStateChangeTime() ) : 0.f;
+	out[ "seconds" ] = Node( Max( 0, (int)ceilf( flLeft ) ) );
+	int nTotal = 0;
+	for ( int i = 0; i < NEXT_MAP_VOTE_OPTIONS; ++i )
+		nTotal += nVotes[ i ];
+	Node &maps = out[ "maps" ];
+	maps.SetArray();
+	for ( int i = 0; i < NEXT_MAP_VOTE_OPTIONS; ++i )
+	{
+		const MapDef_t *pMap = GetItemSchema()->GetMasterMapDefByIndex( pRules->GetNextMapVoteOption( i ) );
+		Node &m = maps.Append();
+		m[ "idx" ] = Node( i );
+		m[ "name" ] = Node( pMap ? UTF8( g_pVGuiLocalize->Find( pMap->pszMapNameLocKey ) ) : std::string() );
+		m[ "image" ] = Node( pMap ? std::string( "tex:vgui/maps/menu_thumb_" ) + pMap->pszMapName : std::string() );
+		m[ "pct" ] = Node( nTotal ? nVotes[ i ] * 100 / nTotal : 0 );
+		m[ "mine" ] = Node( (int)eMine == i );
+		m[ "winning" ] = Node( (int)eWinning == i && nTotal > 0 );
+	}
+}
+
 void FuiHudOverlayUpdate( fui::Runtime &runtime, Node &hud )
 {
 	s_RoundEnd.Listen();
@@ -934,6 +1051,9 @@ void FuiHudOverlayUpdate( fui::Runtime &runtime, Node &hud )
 	WriteNotices( hud[ "notices" ] );
 	WriteVotes( hud[ "votes" ] );
 	WriteChat( hud[ "chat" ] );
+	WriteVoice( hud[ "voice" ] );
+	WriteServerMenu( hud[ "servermenu" ] );
+	WriteMapVote( hud[ "mapvote" ] );
 
 	// The chat field takes the keyboard once it is on screen.
 	if ( s_bChatFocus && runtime.FocusHud( "say" ) )

@@ -23,6 +23,11 @@
 class CHudMenu : public CHudElement, public vgui::Panel
 {
 	DECLARE_CLASS_SIMPLE( CHudMenu, vgui::Panel );
+#ifdef TF_CLIENT_DLL
+	// Team Frontress: the Frontress HUD draws the menu (g_szMenuString) when
+	// its data-replaces names "servermenu"; this keeps the keys and timing.
+	virtual void PaintTraverse( bool Repaint, bool allowForce = true ) OVERRIDE;
+#endif
 public:
 	CHudMenu( const char *pElementName );
 	void Init( void );

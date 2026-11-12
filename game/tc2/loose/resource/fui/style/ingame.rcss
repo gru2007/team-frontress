@@ -162,6 +162,7 @@ body#hud { pointer-events: none; }
 	animation: 0.4s back-out 1 inr;
 }
 #hud-toasts .toast.quest, #hud-toasts .toast.k-quest { border-left-color: #8fd16a; }
+#hud-toasts .toast.k-warn { border-left-color: #ffc93c; }
 #hud-toasts .toast-icon { width: 40dp; height: 40dp; border-radius: 6dp; }
 #hud-toasts .toast-title { font-family: "TF2 Build"; font-size: 16dp; }
 #hud-toasts .toast-body { font-size: 14dp; color: #d8cdb4; }

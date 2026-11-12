@@ -34,6 +34,10 @@ public:
 
 	virtual bool ShouldBeActve() const OVERRIDE
 	{
+		// Team Frontress: the Frontress HUD shows the vote with the match summary.
+		extern bool FrontressHudReplaces( const char *pszPart );
+		if ( FrontressHudReplaces( "mapvote" ) )
+			return false;
 
 		int nVotes[ CTFGameRules::EUserNextMapVote::NUM_VOTE_STATES ];
 		CTFGameRules::EUserNextMapVote eWinningVote = TFGameRules()->GetWinningVote( nVotes );

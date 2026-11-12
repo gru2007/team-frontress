@@ -107,6 +107,10 @@
 			<div class="label">#fui_play</div>
 			<div class="play-hint">{{ party.count }}/{{ party.max }} · {{ ('fui_mode_' + ui.mode) | t }}</div>
 		</div>
+		<div class="reach-note" data-if="queue.state == 'searching' && reach.relaxed">
+			<div class="reach-note-title">{{ 'fui_reach_best' | t(reach.best) }}<span data-if="reach.best_ms >= 0"> · ~{{ reach.best_ms }} #fui_ms</span></div>
+			<div class="reach-note-why">{{ reach.why }}</div>
+		</div>
 		<div class="play-button searching" sfx="" data-if="queue.state == 'searching'" data-event-click="cmd('unqueue')">
 			<div class="label">#fui_cancel</div>
 			<div class="sub">{{ queue.seconds | clock }}</div>

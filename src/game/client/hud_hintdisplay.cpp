@@ -19,6 +19,13 @@
 #include "inputsystem/iinputsystem.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
+#ifdef TF_CLIENT_DLL
+#include "tf/frontress/fui_paint.h"
+#define FRONTRESS_HINT_PAINTS FRONTRESS_HUD_PAINTS( "notices" )	// the Frontress HUD shows hints as notices
+#else
+#define FRONTRESS_HINT_PAINTS
+#endif
+
 #include "tier0/memdbgon.h"
 
 //-----------------------------------------------------------------------------
@@ -27,6 +34,8 @@
 class CHudHintDisplay : public vgui::Panel, public CHudElement
 {
 	DECLARE_CLASS_SIMPLE( CHudHintDisplay, vgui::Panel );
+	FRONTRESS_HINT_PAINTS
+private:
 
 public:
 	CHudHintDisplay( const char *pElementName );
@@ -348,6 +357,8 @@ void CHudHintDisplay::LocalizeAndDisplay( const char *pszHudTxtMsg, const char *
 class CHudHintKeyDisplay : public vgui::Panel, public CHudElement
 {
 	DECLARE_CLASS_SIMPLE( CHudHintKeyDisplay, vgui::Panel );
+	FRONTRESS_HINT_PAINTS
+private:
 
 public:
 	CHudHintKeyDisplay( const char *pElementName );

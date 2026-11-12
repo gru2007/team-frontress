@@ -1,6 +1,7 @@
 package gc
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -95,5 +96,102 @@ func TestMatchesOnlyGoWherePlayersReach(t *testing.T) {
 	p.probeSentAt = g.now().Add(-time.Minute)
 	if !g.reaches(3, canada) {
 		t.Fatal("a game that never answered held its player back forever")
+	}
+}
+
+// A party no server suits within the ping limit is not left waiting: once a
+// second measurement agrees, it plays on the best server there is.
+func TestUnsuitedPartyPlaysOnBestServer(t *testing.T) {
+	grp := config.MatchGroupConfig{MatchGroup: 7, Enabled: true, MinPlayers: 2, IdealPlayers: 2, MaxPlayers: 4}
+	now := time.Unix(1_800_000_000, 0)
+	g, err := New(Deps{Now: func() time.Time { return now }, Config: config.Config{
+		MatchGroups: []config.MatchGroupConfig{grp},
+		Regions:     []config.RegionConfig{{ID: "na", Name: "NA/Canada"}},
+		ServerPing:  config.ServerPingConfig{MaxMS: 150},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := func(id uint64, addr string) *Server {
+		s := g.sessions.Open(session.Server, id, nil)
+		s.Connect, s.Region = addr, "na"
+		g.ServerConnected(s)
+		srv := g.servers[id]
+		srv.Ready = true
+		return srv
+	}
+	far := server(100, "10.0.0.1:27015")
+	dead := server(200, "10.0.0.2:27015")
+
+	// Two players in Russia, each queued alone.
+	p, q := g.player(1), g.player(2)
+	party, other := g.newParty(1), g.newParty(2)
+	p.PartyID, q.PartyID = party.ID, other.ID
+	for _, pl := range []*Player{p, q} {
+		pl.Online, pl.CanPing = true, true
+	}
+	party.Queues[grp.MatchGroup] = now
+	other.Queues[grp.MatchGroup] = now
+	answer := func(farMS int) {
+		for _, pl := range []*Player{p, q} {
+			pl.probeSentAt, pl.probeAnswered, pl.probeWanted = now, true, false
+			pl.probeKey = probeKey(g.probeList())
+			pl.Pings = map[uint64]serverPing{
+				far.SteamID:  {Addr: far.Connect, OK: true, MS: farMS, At: now},
+				dead.SteamID: {Addr: dead.Connect, OK: false, MS: -1, At: now},
+			}
+		}
+	}
+	answer(240)
+
+	now = now.Add(time.Second)
+	g.tickProbes()
+	g.matchmake()
+	if party.reachRelaxed || g.lobbyOf(1) != nil {
+		t.Fatal("one measurement over the limit was enough to fall back")
+	}
+	if !p.probeWanted && p.probeSentAt.Before(party.reachDoubt) {
+		t.Fatal("the player was not asked to measure again")
+	}
+
+	// A VPN went on: the second measurement is within the limit, no fallback.
+	now = now.Add(probeMinGap)
+	answer(90)
+	now = now.Add(time.Second)
+	g.tickProbes()
+	if party.reachRelaxed || !party.reachDoubt.IsZero() {
+		t.Fatal("a party a server suits after all fell back")
+	}
+
+	// Over the limit again, twice: it plays on the best server there is,
+	// the one that answers, not the one that does not.
+	answer(240)
+	now = now.Add(time.Second)
+	g.tickProbes()
+	now = now.Add(probeMinGap)
+	answer(240)
+	now = now.Add(time.Second)
+	g.tickProbes()
+	if !party.reachRelaxed {
+		t.Fatal("a party no server suits did not fall back to the best one")
+	}
+	if _, queued := party.Queues[grp.MatchGroup]; !queued {
+		t.Fatal("the party was taken out of the queue")
+	}
+	g.matchmake()
+	l := g.lobbyOf(1)
+	if l == nil || g.lobbyOf(2) != l || l.ServerID != far.SteamID {
+		t.Fatalf("the party was not matched on the best server: %+v", l)
+	}
+	// The fallback lasts while the match it found is on.
+	g.tickProbes()
+	if !party.reachRelaxed {
+		t.Fatal("the fallback ended before the match did")
+	}
+
+	en, ru := reachText(reachReport{Self: true, MaxMS: 150, Best: reachServer{Name: "Frontress #1", Region: "NA/Canada", MS: 240}}, false),
+		reachText(reachReport{Self: true, MaxMS: 150, Best: reachServer{Name: "Frontress #1", Region: "NA/Canada", MS: 240}}, true)
+	if !strings.Contains(en, "Frontress #1 (NA/Canada), ~240 ms") || !strings.Contains(ru, "~240 мс") {
+		t.Fatalf("notice text: %q / %q", en, ru)
 	}
 }

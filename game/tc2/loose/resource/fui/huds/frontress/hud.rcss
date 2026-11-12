@@ -171,6 +171,12 @@ body#hud { pointer-events: none; }
 	color: #fff4e8;
 }
 
+.arena-count {
+	height: 40dp; padding: 0 14dp;
+	font-family: "TF2 Build"; font-size: 20dp; line-height: 40dp;
+	color: #fff4e8; white-space: nowrap;
+}
+
 #cart { width: 560dp; margin: 12dp auto 0 auto; }
 .track {
 	position: relative;
@@ -636,3 +642,54 @@ body#hud { pointer-events: none; }
 .cm-slot.s-ready .cm-note { color: #ffd76a; }
 .cm-face { width: 64dp; height: 64dp; margin: 6dp auto 0 auto; }
 .cm-hint { margin-top: 8dp; font-size: 13dp; color: #7d705e; text-align: center; }
+
+/* ------------------------------------------------------------ queue, voice, server menus */
+#queue-pill {
+	position: absolute; right: 28dp; top: 18dp;
+	display: flex; flex-direction: row; align-items: center; gap: 8dp;
+	padding: 5dp 14dp; border-radius: 14dp;
+	background-color: #17110ee8; border: 1dp #ffc93c66;
+	font-family: "TF2 Build"; font-size: 15dp; text-transform: uppercase; color: #ffe0a0;
+}
+#queue-pill.found { background-color: #ffc93c; color: #2a1a05; animation: 0.6s sine-in-out infinite alternate hp-throb; }
+.qp-dot { width: 8dp; height: 8dp; border-radius: 4dp; background-color: #ffc93c; animation: 0.8s sine-in-out infinite alternate hp-throb; }
+.qp-time { color: #d8cdb4; }
+#killfeed.low { top: 64dp; }
+
+#voice { position: absolute; right: 28dp; top: 46%; width: 300dp; }
+.talker {
+	gap: 8dp; margin-bottom: 4dp; padding: 4dp 10dp; border-radius: 8dp;
+	background-color: #17110ed8; border-left: 3dp #b8ab92;
+	font-size: 15dp; color: #fff4e8;
+}
+.talker.red { border-left-color: #c8413b; }
+.talker.blu { border-left-color: #4a7fae; }
+.talker.me { border-left-color: #8fd16a; color: #e8f5dc; }
+.mic { width: 8dp; height: 14dp; border-radius: 4dp; background-color: #8fd16a; animation: 0.4s sine-in-out infinite alternate hp-throb; }
+.talker-avatar { width: 22dp; height: 22dp; border-radius: 4dp; }
+.talker-name { white-space: nowrap; overflow: hidden; }
+
+#servermenu {
+	position: absolute; left: 380dp; top: 260dp; width: 420dp;
+	padding: 12dp 16dp; border-radius: 12dp;
+	background-color: #17110ef0; border-left: 4dp #ffc93c;
+}
+.sm-line { font-size: 16dp; line-height: 22dp; color: #d8cdb4; padding: 1dp 0; }
+.sm-line:first-child { font-family: "TF2 Build"; font-size: 17dp; text-transform: uppercase; color: #fff4e8; }
+.sm-line.item { color: #fff4e8; }
+.sm-line .cm-key { position: relative; left: 0; top: 0; display: inline-block; margin-right: 8dp; text-align: center; vertical-align: middle; }
+
+/* ------------------------------------------------------------ the next map, at the end of a match */
+.mapvote { margin-top: 14dp; padding-top: 12dp; border-top: 1dp #ffffff14; pointer-events: auto; }
+.mv-head { margin-bottom: 8dp; }
+.mv-title { font-family: "TF2 Build"; font-size: 20dp; text-transform: uppercase; color: #ffc93c; }
+.mv-maps { gap: 14dp; }
+.mv-map { flex: 1 1 0; border-radius: 10dp; background-color: #00000060; border: 2dp #ffffff14; }
+.mv-map.open { cursor: pointer; }
+.mv-map.open:hover { border-color: #ffc93c99; }
+.mv-map.winning { border-color: #8fd16a; }
+.mv-map.mine { border-color: #ffc93c; }
+.mv-img { height: 120dp; border-radius: 8dp 8dp 0 0; }
+.mv-foot { padding: 6dp 10dp; gap: 8dp; }
+.mv-name { font-family: "TF2 Build"; font-size: 16dp; color: #fff4e8; }
+.mv-pct { font-family: "TF2 Build"; font-size: 18dp; color: #ffd76a; }

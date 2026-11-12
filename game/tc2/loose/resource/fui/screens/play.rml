@@ -40,7 +40,8 @@
 				<span class="region-ms" data-if="r.id != 'auto' && r.measured && !r.ok">#fui_region_unreachable</span>
 			</div>
 		</div>
-		<div class="dimmer small regions-hint" data-if="region.list.size > 0">#fui_region_hint</div>
+		<div class="small regions-hint bad" data-if="region.none_ok">{{ 'fui_region_none_ok' | t(region.max_ms) }}</div>
+		<div class="dimmer small regions-hint" data-if="region.list.size > 0 && !region.none_ok">#fui_region_hint</div>
 
 		<div id="pool" class="panel" data-if="ui.mode == 'casual' || ui.mode == 'ranked'">
 			<div class="panel-title pool-title">#fui_map_pool</div>

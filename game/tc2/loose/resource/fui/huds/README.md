@@ -36,6 +36,10 @@ they stay hidden while it is up. Leave a word out and the game's part stays.
 | `medic` | ÜberCharge meter (CHudMedicChargeMeter) |
 | `class` | what a class carries: item meters (cloak, drinks, banners, heads...), stickybombs and charge meters, a spy's disguise, metal, an engineer's buildings |
 | `buildmenu` | an engineer's build and destroy menus, a spy's disguise menu (CHudMenuEngyBuild, CHudMenuEngyDestroy, CHudMenuSpyDisguise); their keys still work |
+| `servermenu` | a server plugin's menu (CHudMenu, e.g. SourceMod); its keys still work |
+| `voice` | who is talking (CHudVoiceStatus, CHudVoiceSelfStatus) |
+| `queue` | the matchmaking queue status in a match (CQueueHUDStatus); the HUD reads `queue.*` |
+| `mapvote` | the next-map vote at the end of a matchmade match (the dashboard's popups); click a map: `cmd('map_vote', i)` |
 | `objective` | timer, points, cart, flags (CTFHudObjectiveStatus, CTFHudKothTimeStatus, CTFHudMatchStatus), only in modes `hud.mode` covers |
 | `goal` | the map's goal across the top at spawn (CHudTeamGoal); it is in Esc |
 | `killfeed` | kill feed (CTFHudDeathNotice) |
@@ -87,6 +91,9 @@ the rest of the menus' state.
 | `hud.killer` | who killed you: `shown`, `self`, `object`, `name`, `team`, `cls`, `avatar`, `health`, `max`, `frac`, `weapon`, `weapon_icon`, `rivalry` |
 | `hud.spec` | spectating: `shown`, `mode`, `team_spec`, `target` { `on`, `object`, `name`, `team`, `cls`, `avatar`, `health`, `max`, `frac` } |
 | `hud.menu` | the class menu up: `shown`, `kind` (build, destroy, disguise), `metal`, `team`, `group`, `simple`, `slots[]` { `key`, `kind`, `state`, `cost` } or { `key`, `cls`, `group`, `selected` } |
+| `hud.mapvote` | `shown`, `voting`, `voted`, `seconds`, `maps[]` { `idx`, `name`, `image`, `pct`, `mine`, `winning` } |
+| `hud.voice` | `self`, `talking[]` { `name`, `team`, `avatar` } |
+| `hud.servermenu` | `shown`, `lines[]` { `key` (0 for a text line), `text` } |
 | `hud.notices[]` | `kind`, `lines[]` |
 | `hud.votes[]` | `header`, `issue`, `options[]` { `label`, `count` }, `voted`, `yesno`, `result` (passed / failed), `result_text` |
 | `hud.chat` | `open`, `mode` (all / team / party), `lines[]` { `fade`, `segs[]` { `t`, `c` } }; type into `<input id="say" data-value="ui.say_draft" data-event-change="cmd('say_input', ev.linebreak, ev.value)">` |

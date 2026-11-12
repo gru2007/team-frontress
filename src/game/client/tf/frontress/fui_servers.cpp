@@ -14,6 +14,7 @@
 #pragma pop_macro( "Assert" )
 
 #include "fui_servers.h"
+#include "fui_tf.h"
 
 #include "frontress_gc.h"
 #include "tf_gc_client.h"
@@ -65,6 +66,7 @@ struct State_t
 	double flDeadline = 0.;
 	bool bRunning = false;
 	std::string shown;	// the region picker as last published
+	std::string reach;	// why the queue stopped (51023), waiting for the menu
 };
 
 State_t &S()
@@ -232,9 +234,92 @@ void FuiOnServerList( const char *pszJSON )
 		S().pending = pszJSON;
 }
 
+void FuiOnUnreachable( const char *pszJSON )
+{
+	if ( !pszJSON || !pszJSON[ 0 ] )
+		return;
+	S().reach = pszJSON;
+	Msg( "Game coordinator: no server within the ping limit, searching on the best one there is: %s\n", pszJSON );
+}
+
+namespace
+{
+
+std::string Arg( std::string text, const char *pszKey, const std::string &value )
+{
+	const size_t at = text.find( pszKey );
+	if ( at != std::string::npos )
+		text.replace( at, strlen( pszKey ), value );
+	return text;
+}
+
+// The coordinator's report (probe.go, reachReport): no server suits the party
+// within the ping limit, so it plays on the best one there is. A toast says
+// so once; reach { relaxed, why, best, best_ms } keeps it under the searching
+// button.
+void ShowReach( fui::Runtime &ui, const std::string &json )
+{
+	Node doc;
+	if ( !Node::Parse( json, doc ) || !doc.IsObject() )
+		return;
+	const bool bSelf = doc.Find( "self" ) && doc.Find( "self" )->AsBool();
+	const bool bParty = doc.Find( "party" ) && doc.Find( "party" )->AsBool();
+	const std::string maxMS = std::to_string( doc.Find( "max_ms" ) ? (int)doc.Find( "max_ms" )->AsNumber( 200 ) : 200 );
+	std::string who;
+	if ( const Node *pWho = doc.Find( "who" ) )
+	{
+		for ( size_t i = 0; i < pWho->Size(); ++i )
+		{
+			if ( !who.empty() )
+				who += ", ";
+			who += pWho->At( i )->AsString();
+		}
+	}
+	std::string server, region;
+	int ms = -1;
+	if ( const Node *pBest = doc.Find( "best" ) )
+	{
+		server = pBest->Find( "name" ) ? pBest->Find( "name" )->AsString() : "";
+		region = pBest->Find( "region" ) ? pBest->Find( "region" )->AsString() : "";
+		ms = pBest->Find( "ms" ) ? (int)pBest->Find( "ms" )->AsNumber( -1 ) : -1;
+	}
+	if ( server.empty() )
+		server = region;
+	else if ( !region.empty() && region != server )
+		server += " (" + region + ")";
+
+	std::string why;
+	if ( bSelf )
+		why = Arg( ui.Translate( "fui_reach_self" ), "%1", maxMS );
+	else if ( !bParty && !who.empty() )
+		why = Arg( Arg( ui.Translate( "fui_reach_member" ), "%1", who ), "%2", maxMS );
+	else
+		why = Arg( ui.Translate( "fui_reach_party" ), "%1", maxMS );
+	std::string best = server;
+	if ( ms >= 0 )
+		best += " \xC2\xB7 ~" + std::to_string( ms ) + " " + ui.Translate( "fui_ms" );
+	FuiTF().Toast( "warn", ui.Translate( "fui_reach_title" ),
+		why + " " + Arg( ui.Translate( "fui_reach_best" ), "%1", best ), "" );
+
+	Node reach;
+	reach[ "relaxed" ] = true;
+	reach[ "why" ] = why;
+	reach[ "best" ] = server;
+	reach[ "best_ms" ] = ms;
+	ui.Set( "reach", std::move( reach ) );
+}
+
+} // namespace
+
 void FuiServersUpdate( fui::Runtime &ui )
 {
 	State_t &s = S();
+	if ( !s.reach.empty() )
+	{
+		std::string json;
+		json.swap( s.reach );
+		ShowReach( ui, json );
+	}
 	static ConVarRef tf_mm_region( "tf_mm_region" );
 	std::string pick = tf_mm_region.IsValid() ? tf_mm_region.GetString() : "auto";
 	if ( pick.empty() )
@@ -279,6 +364,17 @@ void FuiServersUpdate( fui::Runtime &ui )
 		item[ "measured" ] = bMeasured;
 		item[ "on" ] = pick == r.first;
 	}
+	// Every server measured and none answers in time: the play screen warns
+	// before the player even queues.
+	bool bAnyMeasured = false, bAnyOK = false;
+	for ( const Target_t &t : s.targets )
+	{
+		if ( !t.bDone )
+			continue;
+		bAnyMeasured = true;
+		bAnyOK = bAnyOK || ( t.bOK && ( s.maxMS < 0 || t.ms <= s.maxMS ) );
+	}
+	region[ "none_ok" ] = bAnyMeasured && !bAnyOK;
 	const std::string dump = region.Dump();
 	if ( dump == s.shown )
 		return;
@@ -288,6 +384,14 @@ void FuiServersUpdate( fui::Runtime &ui )
 
 bool FuiServersCommand( fui::Runtime &ui, const std::string &name, const std::vector< std::string > &args )
 {
+	// A new search is judged afresh: the coordinator measures again.
+	if ( name == "queue" )
+	{
+		Node reach;
+		reach[ "relaxed" ] = false;
+		ui.Set( "reach", std::move( reach ) );
+		return false;
+	}
 	if ( name != "set_region" )
 		return false;
 	const std::string arg = args.empty() ? std::string() : args[ 0 ];
