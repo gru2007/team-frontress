@@ -37,6 +37,9 @@ namespace CrashNative
 	// Plain file helpers on UTF-8 paths.
 	bool FileExists( const char *pszPath );
 	bool RemoveFile( const char *pszPath );
+	// When the file was last written, in seconds of some fixed epoch; 0 if
+	// it does not exist.
+	double FileTime( const char *pszPath );
 	void MakeDirs( const char *pszPath );
 	// Files in a folder whose names end in pszSuffix, full paths, oldest first.
 	void ListFiles( const char *pszDir, const char *pszSuffix, std::vector< std::string > &out );

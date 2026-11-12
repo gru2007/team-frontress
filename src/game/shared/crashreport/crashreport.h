@@ -45,6 +45,7 @@ private:
 	double m_flNextSave = 0.0;
 	std::string m_ReportsDir;	// pending dumps and console output
 	std::string m_SessionPath;	// this session's console output
+	std::string m_DatabasePath;	// sentry's and crashpad's own files
 	SpewOutputFunc_t m_OutputFuncPrev = NULL;
 };
 

@@ -120,6 +120,26 @@ static void DetachAll( std::vector< sentry_attachment_t * > &attached )
 	attached.clear();
 }
 
+// Whether crashpad wrote a dump after this time: its database keeps reports
+// in reports/ (Windows) or new/, pending/, completed/ (Linux, macOS) after
+// they are sent. sentry's own crash marker is not written on macOS, nor for
+// crashes that reach crashpad through WER.
+static bool CrashpadDumpedSince( const std::string &database, double flTime )
+{
+	static const char *const s_Dirs[] = { "reports", "new", "pending", "completed" };
+	for ( const char *pszDir : s_Dirs )
+	{
+		std::vector< std::string > dumps;
+		CrashNative::ListFiles( ( database + PATH_SEP + pszDir ).c_str(), ".dmp", dumps );
+		for ( const std::string &dump : dumps )
+		{
+			if ( CrashNative::FileTime( dump.c_str() ) >= flTime )
+				return true;
+		}
+	}
+	return false;
+}
+
 CCrashReporter::CCrashReporter()
 	: CAutoGameSystemPerFrame("crashreport")
 {
@@ -153,7 +173,7 @@ bool CCrashReporter::Init()
 	const std::string rootDir = exeDir.empty() ? std::string( "." ) : exeDir;
 	const std::string handlerPath = rootDir + PATH_SEP PLATFORM_BIN_DIR PATH_SEP CRASHPAD_HANDLER;
 	m_ReportsDir = rootDir + PATH_SEP "crashreports";
-	const std::string databasePath = m_ReportsDir + PATH_SEP ".sentry";
+	m_DatabasePath = m_ReportsDir + PATH_SEP ".sentry";
 	m_SessionPath = m_ReportsDir + PATH_SEP SESSION_FILE;
 	CrashNative::MakeDirs( m_ReportsDir.c_str() );
 
@@ -167,7 +187,7 @@ bool CCrashReporter::Init()
 
 	sentry_options_t* options = sentry_options_new();
 	sentry_options_set_dsn( options, pszDSN );
-	sentry_options_set_database_path( options, databasePath.c_str() );
+	sentry_options_set_database_path( options, m_DatabasePath.c_str() );
 	if ( m_bInProcess )
 	{
 		// No crashpad: the game writes its own dumps (see the top).
@@ -178,6 +198,11 @@ bool CCrashReporter::Init()
 		sentry_options_set_handler_path( options, handlerPath.c_str() );
 	}
 	sentry_options_set_release( options, release.c_str() );
+	// This session's console output, saved on a timer, goes with every
+	// report. Given before sentry_init: crashpad on macOS takes no
+	// attachments added later. The file still holds the last session's
+	// output until SendPendingReports() is done with it.
+	sentry_options_add_attachment( options, m_SessionPath.c_str() );
 	sentry_options_set_environment( options, SENTRY_ENVIRONMENT );
 	if ( CommandLine()->FindParm( "-sentrydebug" ) )
 		sentry_options_set_debug( options, 1 );
@@ -220,10 +245,8 @@ bool CCrashReporter::Init()
 	}
 #endif
 
-	// Every report from now on carries this session's console output; it
-	// is saved on a timer, and kept after a death nothing else saw.
+	// From now on the file is this session's.
 	CrashNative::LogWrite( m_SessionPath.c_str(), true );
-	sentry_attach_file( m_SessionPath.c_str() );
 
 	Msg( "Crash reporting on (%s, %s).\n", release.c_str(), m_bInProcess ? "in-process dumps" : "crashpad" );
 	return true;
@@ -251,10 +274,13 @@ void CCrashReporter::SendPendingReports()
 	}
 
 	// crashpad has already sent the last run's crash, if there was one.
-	const bool bCrashpadCrashed = sentry_get_crashed_last_run() == 1;
+	bool bCrashpadCrashed = sentry_get_crashed_last_run() == 1;
 	if ( bCrashpadCrashed )
 		sentry_clear_crashed_last_run();
-	const bool bSessionLeft = CrashNative::FileExists( m_SessionPath.c_str() ) && !bCrashpadCrashed;
+	const double flSessionTime = CrashNative::FileTime( m_SessionPath.c_str() );
+	if ( !bCrashpadCrashed && flSessionTime > 0.0 && !m_bInProcess )
+		bCrashpadCrashed = CrashpadDumpedSince( m_DatabasePath, flSessionTime );
+	const bool bSessionLeft = flSessionTime > 0.0 && !bCrashpadCrashed;
 	if ( !bSessionLeft )
 		CrashNative::RemoveFile( m_SessionPath.c_str() );
 	if ( dumps.empty() && logs.empty() && !bSessionLeft )
@@ -297,11 +323,10 @@ void CCrashReporter::SendPendingReports()
 	// the anti-cheat, the task manager).
 	if ( bSessionLeft && nReports == 0 )
 	{
-		AttachIfExists( m_SessionPath, attached );
+		// The session file goes with it already (see Init()).
 		sentry_value_t event = sentry_value_new_message_event( SENTRY_LEVEL_ERROR, "session",
 			"The previous session ended without a clean shutdown and without a crash dump" );
 		sentry_capture_event( event );
-		DetachAll( attached );
 		++nReports;
 	}
 

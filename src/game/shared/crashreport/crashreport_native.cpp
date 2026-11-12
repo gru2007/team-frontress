@@ -29,6 +29,10 @@
 #include <limits.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#include <stdlib.h>
+#endif
 #endif
 
 namespace CrashNative
@@ -200,6 +204,17 @@ bool RemoveFile( const char *pszPath )
 	return DeleteFileW( Widen( pszPath ).c_str() ) != 0;
 }
 
+double FileTime( const char *pszPath )
+{
+	WIN32_FILE_ATTRIBUTE_DATA fad;
+	if ( !GetFileAttributesExW( Widen( pszPath ).c_str(), GetFileExInfoStandard, &fad ) )
+		return 0.0;
+	ULARGE_INTEGER t;
+	t.LowPart = fad.ftLastWriteTime.dwLowDateTime;
+	t.HighPart = fad.ftLastWriteTime.dwHighDateTime;
+	return (double)t.QuadPart / 1e7;
+}
+
 void MakeDirs( const char *pszPath )
 {
 	const std::wstring path = Widen( pszPath );
@@ -249,6 +264,20 @@ std::string ExeDir()
 		return std::string();
 	*pSlash = 0;
 	return sz;
+#elif defined( __APPLE__ )
+	char szRaw[ PATH_MAX ];
+	uint32_t nRaw = sizeof( szRaw );
+	if ( _NSGetExecutablePath( szRaw, &nRaw ) != 0 )
+		return std::string();
+	// The path may be relative or go through symlinks.
+	char sz[ PATH_MAX ];
+	if ( !realpath( szRaw, sz ) )
+		return std::string();
+	char *pSlash = strrchr( sz, '/' );
+	if ( !pSlash )
+		return std::string();
+	*pSlash = 0;
+	return sz;
 #else
 	return std::string();
 #endif
@@ -263,6 +292,18 @@ bool FileExists( const char *pszPath )
 bool RemoveFile( const char *pszPath )
 {
 	return unlink( pszPath ) == 0;
+}
+
+double FileTime( const char *pszPath )
+{
+	struct stat st;
+	if ( stat( pszPath, &st ) != 0 )
+		return 0.0;
+#if defined( __APPLE__ )
+	return (double)st.st_mtimespec.tv_sec + st.st_mtimespec.tv_nsec / 1e9;
+#else
+	return (double)st.st_mtim.tv_sec + st.st_mtim.tv_nsec / 1e9;
+#endif
 }
 
 void MakeDirs( const char *pszPath )
