@@ -162,80 +162,171 @@
    "enabled": true
   }
  ],
- "maps": [
-  {
-   "id": "cp_process_final",
-   "name": "Process",
-   "image": "vgui/maps/menu_thumb_cp_process_final",
-   "on": true
-  },
-  {
-   "id": "cp_gullywash_final1",
-   "name": "Gullywash",
-   "image": "vgui/maps/menu_thumb_cp_gullywash_final1",
-   "on": true
-  },
-  {
-   "id": "cp_snakewater_final1",
-   "name": "Snakewater",
-   "image": "vgui/maps/menu_thumb_cp_snakewater_final1",
-   "on": true
-  },
-  {
-   "id": "cp_granary",
-   "name": "Granary",
-   "image": "vgui/maps/menu_thumb_cp_granary",
-   "on": false
-  },
-  {
-   "id": "pl_badwater",
-   "name": "Badwater",
-   "image": "vgui/maps/menu_thumb_pl_badwater",
-   "on": true
-  },
-  {
-   "id": "pl_upward",
-   "name": "Upward",
-   "image": "vgui/maps/menu_thumb_pl_upward",
-   "on": true
-  },
-  {
-   "id": "pl_borneo",
-   "name": "Borneo",
-   "image": "vgui/maps/menu_thumb_pl_borneo",
-   "on": false
-  },
-  {
-   "id": "koth_viaduct",
-   "name": "Viaduct",
-   "image": "vgui/maps/menu_thumb_koth_viaduct",
-   "on": true
-  },
-  {
-   "id": "koth_lakeside_final",
-   "name": "Lakeside",
-   "image": "vgui/maps/menu_thumb_koth_lakeside_final",
-   "on": true
-  },
-  {
-   "id": "koth_harvest_final",
-   "name": "Harvest",
-   "image": "vgui/maps/menu_thumb_koth_harvest_final",
-   "on": true
-  },
-  {
-   "id": "ctf_2fort",
-   "name": "2Fort",
-   "image": "vgui/maps/menu_thumb_ctf_2fort",
-   "on": false
-  },
-  {
-   "id": "cp_dustbowl",
-   "name": "Dustbowl",
-   "image": "vgui/maps/menu_thumb_cp_dustbowl",
-   "on": true
-  }
- ],
+ "pool": {
+  "n": 12,
+  "n_on": 9,
+  "queued": 19,
+  "counts": true,
+  "edit": true,
+  "cats": [
+   {
+    "id": "4",
+    "name": "Control Points",
+    "n": 4,
+    "n_on": 3,
+    "on": false,
+    "some": true,
+    "queued": 9,
+    "playing": 46,
+    "maps": [
+     {
+      "id": "cp_gullywash_final1",
+      "name": "Gullywash",
+      "image": "vgui/maps/menu_thumb_cp_gullywash_final1",
+      "on": true,
+      "queued": 9,
+      "playing": 0
+     },
+     {
+      "id": "cp_granary",
+      "name": "Granary",
+      "image": "vgui/maps/menu_thumb_cp_granary",
+      "on": false,
+      "queued": 3,
+      "playing": 0
+     },
+     {
+      "id": "cp_process_final",
+      "name": "Process",
+      "image": "vgui/maps/menu_thumb_cp_process_final",
+      "on": true,
+      "queued": 9,
+      "playing": 24
+     },
+     {
+      "id": "cp_snakewater_final1",
+      "name": "Snakewater",
+      "image": "vgui/maps/menu_thumb_cp_snakewater_final1",
+      "on": true,
+      "queued": 6,
+      "playing": 22
+     }
+    ]
+   },
+   {
+    "id": "0",
+    "name": "Payload",
+    "n": 3,
+    "n_on": 2,
+    "on": false,
+    "some": true,
+    "queued": 11,
+    "playing": 24,
+    "maps": [
+     {
+      "id": "pl_badwater",
+      "name": "Badwater",
+      "image": "vgui/maps/menu_thumb_pl_badwater",
+      "on": true,
+      "queued": 11,
+      "playing": 24
+     },
+     {
+      "id": "pl_borneo",
+      "name": "Borneo",
+      "image": "vgui/maps/menu_thumb_pl_borneo",
+      "on": false,
+      "queued": 2,
+      "playing": 0
+     },
+     {
+      "id": "pl_upward",
+      "name": "Upward",
+      "image": "vgui/maps/menu_thumb_pl_upward",
+      "on": true,
+      "queued": 11,
+      "playing": 0
+     }
+    ]
+   },
+   {
+    "id": "3",
+    "name": "King of the Hill",
+    "n": 3,
+    "n_on": 3,
+    "on": true,
+    "some": false,
+    "queued": 7,
+    "playing": 18,
+    "maps": [
+     {
+      "id": "koth_harvest_final",
+      "name": "Harvest",
+      "image": "vgui/maps/menu_thumb_koth_harvest_final",
+      "on": true,
+      "queued": 0,
+      "playing": 0
+     },
+     {
+      "id": "koth_lakeside_final",
+      "name": "Lakeside",
+      "image": "vgui/maps/menu_thumb_koth_lakeside_final",
+      "on": true,
+      "queued": 0,
+      "playing": 0
+     },
+     {
+      "id": "koth_viaduct",
+      "name": "Viaduct",
+      "image": "vgui/maps/menu_thumb_koth_viaduct",
+      "on": true,
+      "queued": 7,
+      "playing": 18
+     }
+    ]
+   },
+   {
+    "id": "2",
+    "name": "Attack/Defend",
+    "n": 1,
+    "n_on": 1,
+    "on": true,
+    "some": false,
+    "queued": 0,
+    "playing": 0,
+    "maps": [
+     {
+      "id": "cp_dustbowl",
+      "name": "Dustbowl",
+      "image": "vgui/maps/menu_thumb_cp_dustbowl",
+      "on": true,
+      "queued": 0,
+      "playing": 0
+     }
+    ]
+   },
+   {
+    "id": "1",
+    "name": "Capture the Flag",
+    "n": 1,
+    "n_on": 0,
+    "on": false,
+    "some": false,
+    "queued": 4,
+    "playing": 0,
+    "maps": [
+     {
+      "id": "ctf_2fort",
+      "name": "2Fort",
+      "image": "vgui/maps/menu_thumb_ctf_2fort",
+      "on": false,
+      "queued": 4,
+      "playing": 0
+     }
+    ]
+   }
+  ]
+ },
  "war": {
   "name": "Ржавая долина",
   "campaign": "rustvalley-1",

@@ -50,51 +50,107 @@
 	margin-right: 6dp;
 }
 
+/* The casual map pool */
 #pool {
 	position: absolute;
 	right: 56dp; top: 112dp;
-	width: 430dp;
-	bottom: 340dp;
+	width: 470dp;
+	bottom: 300dp;
+	padding: 18dp 14dp 12dp 18dp;
+	display: flex;
+	flex-direction: column;
 }
-#maps {
+.pool-head { margin-bottom: 2dp; padding-right: 6dp; }
+.pool-title { margin-bottom: 0; }
+.pool-n { font-family: "TF2 Build"; font-size: 19dp; color: #ffc93c; }
+.pool-tools { gap: 6dp; margin: 6dp 0 10dp 0; padding-right: 6dp; }
+.pool-live { color: #b8ab92; }
+.live.off { background-color: #6d6252; }
+.pool-btn {
+	font-family: "TF2 Build";
+	font-size: 13dp;
+	text-transform: uppercase;
+	color: #d8cdb4;
+	padding: 5dp 10dp;
+	border-radius: 7dp;
+	background-color: #ffffff10;
+	cursor: pointer;
+	transition: background-color color 0.12s cubic-out;
+}
+.pool-btn:hover { background-color: #ffc93c33; color: #ffc93c; }
+.pool-note {
+	color: #e9b44c;
+	background-color: #ffc93c14;
+	border-radius: 8dp;
+	padding: 7dp 10dp;
+	margin-bottom: 8dp;
+}
+#pool-list {
+	flex: 1 1 0;
+	overflow-y: auto;
+	padding-right: 6dp;
+}
+.pool-cat { margin-bottom: 8dp; }
+
+/* A mode's heading ticks all its maps; a map row ticks one. */
+.cat-row, .map-row {
 	display: flex;
 	flex-direction: row;
-	flex-wrap: wrap;
-	gap: 10dp;
-	overflow-y: auto;
-	height: 500dp;
-	align-content: flex-start;
-}
-.map {
-	position: relative;
-	width: 186dp;
-	height: 98dp;
-	border-radius: 10dp;
-	border: 2dp #ffffff14;
+	align-items: center;
+	gap: 9dp;
+	border-radius: 8dp;
 	cursor: pointer;
-	transition: border-color 0.12s cubic-out;
+	transition: background-color 0.1s cubic-out;
 }
-.map-art { position: absolute; left: 0; top: 0; right: 0; bottom: 0; border-radius: 8dp; opacity: 0.35; }
-.map.on .map-art { opacity: 1; }
-.map:hover { border-color: #ece3cb88; }
-.map.on { border-color: #ffc93c; }
-.map-name {
-	position: absolute;
-	left: 0; right: 0; bottom: 0;
-	padding: 4dp 8dp;
-	border-radius: 0 0 8dp 8dp;
-	font-family: "TF2 Build";
-	font-size: 16dp;
-	background-color: #000000aa;
+.cat-row {
+	padding: 7dp 8dp;
+	background-color: #ffffff0a;
+	margin-bottom: 3dp;
 }
-.map-check {
-	position: absolute;
-	top: 6dp; right: 6dp;
-	width: 24dp; height: 24dp;
-	border-radius: 12dp;
-	background-color: #ffc93c;
+.cat-row:hover, .map-row:hover { background-color: #ffffff14; }
+#pool.locked .cat-row, #pool.locked .map-row { cursor: arrow; }
+#pool.locked .cat-row:hover { background-color: #ffffff0a; }
+#pool.locked .map-row:hover { background-color: transparent; }
+.cat-name { font-family: "TF2 Build"; font-size: 16dp; text-transform: uppercase; color: #d8cdb4; }
+.cat-row.on .cat-name, .cat-row.some .cat-name { color: #ece3cb; }
+.cat-n { font-size: 13dp; color: #7d705e; }
+.map-row { padding: 4dp 8dp; }
+.map-thumb {
+	width: 58dp; height: 32dp;
+	border-radius: 5dp;
+	opacity: 0.4;
+	transition: opacity 0.1s cubic-out;
 }
-.pool-title { margin-bottom: 2dp; }
+.map-row.on .map-thumb { opacity: 1; }
+.map-name { font-family: "TF2 Build"; font-size: 15dp; color: #8a7d6a; white-space: nowrap; }
+.map-row.on .map-name { color: #ece3cb; }
+
+/* The checkbox: ticked, half (some of a mode's maps), or empty. */
+.box {
+	width: 20dp; height: 20dp;
+	border-radius: 5dp;
+	border: 2dp #ffffff40;
+	flex: 0 0 auto;
+}
+.cat-row.on .box, .map-row.on .box { background-color: #ffc93c; border-color: #ffc93c; }
+.cat-row.some .box { border-color: #ffc93c; }
+.box .tick { margin-top: 1dp; width: 5dp; height: 10dp; }
+.box .dash { width: 10dp; height: 3dp; margin: 6dp auto 0 auto; background-color: #ffc93c; border-radius: 1dp; }
+
+/* Who wants a map and who plays it. */
+.pill {
+	font-size: 13dp;
+	padding: 2dp 7dp;
+	border-radius: 9dp;
+	white-space: nowrap;
+	background-color: #ffffff0e;
+	color: #b8ab92;
+}
+.pill.queue { background-color: #8fd16a26; color: #a9d98c; }
+.pill.play { background-color: #ffffff12; color: #d8cdb4; }
+.pill.empty { background-color: transparent; color: #6d6252; }
+.pool-none { padding: 20dp 4dp; }
+.pool-foot { margin-top: 8dp; padding-right: 6dp; }
 
 /* Region picker */
 #regions { align-items: center; gap: 10dp; margin-top: 26dp; width: 1300dp; flex-wrap: wrap; }
@@ -106,4 +162,3 @@
 .region-ms { margin-left: 8dp; color: #8fd16a; font-size: 13dp; }
 .region.bad .region-ms { color: #d0605a; }
 .regions-hint { margin-top: 8dp; }
-.pool-hint { margin-bottom: 14dp; }

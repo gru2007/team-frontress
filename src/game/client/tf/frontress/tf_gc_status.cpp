@@ -147,6 +147,8 @@ void CTFGCStatus::OnStatus( HTTPRequestCompleted_t *pInfo, bool bIOFailure )
 		m_groups[i].nQueued = 0;
 		m_groups[i].nNeed = 0;
 		m_groups[i].vecMaps.RemoveAll();
+		m_groups[i].vecMapQueued.RemoveAll();
+		m_groups[i].vecMapPlaying.RemoveAll();
 	}
 
 	CUtlString strSignature;
@@ -164,6 +166,8 @@ void CTFGCStatus::OnStatus( HTTPRequestCompleted_t *pInfo, bool bIOFailure )
 		strSignature += CFmtStr( "%d:", nGroup );
 
 		GCSDK::CWebAPIValues *pMaps = pGroup->FindChild( "maps" );
+		GCSDK::CWebAPIValues *pQueued = pGroup->FindChild( "map_queued" );
+		GCSDK::CWebAPIValues *pPlaying = pGroup->FindChild( "map_playing" );
 		for ( GCSDK::CWebAPIValues *pMap = pMaps ? pMaps->GetFirstChild() : NULL; pMap; pMap = pMap->GetNextChild() )
 		{
 			CUtlString strMap;
@@ -171,6 +175,9 @@ void CTFGCStatus::OnStatus( HTTPRequestCompleted_t *pInfo, bool bIOFailure )
 			if ( !strMap.IsEmpty() )
 			{
 				group.vecMaps.AddToTail( strMap );
+				// An older coordinator says nothing per map: -1, not "nobody".
+				group.vecMapQueued.AddToTail( pQueued && pQueued->FindChild( strMap.Get() ) ? JSONInt( pQueued, strMap.Get() ) : -1 );
+				group.vecMapPlaying.AddToTail( pPlaying && pPlaying->FindChild( strMap.Get() ) ? JSONInt( pPlaying, strMap.Get() ) : -1 );
 				strSignature += strMap;
 				strSignature += ",";
 			}
@@ -262,6 +269,36 @@ const CUtlVector< CUtlString > *CTFGCStatus::GetGroupMaps( ETFMatchGroup eMatchG
 	if ( nGroup < 0 || nGroup >= k_nGroups )
 		return NULL;
 	return m_groups[ nGroup ].vecMaps.Count() ? &m_groups[ nGroup ].vecMaps : NULL;
+}
+
+int CTFGCStatus::MapCount( ETFMatchGroup eMatchGroup, const char *pszMap, bool bPlaying ) const
+{
+	const int nGroup = (int)eMatchGroup;
+	if ( nGroup < 0 || nGroup >= k_nGroups || !pszMap )
+		return -1;
+	const Group_t &group = m_groups[ nGroup ];
+	FOR_EACH_VEC( group.vecMaps, i )
+	{
+		if ( !V_stricmp( group.vecMaps[ i ].Get(), pszMap ) )
+			return bPlaying ? group.vecMapPlaying[ i ] : group.vecMapQueued[ i ];
+	}
+	return -1;
+}
+
+int CTFGCStatus::GetMapQueued( ETFMatchGroup eMatchGroup, const char *pszMap ) const
+{
+	return MapCount( eMatchGroup, pszMap, false );
+}
+
+int CTFGCStatus::GetMapPlaying( ETFMatchGroup eMatchGroup, const char *pszMap ) const
+{
+	return MapCount( eMatchGroup, pszMap, true );
+}
+
+int CTFGCStatus::GetGroupQueued( ETFMatchGroup eMatchGroup ) const
+{
+	const int nGroup = (int)eMatchGroup;
+	return ( nGroup >= 0 && nGroup < k_nGroups ) ? m_groups[ nGroup ].nQueued : 0;
 }
 
 bool CTFGCStatus::BGroupOffered( ETFMatchGroup eMatchGroup ) const

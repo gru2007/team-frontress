@@ -42,6 +42,7 @@
 #include "c_tf_playerresource.h"
 #include "tf_gamerules.h"
 
+#include <algorithm>
 #include <map>
 #include <set>
 
@@ -674,6 +675,85 @@ bool CFuiTF::Impl::StartQueue( const std::string &mode, const std::string *pFron
 	return true;
 }
 
+// The casual pool the coordinator runs, grouped by game mode in the order
+// TF2's casual panel shows them (core modes, then the alternative ones, then
+// events). A map no casual mode lists goes last, under a nameless "other".
+struct PoolCategory_t
+{
+	std::string id, name;
+	std::vector< const MapDef_t * > maps;
+};
+
+static std::vector< PoolCategory_t > CasualPool()
+{
+	std::vector< PoolCategory_t > out;
+	const CUtlVector< CUtlString > *pPool = TFGCStatus()->GetGroupMaps( k_eTFMatchGroup_Casual_12v12 );
+	if ( !pPool )
+		return out;
+	std::vector< const MapDef_t * > pool;
+	FOR_EACH_VEC( *pPool, i )
+	{
+		const MapDef_t *pMap = GetItemSchema()->GetMasterMapDefByName( ( *pPool )[ i ].Get() );
+		if ( pMap && std::find( pool.begin(), pool.end(), pMap ) == pool.end() )
+			pool.push_back( pMap );
+	}
+	std::sort( pool.begin(), pool.end(), []( const MapDef_t *a, const MapDef_t *b ) {
+		return Localized( a->pszMapNameLocKey ) < Localized( b->pszMapNameLocKey );
+	} );
+
+	const auto order = []( EMatchmakingGroupType e ) {
+		switch ( e )
+		{
+		case kMatchmakingType_Core: return 0;
+		case kMatchmakingType_Alternative: return 1;
+		case kMatchmakingType_SpecialEvents: return 2;
+		default: return 3;
+		}
+	};
+	std::vector< const SchemaMMGroup_t * > groups;
+	const MMGroupMap_t &mapGroups = GetItemSchema()->GetMMGroupMap();
+	FOR_EACH_MAP( mapGroups, i )
+	{
+		if ( mapGroups[ i ]->m_bitsValidMMGroups.IsBitSet( k_eTFMatchGroup_Casual_12v12 ) )
+			groups.push_back( mapGroups[ i ] );
+	}
+	std::stable_sort( groups.begin(), groups.end(), [ & ]( const SchemaMMGroup_t *a, const SchemaMMGroup_t *b ) {
+		return order( a->m_eMMGroup ) < order( b->m_eMMGroup );
+	} );
+
+	std::set< const MapDef_t * > placed;
+	for ( const SchemaMMGroup_t *pGroup : groups )
+	{
+		FOR_EACH_VEC( pGroup->m_vecModes, j )
+		{
+			const SchemaGameCategory_t *pCat = pGroup->m_vecModes[ j ];
+			PoolCategory_t cat;
+			cat.id = std::to_string( (int)pCat->m_eGameCategory );
+			cat.name = Localized( pCat->m_pszLocalizedName );
+			for ( const MapDef_t *pMap : pool )
+			{
+				if ( !placed.count( pMap ) && pCat->m_vecMaps.HasElement( pMap ) )
+				{
+					cat.maps.push_back( pMap );
+					placed.insert( pMap );
+				}
+			}
+			if ( !cat.maps.empty() )
+				out.push_back( std::move( cat ) );
+		}
+	}
+	PoolCategory_t other;
+	other.id = "other";
+	for ( const MapDef_t *pMap : pool )
+	{
+		if ( !placed.count( pMap ) )
+			other.maps.push_back( pMap );
+	}
+	if ( !other.maps.empty() )
+		out.push_back( std::move( other ) );
+	return out;
+}
+
 void CFuiTF::Impl::RefreshModes()
 {
 	CTFGCStatus *pStatus = TFGCStatus();
@@ -698,36 +778,73 @@ void CFuiTF::Impl::RefreshModes()
 		Node &mode = list.Append();
 		mode[ "id" ] = m.pszID;
 		mode[ "name" ] = std::string( "#fui_mode_" ) + m.pszID;
-		mode[ "desc" ] = std::string( "#fui_mode_" ) + m.pszID + "_desc";
+		// A mode we do not run says so instead of selling itself: ranked is
+		// off for now (the rating only balances teams).
+		mode[ "desc" ] = std::string( "#fui_mode_" ) + m.pszID + ( !m.bEnabled && !V_strcmp( m.pszID, "ranked" ) ? "_off_desc" : "_desc" );
 		mode[ "image" ] = m.pszImage;
 		mode[ "size" ] = m.pszSize;
-		mode[ "tag" ] = m.bEnabled || !V_strcmp( m.pszTag, "#fui_tag_soon" ) ? m.pszTag : "";
+		mode[ "tag" ] = m.bEnabled ? m.pszTag : "#fui_tag_soon";
 		mode[ "enabled" ] = m.bEnabled;
 		mode[ "players" ] = 0;
 	}
 	pRuntime->Set( "modes", std::move( list ) );
 
-	// The casual map pool: what the coordinator runs, ticked as the party's
-	// criteria say.
-	Node maps;
-	maps.SetArray();
-	const CUtlVector< CUtlString > *pPool = pStatus->GetGroupMaps( k_eTFMatchGroup_Casual_12v12 );
-	if ( pPool && GTFPartyClient() )
+	// The casual map pool, grouped by game mode the way TF2's own casual
+	// panel groups it, with how many people want each map and play it now.
+	CTFPartyClient *pParty = GTFPartyClient();
+	Node pool;
+	Node cats;
+	cats.SetArray();
+	int nOn = 0, nMaps = 0;
+	bool bCounts = false;
+	if ( pParty )
 	{
-		const CTFGroupMatchCriteria &criteria = GTFPartyClient()->GetLocalGroupCriteria();
-		FOR_EACH_VEC( *pPool, i )
+		const CTFGroupMatchCriteria &criteria = pParty->GetLocalGroupCriteria();
+		for ( const PoolCategory_t &c : CasualPool() )
 		{
-			const MapDef_t *pMap = GetItemSchema()->GetMasterMapDefByName( ( *pPool )[ i ].Get() );
-			if ( !pMap )
-				continue;
-			Node &map = maps.Append();
-			map[ "id" ] = pMap->pszMapName;
-			map[ "name" ] = Localized( pMap->pszMapNameLocKey );
-			map[ "image" ] = std::string( "vgui/maps/menu_thumb_" ) + pMap->pszMapName;
-			map[ "on" ] = criteria.IsCasualMapSelected( pMap->m_nDefIndex );
+			Node &cat = cats.Append();
+			Node catMaps;
+			catMaps.SetArray();
+			int nCatOn = 0, nCatQueued = 0, nCatPlaying = 0;
+			for ( const MapDef_t *pMap : c.maps )
+			{
+				const bool bOn = criteria.IsCasualMapSelected( pMap->m_nDefIndex );
+				const int nQueued = pStatus->GetMapQueued( k_eTFMatchGroup_Casual_12v12, pMap->pszMapName );
+				const int nPlaying = pStatus->GetMapPlaying( k_eTFMatchGroup_Casual_12v12, pMap->pszMapName );
+				bCounts = bCounts || nQueued >= 0;
+				Node &map = catMaps.Append();
+				map[ "id" ] = pMap->pszMapName;
+				map[ "name" ] = Localized( pMap->pszMapNameLocKey );
+				map[ "image" ] = std::string( "vgui/maps/menu_thumb_" ) + pMap->pszMapName;
+				map[ "on" ] = bOn;
+				map[ "queued" ] = Max( nQueued, 0 );
+				map[ "playing" ] = Max( nPlaying, 0 );
+				nCatOn += bOn ? 1 : 0;
+				// Queued players may want several maps: the most any one map has,
+				// not a sum. Matches are on one map each, so those add up.
+				nCatQueued = Max( nCatQueued, nQueued );
+				nCatPlaying += Max( nPlaying, 0 );
+			}
+			cat[ "id" ] = c.id;
+			cat[ "name" ] = c.name.empty() ? pRuntime->Translate( "fui_pool_other" ) : c.name;
+			cat[ "n" ] = (int)c.maps.size();
+			cat[ "n_on" ] = nCatOn;
+			cat[ "on" ] = nCatOn == (int)c.maps.size();
+			cat[ "some" ] = nCatOn > 0 && nCatOn < (int)c.maps.size();
+			cat[ "queued" ] = nCatQueued;
+			cat[ "playing" ] = nCatPlaying;
+			cat[ "maps" ].Assign( std::move( catMaps ) );
+			nOn += nCatOn;
+			nMaps += (int)c.maps.size();
 		}
 	}
-	pRuntime->Set( "maps", std::move( maps ) );
+	pool[ "n" ] = nMaps;
+	pool[ "n_on" ] = nOn;
+	pool[ "queued" ] = pStatus->GetGroupQueued( k_eTFMatchGroup_Casual_12v12 );
+	pool[ "counts" ] = bCounts;
+	pool[ "edit" ] = !pParty || pParty->BControllingPartyActions();
+	pool[ "cats" ].Assign( std::move( cats ) );
+	pRuntime->Set( "pool", std::move( pool ) );
 }
 
 //-----------------------------------------------------------------------------
@@ -1823,7 +1940,9 @@ void CFuiTF::OnCommand( const std::string &name, const std::vector< std::string 
 				ui.Set( "ui.mode", fui::Node( arg ) );
 		}
 	}
-	else if ( name == "toggle_map" && GTFPartyClient() )
+	// The map picker. Only the party leader's criteria count (the party
+	// client would not send anyone else's).
+	else if ( name == "toggle_map" && GTFPartyClient() && GTFPartyClient()->BControllingPartyActions() )
 	{
 		const MapDef_t *pMap = GetItemSchema()->GetMasterMapDefByName( arg.c_str() );
 		if ( pMap )
@@ -1832,6 +1951,27 @@ void CFuiTF::OnCommand( const std::string &name, const std::vector< std::string 
 			criteria.SetCasualMapSelected( pMap->m_nDefIndex, !criteria.IsCasualMapSelected( pMap->m_nDefIndex ) );
 			d.RefreshModes();
 		}
+	}
+	else if ( ( name == "toggle_mode_maps" || name == "pool_all" || name == "pool_none" ) &&
+		GTFPartyClient() && GTFPartyClient()->BControllingPartyActions() )
+	{
+		// A mode's maps: all on unless they all are, then all off.
+		CTFGroupMatchCriteria &criteria = GTFPartyClient()->MutLocalGroupCriteria();
+		for ( const PoolCategory_t &c : CasualPool() )
+		{
+			if ( name == "toggle_mode_maps" && c.id != arg )
+				continue;
+			bool bOn = name == "pool_all";
+			if ( name == "toggle_mode_maps" )
+			{
+				bOn = false;
+				for ( const MapDef_t *pMap : c.maps )
+					bOn = bOn || !criteria.IsCasualMapSelected( pMap->m_nDefIndex );
+			}
+			for ( const MapDef_t *pMap : c.maps )
+				criteria.SetCasualMapSelected( pMap->m_nDefIndex, bOn );
+		}
+		d.RefreshModes();
 	}
 	else if ( name == "locker_class" || name == "lobby_class" )
 	{

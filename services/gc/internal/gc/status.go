@@ -1,6 +1,7 @@
 package gc
 
 import (
+	"slices"
 	"sort"
 	"time"
 
@@ -39,6 +40,11 @@ type GroupStatus struct {
 	Max        int      `json:"max"`
 	Matches    int      `json:"matches"`
 	Maps       []string `json:"maps"`
+	// Per map of Maps: the players queued who would play it (a party that
+	// ticked no maps would play any), and the players in its running matches.
+	// The casual map picker shows them so nobody ticks a map nobody plays.
+	MapQueued  map[string]int `json:"map_queued"`
+	MapPlaying map[string]int `json:"map_playing"`
 }
 
 // Status returns the latest snapshot.
@@ -54,9 +60,14 @@ func (g *GC) publishStatus() {
 		}
 	}
 	perGroup := map[int32]int{}
+	playing := map[int32]map[string]int{}
 	for _, l := range g.lobbies {
 		if l.State == lobbyRun {
 			st.LiveMatches++
+			if playing[l.Group] == nil {
+				playing[l.Group] = map[string]int{}
+			}
+			playing[l.Group][l.Map] += len(l.Members)
 		}
 		perGroup[l.Group]++
 	}
@@ -69,14 +80,27 @@ func (g *GC) publishStatus() {
 		if !grp.Enabled {
 			continue
 		}
-		queued := 0
-		for _, p := range g.parties {
-			if _, ok := p.Queues[grp.MatchGroup]; ok {
-				queued += len(p.Members)
-			}
-		}
 		maps := grp.EffectiveMaps()
 		sort.Strings(maps)
+		queued := 0
+		mapQueued := make(map[string]int, len(maps))
+		mapPlaying := make(map[string]int, len(maps))
+		for _, m := range maps {
+			mapQueued[m] = 0
+			mapPlaying[m] = playing[grp.MatchGroup][m]
+		}
+		for _, p := range g.parties {
+			if _, ok := p.Queues[grp.MatchGroup]; !ok {
+				continue
+			}
+			queued += len(p.Members)
+			picked := g.partyMaps(p)
+			for _, m := range maps {
+				if len(picked) == 0 || slices.Contains(picked, m) {
+					mapQueued[m] += len(p.Members)
+				}
+			}
+		}
 		st.Groups = append(st.Groups, GroupStatus{
 			MatchGroup: grp.MatchGroup,
 			Name:       grp.Name,
@@ -87,6 +111,8 @@ func (g *GC) publishStatus() {
 			Max:        grp.MaxPlayers,
 			Matches:    perGroup[grp.MatchGroup],
 			Maps:       maps,
+			MapQueued:  mapQueued,
+			MapPlaying: mapPlaying,
 		})
 	}
 	if g.war != nil {

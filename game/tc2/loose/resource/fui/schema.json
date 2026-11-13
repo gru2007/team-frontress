@@ -50,7 +50,14 @@
 	// best one there is (fui_servers.cpp): relaxed, why (a sentence), best
 	// (server name and region), best_ms (your ping to it, -1 unknown).
 	"reach": { "relaxed": false, "why": "", "best": "", "best_ms": -1 },
-	"maps": [],
+	// The casual map pool (fui_tf.cpp, RefreshModes), grouped by game mode:
+	// cats { id (EGameCategory, or "other"), name, n, n_on, on (all ticked),
+	// some (some ticked), queued (the most players searching for one of its
+	// maps), playing (players in its matches), maps[ { id, name, image, on,
+	// queued (players searching who would play it), playing } ] }. queued:
+	// everybody searching casual; counts: the coordinator says per map;
+	// edit: you lead the party, so the ticks are yours to change.
+	"pool": { "n": 0, "n_on": 0, "queued": 0, "counts": false, "edit": true, "cats": [] },
 	// The coordinator's GET /v1/war as it is (services/gc/internal/gc/warview.go):
 	// fronts are sectors { id, name, icon, hq, x, y, owner, frontline, front,
 	// attacker, from, stage, stages, mode, map, image, ... }, links roads

@@ -377,14 +377,43 @@ public:
 					runtime->Set( "ui.mode", Node( args[ 0 ] ) );
 			}
 		}
-		else if ( name == "toggle_map" && !args.empty() )
+		else if ( ( name == "toggle_map" || name == "toggle_mode_maps" ) && !args.empty() || name == "pool_all" || name == "pool_none" )
 		{
-			fui::Node *pMaps = runtime->Get( "maps" );
-			for ( size_t i = 0; pMaps && i < pMaps->Size(); ++i )
+			// The map picker, as fui_tf.cpp does it on the party's criteria.
+			const fui::Node *pPool = runtime->Get( "pool" );
+			if ( !pPool )
+				return;
+			fui::Node pool = pPool->Clone();
+			fui::Node *pCats = pool.Find( "cats" );
+			int nOn = 0;
+			for ( size_t c = 0; pCats && c < pCats->Size(); ++c )
 			{
-				if ( pMaps->At( i )->Find( "id" )->AsString() == args[ 0 ] )
-					runtime->Set( "maps." + std::to_string( i ) + ".on", Node( !pMaps->At( i )->Find( "on" )->AsBool() ) );
+				fui::Node &cat = *pCats->At( c );
+				fui::Node &maps = *cat.Find( "maps" );
+				bool bAllOn = true;
+				for ( size_t m = 0; m < maps.Size(); ++m )
+					bAllOn = bAllOn && maps.At( m )->Find( "on" )->AsBool();
+				int nCatOn = 0;
+				for ( size_t m = 0; m < maps.Size(); ++m )
+				{
+					fui::Node &map = *maps.At( m );
+					bool bOn = map.Find( "on" )->AsBool();
+					if ( name == "toggle_map" && map.Find( "id" )->AsString() == args[ 0 ] )
+						bOn = !bOn;
+					else if ( name == "toggle_mode_maps" && cat.Find( "id" )->AsString() == args[ 0 ] )
+						bOn = !bAllOn;
+					else if ( name == "pool_all" || name == "pool_none" )
+						bOn = name == "pool_all";
+					map[ "on" ] = bOn;
+					nCatOn += bOn ? 1 : 0;
+				}
+				cat[ "n_on" ] = nCatOn;
+				cat[ "on" ] = nCatOn == (int)maps.Size();
+				cat[ "some" ] = nCatOn > 0 && nCatOn < (int)maps.Size();
+				nOn += nCatOn;
 			}
+			pool[ "n_on" ] = nOn;
+			runtime->Set( "pool", std::move( pool ) );
 		}
 		else if ( name == "locker_class" && !args.empty() )
 		{

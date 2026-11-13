@@ -42,10 +42,14 @@
 				</div>
 			</div>
 		</div>
-		<div data-for="e : party.empty" data-attr-class="'invite-slot pos' + e" sfx="" data-event-click="cmd('invite')">
-			<div class="ghost-ring"></div>
-			<div class="ghost-plus">+</div>
-			<div class="ghost-label">#fui_invite</div>
+		<!-- The slot boxes overlap (they are the characters' frames), so only
+		     the ring and its label take the click (home.rcss, "ghost-hit"). -->
+		<div data-for="e : party.empty" data-attr-class="'invite-slot pos' + e">
+			<div class="ghost-hit" sfx="" data-event-click="cmd('invite')">
+				<div class="ghost-ring"></div>
+				<div class="ghost-plus">+</div>
+				<div class="ghost-label">#fui_invite</div>
+			</div>
 		</div>
 	</div>
 

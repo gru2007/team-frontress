@@ -6,6 +6,10 @@
 /* Where each party member stands: you in front, the others either side and
    further back, like Fortnite's lobby. The box is the 3D character's frame. */
 .member, .invite-slot { position: absolute; }
+/* The frames are big and overlap (the front one covers half of each one
+   beside it), so they let the mouse through: an empty place is clicked on
+   its ring (.ghost-hit), not on the box a character would fill. */
+.member, .invite-slot { pointer-events: none; }
 .pos0 { left: 700dp;  bottom: 92dp;  width: 520dp; height: 790dp; z-index: 5; }
 .pos1 { left: 520dp;  bottom: 162dp; width: 420dp; height: 610dp; z-index: 4; }
 .pos2 { left: 980dp;  bottom: 162dp; width: 420dp; height: 610dp; z-index: 4; }
@@ -65,11 +69,18 @@
 .plate-you { color: #fff4e8; background-color: #c8413b; }
 .plate-tag { font-size: 14dp; }
 
-/* An empty place in the party. */
-.invite-slot { cursor: pointer; }
+/* An empty place in the party: the ring and its label are the button. */
+.ghost-hit {
+	position: absolute;
+	left: 50%; bottom: 118dp;
+	width: 200dp; height: 172dp;
+	margin-left: -100dp;
+	cursor: pointer;
+	pointer-events: auto;
+}
 .ghost-ring {
 	position: absolute;
-	left: 50%; bottom: 170dp;
+	left: 50%; bottom: 52dp;
 	width: 110dp; height: 110dp;
 	margin-left: -55dp;
 	border-radius: 55dp;
@@ -81,7 +92,7 @@
 @keyframes breathe { from { transform: scale(0.94); opacity: 0.6; } to { transform: scale(1.04); opacity: 1; } }
 .ghost-plus {
 	position: absolute;
-	left: 50%; bottom: 196dp;
+	left: 50%; bottom: 78dp;
 	width: 110dp;
 	margin-left: -55dp;
 	text-align: center;
@@ -92,7 +103,7 @@
 }
 .ghost-label {
 	position: absolute;
-	left: 50%; bottom: 128dp;
+	left: 50%; bottom: 10dp;
 	width: 200dp;
 	margin-left: -100dp;
 	text-align: center;
@@ -101,8 +112,8 @@
 	text-transform: uppercase;
 	color: #ece3cb88;
 }
-.invite-slot:hover .ghost-ring { border-color: #ffc93c; background-color: #ffc93c22; }
-.invite-slot:hover .ghost-plus, .invite-slot:hover .ghost-label { color: #ffc93c; }
+.ghost-hit:hover .ghost-ring { border-color: #ffc93c; background-color: #ffc93c22; }
+.ghost-hit:hover .ghost-plus, .ghost-hit:hover .ghost-label { color: #ffc93c; }
 
 /* ------------------------------------------------------------ quests */
 #quests {

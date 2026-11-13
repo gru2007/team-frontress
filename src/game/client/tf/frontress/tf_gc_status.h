@@ -72,6 +72,12 @@ public:
 
 	// The maps a group really runs, or NULL until the GC has said.
 	const CUtlVector< CUtlString > *GetGroupMaps( ETFMatchGroup eMatchGroup ) const;
+	// Per map of a group: the players queued who would play it, and the
+	// players in its running matches. -1 when the GC has not said.
+	int GetMapQueued( ETFMatchGroup eMatchGroup, const char *pszMap ) const;
+	int GetMapPlaying( ETFMatchGroup eMatchGroup, const char *pszMap ) const;
+	// The players queued for a group (any map).
+	int GetGroupQueued( ETFMatchGroup eMatchGroup ) const;
 	// Does the GC run this group? True until it has said otherwise.
 	bool BGroupOffered( ETFMatchGroup eMatchGroup ) const;
 	bool BAnyGroupOffered() const;
@@ -91,7 +97,11 @@ private:
 		int  nQueued;
 		int  nNeed;
 		CUtlVector< CUtlString > vecMaps;
+		// Parallel to vecMaps; -1 where the GC did not say.
+		CUtlVector< int > vecMapQueued;
+		CUtlVector< int > vecMapPlaying;
 	};
+	int MapCount( ETFMatchGroup eMatchGroup, const char *pszMap, bool bPlaying ) const;
 
 	Status_t   m_status;
 	Group_t    m_groups[ k_nGroups ];

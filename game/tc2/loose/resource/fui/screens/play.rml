@@ -43,16 +43,44 @@
 		<div class="small regions-hint bad" data-if="region.none_ok">{{ 'fui_region_none_ok' | t(region.max_ms) }}</div>
 		<div class="dimmer small regions-hint" data-if="region.list.size > 0 && !region.none_ok">#fui_region_hint</div>
 
-		<div id="pool" class="panel" data-if="ui.mode == 'casual' || ui.mode == 'ranked'">
-			<div class="panel-title pool-title">#fui_map_pool</div>
-			<div class="dimmer small pool-hint">#fui_map_pool_hint</div>
-			<div id="maps">
-				<div class="map" data-for="map, i : maps" data-class-on="map.on" data-event-click="cmd('toggle_map', map.id)">
-					<div class="map-art" data-style-decorator="'image(tex:' + map.image + ' cover center top)'"></div>
-					<div class="map-name">{{ map.name }}</div>
-					<div class="map-check" data-if="map.on"><div class="tick"></div></div>
-				</div>
+		<!-- The casual map pool, as TF2's casual panel had it: maps grouped by
+		     game mode, a whole mode ticked at once, and beside every map who
+		     is searching for it and who plays it right now. -->
+		<div id="pool" class="panel" data-if="ui.mode == 'casual'" data-class-locked="!pool.edit">
+			<div class="row pool-head">
+				<div class="panel-title grow pool-title">#fui_map_pool</div>
+				<span class="pool-n" data-if="pool.n > 0">{{ pool.n_on }}/{{ pool.n }}</span>
 			</div>
+			<div class="row pool-tools">
+				<span class="small pool-live" data-if="pool.counts"><span class="live" data-class-off="pool.queued == 0"></span>{{ 'fui_pool_queued_total' | t(pool.queued) }}</span>
+				<div class="spacer"></div>
+				<div class="pool-btn" sfx="" data-if="pool.edit && pool.n > 0" data-event-click="cmd('pool_all')">#fui_pool_all</div>
+				<div class="pool-btn" sfx="" data-if="pool.edit && pool.n > 0" data-event-click="cmd('pool_none')">#fui_pool_none</div>
+			</div>
+			<div class="pool-note small" data-if="!pool.edit">#fui_pool_leader</div>
+			<div id="pool-list">
+				<div class="pool-cat" data-for="c : pool.cats">
+					<div class="cat-row" sfx="" data-class-on="c.on" data-class-some="c.some" data-event-click="cmd('toggle_mode_maps', c.id)">
+						<div class="box"><div class="tick" data-if="c.on"></div><div class="dash" data-if="c.some"></div></div>
+						<span class="cat-name">{{ c.name }}</span>
+						<span class="cat-n">{{ c.n_on }}/{{ c.n }}</span>
+						<div class="spacer"></div>
+						<span class="pill play" data-if="pool.counts && c.playing > 0">{{ 'fui_pool_playing' | t(c.playing) }}</span>
+					</div>
+					<div class="map-row" sfx="" data-for="map : c.maps" data-class-on="map.on" data-event-click="cmd('toggle_map', map.id)">
+						<div class="box"><div class="tick" data-if="map.on"></div></div>
+						<div class="map-thumb" data-style-decorator="'image(tex:' + map.image + ' cover center)'"></div>
+						<span class="map-name">{{ map.name }}</span>
+						<div class="spacer"></div>
+						<span class="pill queue" data-if="pool.counts && map.queued > 0">{{ 'fui_pool_searching' | t(map.queued) }}</span>
+						<span class="pill play" data-if="pool.counts && map.playing > 0">{{ 'fui_pool_playing' | t(map.playing) }}</span>
+						<span class="pill empty" data-if="pool.counts && map.queued == 0 && map.playing == 0">#fui_pool_empty</span>
+					</div>
+				</div>
+				<div class="dim small pool-none" data-if="pool.n == 0">#fui_pool_loading</div>
+			</div>
+			<div class="small pool-foot gold" data-if="pool.n > 0 && pool.n_on == 0">#fui_pool_any</div>
+			<div class="tiny pool-foot dimmer" data-if="pool.n_on > 0">#fui_map_pool_hint</div>
 		</div>
 	</div>
 </div>
