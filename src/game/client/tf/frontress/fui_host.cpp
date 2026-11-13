@@ -901,6 +901,10 @@ public:
 
 	virtual void Shutdown() OVERRIDE
 	{
+		// Closing RmlUi documents rebuilds the hover chain and can call
+		// CFuiGameHost::SetCursor. Detach the host before deleting its panel,
+		// so runtime shutdown (and fui_menu restarts) cannot use a freed panel.
+		m_host.m_pPanel = NULL;
 		if ( m_pPanel )
 		{
 			delete m_pPanel;

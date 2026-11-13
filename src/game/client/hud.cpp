@@ -32,6 +32,15 @@
 
 static 	CClassMemoryPool< CHudTexture >	 g_HudTextureMemoryPool( 128 );
 
+static void FreeHudTextures( CUtlDict< CHudTexture *, int > &icons )
+{
+	for ( int i = icons.Count() - 1; i >= 0; --i )
+	{
+		g_HudTextureMemoryPool.Free( icons[ i ] );
+	}
+	icons.Purge();
+}
+
 //-----------------------------------------------------------------------------
 // Purpose: Parses the weapon txt files to get the sprites needed.
 //-----------------------------------------------------------------------------
@@ -511,6 +520,9 @@ void CHud::Shutdown( void )
 	}
 
 	m_HudList.Purge();
+	// CHud is global and can outlive the VGUI module. Destroy its texture
+	// IDs now, while surface() is still connected, rather than at DLL unload.
+	FreeHudTextures( m_Icons );
 	m_bHudTexturesLoaded = false;
 }
 
@@ -553,15 +565,9 @@ void CHud::LevelShutdown( void )
 //-----------------------------------------------------------------------------
 CHud::~CHud()
 {
-	int c = m_Icons.Count();
-	for ( int i = c - 1; i >= 0; i-- )
-	{
-		CHudTexture *tex = m_Icons[ i ];
-		g_HudTextureMemoryPool.Free( tex );
-	}
-	m_Icons.Purge();
+	FreeHudTextures( m_Icons );
 
-	c = m_RenderGroups.Count();
+	int c = m_RenderGroups.Count();
 	for ( int i = c - 1; i >= 0; i-- )
 	{
 		CHudRenderGroup *group = m_RenderGroups[ i ];
