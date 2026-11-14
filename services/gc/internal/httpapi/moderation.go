@@ -37,6 +37,7 @@ func (a *API) adminModerationAction(w http.ResponseWriter, r *http.Request) {
 		Action          string `json:"action"`
 		Reason          string `json:"reason"`
 		RestrictMembers bool   `json:"restrict_members"`
+		Tag             string `json:"tag"`
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
 	decoder.DisallowUnknownFields()
@@ -49,10 +50,11 @@ func (a *API) adminModerationAction(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, map[string]string{"error": "a reason (at most 300 bytes) is required"})
 		return
 	}
-	op := clans.ModerationAction{Action: req.Action, Reason: req.Reason, Actor: actor, Clan: r.PathValue("clan"), RestrictMembers: req.RestrictMembers}
+	op := clans.ModerationAction{Action: req.Action, Reason: req.Reason, Actor: actor, Clan: r.PathValue("clan"), RestrictMembers: req.RestrictMembers, NewTag: req.Tag}
 	if op.Clan != "" {
-		if req.Action != "ban" && req.Action != "delete" && req.Action != "unban" || req.Action == "unban" && req.RestrictMembers {
-			writeJSON(w, 400, map[string]string{"error": "action must be ban, delete or unban"})
+		if (req.Action != "ban" && req.Action != "delete" && req.Action != "unban" && req.Action != "set_tag") ||
+			((req.Action == "unban" || req.Action == "set_tag") && req.RestrictMembers) || (req.Action != "set_tag" && req.Tag != "") {
+			writeJSON(w, 400, map[string]string{"error": "action must be ban, delete, unban or set_tag; tag is only accepted for set_tag"})
 			return
 		}
 	} else {
@@ -61,7 +63,7 @@ func (a *API) adminModerationAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		op.SteamID = id
-		if req.RestrictMembers || (req.Action != "restrict_creation" && req.Action != "allow_creation" && req.Action != "mute" && req.Action != "unmute" && req.Action != "clear_chat") {
+		if req.RestrictMembers || req.Tag != "" || (req.Action != "restrict_creation" && req.Action != "allow_creation" && req.Action != "mute" && req.Action != "unmute" && req.Action != "clear_chat") {
 			writeJSON(w, 400, map[string]string{"error": "action must be restrict_creation, allow_creation, mute, unmute or clear_chat"})
 			return
 		}
@@ -83,6 +85,10 @@ func (a *API) adminModerationAction(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 404, map[string]string{"error": "no such clan or active clan ban"})
 	case errors.Is(opErr, clans.ErrModeration):
 		writeJSON(w, 400, map[string]string{"error": opErr.Error()})
+	case errors.Is(opErr, clans.ErrTag):
+		writeJSON(w, 400, map[string]string{"error": "tag must contain 2 to 5 letters or digits"})
+	case errors.Is(opErr, clans.ErrTaken), errors.Is(opErr, clans.ErrIdentityBanned):
+		writeJSON(w, 409, map[string]string{"error": "this tag is already used or banned"})
 	case opErr != nil:
 		a.log.Error("save moderation", "err", opErr)
 		writeJSON(w, 500, map[string]string{"error": "could not save moderation"})

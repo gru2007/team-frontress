@@ -23,6 +23,7 @@
 #else
 #include "steam/steam_gameserver.h"
 #include "tf_gc_server.h"
+#include "player.h"
 #endif
 
 #include <stdlib.h>
@@ -49,6 +50,8 @@ static const uint32 k_EMsgGCFrontress_PartyLooks = 51002;	// see services/gc/int
 static const uint32 k_EMsgGCFrontress_SocialEvent = 51011;	// see services/gc/internal/gc/social.go
 static const uint32 k_EMsgGCFrontress_ServerList = 51021;	// see services/gc/internal/gc/probe.go
 static const uint32 k_EMsgGCFrontress_Unreachable = 51023;	// see services/gc/internal/gc/probe.go
+static const uint32 k_EMsgGCFrontress_ServerChat = 51030;
+static const uint32 k_EMsgGCFrontress_ChatPolicy = 51031;
 
 static const float k_flMaxBackoff = 60.f;
 static const uint32 k_cubMaxBatch = 256 * 1024;
@@ -938,6 +941,84 @@ public:
 GC_REG_JOB( GCSDK::CGCClient, CGCFrontressUnreachable, "CGCFrontressUnreachable", k_EMsgGCFrontress_Unreachable, GCSDK::k_EServerTypeGCClient );
 
 #endif // CLIENT_DLL
+
+#ifdef GAME_DLL
+static CUtlVector< uint64 > s_gcChatMuted;
+static bool s_bGCChatDisabled = false;
+static bool s_bGCChatPolicyReceived = false;
+
+bool FrontressGC_CanChat( CBasePlayer *pPlayer )
+{
+	if ( !pPlayer || pPlayer->IsFakeClient() || !FrontressGC()->GetBaseURL()[0] )
+		return true;
+	CSteamID id;
+	if ( !pPlayer->GetSteamID( &id ) )
+		return false;
+	if ( !s_bGCChatPolicyReceived )
+	{
+		ClientPrint( pPlayer, HUD_PRINTTALK, "Chat is waiting for coordinator moderation settings." );
+		return false;
+	}
+	if ( s_bGCChatDisabled || s_gcChatMuted.Find( id.ConvertToUint64() ) != s_gcChatMuted.InvalidIndex() )
+	{
+		ClientPrint( pPlayer, HUD_PRINTTALK, "Chat is disabled or you are muted by a moderator." );
+		return false;
+	}
+	return true;
+}
+
+void FrontressGC_ReportChat( CBasePlayer *pPlayer, bool bTeamOnly, const char *pszText )
+{
+	if ( !pPlayer || pPlayer->IsFakeClient() || !GCClientSystem() || !FrontressGC()->BConnected() )
+		return;
+	CSteamID id;
+	if ( !pPlayer->GetSteamID( &id ) )
+		return;
+	std::string name = pPlayer->GetPlayerName();
+	for ( char &ch : name )
+		if ( ch == '\n' || ch == '\r' ) ch = ' ';
+	GCSDK::CProtoBufMsg< CMsgPartyChatMsg > msg( k_EMsgGCFrontress_ServerChat );
+	msg.Body().set_actor_id( id.ConvertToUint64() );
+	msg.Body().set_msg( std::string( bTeamOnly ? "team\n" : "all\n" ) + name + "\n" + pszText );
+	GCClientSystem()->BSendMessage( msg );
+}
+
+class CGCFrontressChatPolicy : public GCSDK::CGCClientJob
+{
+public:
+	CGCFrontressChatPolicy( GCSDK::CGCClient *pClient ) : GCSDK::CGCClientJob( pClient ) {}
+	virtual bool BYieldingRunGCJob( GCSDK::IMsgNetPacket *pNetPacket ) OVERRIDE
+	{
+		GCSDK::CProtoBufMsg< CMsgPartyChatMsg > msg( pNetPacket );
+		CUtlVector< CUtlString > values;
+		V_SplitString( msg.Body().msg().c_str(), "\n", values );
+		if ( values.Count() == 0 || msg.Body().actor_id() > 1 )
+			return true;
+		CUtlVector< uint64 > muted;
+		FOR_EACH_VEC( values, i )
+		{
+			const char *psz = values[i].Get();
+			if ( !psz[0] ) return true;
+			for ( const char *p = psz; *p; ++p )
+				if ( *p < '0' || *p > '9' ) return true;
+			if ( i > 0 )
+			{
+				if ( V_strlen( psz ) != 17 ) return true;
+				muted.AddToTail( V_atoui64( psz ) );
+			}
+		}
+		s_gcChatMuted.Swap( muted );
+		s_bGCChatDisabled = msg.Body().actor_id() == 1;
+		s_bGCChatPolicyReceived = true;
+		GCSDK::CProtoBufMsg< CMsgPartyChatMsg > ack( k_EMsgGCFrontress_ServerChat );
+		ack.Body().set_actor_id( 0 );
+		ack.Body().set_msg( std::string( "policy_ack\n" ) + values[0].Get() );
+		GCClientSystem()->BSendMessage( ack );
+		return true;
+	}
+};
+GC_REG_JOB( GCSDK::CGCClient, CGCFrontressChatPolicy, "CGCFrontressChatPolicy", k_EMsgGCFrontress_ChatPolicy, GCSDK::k_EServerTypeGCClient );
+#endif // GAME_DLL
 
 //-----------------------------------------------------------------------------
 CON_COMMAND( tf_gc_status, "Print the state of the game coordinator connection." )

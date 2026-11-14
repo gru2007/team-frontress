@@ -24,6 +24,18 @@ const IProtoBufScriptObjectDefinition *GetProtoObjectDefinitionFromMsg( const CM
 	return GetProtoScriptObjDefManager()->GetDefinition( ProtoDefID_t( pDefIDMsg->type(), pDefIDMsg->defindex() ) );
 }
 
+// References may point to a missing or differently typed proto definition
+// while custom schemas are loaded. Never downcast and dereference those.
+static const CMsgPaintKit_ItemDefinition *GetPaintKitItemDefinition( const CMsgProtoDefID &id )
+{
+	if ( id.type() != DEF_TYPE_PAINTKIT_ITEM_DEFINITION )
+		return NULL;
+	const IProtoBufScriptObjectDefinition *pObject = GetProtoObjectDefinitionFromMsg( &id );
+	if ( !pObject || pObject->GetDefType() != DEF_TYPE_PAINTKIT_ITEM_DEFINITION )
+		return NULL;
+	return static_cast< const CMsgPaintKit_ItemDefinition * >( pObject->GetMsg() );
+}
+
 bool CPaintKitDefinition::CanApplyToItem( item_definition_index_t iDefIndex ) const
 {
 	GenerateSupportedItems();
@@ -104,13 +116,15 @@ void CPaintKitDefinition::GenerateSupportedItems() const
 				return true;
 			}
 
+			const CMsgPaintKit_ItemDefinition *pItemDefMsg = GetPaintKitItemDefinition( pItemMsg->item_definition_template() );
+			if ( !pItemDefMsg )
+				return true;
+
 			// check if this definition can be used to render paintkit tool
 			if ( !bHasPaintKitTool )
 			{
-				const CPaintKitItemDefinition *pItemObj = assert_cast< const CPaintKitItemDefinition * >( GetProtoObjectDefinitionFromMsg( &pItemMsg->item_definition_template() ) );
-				const CMsgPaintKit_ItemDefinition *pItemDefMsg = assert_cast< const CMsgPaintKit_ItemDefinition* >( pItemObj->GetMsg() );
 				static CSchemaItemDefHandle pPaintkitToolItemDef( "Paintkit" );
-				if ( pItemDefMsg->item_definition_index() == pPaintkitToolItemDef->GetDefinitionIndex() )
+				if ( pPaintkitToolItemDef && pItemDefMsg->item_definition_index() == pPaintkitToolItemDef->GetDefinitionIndex() )
 				{
 					bHasPaintKitTool = true;
 				}
@@ -120,9 +134,6 @@ void CPaintKitDefinition::GenerateSupportedItems() const
 			{
 				return true;
 			}
-
-			const CPaintKitItemDefinition *pItemObj = assert_cast< const CPaintKitItemDefinition * >( GetProtoObjectDefinitionFromMsg( &pItemMsg->item_definition_template() ) );
-			const CMsgPaintKit_ItemDefinition *pItemDefMsg = assert_cast< const CMsgPaintKit_ItemDefinition* >( pItemObj->GetMsg() );
 
 			item_definition_index_t iDefIndex = pItemDefMsg->item_definition_index();
 			FOR_EACH_VEC( tempVec, i )
@@ -438,8 +449,9 @@ KeyValues *CPaintKitDefinition::GetItemPaintKitDefinitionKV( item_definition_ind
 			return true;
 		}
 
-		const CPaintKitItemDefinition *pItemObj = assert_cast< const CPaintKitItemDefinition * >( GetProtoObjectDefinitionFromMsg( &pItemMsg->item_definition_template() ) );
-		const CMsgPaintKit_ItemDefinition *pItemDefMsg = assert_cast< const CMsgPaintKit_ItemDefinition* >( pItemObj->GetMsg() );
+		const CMsgPaintKit_ItemDefinition *pItemDefMsg = GetPaintKitItemDefinition( pItemMsg->item_definition_template() );
+		if ( !pItemDefMsg )
+			return true;
 		if ( pItemDefMsg->item_definition_index() == key.first )
 		{
 			VariableDict_t itemVarDict;
@@ -516,7 +528,7 @@ KeyValues *CPaintKitDefinition::GetItemPaintKitDefinitionKV( item_definition_ind
 
 			ForEachConstProtoField( pPaintKitItemDef_PaintKit, lambdaUpdateVarField, true, false );
 
-			pPaintKitKV = CreatePaintKitDefinitionKV( pItemObj->GetName(), pOperationMsg, itemVarDict, key.second );
+			pPaintKitKV = CreatePaintKitDefinitionKV( pItemDefMsg->header().name().c_str(), pOperationMsg, itemVarDict, key.second );
 
 
 			if ( pPaintKitKV )

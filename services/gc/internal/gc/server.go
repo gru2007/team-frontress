@@ -37,6 +37,9 @@ type Server struct {
 	// arriving in that window is one the stock server code refuses by
 	// quitting.
 	RestUntil time.Time
+
+	// Latest settings revision acknowledged by the server's text chat hook.
+	ChatPolicyRevision int
 }
 
 func (s *Server) idle(now time.Time) bool {
@@ -63,6 +66,8 @@ func (g *GC) ServerConnected(s *session.Session) uint64 {
 	srv.Ready = false // Wait for a status from this session.
 	srv.LastStatus = time.Time{}
 	srv.LateJoinSlots = 0
+	srv.ChatPolicyRevision = -1
+	g.sendChatPolicy(srv)
 
 	// Back to its match, if it had one.
 	if l := g.lobbies[srv.LobbyID]; l != nil && l.ServerID == srv.SteamID {
@@ -231,11 +236,18 @@ func (g *GC) handleMatchResult(s *session.Session, m *wire.Msg) {
 		return
 	}
 	_, l := g.serverLobby(s, 0)
+	if l == nil || l.MatchID != msg.GetMatchId() {
+		pending, ok := g.pendingResults[msg.GetMatchId()]
+		if ok && pending.lobby.ServerID == s.SteamID && g.now().Before(pending.until) {
+			l = pending.lobby
+		}
+	}
 	if l == nil || l.MatchID != msg.GetMatchId() || l.resultSeen ||
 		(msg.MatchGroup != nil && msg.GetMatchGroup() != l.Group) {
 		return
 	}
 	l.resultSeen = true
+	delete(g.pendingResults, l.MatchID)
 	result := g.newMatchResult(l, &msg)
 	winner := result.WinningTeam
 	var ps []players.Participant
@@ -338,7 +350,8 @@ func (g *GC) handleMatchResult(s *session.Session, m *wire.Msg) {
 		}
 	}
 	g.log.Info("match result", "lobby", l.ID, "match", l.MatchID, "winner", winner,
-		"red", msg.GetRedScore(), "blu", msg.GetBlueScore(), "players", len(ps))
+		"red", msg.GetRedScore(), "blu", msg.GetBlueScore(), "players", len(ps),
+		"reported_players", len(result.Players), "excluded_players", len(result.Players)-len(ps))
 	g.hooks.Emit(sink.Event{Type: "match_result", At: g.now(), Data: g.matchSummary(l, map[string]any{
 		"winning_team": winner,
 		"status":       msg.GetStatus().String(),

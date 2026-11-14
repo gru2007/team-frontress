@@ -146,4 +146,11 @@ private:
 
 CFrontressGC *FrontressGC();
 
+#ifdef GAME_DLL
+class CBasePlayer;
+// Text chat policy and evidence for GC moderation, independent of EAC.
+bool FrontressGC_CanChat( CBasePlayer *pPlayer );
+void FrontressGC_ReportChat( CBasePlayer *pPlayer, bool bTeamOnly, const char *pszText );
+#endif
+
 #endif // FRONTRESS_GC_H

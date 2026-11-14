@@ -1767,6 +1767,11 @@ void CHLClient::StartStatsReporting( HANDLE handle, bool bArbitrated )
 //-----------------------------------------------------------------------------
 void CHLClient::InvalidateMdlCache()
 {
+	// VGUI panels are not client entities. Their cached CStudioHdr wrappers
+	// must observe the same invalidation before the engine flushes models.
+	if ( vgui::ivgui() )
+		vgui::ivgui()->InvalidateMdlCache();
+
 	C_BaseAnimating *pAnimating;
 	for ( C_BaseEntity *pEntity = ClientEntityList().FirstBaseEntity(); pEntity; pEntity = ClientEntityList().NextBaseEntity(pEntity) )
 	{

@@ -1518,6 +1518,21 @@ void CTFGCServerSystem::ClientConnected( CSteamID steamIDClient, edict_t *pEntit
 }
 
 //-----------------------------------------------------------------------------
+void CTFGCServerSystem::RecordDisconnectedStats( CBasePlayer *pPlayer )
+{
+	CSteamID steamID;
+	if ( !pPlayer || !pPlayer->GetSteamID( &steamID ) )
+		return;
+	CMatchInfo *pMatch = GetMatch();
+	CMatchInfo::PlayerMatchData_t *pMatchPlayer = pMatch ? pMatch->GetMatchDataForPlayer( steamID ) : NULL;
+	PlayerStats_t *pStats = CTF_GameStats.FindPlayerStats( pPlayer );
+	if ( pMatchPlayer && pMatchPlayer->bConnected && pStats )
+	{
+		pMatchPlayer->statsDisconnected.AccumulateRound( pStats->statsAccumulated );
+	}
+}
+
+//-----------------------------------------------------------------------------
 void CTFGCServerSystem::ClientDisconnected( CSteamID steamIDClient )
 {
 	if ( !steamIDClient.IsValid() || !steamIDClient.BIndividualAccount() )

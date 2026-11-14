@@ -18,6 +18,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"log/slog"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -68,6 +69,7 @@ type GC struct {
 	online            map[uint64]*Player
 	parties           map[uint64]*Party
 	lobbies           map[uint64]*Lobby
+	pendingResults    map[uint64]pendingMatchResult
 	servers           map[uint64]*Server
 	recentMaps        map[string]time.Time
 	dirty             bool // lobbies changed since the last save
@@ -77,6 +79,7 @@ type GC struct {
 	// Social (social.go).
 	chat         map[string][]ChatLine
 	chatSeq      uint64
+	chatEpoch    string
 	presenceAt   time.Time
 	reachWarnAt  time.Time // probe.go: when a server nobody reaches was last logged
 	presenceLast string
@@ -138,6 +141,7 @@ func New(d Deps) (*GC, error) {
 		steam:      d.Steam,
 		commerce:   d.Commerce,
 		chat:       map[string][]ChatLine{},
+		chatEpoch:  strconv.FormatUint(newID(), 10),
 		now:        d.Now,
 		loop:       make(chan func(), 4096),
 		online:     map[uint64]*Player{},

@@ -3022,6 +3022,11 @@ bool CTFGameRules::ReportMatchResultsToGC( CMsgGC_Match_Result_Status nCode )
 
 		CTFPlayer*     pTFPlayer = ToTFPlayer( pPlayer );
 		PlayerStats_t *pStats = CTF_GameStats.FindPlayerStats( pTFPlayer );
+		RoundStats_t statsReported;
+		if ( pMatchPlayer )
+			statsReported = pMatchPlayer->statsDisconnected;
+		if ( pStats && ( !pMatchPlayer || pMatchPlayer->bConnected ) )
+			statsReported.AccumulateRound( pStats->statsAccumulated );
 
 		CMsgGC_Match_Result_Player *pMsgPlayer = pMsg->Body().add_players();
 		int nTeam;
@@ -3035,14 +3040,7 @@ bool CTFGameRules::ReportMatchResultsToGC( CMsgGC_Match_Result_Status nCode )
 		}
 		pMsgPlayer->set_steam_id( steamID.ConvertToUint64() );
 		pMsgPlayer->set_team( nTeam );
-		if ( pTFResource && pTFPlayer )
-		{
-			pMsgPlayer->set_score( pTFResource->GetTotalScore( pTFPlayer->entindex() ) );
-		}
-		else
-		{
-			// They left
-		}
+		pMsgPlayer->set_score( CalcPlayerScore( &statsReported, pTFPlayer ) );
 
 		int nPing = 0;
 		int nPacketLoss = 0;
@@ -3087,17 +3085,17 @@ bool CTFGameRules::ReportMatchResultsToGC( CMsgGC_Match_Result_Status nCode )
 		pMsgPlayer->set_flags( unPlayerFlags );
 		// server-side skill system
 		pMsgPlayer->set_classes_played( pMatchPlayer ? pMatchPlayer->unClassesPlayed : pTFPlayer->unClassesPlayed );
-		pMsgPlayer->set_kills( pStats ? pStats->statsAccumulated.m_iStat[TFSTAT_KILLS] : 0 );
-		pMsgPlayer->set_damage( pStats ? pStats->statsAccumulated.m_iStat[TFSTAT_DAMAGE] : 0 );
-		pMsgPlayer->set_healing( pStats ? pStats->statsAccumulated.m_iStat[TFSTAT_HEALING] : 0 );
-		pMsgPlayer->set_support( pStats ? CalcPlayerSupportScore( &pStats->statsAccumulated, pTFPlayer->entindex() ) : 0 );
+		pMsgPlayer->set_kills( statsReported.m_iStat[TFSTAT_KILLS] );
+		pMsgPlayer->set_damage( statsReported.m_iStat[TFSTAT_DAMAGE] );
+		pMsgPlayer->set_healing( statsReported.m_iStat[TFSTAT_HEALING] );
+		pMsgPlayer->set_support( CalcPlayerSupportScore( &statsReported, pTFPlayer ? pTFPlayer->entindex() : 0 ) );
 		pMsgPlayer->set_score_medal( pMatchPlayer ? pMatchPlayer->nScoreMedal : 0 );
 		pMsgPlayer->set_kills_medal( pMatchPlayer ? pMatchPlayer->nKillsMedal : 0 );
 		pMsgPlayer->set_damage_medal( pMatchPlayer ? pMatchPlayer->nDamageMedal : 0 );
 		pMsgPlayer->set_healing_medal( pMatchPlayer ? pMatchPlayer->nHealingMedal : 0 );
 		pMsgPlayer->set_support_medal( pMatchPlayer ? pMatchPlayer->nSupportMedal : 0 );
 		pMsgPlayer->set_rank( pMatchPlayer ? pMatchPlayer->nRank : 0 );
-		pMsgPlayer->set_deaths( pStats ? pStats->statsAccumulated.m_iStat[TFSTAT_DEATHS] : 0 );
+		pMsgPlayer->set_deaths( statsReported.m_iStat[TFSTAT_DEATHS] );
 		pMsgPlayer->set_original_party_id( pMatchPlayer ? pMatchPlayer->uOriginalPartyID : 0 );
 		uint32 unLeaveTime = ( pMatchPlayer && ( pMatchPlayer->bDropped || pMatchPlayer->BDropWasAbandon() ) ) ? 
 							   pMatchPlayer->GetLastActiveEventTime() : 0u;
@@ -6516,6 +6514,8 @@ void CTFGameRules::SetupOnRoundRunning( void )
 		if ( !pPlayer )
 			continue;
 
+		pPlayer->RecordMatchParticipation();
+
 		pPlayer->TeamFortress_SetSpeed();
 		if ( IsHalloweenScenario( HALLOWEEN_SCENARIO_HIGHTOWER ) )
 		{
@@ -6696,6 +6696,8 @@ void CTFGameRules::SetupOnStalemateStart( void )
 
 		if ( !pPlayer )
 			continue;
+
+		pPlayer->RecordMatchParticipation();
 
 		if ( IsInArenaMode() == true )
 		{

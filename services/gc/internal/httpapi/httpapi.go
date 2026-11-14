@@ -75,6 +75,8 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("POST /admin/v1/reports/{steamid}", a.adminReportAction)
 	mux.HandleFunc("GET /admin/v1/live", a.adminLive)
 	mux.HandleFunc("GET /admin/v1/clans", a.adminClanModeration)
+	mux.HandleFunc("GET /admin/v1/chat", a.adminChat)
+	mux.HandleFunc("POST /admin/v1/chat/{message}/delete", a.adminDeleteChat)
 	mux.HandleFunc("POST /admin/v1/clans/{clan}", a.adminModerationAction)
 	mux.HandleFunc("POST /admin/v1/players/{steamid}/moderation", a.adminModerationAction)
 	mux.HandleFunc("GET /admin/v1/settings", a.adminSettings)

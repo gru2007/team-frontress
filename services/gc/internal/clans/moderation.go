@@ -27,6 +27,7 @@ type ModerationAction struct {
 	RestrictMembers bool      `json:"restrict_members,omitempty"`
 	Name            string    `json:"name,omitempty"`
 	Tag             string    `json:"tag,omitempty"`
+	NewTag          string    `json:"new_tag,omitempty"`
 	Motto           string    `json:"motto,omitempty"`
 	Members         []Member  `json:"members,omitempty"`
 }
@@ -79,6 +80,29 @@ func (s *Store) Moderate(a ModerationAction) error {
 		return ErrModeration
 	}
 	switch a.Action {
+	case "set_tag":
+		if a.RestrictMembers || a.SteamID != 0 {
+			return ErrModeration
+		}
+		c := s.clans[a.Clan]
+		if c == nil {
+			return ErrNoClan
+		}
+		tag, err := CleanTag(a.NewTag)
+		if err != nil {
+			return err
+		}
+		for id, other := range s.clans {
+			if id != c.ID && strings.EqualFold(other.Tag, tag) {
+				return ErrTaken
+			}
+		}
+		for _, ban := range s.bannedClans {
+			if strings.EqualFold(ban.Tag, tag) {
+				return ErrIdentityBanned
+			}
+		}
+		a.Name, a.Tag, a.NewTag = c.Name, c.Tag, tag
 	case "ban", "delete":
 		c := s.clans[a.Clan]
 		if c == nil {
@@ -127,6 +151,10 @@ func (s *Store) Moderate(a ModerationAction) error {
 func (s *Store) applyModeration(a ModerationAction) {
 	s.moderation = append(s.moderation, a)
 	switch a.Action {
+	case "set_tag":
+		if c := s.clans[a.Clan]; c != nil {
+			c.Tag = a.NewTag
+		}
 	case "ban", "delete":
 		if a.Action == "ban" {
 			s.bannedClans[a.Clan] = a

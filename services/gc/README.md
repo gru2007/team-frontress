@@ -215,8 +215,11 @@ nothing of its own: it reads the public API and, with `admin_key`
 | `GET/POST /admin/v1/anticheat[/{steamid}]` | matchmaking bans, lifting them, Steam game bans |
 | `GET/POST /admin/v1/reports[/{steamid}]` | the report queue and its cases |
 | `GET /admin/v1/clans` | active clans with rosters, banned identities, clan creation restrictions, recent decisions and muted players (private) |
+| `POST /admin/v1/clans/{clan_id}` (tag) | `{"action":"set_tag","tag":"NEW","reason":"..."}`; changes only the tag; used and banned tags are refused |
+| `GET /admin/v1/chat` | private retained messages; `source=all\|menu\|match`, `steam_id`, `q`, `before`, `limit` (1..200); includes chat epoch and server policy acknowledgements |
+| `POST /admin/v1/chat/{message_id}/delete` | `{"reason":"...","epoch":"<from chat GET>"}`; deletes one retained message; 409 after GC restart |
 | `POST /admin/v1/clans/{clan_id}` | `{"action":"ban"\|"delete"\|"unban","reason":"...","restrict_members":false}`; ban deletes and reserves the name/tag; delete removes without reserving; optionally forbid every current member from creating clans |
-| `POST /admin/v1/players/{steamid}/moderation` | `{"action":"restrict_creation"\|"allow_creation"\|"mute"\|"unmute"\|"clear_chat","reason":"..."}`; restrictions last until lifted; clear_chat removes retained menu messages |
+| `POST /admin/v1/players/{steamid}/moderation` | `{"action":"restrict_creation"\|"allow_creation"\|"mute"\|"unmute"\|"clear_chat","reason":"..."}`; restrictions last until lifted; clear_chat removes retained menu and match messages |
 | `GET /admin/v1/payments`, `POST /admin/v1/payments/operations` | donations, Steam transactions, refunds and cancellations |
 
 | `GET/PUT /admin/v1/settings` | the configuration the panel manages; `{"revision": N, "note": "...", "sections": {...}}` replaces whole sections, validates the result and applies it at once (409 when somebody saved since revision N) |
@@ -289,13 +292,18 @@ match ends on its own deadlines.
 
 ## Player reports and group controls
 
-### Clans and menu chat
+### Clans and text chat
 
 The portal's **Clans and users** moderation page lists clans with their current
 rosters and provides player restrictions, chat mutes, removal of retained menu
 messages, and links to existing matchmaking/Steam bans. All mutations require
 the admin key, an authenticated actor SteamID and a reason. No action issues a
 Steam game ban implicitly.
+
+**Change tag** updates an existing clan without deleting it or changing its
+roster, XP or progress. Tags retain the normal 2..5 letters/digits validation;
+used and banned tags are refused. The audit records both the old and new tag,
+and connected clients, retained announcements and war banners are refreshed.
 
 Deleting a clan removes its membership, invitations, progress, banner and chat
 channel and refreshes connected clients. Its tag and system announcements are
@@ -313,10 +321,26 @@ decisions. With no clan storage path, restrictions are in memory and the portal
 shows a warning. Unbanning a clan only releases its identity: it neither restores
 the deleted clan nor lifts individual player restrictions.
 
-Mutes use the existing persistent chat settings and settings history. Chat
-removal resets online clients and records the actor and reason in the journal;
-private evidence in the journal remains intact. These controls apply to GC menu
-chat (global, clan and party). Mutations take effect immediately.
+The **Chat** page (`/admin/chat`) shows retained menu chat (global, clan and
+party) and game-server chat (`say` and `say_team`). It filters by source,
+player and text and allows deleting one message, clearing a player's retained
+messages, and muting/unmuting the player. Team messages reported by a server
+are private to moderators; they are never forwarded to public menu chat.
+
+Mutes use persistent chat settings and settings history and cover both menu
+and match text chat, including the legacy party protocol. Updated game servers
+receive the current disabled/muted policy on connect, reconnect and settings
+changes, enforce it in `Host_Say`, and acknowledge the revision. The Chat page
+shows servers that have not acknowledged the current policy. Deploy the GC
+before rebuilding and updating server binaries: configured game servers hold
+text chat until they receive the initial policy, and retain it during GC
+connection interruptions. This does not mute voice chat.
+
+Chat removal refreshes menu caches and records actor/reason in the private
+journal. Messages already printed in match HUD/console cannot be erased
+retroactively. The page lists only the running GC's retained backlog; the
+journal keeps historical evidence. Message deletion requires the current chat
+epoch, preventing an old page from deleting an unrelated ID after a GC restart.
 
 ### Player reports
 

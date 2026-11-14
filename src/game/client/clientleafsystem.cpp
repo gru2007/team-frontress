@@ -2100,12 +2100,14 @@ void CClientLeafSystem::SortEntities( const Vector &vecRenderOrigin, const Vecto
 	for( i=0; i < nEntities; i++ )
 	{
 		IClientRenderable *pRenderable = pEntities[i].m_pRenderable;
-		RenderableInfo_t& renderable = m_Renderables[pEntities[i].m_RenderHandle];
 
 		// Compute the center of the object (needed for translucent brush models)
 		Vector boxcenter;
-		Vector mins = renderable.m_vecAbsMins;
-		Vector maxs = renderable.m_vecAbsMaxs;
+		// Detail props carry DETAIL_PROP_RENDER_HANDLE, not an index into
+		// m_Renderables. Get local bounds through their renderable interface;
+		// cached world bounds would also add the origin a second time below.
+		Vector mins, maxs;
+		pRenderable->GetRenderBounds( mins, maxs );
 		VectorAdd( mins, maxs, boxcenter );
 		VectorMA( pRenderable->GetRenderOrigin(), 0.5f, boxcenter, boxcenter );
 

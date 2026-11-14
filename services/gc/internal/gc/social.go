@@ -44,18 +44,20 @@ const (
 // ChatLine is one line in a channel. A system line has Key (a string the
 // game translates) and Args instead of a sender and text.
 type ChatLine struct {
-	ID   uint64   `json:"id"`
-	At   int64    `json:"at"`
-	Ch   string   `json:"ch"` // global, clan, party
-	From string   `json:"from,omitempty"`
-	Name string   `json:"name,omitempty"`
-	Tag  string   `json:"tag,omitempty"`
-	Gold bool     `json:"gold,omitempty"`
-	Sup  bool     `json:"sup,omitempty"`
-	Text string   `json:"text,omitempty"`
-	Key  string   `json:"key,omitempty"`
-	Args []string `json:"args,omitempty"`
-	Kind string   `json:"kind,omitempty"` // a system line's kind: war, clan, support
+	Server string   `json:"server,omitempty"`
+	Match  string   `json:"match,omitempty"`
+	ID     uint64   `json:"id"`
+	At     int64    `json:"at"`
+	Ch     string   `json:"ch"` // global, clan, party
+	From   string   `json:"from,omitempty"`
+	Name   string   `json:"name,omitempty"`
+	Tag    string   `json:"tag,omitempty"`
+	Gold   bool     `json:"gold,omitempty"`
+	Sup    bool     `json:"sup,omitempty"`
+	Text   string   `json:"text,omitempty"`
+	Key    string   `json:"key,omitempty"`
+	Args   []string `json:"args,omitempty"`
+	Kind   string   `json:"kind,omitempty"` // a system line's kind: war, clan, support
 }
 
 // socialOp is everything a client may send; each op reads its own fields.
@@ -260,17 +262,17 @@ func (g *GC) muted(id uint64) bool {
 }
 
 // say posts a player's line to a channel.
-func (g *GC) say(id uint64, ch, text string) {
+func (g *GC) say(id uint64, ch, text string) bool {
 	if g.cfg.Chat.Disabled {
-		return
+		return false
 	}
 	text = g.censor(cleanLine(text, chatMaxRunes))
 	if text == "" {
-		return
+		return false
 	}
 	if g.muted(id) {
 		g.fail(id, "muted")
-		return
+		return false
 	}
 	p := g.player(id)
 	// A token bucket: a burst, then one line per chatRefill.
@@ -286,7 +288,7 @@ func (g *GC) say(id uint64, ch, text string) {
 	p.chatAt = now
 	if p.chatTokens < 1 {
 		g.fail(id, "chat_slow")
-		return
+		return false
 	}
 	p.chatTokens--
 	g.log.Debug("chat", "steamid", id, "channel", ch, "text", text)
@@ -302,7 +304,7 @@ func (g *GC) say(id uint64, ch, text string) {
 	}
 	if key == "" {
 		g.fail(id, "no_channel")
-		return
+		return false
 	}
 	line := ChatLine{Ch: ch, From: strconv.FormatUint(id, 10), Name: p.Name, Text: text}
 	if line.Name == "" {
@@ -315,6 +317,7 @@ func (g *GC) say(id uint64, ch, text string) {
 		line.Sup, _ = g.book.IsSupporter(id)
 	}
 	g.post(key, line)
+	return true
 }
 
 // post adds a line to a channel's history and sends it to everyone in it.

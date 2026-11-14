@@ -25,9 +25,14 @@ func (g *GC) newMatchResult(l *Lobby, msg *gcpb.CMsgGC_Match_Result) *history.Re
 	}
 	archived, _ := g.history.Get(lobbyKey(l.MatchID))
 	roster := make(map[uint64]bool, len(archived.Members)+len(l.Members))
+	voteKicked := make(map[uint64]bool, len(l.kicked))
+	for id, kicked := range l.kicked {
+		voteKicked[id] = kicked
+	}
 	for _, p := range archived.Members {
 		if id, err := strconv.ParseUint(p.SteamID, 10, 64); err == nil && id != 0 {
 			roster[id] = true
+			voteKicked[id] = voteKicked[id] || p.VoteKicked
 		}
 	}
 	for _, p := range l.Members {
@@ -49,7 +54,10 @@ func (g *GC) newMatchResult(l *Lobby, msg *gcpb.CMsgGC_Match_Result) *history.Re
 			Ping: p.GetPing(), Flags: flags, Rank: p.GetRank(), Classes: p.GetClassesPlayed(),
 			Medals:      [5]uint32{p.GetScoreMedal(), p.GetKillsMedal(), p.GetDamageMedal(), p.GetHealingMedal(), p.GetSupportMedal()},
 			LeaveReason: int32(p.GetLeaveReason()), LeaveTime: p.GetLeaveTime(), ConnectTime: p.GetConnectTime(),
-			Excluded: !r.Completed() || l.State != lobbyRun || l.member(id) == nil || (p.GetTeam() != 2 && p.GetTeam() != 3) ||
+			Excluded: !r.Completed() || l.State != lobbyRun ||
+				g.players.HasAbandoned(id, l.MatchID) || voteKicked[id] ||
+				p.GetLeaveReason() == gcpb.TFMatchLeaveReason_TFMatchLeaveReason_VOTE_KICK ||
+				(p.GetTeam() != 2 && p.GetTeam() != 3) ||
 				(p.Flags != nil && (flags&matchPlayerPlayed == 0 || flags&(matchPlayerAbandoned|matchPlayerNeverActive) != 0)),
 		}
 		if party := p.GetOriginalPartyId(); party != 0 {
@@ -106,7 +114,10 @@ func (g *GC) matchKind(l *Lobby) string {
 func (g *GC) archiveMatch(l *Lobby, result *history.Result, reason string) {
 	id := strconv.FormatUint(l.MatchID, 10)
 	m, _ := g.history.Get(id)
-	m.MatchID, m.Group, m.Map, m.State, m.FormedAt = id, l.Group, l.Map, string(l.State), l.FormedAt
+	m.MatchID, m.Group, m.Map, m.FormedAt = id, l.Group, l.Map, l.FormedAt
+	if m.EndedAt == nil {
+		m.State = string(l.State)
+	}
 	m.Kind = g.matchKind(l)
 	if l.War != nil {
 		m.Campaign, m.UniformSwap, m.Sector = l.War.Campaign, l.War.UniformSwap, l.War.NodeName
@@ -137,7 +148,7 @@ func (g *GC) archiveMatch(l *Lobby, result *history.Result, reason string) {
 	for i := range m.Members {
 		m.Members[i].Left = true
 		id, _ := strconv.ParseUint(m.Members[i].SteamID, 10, 64)
-		m.Members[i].VoteKicked = l.kicked[id]
+		m.Members[i].VoteKicked = m.Members[i].VoteKicked || l.kicked[id]
 	}
 	for _, member := range l.Members {
 		sid := strconv.FormatUint(member.SteamID, 10)

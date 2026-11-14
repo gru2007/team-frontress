@@ -42,6 +42,15 @@ type Member struct {
 	JoinedAt time.Time
 }
 
+// Keep only the final-result context after the last participant leaves. The
+// live lobby can close normally without losing an already queued result.
+const departedResultGrace = 2 * time.Minute
+
+type pendingMatchResult struct {
+	lobby *Lobby
+	until time.Time
+}
+
 // Lobby is one match.
 type Lobby struct {
 	ID              uint64
@@ -425,6 +434,12 @@ func (g *GC) endLobby(l *Lobby, why string, requeue bool) {
 		return
 	}
 	g.archiveMatch(l, nil, why)
+	if why == "everybody left" && l.State == lobbyRun && !l.resultSeen {
+		if g.pendingResults == nil {
+			g.pendingResults = make(map[uint64]pendingMatchResult)
+		}
+		g.pendingResults[l.MatchID] = pendingMatchResult{lobby: l, until: g.now().Add(departedResultGrace)}
+	}
 	delete(g.lobbies, l.ID)
 	g.dirty = true
 	for _, m := range l.Members {
@@ -499,6 +514,11 @@ func (g *GC) tickLobbies() {
 		}
 	}
 	now := g.now()
+	for id, pending := range g.pendingResults {
+		if !now.Before(pending.until) {
+			delete(g.pendingResults, id)
+		}
+	}
 	t := g.cfg.Timing
 	for _, l := range g.lobbies {
 		srv := g.servers[l.ServerID]

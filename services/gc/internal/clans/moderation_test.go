@@ -6,6 +6,55 @@ import (
 	"testing"
 )
 
+func TestModeratorChangesTagWithoutDeletingClan(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "clans.jsonl")
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, _ := s.Create(1, "Leader", Settings{Name: "Clan remains", Tag: "OLD", Open: true})
+	if err := s.Join(2, "Member", c.ID); err != nil {
+		t.Fatal(err)
+	}
+	s.RecordMatch([]Played{{SteamID: 1, Won: true}, {SteamID: 2}})
+	before := s.Get(c.ID)
+	if err := s.Moderate(ModerationAction{Action: "set_tag", Clan: c.ID, NewTag: "new", Actor: 99, Reason: "inappropriate tag"}); err != nil {
+		t.Fatal(err)
+	}
+	after := s.Get(c.ID)
+	if after.Tag != "NEW" || after.XP != before.XP || len(after.Members) != 2 || s.CreationBanned(1) {
+		t.Fatal("tag change damaged clan", after)
+	}
+	other, _ := s.Create(3, "Other", Settings{Name: "Other clan", Tag: "TAKEN"})
+	for _, test := range []struct {
+		tag string
+		err error
+	}{{"TAKEN", ErrTaken}, {"!", ErrTag}} {
+		if err := s.Moderate(ModerationAction{Action: "set_tag", Clan: c.ID, NewTag: test.tag, Actor: 99, Reason: "test"}); err != test.err {
+			t.Fatal(test.tag, err)
+		}
+	}
+	if err := s.Moderate(ModerationAction{Action: "ban", Clan: other.ID, Actor: 99, Reason: "ban"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Moderate(ModerationAction{Action: "set_tag", Clan: c.ID, NewTag: "taken", Actor: 99, Reason: "test"}); err != ErrIdentityBanned {
+		t.Fatal("banned identity reused", err)
+	}
+	s.Close()
+	s, err = Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if s.Get(c.ID).Tag != "NEW" || len(s.Get(c.ID).Members) != 2 {
+		t.Fatal("tag did not replay")
+	}
+	history := s.Moderation().History
+	if len(history) != 2 || history[1].Tag != "OLD" || history[1].NewTag != "NEW" {
+		t.Fatal("tag history missing", history)
+	}
+}
+
 func TestModerationReplaysDeletionAndMemberRestrictions(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "clans.jsonl")
 	s, err := Open(path)

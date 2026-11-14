@@ -1145,6 +1145,7 @@ public:
 	void				ResetIdleCheck( void ) { m_flLastAction = gpGlobals->curtime; }
 
 	// Matchmaking
+	void RecordMatchParticipation();
 	void				SetMatchSafeToLeave( bool bMatchSafeToLeave ) { m_bMatchSafeToLeave = bMatchSafeToLeave; }
 
 	void				SetPrevRoundTeamNum( int nTeamNum ){ m_nPrevRoundTeamNum = nTeamNum; }

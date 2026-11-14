@@ -19,6 +19,7 @@
 #include "GameEventListener.h"
 #include "rtime.h"
 #include "tf_shareddefs.h"
+#include "tf_gamestats_shared.h"
 #include "tf_gc_shared.h"
 #include "tf_lobby_shared.h"
 #include "vote_controller.h"
@@ -169,6 +170,8 @@ public:
 
 		bool bLateJoin;
 		int nScore;
+		// Match totals from previous connections, independent of entity/slot resets.
+		RoundStats_t statsDisconnected;
 		bool bPlayed;
 		bool bEverConnected;
 		bool bEverActive;
@@ -446,6 +449,7 @@ public:
 
 	void ClientActive( CSteamID steamIDClient );
 	void ClientConnected( CSteamID steamIDPlayer, edict_t *pEntity );
+	void RecordDisconnectedStats( CBasePlayer *pPlayer );
 	void ClientDisconnected( CSteamID steamIDClient );
 
 	inline bool IsMMServerModeActive() const { return m_bMMServerMode; }

@@ -508,9 +508,10 @@ func (g *GC) handleChat(s *session.Session, m *wire.Msg) {
 	if p == nil || text == "" {
 		return
 	}
-	if len(text) > 512 {
-		text = text[:512]
+	if !g.say(s.SteamID, "party", text) {
+		return
 	}
+	text = g.censor(cleanLine(text, chatMaxRunes))
 	g.partyChat(p, gcpb.ETFPartyChatType_k_eTFPartyChatType_MemberChat, s.SteamID, text)
 }
 

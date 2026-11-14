@@ -2761,6 +2761,11 @@ void CServerGameClients::ClientDisconnect( edict_t *pEdict )
 	CBasePlayer *player = ( CBasePlayer * )CBaseEntity::Instance( pEdict );
 	if ( player )
 	{
+#if defined( TF_DLL )
+		// Gamerules disconnect handling resets stats; retain them before that,
+		// including disconnects during GAME_OVER when that handling is skipped.
+		GTFGCClientSystem()->RecordDisconnectedStats( player );
+#endif
 		if ( !g_fGameOver )
 		{
 			player->SetMaxSpeed( 0.0f );

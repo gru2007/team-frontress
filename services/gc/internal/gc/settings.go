@@ -133,6 +133,9 @@ func (g *GC) commitSettings(sections map[string]json.RawMessage, by, note string
 // applyConfig makes next the running configuration. Run on the loop.
 func (g *GC) applyConfig(next config.Config) {
 	g.cfg = next
+	for _, srv := range g.servers {
+		g.sendChatPolicy(srv)
+	}
 	live := next
 	g.live.Store(&live)
 	g.hooks.SetHooks(next.Webhooks)

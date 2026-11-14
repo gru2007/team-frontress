@@ -39,6 +39,7 @@
 #ifdef TF_DLL
 #include "tf_player.h"
 #include "tf_gamerules.h"
+#include "frontress_gc.h"
 #endif
 
 #ifdef HL2_DLL
@@ -254,6 +255,10 @@ void Host_Say( edict_t *pEdict, const CCommand &args, bool teamonly )
 	}
 
 	const char *pszFormat = NULL;
+#ifdef TF_DLL
+	if ( pPlayer && !FrontressGC_CanChat( pPlayer ) )
+		return;
+#endif
 	const char *pszPrefix = NULL;
 	const char *pszLocation = NULL;
 	if ( g_pGameRules )
@@ -287,6 +292,9 @@ void Host_Say( edict_t *pEdict, const CCommand &args, bool teamonly )
 
 	Q_strncat( text, p, sizeof( text ), COPY_ALL_CHARACTERS );
 	Q_strncat( text, "\n", sizeof( text ), COPY_ALL_CHARACTERS );
+#ifdef TF_DLL
+	FrontressGC_ReportChat( pPlayer, teamonly, p );
+#endif
  
 	// loop through all players
 	// Start with the first player.

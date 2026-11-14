@@ -361,6 +361,14 @@ func (s *Store) Abandoned(id uint64, name string, matchID uint64) Record {
 	return *s.records[id]
 }
 
+// HasAbandoned checks the persisted per-match penalty ledger. A later server
+// result must not credit a player whose abandon the GC already recorded.
+func (s *Store) HasAbandoned(id uint64, matchID uint64) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.abandoned[participation{matchID, id}]
+}
+
 // Get returns a copy of a record. An unknown player is a fresh one.
 func (s *Store) Get(id uint64) Record {
 	s.mu.Lock()

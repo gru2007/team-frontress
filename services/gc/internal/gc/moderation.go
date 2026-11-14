@@ -14,33 +14,43 @@ func (g *GC) ModerateClan(a clans.ModerationAction) error {
 	if err := g.clans.Moderate(a); err != nil {
 		return err
 	}
-	if a.Action == "ban" || a.Action == "delete" {
-		delete(g.chat, "clan:"+a.Clan)
+	if a.Action == "ban" || a.Action == "delete" || a.Action == "set_tag" {
+		if a.Action != "set_tag" {
+			delete(g.chat, "clan:"+a.Clan)
+		}
+		newTag := ""
+		if after := g.clans.Get(a.Clan); after != nil {
+			newTag = after.Tag
+		}
 		if before != nil {
 			for channel, lines := range g.chat {
 				kept := make([]ChatLine, 0, len(lines))
 				for _, line := range lines {
 					remove := false
-					if line.Kind == "clan" || line.Kind == "war" {
-						for _, arg := range line.Args {
-							if arg == before.Name || arg == before.Tag {
-								remove = true
-							}
+					arg := clanFeedTagArgument(line)
+					if arg >= 0 && arg < len(line.Args) && line.Args[arg] == before.Tag {
+						line.Args = append([]string(nil), line.Args...)
+						if a.Action == "set_tag" {
+							line.Args[arg] = newTag
+						} else {
+							remove = true
 						}
 					}
 					if remove {
 						continue
 					}
 					if line.Tag == before.Tag {
-						line.Tag, line.Gold = "", false
+						line.Tag = newTag
+						if newTag == "" {
+							line.Gold = false
+						}
 					}
 					kept = append(kept, line)
 				}
 				g.chat[channel] = kept
 			}
 		}
-		// Refresh everybody: an invitee or a player browsing clans can also
-		// have a cached reference to the removed clan.
+		// Invitees and players browsing clans also cache the clan's identity.
 		for id := range g.online {
 			g.sendClan(id)
 			g.sendChatHistory(id)
@@ -53,7 +63,20 @@ func (g *GC) ModerateClan(a clans.ModerationAction) error {
 	return nil
 }
 
-// ClearPlayerChat removes retained menu messages and resets connected clients'
+// Other arguments can be player names or another clan's name. Only the
+// documented tag position identifies a clan in a system announcement.
+func clanFeedTagArgument(line ChatLine) int {
+	switch line.Key {
+	case "fui_feed_clan_new", "fui_feed_clan_level", "fui_feed_contract":
+		return 0
+	case "fui_feed_captured_clan":
+		return 2
+	default:
+		return -1
+	}
+}
+
+// ClearPlayerChat removes retained menu and match messages and resets clients'
 // chat caches. The private journal remains available as moderation evidence.
 func (g *GC) ClearPlayerChat(id, actor uint64, reason string) {
 	who := strconv.FormatUint(id, 10)
@@ -96,7 +119,7 @@ func (g *GC) ModerateChat(id, actor uint64, muted bool, reason string) error {
 		action = "mute"
 	}
 	_, err = g.SaveSettings(g.settings.Revision, map[string]json.RawMessage{"chat": raw},
-		"admin:"+strconv.FormatUint(actor, 10), action+" menu chat "+who+": "+reason)
+		"admin:"+strconv.FormatUint(actor, 10), action+" text chat "+who+": "+reason)
 	if err == nil {
 		g.log.Info("player chat moderation", "steamid", id, "by", strconv.FormatUint(actor, 10), "action", action, "reason", reason)
 	}

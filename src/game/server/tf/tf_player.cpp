@@ -9,6 +9,7 @@
 #include "tf_player.h"
 #include "tf_gamerules.h"
 #include "tf_gamestats.h"
+#include "tf_match_stats.h"
 #include "frontress/frontress_anticheat_server.h"
 #include "KeyValues.h"
 #include "viewport_panel_names.h"
@@ -2282,6 +2283,26 @@ void CTFPlayer::UpdateTimers( void )
 //-----------------------------------------------------------------------------
 // Purpose: One-time, 100ms post spawn
 //-----------------------------------------------------------------------------
+void CTFPlayer::RecordMatchParticipation()
+{
+	// Arena players spawn during PREROUND. Also call this at the transition
+	// into live gameplay, without crediting warmup or arena spectators.
+	if ( !IsTFMatchGameplayActive( TFGameRules() ) || !IsAlive() || GetTeamNumber() < FIRST_GAME_TEAM || IsArenaSpectator() )
+		return;
+	CMatchInfo *pMatch = GTFGCClientSystem()->GetMatch();
+	CSteamID steamID;
+	if ( pMatch && GetSteamID( &steamID ) )
+	{
+		CMatchInfo::PlayerMatchData_t *pMatchPlayer = pMatch->GetMatchDataForPlayer( steamID );
+		if ( pMatchPlayer )
+		{
+			pMatchPlayer->bPlayed = true;
+			pMatchPlayer->UpdateClassesPlayed( GetPlayerClass()->GetClassIndex() );
+		}
+	}
+}
+
+//-----------------------------------------------------------------------------
 void CTFPlayer::PostSpawnThink( void )
 {
 	if ( IsPlayerClass( TF_CLASS_MEDIC ) )
@@ -4403,19 +4424,7 @@ void CTFPlayer::Spawn()
 		}
 	}
 
-	CMatchInfo *pMatch = GTFGCClientSystem()->GetMatch();
-	if ( pMatch )
-	{
-		CSteamID steamID;
-		GetSteamID( &steamID );
-
-		// This client entered a running match
-		CMatchInfo::PlayerMatchData_t *pMatchPlayer = pMatch->GetMatchDataForPlayer( steamID );
-		if ( pMatchPlayer && TFGameRules() && TFGameRules()->State_Get() == GR_STATE_RND_RUNNING )
-		{
-			pMatchPlayer->bPlayed = true;
-		}
-	}
+	RecordMatchParticipation();
 
 	if ( m_nMaxHealthDrainBucket )
 	{
@@ -7794,7 +7803,7 @@ void CTFPlayer::HandleCommand_JoinClass( const char *pClassName, bool bAllowSpaw
 		iClass = iClasses[ random->RandomInt( 0, iChoices - 1 ) ];
 	}
 
-	if ( TFGameRules() && TFGameRules()->State_Get() == GR_STATE_RND_RUNNING )
+	if ( IsTFMatchGameplayActive( TFGameRules() ) )
 	{
 		// Bit field of classes played during the game
 		CSteamID steamID;

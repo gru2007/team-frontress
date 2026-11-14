@@ -7,6 +7,7 @@
 #include "cbase.h"
 #include "tf_gamerules.h"
 #include "tf_gamestats.h"
+#include "tf_match_stats.h"
 #include "frontress/frontress_anticheat_server.h"
 #include "tf_obj_sentrygun.h"
 #include "tf_obj_dispenser.h"
@@ -454,7 +455,7 @@ void CTFGameStats::IncrementStat( CTFPlayer* pPlayer, TFStatType_t statType, int
 		statType < 0 || statType >= TFSTAT_TOTAL )
 		return;
 
-	if ( TFGameRules() && ( TFGameRules()->IsCompetitiveMode() || TFGameRules()->IsEmulatingMatch() || TFGameRules()->IsCompetitiveGame() ) && TFGameRules()->State_Get() != GR_STATE_RND_RUNNING )
+	if ( TFGameRules() && ( TFGameRules()->IsCompetitiveMode() || TFGameRules()->IsEmulatingMatch() || TFGameRules()->IsCompetitiveGame() ) && !IsTFMatchGameplayActive( TFGameRules() ) )
 		return;
 
 	PlayerStats_t &stats = m_aPlayerStats[pPlayer->entindex()];
@@ -1019,7 +1020,7 @@ void CTFGameStats::Event_PlayerFiredWeapon( CTFPlayer *pPlayer, bool bCritical )
 	FrontressAC_Server_OnWeaponFired( pPlayer );
 
 	// If normal gameplay state, track weapon stats. 
-	if ( TFGameRules()->State_Get() == GR_STATE_RND_RUNNING )
+	if ( IsTFMatchGameplayActive( TFGameRules() ) )
 	{
 		CTFWeaponBase *pTFWeapon = pPlayer->GetActiveTFWeapon();
 		if ( pTFWeapon )
@@ -1198,7 +1199,7 @@ void CTFGameStats::Event_PlayerDamage( CBasePlayer *pBasePlayer, const CTakeDama
 	}
 
 	// If normal gameplay state, track weapon stats. 
-	if ( ( TFGameRules()->State_Get() == GR_STATE_RND_RUNNING ) && ( damage.iWeapon != TF_WEAPON_NONE  ) )
+	if ( IsTFMatchGameplayActive( TFGameRules() ) && ( damage.iWeapon != TF_WEAPON_NONE ) )
 	{
 		// record hits & damage in reported per-weapon stats
 		if ( m_reportedStats.m_pCurrentGame != NULL )
@@ -2520,7 +2521,7 @@ void CTFGameStats::SW_GameStats_WriteKill( CTFPlayer* pKiller, CTFPlayer* pVicti
 	if ( pAssister && pAssister->IsBot() )
 		return;
 
-	if ( TFGameRules()->State_Get() != GR_STATE_RND_RUNNING )
+	if ( !IsTFMatchGameplayActive( TFGameRules() ) )
 		return; // Only record kills during an active round.
 
 	if ( !m_bRoundActive )
