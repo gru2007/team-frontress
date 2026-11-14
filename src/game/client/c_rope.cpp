@@ -25,6 +25,7 @@
 #include "materialsystem/imaterialsystemhardwareconfig.h"
 #include "tier1/callqueue.h"
 #include "tier1/memstack.h"
+#include "igamesystem.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -220,12 +221,13 @@ struct RopeSegData_t
 	float		m_flMaxBackWidth;
 };
 
-class CRopeManager : public IRopeManager
+class CRopeManager : public IRopeManager, public CAutoGameSystem
 {
 public:
 
 	CRopeManager();
-	~CRopeManager();
+	virtual void Shutdown() OVERRIDE;
+	virtual void LevelShutdownPostEntity() OVERRIDE { Shutdown(); }
 
 	void ResetRenderCache( void );
 	void AddToRenderCache( C_RopeKeyframe *pRope );
@@ -308,7 +310,7 @@ inline bool ShouldUseFakeAA( IMaterial *pBackMaterial )
 //-----------------------------------------------------------------------------
 // Purpose:
 //-----------------------------------------------------------------------------
-CRopeManager::CRopeManager()
+CRopeManager::CRopeManager() : CAutoGameSystem( "RopeManager" )
 {
 	m_aRenderCache.Purge();
 	m_aSegmentCache.Purge();
@@ -322,23 +324,41 @@ CRopeManager::CRopeManager()
 //-----------------------------------------------------------------------------
 // Purpose:
 //-----------------------------------------------------------------------------
-CRopeManager::~CRopeManager()
+void CRopeManager::Shutdown()
 {
-	int nRenderCacheCount = m_aRenderCache.Count();
-	for ( int iRenderCache = 0; iRenderCache < nRenderCacheCount; ++iRenderCache )
+	// The global destructor runs after the material-system module may have
+	// unloaded. Release its interfaces during level/client shutdown instead.
+	// Queued draws must finish before their cache and material refs are freed.
+	const MaterialLock_t materialLock = materials->Lock();
 	{
-		if ( m_aRenderCache[iRenderCache].m_pSolidMaterial )
+		CMatRenderContextPtr pRenderContext( materials );
+		pRenderContext->Flush( true );
+		AUTO_LOCK( m_RenderCacheMutex );
+
+		int nRenderCacheCount = m_aRenderCache.Count();
+		for ( int iRenderCache = 0; iRenderCache < nRenderCacheCount; ++iRenderCache )
 		{
-			m_aRenderCache[iRenderCache].m_pSolidMaterial->DecrementReferenceCount();
+			if ( m_aRenderCache[iRenderCache].m_pSolidMaterial )
+			{
+				m_aRenderCache[iRenderCache].m_pSolidMaterial->DecrementReferenceCount();
+			}
+			if ( m_aRenderCache[iRenderCache].m_pBackMaterial )
+			{
+				m_aRenderCache[iRenderCache].m_pBackMaterial->DecrementReferenceCount();
+			}
 		}
-		if ( m_aRenderCache[iRenderCache].m_pBackMaterial )
+
+		m_aRenderCache.Purge();
+		m_aSegmentCache.Purge();
+		m_nSegmentCacheCount = 0;
+		m_RopeQueuedRenderCaches.Purge();
+		if ( m_pDepthWriteMaterial )
 		{
-			m_aRenderCache[iRenderCache].m_pBackMaterial->DecrementReferenceCount();
+			m_pDepthWriteMaterial->DecrementReferenceCount();
+			m_pDepthWriteMaterial = NULL;
 		}
 	}
-
-	m_aRenderCache.Purge();
-	m_aSegmentCache.Purge();
+	materials->Unlock( materialLock );
 }
 
 //-----------------------------------------------------------------------------

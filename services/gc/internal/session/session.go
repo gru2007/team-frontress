@@ -51,6 +51,9 @@ const MaxOutbox = 4096
 // ErrClosed is returned for a session that has ended.
 var ErrClosed = errors.New("session closed")
 
+// ErrSequence leaves the batch unacknowledged so its missing frames can be retried.
+var ErrSequence = errors.New("gc batch sequence gap")
+
 // Session is one authenticated peer.
 type Session struct {
 	ID      string
@@ -60,9 +63,10 @@ type Session struct {
 	Created time.Time
 
 	// Server sessions only.
-	ServerName  string // which key let it in, for logs
-	KeyID       string // config.KeyID of that key: revoking or rotating it ends the session
-	Connect     string // the address players use
+	ServerName  string  // which key let it in, for logs
+	KeyID       string  // config.KeyID of that key: revoking or rotating it ends the session
+	Connect     string  // the address players use
+	MatchID     *uint64 // nil: legacy peer; zero: fresh server process
 	Region      string
 	CommunityID string // which community operates this server
 	// AntiCheatAuthority: this server's anti-cheat bans are applied
@@ -121,13 +125,18 @@ func (s *Session) Accept(frames []wire.Frame, now time.Time) ([]wire.Frame, erro
 	}
 	s.lastSeen = now
 	out := frames[:0:0]
+	last := s.lastIn
 	for _, f := range frames {
-		if f.Seq <= s.lastIn {
+		if f.Seq <= last {
 			continue
 		}
-		s.lastIn = f.Seq
+		if f.Seq != last+1 {
+			return nil, ErrSequence
+		}
+		last = f.Seq
 		out = append(out, f)
 	}
+	s.lastIn = last
 	return out, nil
 }
 

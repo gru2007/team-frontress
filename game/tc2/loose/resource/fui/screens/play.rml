@@ -36,8 +36,8 @@
 				data-event-click="cmd('set_region', r.id)">
 				<span data-if="r.id == 'auto'">#fui_region_auto</span>
 				<span data-if="r.id != 'auto'">{{ r.name }}</span>
-				<span class="region-ms" data-if="r.id != 'auto' && r.ok && r.ms >= 0">{{ r.ms }} #fui_ms</span>
-				<span class="region-ms" data-if="r.id != 'auto' && r.measured && !r.ok">#fui_region_unreachable</span>
+				<span class="region-ms" data-if="r.id != 'auto' && r.measured && r.ms >= 0">{{ r.ms }} #fui_ms</span>
+				<span class="region-ms" data-if="r.id != 'auto' && r.measured && !r.ok && r.ms < 0">#fui_region_unreachable</span>
 			</div>
 		</div>
 		<div class="small regions-hint bad" data-if="region.none_ok">{{ 'fui_region_none_ok' | t(region.max_ms) }}</div>

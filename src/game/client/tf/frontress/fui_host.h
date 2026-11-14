@@ -21,6 +21,7 @@ namespace fui
 
 // The running UI, or NULL when it is off (fui_menu 0) or failed to start.
 fui::Runtime *FrontressUI();
+void FrontressUIShutdown();
 
 // True while the Frontress menu is the one on screen.
 bool FrontressUIOwnsMenu();

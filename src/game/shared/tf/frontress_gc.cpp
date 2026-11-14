@@ -22,6 +22,7 @@
 #include "tf/frontress/fui_tf.h"
 #else
 #include "steam/steam_gameserver.h"
+#include "tf_gc_server.h"
 #endif
 
 #include <stdlib.h>
@@ -360,6 +361,12 @@ void CFrontressGC::StartSession()
 
 
 	pHTTP->SetHTTPRequestGetOrPostParameter( h, "connect", strConnect.Get() );
+	// Distinguish an HTTP reconnect from a freshly restarted server with
+	// the same persistent Steam ID. Only the former can resume a RUN lobby.
+	const CMatchInfo *pMatch = GTFGCClientSystem() ? GTFGCClientSystem()->GetMatch() : NULL;
+	CNumStr strMatchID;
+	strMatchID.SetUint64( pMatch ? ( pMatch->m_bAwaitingMatchID ? pMatch->m_nPreviousMatchID : pMatch->m_nMatchID ) : 0 );
+	pHTTP->SetHTTPRequestGetOrPostParameter( h, "match_id", strMatchID );
 #endif
 	pHTTP->SetHTTPRequestNetworkActivityTimeout( h, 30 );
 
@@ -421,7 +428,8 @@ static CUtlString KVLine( const char *pszBody, const char *pszKey )
 static bool ReadBody( ISteamHTTP *pHTTP, HTTPRequestHandle h, CUtlVector< uint8 > &out )
 {
 	uint32 cub = 0;
-	if ( !pHTTP->GetHTTPResponseBodySize( h, &cub ) )
+	// Bound allocations and the uint32 -> int conversion in CUtlVector.
+	if ( !pHTTP->GetHTTPResponseBodySize( h, &cub ) || cub > 16 * 1024 * 1024 )
 		return false;
 	out.SetCount( cub + 1 );
 	if ( cub && !pHTTP->GetHTTPResponseBodyData( h, out.Base(), cub ) )
@@ -435,6 +443,8 @@ void CFrontressGC::OnSessionCompleted( HTTPRequestCompleted_t *pInfo, bool bIOFa
 {
 	ISteamHTTP *pHTTP = HTTP();
 	HTTPRequestHandle h = m_hSession;
+	if ( h == INVALID_HTTPREQUEST_HANDLE || ( !bIOFailure && pInfo && pInfo->m_hRequest != h ) )
+		return;
 	m_hSession = INVALID_HTTPREQUEST_HANDLE;
 	if ( m_eState != k_eState_Starting )
 	{
@@ -442,7 +452,7 @@ void CFrontressGC::OnSessionCompleted( HTTPRequestCompleted_t *pInfo, bool bIOFa
 			pHTTP->ReleaseHTTPRequest( h );
 		return;
 	}
-	if ( bIOFailure || !pInfo || !pHTTP )
+	if ( bIOFailure || !pInfo || !pHTTP || !pInfo->m_bRequestSuccessful )
 	{
 		if ( pHTTP && h != INVALID_HTTPREQUEST_HANDLE )
 			pHTTP->ReleaseHTTPRequest( h );
@@ -451,9 +461,14 @@ void CFrontressGC::OnSessionCompleted( HTTPRequestCompleted_t *pInfo, bool bIOFa
 	}
 
 	CUtlVector< uint8 > body;
-	ReadBody( pHTTP, pInfo->m_hRequest, body );
+	const bool bRead = ReadBody( pHTTP, h, body );
 	const int nStatus = pInfo->m_eStatusCode;
 	pHTTP->ReleaseHTTPRequest( pInfo->m_hRequest );
+	if ( !bRead )
+	{
+		Backoff( "could not read the coordinator session response", m_flBackoff );
+		return;
+	}
 	const char *pszBody = body.Count() ? (const char *)body.Base() : "";
 
 	if ( nStatus != k_EHTTPStatusCode200OK )
@@ -603,11 +618,16 @@ void CFrontressGC::FlushSends()
 void CFrontressGC::OnSendCompleted( HTTPRequestCompleted_t *pInfo, bool bIOFailure )
 {
 	ISteamHTTP *pHTTP = HTTP();
-	m_hSend = INVALID_HTTPREQUEST_HANDLE;
-	if ( !pInfo || !pHTTP )
+	const HTTPRequestHandle h = m_hSend;
+	if ( h == INVALID_HTTPREQUEST_HANDLE || ( !bIOFailure && pInfo && pInfo->m_hRequest != h ) )
 		return;
-	const int nStatus = bIOFailure ? 0 : pInfo->m_eStatusCode;
-	pHTTP->ReleaseHTTPRequest( pInfo->m_hRequest );
+	m_hSend = INVALID_HTTPREQUEST_HANDLE;
+	if ( !pHTTP )
+		return;
+	const int nStatus = bIOFailure || !pInfo || !pInfo->m_bRequestSuccessful ? 0 : pInfo->m_eStatusCode;
+	pHTTP->ReleaseHTTPRequest( h );
+	if ( m_eState != k_eState_Connected )
+		return;
 
 	if ( nStatus == k_EHTTPStatusCode401Unauthorized )
 	{
@@ -654,20 +674,28 @@ void CFrontressGC::StartRecv()
 void CFrontressGC::OnRecvCompleted( HTTPRequestCompleted_t *pInfo, bool bIOFailure )
 {
 	ISteamHTTP *pHTTP = HTTP();
-	m_hRecv = INVALID_HTTPREQUEST_HANDLE;
-	if ( !pInfo || !pHTTP )
+	const HTTPRequestHandle h = m_hRecv;
+	if ( h == INVALID_HTTPREQUEST_HANDLE || ( !bIOFailure && pInfo && pInfo->m_hRequest != h ) )
 		return;
-	const int nStatus = bIOFailure ? 0 : pInfo->m_eStatusCode;
+	m_hRecv = INVALID_HTTPREQUEST_HANDLE;
+	if ( !pHTTP )
+		return;
+	const int nStatus = bIOFailure || !pInfo || !pInfo->m_bRequestSuccessful ? 0 : pInfo->m_eStatusCode;
+	if ( m_eState != k_eState_Connected )
+	{
+		pHTTP->ReleaseHTTPRequest( h );
+		return;
+	}
 
 	if ( nStatus == k_EHTTPStatusCode401Unauthorized )
 	{
-		pHTTP->ReleaseHTTPRequest( pInfo->m_hRequest );
+		pHTTP->ReleaseHTTPRequest( h );
 		LoseSession( "the coordinator ended our session" );
 		return;
 	}
 	if ( nStatus != k_EHTTPStatusCode200OK )
 	{
-		pHTTP->ReleaseHTTPRequest( pInfo->m_hRequest );
+		pHTTP->ReleaseHTTPRequest( h );
 		// 204 is "nothing yet": poll again straight away. Anything else is
 		// trouble on the way; give it a moment.
 		m_flNextRecv = (float)Plat_FloatTime() + ( nStatus == k_EHTTPStatusCode204NoContent ? 0.f : 2.f );
@@ -675,8 +703,8 @@ void CFrontressGC::OnRecvCompleted( HTTPRequestCompleted_t *pInfo, bool bIOFailu
 	}
 
 	CUtlVector< uint8 > body;
-	const bool bRead = ReadBody( pHTTP, pInfo->m_hRequest, body );
-	pHTTP->ReleaseHTTPRequest( pInfo->m_hRequest );
+	const bool bRead = ReadBody( pHTTP, h, body );
+	pHTTP->ReleaseHTTPRequest( h );
 	m_flNextRecv = 0.f;
 	if ( !bRead )
 		return;
@@ -698,6 +726,12 @@ void CFrontressGC::OnRecvCompleted( HTTPRequestCompleted_t *pInfo, bool bIOFailu
 		}
 		if ( ulSeq > m_ulLastInSeq )
 		{
+			if ( ulSeq != m_ulLastInSeq + 1 )
+			{
+				Warning( "Game coordinator batch has a sequence gap; requesting missing messages\n" );
+				m_flNextRecv = (float)Plat_FloatTime() + 2.f;
+				return;
+			}
 			m_ulLastInSeq = ulSeq;
 			GCDbg( "<- msg %u (%u bytes) seq %llu\n", unType & 0x7FFFFFFF, cub, (unsigned long long)ulSeq );
 			Dispatch( p + 16, cub );

@@ -170,7 +170,7 @@ private:
 	String rml_contents;
 	ElementAttributes attributes;
 
-	ElementList elements;
+	Vector<ObserverPtr<Element>> elements;
 };
 
 class DataViewAlias final : public DataView {

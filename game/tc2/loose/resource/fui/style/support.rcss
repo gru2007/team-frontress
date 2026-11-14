@@ -151,7 +151,7 @@
 .perk-line .sup-gem { margin-top: 5dp; flex: 0 0 auto; }
 
 .wall { flex: 1 1 0; padding: 18dp; }
-.wall-list { flex: 1 1 0; overflow: hidden; }
+.wall-list { flex: 1 1 0; min-height: 0; overflow-y: auto; }
 .thanks {
 	display: flex;
 	flex-direction: row;

@@ -74,16 +74,21 @@ void DataViews::Add(DataViewPtr view)
 
 void DataViews::OnElementRemove(Element* element)
 {
-	for (auto it = views.begin(); it != views.end();)
+	// Elements can be detached before their first update. Their views have
+	// not reached 'views' yet, but must not be registered or run afterwards.
+	for (auto* list : {&views, &views_to_add})
 	{
-		auto& view = *it;
-		if (view && view->GetElement() == element)
+		for (auto it = list->begin(); it != list->end();)
 		{
-			views_to_remove.push_back(std::move(view));
-			it = views.erase(it);
+			auto& view = *it;
+			if (view && view->GetElement() == element)
+			{
+				views_to_remove.push_back(std::move(view));
+				it = list->erase(it);
+			}
+			else
+				++it;
 		}
-		else
-			++it;
 	}
 }
 
@@ -137,7 +142,10 @@ bool DataViews::Update(DataModel& model, const DirtyVariables& dirty_variables)
 			if (!view)
 				continue;
 
-			if (view->IsValid())
+			// A structural view earlier in dirty_views may have detached this
+			// element without destroying it. Observer lifetime alone does not
+			// mean that it still belongs to the model being updated.
+			if (view->IsValid() && view->GetElement()->GetDataModel() == &model)
 				result |= view->Update(model);
 		}
 

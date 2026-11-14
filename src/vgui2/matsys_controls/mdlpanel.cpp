@@ -89,7 +89,7 @@ CMDLPanel::CMDLPanel( vgui::Panel *pParent, const char *pName ) : BaseClass( pPa
 
 CMDLPanel::~CMDLPanel()
 {
-	m_aMergeMDLs.Purge();
+	ClearMergeMDLs();
 	m_DefaultEnvCubemap.Shutdown( );
 	m_DefaultHDREnvCubemap.Shutdown();
 	if ( m_RootMDL.m_pStudioHdr )
@@ -160,6 +160,7 @@ void CMDLPanel::SetMDL( MDLHandle_t handle, void *pProxyData )
 		delete m_RootMDL.m_pStudioHdr;
 	}
 	m_RootMDL.m_pStudioHdr = new CStudioHdr( m_RootMDL.m_MDL.GetStudioHdr(), g_pMDLCache );
+	m_RootMDL.m_unMdlCacheSerial = vgui::ivgui()->GetMdlCacheSerial();
 	m_RootMDL.m_MDL.m_pProxyData = pProxyData;
 
 	Vector vecMins, vecMaxs;
@@ -247,6 +248,8 @@ void CMDLPanel::LookAtMDL()
 	// Check to see if we have a valid model to look at.
 	if ( m_RootMDL.m_MDL.GetMDL() == MDLHANDLE_INVALID )
 		return;
+	// The cache can have been invalidated since the last VGUI tick.
+	ValidateMDLs();
 
 	if ( m_bLockView )
 		return;
@@ -417,7 +420,17 @@ void CMDLPanel::SetupRenderState( int nDisplayWidth, int nDisplayHeight )
 //-----------------------------------------------------------------------------
 void CMDLPanel::OnPaint3D()
 {
+	// Merge draws and particle callbacks also read the root studio header.
+	// Keep it resident until all of those callbacks have completed.
+	MDLCACHE_CRITICAL_SECTION_( vgui::MDLCache() );
 	if ( m_RootMDL.m_MDL.GetMDL() == MDLHANDLE_INVALID )
+		return;
+	// Paint need not be preceded by a tick or LookAtMDL. Rebuild wrappers
+	// invalidated by a cache flush before inspecting their studio headers.
+	ValidateMDLs();
+	if ( !m_RootMDL.m_pStudioHdr || !m_RootMDL.m_pStudioHdr->IsValid() )
+		return;
+	if ( m_RootMDL.m_pStudioHdr->numbones() <= 0 || m_RootMDL.m_pStudioHdr->numbones() > MAXSTUDIOBONES )
 		return;
 
 	// FIXME: Move this call into DrawModel in StudioRender
@@ -490,7 +503,7 @@ void CMDLPanel::OnPaint3D()
 
 		// If we have a valid mesh, bonemerge it. If we have an invalid mesh we can't bonemerge because
 		// it'll crash trying to pull data from the missing header.
-		if ( pMergeHdr != NULL )
+		if ( pMergeHdr && pMergeHdr->IsValid() && pMergeHdr->numbones() > 0 && pMergeHdr->numbones() <= MAXSTUDIOBONES )
 		{
 			CStudioHdr &mergeHdr = *pMergeHdr;
 			m_aMergeMDLs[iMerge].m_MDL.SetupBonesWithBoneMerge( &mergeHdr, pMergeBoneToWorld, &studioHdr, pBoneToWorld, m_RootMDL.m_MDLToWorld );		
@@ -871,6 +884,7 @@ void CMDLPanel::SetMergeMDL( MDLHandle_t handle, void *pProxyData, int nSkin /*=
 	m_aMergeMDLs[iIndex].m_bDisabled = false;
 
 	m_aMergeMDLs[iIndex].m_pStudioHdr = new CStudioHdr( m_aMergeMDLs[iIndex].m_MDL.GetStudioHdr(), g_pMDLCache );
+	m_aMergeMDLs[iIndex].m_unMdlCacheSerial = vgui::ivgui()->GetMdlCacheSerial();
 
 	// Need to invalidate the layout so the panel will adjust is LookAt for the new model.
 	InvalidateLayout();
@@ -983,6 +997,7 @@ void CMDLPanel::ValidateMDLs()
 
 	if ( m_RootMDL.m_pStudioHdr && m_RootMDL.m_unMdlCacheSerial != uMdlCacheSerial )
 	{
+		delete m_RootMDL.m_pStudioHdr;
 		m_RootMDL.m_pStudioHdr = new CStudioHdr( m_RootMDL.m_MDL.GetStudioHdr(), g_pMDLCache );
 		m_RootMDL.m_unMdlCacheSerial = uMdlCacheSerial;
 	}
@@ -992,6 +1007,7 @@ void CMDLPanel::ValidateMDLs()
 	{
 		if ( m_aMergeMDLs[iMerge].m_pStudioHdr && m_aMergeMDLs[iMerge].m_unMdlCacheSerial != uMdlCacheSerial )
 		{
+			delete m_aMergeMDLs[iMerge].m_pStudioHdr;
 			m_aMergeMDLs[iMerge].m_pStudioHdr = new CStudioHdr( m_aMergeMDLs[iMerge].m_MDL.GetStudioHdr(), g_pMDLCache );
 			m_aMergeMDLs[iMerge].m_unMdlCacheSerial = uMdlCacheSerial;
 		}

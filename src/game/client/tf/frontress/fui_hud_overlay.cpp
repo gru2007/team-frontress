@@ -761,7 +761,7 @@ void WriteChat( Node &out )
 	Node &lines = out[ "lines" ];
 	lines.SetArray();
 	// Open: the history; closed: what was said lately, fading out.
-	const size_t nFirst = s_iChatMode ? ( s_Chat.size() > 30 ? s_Chat.size() - 30 : 0 ) : ( s_Chat.size() > 8 ? s_Chat.size() - 8 : 0 );
+	const size_t nFirst = s_iChatMode ? 0 : ( s_Chat.size() > 8 ? s_Chat.size() - 8 : 0 );
 	for ( size_t i = nFirst; i < s_Chat.size(); ++i )
 	{
 		const ChatLine_t &line = s_Chat[ i ];

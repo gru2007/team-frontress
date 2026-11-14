@@ -13,6 +13,7 @@
 #endif
 
 #include <float.h>
+#include <string.h>
 
 //-----------------------------------------------------------------------------
 // Purpose: Basic handler for an rgb set of colors
@@ -24,7 +25,7 @@ public:
 	// constructors
 	Color()
 	{
-		*((int *)this) = 0;
+		SetColor(0, 0, 0, 0);
 	}
 	Color(int _r,int _g,int _b)
 	{
@@ -58,12 +59,16 @@ public:
 
 	void SetRawColor( int color32 )
 	{
-		*((int *)this) = color32;
+		// Color has byte alignment, including when embedded in another class.
+		// Preserve the native packed representation without an unaligned int*.
+		memcpy(_color, &color32, sizeof(_color));
 	}
 
 	int GetRawColor() const
 	{
-		return *((int *)this);
+		int color32;
+		memcpy(&color32, _color, sizeof(_color));
+		return color32;
 	}
 
 	inline int r() const	{ return _color[0]; }
@@ -83,7 +88,7 @@ public:
 
 	bool operator == (const Color &rhs) const
 	{
-		return ( *((int *)this) == *((int *)&rhs) );
+		return GetRawColor() == rhs.GetRawColor();
 	}
 
 	bool operator != (const Color &rhs) const

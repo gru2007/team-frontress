@@ -519,14 +519,35 @@ bool DataViewFor::Initialize(DataModel& model, Element* element, const String& i
 
 bool DataViewFor::Update(DataModel& model)
 {
+	Element* element = GetElement();
+	if (!element || !element->GetParentNode() || element->GetDataModel() != &model)
+		return false;
 	DataVariable variable = model.GetVariable(container_address);
 	if (!variable)
 		return false;
 
 	bool result = false;
 	const int size = variable.Size();
+	// A host or another structural view can remove generated rows. Do not
+	// retain dangling pointers, and rebuild aliases so indices stay contiguous.
+	for (const auto& row : elements)
+	{
+		if (!row || row->GetParentNode() != element->GetParentNode() || row->GetDataModel() != &model)
+		{
+			for (const auto& old_row : elements)
+			{
+				if (old_row && old_row->GetDataModel() == &model)
+				{
+					model.EraseAliases(old_row.get());
+					if (Element* parent = old_row->GetParentNode())
+						parent->RemoveChild(old_row.get()).reset();
+				}
+			}
+			elements.clear();
+			break;
+		}
+	}
 	const int num_elements = (int)elements.size();
-	Element* element = GetElement();
 
 	for (int i = 0; i < Math::Max(size, num_elements); i++)
 	{
@@ -545,7 +566,7 @@ bool DataViewFor::Update(DataModel& model)
 			model.InsertAlias(new_element_ptr.get(), iterator_index_name, std::move(iterator_index_address));
 
 			Element* new_element = element->GetParentNode()->InsertBefore(std::move(new_element_ptr), element);
-			elements.push_back(new_element);
+			elements.push_back(new_element->GetObserverPtr());
 
 			elements[i]->SetInnerRML(rml_contents);
 
@@ -553,8 +574,8 @@ bool DataViewFor::Update(DataModel& model)
 		}
 		if (i >= size)
 		{
-			model.EraseAliases(elements[i]);
-			elements[i]->GetParentNode()->RemoveChild(elements[i]).reset();
+			model.EraseAliases(elements[i].get());
+			elements[i]->GetParentNode()->RemoveChild(elements[i].get()).reset();
 			elements[i] = nullptr;
 		}
 	}

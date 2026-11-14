@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <assert.h>
+#include <limits.h>
 #include <malloc.h>
 
 #include <vgui/IPanel.h>
@@ -205,21 +206,31 @@ void TextImage::SetText(const wchar_t *unicode, bool bClearUnlocalizedSymbol)
 		unicode = L"";
 	}
 
-	// reallocate the buffer if necessary
-	_textLen = (short)wcslen(unicode);
-	if (_textLen >= _textBufferLen)
+	// Both lengths are signed shorts. Leave room for the terminator before
+	// narrowing, otherwise a long label can wrap and overflow the old buffer.
+	const size_t textLength = wcslen(unicode);
+	const int copyLength = textLength < SHRT_MAX ? (int)textLength : SHRT_MAX - 1;
+	if (copyLength >= _textBufferLen)
 	{
+		wchar_t *newText = new wchar_t[copyLength + 1];
+		wmemcpy(newText, unicode, copyLength);
+		newText[copyLength] = 0;
 		delete [] _utext;
-		_textBufferLen = (short)(_textLen + 1);
-		_utext = new wchar_t[_textBufferLen];
+		_utext = newText;
+		_textBufferLen = (short)(copyLength + 1);
 	}
+	else
+	{
+		// GetUText() may have supplied this buffer, or a substring of it.
+		wmemmove(_utext, unicode, copyLength);
+		_utext[copyLength] = 0;
+	}
+	_textLen = (short)copyLength;
 
 	m_LineBreaks.RemoveAll();
 	m_LineXIndent.RemoveAll();
 
-	// store the text as unicode
-	wcscpy(_utext, unicode);
-
+	m_pwszEllipsesPosition = NULL;
 	m_bRecalculateTruncation = true;
 }
 
@@ -245,7 +256,12 @@ void TextImage::GetText(char *buffer, int bufferSize)
 //-----------------------------------------------------------------------------
 void TextImage::GetText(wchar_t *buffer, int bufLenInBytes)
 {
-	wcsncpy(buffer, _utext, bufLenInBytes / sizeof(wchar_t));
+	if (!buffer || bufLenInBytes < (int)sizeof(wchar_t))
+		return;
+
+	const int bufferLength = bufLenInBytes / sizeof(wchar_t);
+	wcsncpy(buffer, _utext, bufferLength - 1);
+	buffer[bufferLength - 1] = 0;
 
 	if ( m_bAllCaps )
 	{

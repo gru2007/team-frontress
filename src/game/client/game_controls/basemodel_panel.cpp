@@ -787,33 +787,51 @@ CBaseModelPanel::particle_data_t::~particle_data_t()
 //-----------------------------------------------------------------------------
 void CBaseModelPanel::particle_data_t::UpdateControlPoints( CStudioHdr *pStudioHdr, matrix3x4_t *pWorldMatrix, const CUtlVector< int >& vecAttachments, int iDefaultBone /*= 0*/, const Vector& vecParticleOffset /*= vec3_origin*/ )
 {
+	if ( !pStudioHdr || !pStudioHdr->IsValid() || !pWorldMatrix || !vecParticleOffset.IsValid() ||
+		pStudioHdr->numbones() <= 0 || pStudioHdr->numbones() > MAXSTUDIOBONES )
+		return;
 	if ( m_pParticleSystem )
 	{
 		// Update control points which is updating the position of the particles
 		matrix3x4_t matAttachToWorld;
 		Vector vecPosition, vecForward, vecRight, vecUp;
+		auto UpdatePoint = [&]( int point ) {
+			MatrixVectors( matAttachToWorld, &vecForward, &vecRight, &vecUp );
+			MatrixPosition( matAttachToWorld, vecPosition );
+			if ( !vecPosition.IsValid() || !vecForward.IsValid() || !vecRight.IsValid() || !vecUp.IsValid() )
+				return;
+			// Model transforms may include scale. Particles need a finite,
+			// non-degenerate rotation basis rather than scaled bone axes.
+			if ( VectorNormalize( vecForward ) <= 0.f || VectorNormalize( vecRight ) <= 0.f || VectorNormalize( vecUp ) <= 0.f )
+				return;
+			vecPosition += vecParticleOffset;
+			if ( !vecPosition.IsValid() || !vecForward.IsValid() || !vecRight.IsValid() || !vecUp.IsValid() ||
+				vecForward.LengthSqr() < 0.5f || vecRight.LengthSqr() < 0.5f || vecUp.LengthSqr() < 0.5f )
+				return;
+			m_pParticleSystem->SetControlPointOrientation( point, vecForward, vecRight, vecUp );
+			m_pParticleSystem->SetControlPoint( point, vecPosition );
+		};
 		if ( vecAttachments.Count() )
 		{
-			for ( int i = 0; i < vecAttachments.Count(); ++i )
+			for ( int i = 0; i < vecAttachments.Count() && i < MAX_PARTICLE_CONTROL_POINTS; ++i )
 			{
+				// Cached attachments can outlive a model/style change.
+				if ( vecAttachments[i] < 0 || vecAttachments[i] >= pStudioHdr->GetNumAttachments() )
+					continue;
 				const mstudioattachment_t& attach = pStudioHdr->pAttachment( vecAttachments[i] ); 
+				if ( attach.localbone < 0 || attach.localbone >= pStudioHdr->numbones() )
+					continue;
 				MatrixMultiply( pWorldMatrix[ attach.localbone ], attach.local, matAttachToWorld );
 
-				MatrixVectors( matAttachToWorld, &vecForward, &vecRight, &vecUp );
-				MatrixPosition( matAttachToWorld, vecPosition );
-
-				m_pParticleSystem->SetControlPointOrientation( i, vecForward, vecRight, vecUp );
-				m_pParticleSystem->SetControlPoint( i, vecPosition + vecParticleOffset );
+				UpdatePoint( i );
 			}
 		}
 		else
 		{
+			if ( iDefaultBone < 0 || iDefaultBone >= pStudioHdr->numbones() )
+				return;
 			matAttachToWorld = pWorldMatrix[iDefaultBone];
-			MatrixVectors( matAttachToWorld, &vecForward, &vecRight, &vecUp );
-			MatrixPosition( matAttachToWorld, vecPosition );
-			
-			m_pParticleSystem->SetControlPointOrientation( 0, vecForward, vecRight, vecUp );
-			m_pParticleSystem->SetControlPoint( 0, vecPosition + vecParticleOffset );
+			UpdatePoint( 0 );
 		}
 	}
 

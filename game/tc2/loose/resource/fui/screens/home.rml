@@ -134,7 +134,8 @@
 		</div>
 
 		<!-- The chat -->
-		<div id="chat-log" data-if="social.tab != 'online'">
+		<div id="chat-log" scroll-bottom="" data-attr-scroll-key="social.tab" data-if="social.tab != 'online'">
+		<div id="chat-log-content">
 			<div data-for="l : social.view" data-attr-class="'line' + (l.sys ? ' sys k-' + l.kind : '') + (l.me ? ' mine' : '') + (l.pending ? ' pending' : '')">
 				<span class="l-time">{{ l.time }}</span>
 				<span class="l-tag" data-if="l.tag != ''" data-class-gold="l.gold">{{ l.tag }}</span>
@@ -143,6 +144,7 @@
 				<span class="l-sys" data-if="l.sys">{{ l.key | t(l.a1, l.a2, l.a3, l.a4) }}</span>
 			</div>
 			<div class="chat-empty dimmer small" data-if="social.view.size == 0">{{ ('#fui_soc_empty_' + social.tab) | t }}</div>
+		</div>
 		</div>
 		<div class="row chat-input" data-if="social.tab != 'online'">
 			<input type="text" class="text grow" maxlength="200" data-value="ui.chat_draft"

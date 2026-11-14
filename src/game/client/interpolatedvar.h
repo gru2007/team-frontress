@@ -1259,18 +1259,23 @@ inline Type	*CInterpolatedVarArrayBase<Type, IS_ARRAY>::GetHistoryValue( int ind
 template< typename Type, bool IS_ARRAY >
 inline void CInterpolatedVarArrayBase<Type, IS_ARRAY>::SetHistoryValuesForItem( int item, Type& value )
 {
+	if ( item < 0 || item >= m_nMaxCount )
+		return;
 	Assert( item >= 0 && item < m_nMaxCount );
 
 	for ( int i = 0; i < m_VarHistory.Count(); i++ )
 	{
 		CInterpolatedVarEntry *entry = &m_VarHistory[ i ];
-		entry->GetValue()[ item ] = value;
+		if ( Type *pValue = entry->GetValue() )
+			pValue[ item ] = value;
 	}
 }
 
 template< typename Type, bool IS_ARRAY >
 inline void	CInterpolatedVarArrayBase<Type, IS_ARRAY>::SetLooping( bool looping, int iArrayIndex )
 {
+	if ( iArrayIndex < 0 || iArrayIndex >= m_nMaxCount || !m_bLooping )
+		return;
 	Assert( iArrayIndex >= 0 && iArrayIndex < m_nMaxCount );
 	m_bLooping[ iArrayIndex ] = looping;
 }

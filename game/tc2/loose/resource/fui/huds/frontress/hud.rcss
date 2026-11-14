@@ -441,7 +441,7 @@ body#hud { pointer-events: none; }
 	transition: opacity 1.5s;
 }
 .chat-line.fade { opacity: 0; }
-#chat.open .chat-lines { max-height: 440dp; overflow: hidden; padding: 6dp 0; border-radius: 10dp 10dp 0 0; background-color: #0d0907b0; }
+#chat.open .chat-lines { max-height: 440dp; overflow-x: hidden; overflow-y: auto; pointer-events: auto; padding: 6dp 0; border-radius: 10dp 10dp 0 0; background-color: #0d0907b0; }
 .chat-entry {
 	pointer-events: auto;
 	gap: 8dp;

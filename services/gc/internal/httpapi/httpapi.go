@@ -166,6 +166,15 @@ func (a *API) session(w http.ResponseWriter, r *http.Request) {
 			writeKV(w, http.StatusUnauthorized, "error", "unknown server key")
 			return
 		}
+		var matchID *uint64
+		if values, present := r.PostForm["match_id"]; present {
+			id, err := strconv.ParseUint(firstNonEmpty(values...), 10, 64)
+			if err != nil {
+				writeKV(w, http.StatusBadRequest, "error", "invalid match_id")
+				return
+			}
+			matchID = &id
+		}
 		s := a.gc.Sessions().Open(session.Server, steamID, func(s *session.Session) {
 			s.ServerName = firstNonEmpty(r.PostForm.Get("name"), key.Name)
 			s.KeyID = config.KeyID(key.Key)
@@ -173,6 +182,7 @@ func (a *API) session(w http.ResponseWriter, r *http.Request) {
 			s.AntiCheatAuthority = key.AntiCheatAuthority
 			s.Region = firstNonEmpty(r.PostForm.Get("region"), key.Region)
 			s.Connect = r.PostForm.Get("connect")
+			s.MatchID = matchID
 		})
 		a.log.Info("server session", "server", steamID, "key", key.Name, "ip", clientIP(r), "connect", r.PostForm.Get("connect"))
 		var lobbyID uint64
@@ -224,14 +234,30 @@ func (a *API) send(w http.ResponseWriter, r *http.Request) {
 		writeKV(w, http.StatusBadRequest, "error", err.Error())
 		return
 	}
-	fresh, err := s.Accept(frames, a.gc.Sessions().Now())
+	// Keep deduplication and the entire batch's dispatch on the same loop.
+	// Concurrent retry requests must not enqueue a later frame ahead of an
+	// earlier frame that has already been marked as accepted.
+	var acceptErr error
+	err = a.gc.Call(r.Context(), func() {
+		var fresh []wire.Frame
+		fresh, acceptErr = s.Accept(frames, a.gc.Sessions().Now())
+		if acceptErr == nil {
+			for _, f := range fresh {
+				a.gc.Handle(s, f.Data)
+			}
+		}
+	})
 	if err != nil {
-		writeKV(w, http.StatusUnauthorized, "error", "session ended")
+		writeKV(w, http.StatusServiceUnavailable, "error", "request interrupted")
 		return
 	}
-	for _, f := range fresh {
-		data := f.Data
-		a.gc.Do(func() { a.gc.Handle(s, data) })
+	if errors.Is(acceptErr, session.ErrSequence) {
+		writeKV(w, http.StatusBadRequest, "error", acceptErr.Error())
+		return
+	}
+	if acceptErr != nil {
+		writeKV(w, http.StatusUnauthorized, "error", "session ended")
+		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -256,6 +282,11 @@ func (a *API) recv(w http.ResponseWriter, r *http.Request) {
 	}
 	var out []byte
 	for _, f := range frames {
+		// Bound catch-up responses after long outages. Remaining frames stay
+		// queued and are delivered by the next poll, with their original IDs.
+		if len(out) > 0 && len(out)+16+len(f.Data) > 4<<20 {
+			break
+		}
 		out = wire.AppendFrame(out, f)
 	}
 	w.Header().Set("Content-Length", strconv.Itoa(len(out)))

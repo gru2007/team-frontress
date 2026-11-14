@@ -207,6 +207,7 @@ private:
 	// remove renderables from leaves
 	void InsertIntoTree(ClientRenderHandle_t& handle, const Vector& absMins, const Vector& absMaxs);
 	void InsertIntoTree(ClientRenderHandle_t& handle);
+	void UpdateRenderableArea(ClientRenderHandle_t handle);
 	void RemoveFromTree(ClientRenderHandle_t& handle);
 
 	// Returns if it's a view model render group
@@ -692,6 +693,7 @@ void CClientLeafSystem::RecomputeRenderableLeaves()
 					AddRenderableToLeaf(p->leaf, enumResultList.handle, bReceiveShadows);
 					delete p;
 				}
+				UpdateRenderableArea(enumResultList.handle);
 			}
 		}
 
@@ -1408,7 +1410,7 @@ void CClientLeafSystem::AddRenderableToLeaves(ClientRenderHandle_t handle, int n
 	{
 		AddRenderableToLeaf(pLeaves[j], handle, bReceiveShadows);
 	}
-	m_Renderables[handle].m_Area = engine->GetLeavesArea(pLeaves, nLeafCount);
+	m_Renderables[handle].m_Area = nLeafCount > 0 ? engine->GetLeavesArea(pLeaves, nLeafCount) : -1;
 }
 
 void CClientLeafSystem::AddRenderableToLeaves(ClientRenderHandle_t handle, int nLeafCount, unsigned short* pLeaves)
@@ -1463,7 +1465,6 @@ void CClientLeafSystem::InsertIntoTree(ClientRenderHandle_t& handle)
 
 	EnumResultList_t list = { NULL, handle };
 
-	int leafList[1024];
 	ISpatialQuery* pQuery = engine->GetBSPTreeQuery();
 	pQuery->EnumerateLeavesInBox(info.m_vecBloatedAbsMins, info.m_vecBloatedAbsMaxs, this, (intp)&list);
 
@@ -1501,12 +1502,28 @@ void CClientLeafSystem::InsertIntoTree(ClientRenderHandle_t& handle)
 		engine->Con_NXPrintf(&np, "%s", pClassName);
 	}
 
-	if (list.pHead)
+	if (ThreadInMainThread())
 	{
-		m_DeferredInserts.PushItem(list);
-		int nLeaves = GetRenderableLeaves(handle, leafList);
-		m_Renderables[handle].m_Area = engine->GetLeavesArea(leafList, nLeaves);
+		UpdateRenderableArea(handle);
 	}
+	else
+	{
+		// Workers have only enumerated leaves: the renderable's leaf buckets
+		// are still empty until the main thread drains this queue. In
+		// particular, GetRenderableLeaves would return -1 here. Never pass
+		// that count (or call engine area queries) from a worker thread.
+		m_DeferredInserts.PushItem(list);
+	}
+}
+
+void CClientLeafSystem::UpdateRenderableArea(ClientRenderHandle_t handle)
+{
+	Assert(ThreadInMainThread());
+	if (!m_Renderables.IsValidIndex(handle))
+		return;
+	int leaves[1024];
+	const int count = GetRenderableLeaves(handle, leaves);
+	m_Renderables[handle].m_Area = count > 0 ? engine->GetLeavesArea(leaves, count) : -1;
 }
 
 //-----------------------------------------------------------------------------

@@ -190,7 +190,7 @@
 
 		<!-- Chat: what was said lately; the whole history while typing -->
 		<div id="chat" data-class-open="hud.chat.open">
-			<div class="chat-lines">
+			<div class="chat-lines" scroll-bottom="" data-attr-scroll-key="hud.chat.open">
 				<div class="chat-line" data-for="l : hud.chat.lines" data-class-fade="l.fade"><span data-for="s : l.segs" data-style-color="s.c != '' ? s.c : '#ece3cb'">{{ s.t }}</span></div>
 			</div>
 			<div class="chat-entry row" data-if="hud.chat.open">

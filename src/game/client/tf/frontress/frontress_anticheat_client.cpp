@@ -61,7 +61,6 @@ public:
 		, m_bServerWantsSession( false )
 		, m_bSessionActive( false )
 		, m_bViolationPending( false )
-		, m_flHelloTime( 0.0 )
 	{
 	}
 
@@ -98,19 +97,14 @@ public:
 		EOS_Platform_Tick( m_hPlatform );
 
 		// A server said hello before the login finished: start the session
-		// the moment it does, or give up with a reason the server can log
-		// well before its own handshake timeout.
+		// the moment it does. The server owns the handshake deadline; a
+		// shorter client timer would kick players while EOS is retrying.
 		if ( m_bServerWantsSession && !m_bSessionActive )
 		{
 			if ( !engine->IsConnected() )
 				m_bServerWantsSession = false;
 			else if ( m_login.BLoggedIn() )
 				BeginSession();
-			else if ( Plat_FloatTime() - m_flHelloTime > 30.0 )
-			{
-				m_bServerWantsSession = false;
-				SendUnavailable( FRONTRESS_AC_UNAVAILABLE_LOGIN_FAILED );
-			}
 		}
 
 		if ( m_bSessionActive )
@@ -149,7 +143,6 @@ public:
 			EndSession();
 			m_in.Reset();
 			m_bServerWantsSession = true;
-			m_flHelloTime = Plat_FloatTime();
 			if ( m_login.BLoggedIn() )
 				BeginSession();
 			return;
@@ -464,7 +457,6 @@ private:
 	bool m_bServerWantsSession;
 	bool m_bSessionActive;
 	bool m_bViolationPending;
-	double m_flHelloTime;
 	CUtlString m_strViolation;
 	CFrontressACReassembly m_in;
 	CUtlLinkedList< OutgoingMessage_t > m_outgoing;

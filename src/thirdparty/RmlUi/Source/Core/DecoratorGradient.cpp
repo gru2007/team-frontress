@@ -319,7 +319,7 @@ DecoratorDataHandle DecoratorLinearGradient::GenerateElementData(Element* elemen
 
 	Mesh mesh;
 	const ComputedValues& computed = element->GetComputedValues();
-	const byte alpha = byte(computed.opacity() * 255.f);
+	const byte alpha = Colourb(255, 255).ToPremultiplied(computed.opacity()).alpha;
 	MeshUtilities::GenerateBackground(mesh, box, Vector2f(), computed.border_radius(), ColourbPremultiplied(alpha, alpha), paint_area);
 
 	const Vector2f render_offset = box.GetPosition(paint_area);
@@ -488,7 +488,7 @@ DecoratorDataHandle DecoratorRadialGradient::GenerateElementData(Element* elemen
 
 	Mesh mesh;
 	const ComputedValues& computed = element->GetComputedValues();
-	const byte alpha = byte(computed.opacity() * 255.f);
+	const byte alpha = Colourb(255, 255).ToPremultiplied(computed.opacity()).alpha;
 	MeshUtilities::GenerateBackground(mesh, box, Vector2f(), computed.border_radius(), ColourbPremultiplied(alpha, alpha), box_area);
 
 	const Vector2f render_offset = box.GetPosition(box_area);
@@ -685,7 +685,7 @@ DecoratorDataHandle DecoratorConicGradient::GenerateElementData(Element* element
 
 	Mesh mesh;
 	const ComputedValues& computed = element->GetComputedValues();
-	const byte alpha = byte(computed.opacity() * 255.f);
+	const byte alpha = Colourb(255, 255).ToPremultiplied(computed.opacity()).alpha;
 	MeshUtilities::GenerateBackground(mesh, box, Vector2f(), computed.border_radius(), ColourbPremultiplied(alpha, alpha), box_area);
 
 	const Vector2f render_offset = box.GetPosition(box_area);

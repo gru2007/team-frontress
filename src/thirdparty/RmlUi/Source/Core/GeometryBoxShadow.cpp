@@ -235,7 +235,7 @@ void GeometryBoxShadow::Generate(Geometry& out_shadow_geometry, CallbackTexture&
 	};
 
 	Mesh mesh = out_shadow_geometry.Release(Geometry::ReleaseMode::ClearMesh);
-	const byte alpha = byte(opacity * 255.f);
+	const byte alpha = Colourb(255, 255).ToPremultiplied(opacity).alpha;
 	MeshUtilities::GenerateQuad(mesh, -element_offset_in_texture, Vector2f(texture_dimensions), ColourbPremultiplied(alpha, alpha));
 
 	out_shadow_texture = render_manager.MakeCallbackTexture(std::move(texture_callback));

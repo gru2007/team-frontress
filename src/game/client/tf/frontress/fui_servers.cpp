@@ -349,10 +349,12 @@ void FuiServersUpdate( fui::Runtime &ui )
 			if ( t.region != r.first || !t.bDone )
 				continue;
 			bMeasured = true;
-			if ( t.bOK && ( s.maxMS < 0 || t.ms <= s.maxMS ) )
+			if ( t.bOK )
 			{
-				bOK = true;
-				if ( best < 0 || t.ms < best )
+				bOK = bOK || s.maxMS < 0 || t.ms <= s.maxMS;
+				// Keep the measurement even above the matchmaking preference.
+				// A slow answer is still an answer, including through a relay.
+				if ( t.ms >= 0 && ( best < 0 || t.ms < best ) )
 					best = t.ms;
 			}
 		}

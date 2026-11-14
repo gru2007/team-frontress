@@ -448,6 +448,12 @@ void CTFGameStats::ResetRoundStats()
 //-----------------------------------------------------------------------------
 void CTFGameStats::IncrementStat( CTFPlayer* pPlayer, TFStatType_t statType, int iValue, bool bAccumulatedOnly )
 {
+	// World damage and projectiles whose owner has disconnected have no
+	// player to credit. They still count towards the victim's damage taken.
+	if ( !pPlayer || pPlayer->entindex() < 1 || pPlayer->entindex() >= ARRAYSIZE( m_aPlayerStats ) ||
+		statType < 0 || statType >= TFSTAT_TOTAL )
+		return;
+
 	if ( TFGameRules() && ( TFGameRules()->IsCompetitiveMode() || TFGameRules()->IsEmulatingMatch() || TFGameRules()->IsCompetitiveGame() ) && TFGameRules()->State_Get() != GR_STATE_RND_RUNNING )
 		return;
 

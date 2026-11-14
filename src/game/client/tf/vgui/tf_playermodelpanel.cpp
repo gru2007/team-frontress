@@ -140,6 +140,11 @@ CTFPlayerModelPanel::CTFPlayerModelPanel( vgui::Panel *pParent, const char *pNam
 	m_bDrawActionSlotEffects = false;
 	m_bDrawTauntParticles = false;
 	m_strPlayerModelOverride = "";
+	m_StatTrackModel.m_bDisabled = true;
+	m_StatTrackModel.m_pStudioHdr = NULL;
+	m_StatTrackModel.m_unMdlCacheSerial = 0;
+	m_flStatTrackScale = 1.0f;
+	SetIdentityMatrix( m_StatTrackModel.m_MDLToWorld );
 }
 
 //-----------------------------------------------------------------------------
@@ -147,6 +152,7 @@ CTFPlayerModelPanel::CTFPlayerModelPanel( vgui::Panel *pParent, const char *pNam
 //-----------------------------------------------------------------------------
 CTFPlayerModelPanel::~CTFPlayerModelPanel( void )
 {
+	delete m_StatTrackModel.m_pStudioHdr;
 	m_vecItemsLoaded.PurgeAndDeleteElements();
 	m_ItemsToCarry.PurgeAndDeleteElements();
 
@@ -612,7 +618,8 @@ void CTFPlayerModelPanel::SwitchHeldItemTo( CEconItemView *pItem, bool bPreserve
 
 	m_StatTrackModel.m_bDisabled = true;
 	m_StatTrackModel.m_MDL.SetMDL( MDLHANDLE_INVALID );
-	m_StatTrackModel.m_pStudioHdr = NULL;  // ADDED: Clear the studio header
+	delete m_StatTrackModel.m_pStudioHdr;
+	m_StatTrackModel.m_pStudioHdr = NULL;
 
 	CAttribute_String attrModule;
 	if ( GetStattrak( m_pHeldItem, &attrModule ) )
@@ -666,6 +673,7 @@ void CTFPlayerModelPanel::SwitchHeldItemTo( CEconItemView *pItem, bool bPreserve
 						m_StatTrackModel.m_pStudioHdr = new CStudioHdr();
 					}
 					m_StatTrackModel.m_pStudioHdr->Init( pStudioHdr, mdlcache );
+					m_StatTrackModel.m_unMdlCacheSerial = vgui::ivgui()->GetMdlCacheSerial();
 				}
 
 				mdlcache->Release( hStatTrackMDL );
@@ -1677,6 +1685,13 @@ bool CTFPlayerModelPanel::RenderStatTrack( CStudioHdr *pStudioHdr, matrix3x4_t *
 	if ( !m_StatTrackModel.m_bDisabled )
 	{
 		matrix3x4_t matMergeBoneToWorld[MAXSTUDIOBONES];
+		const uint32 serial = vgui::ivgui()->GetMdlCacheSerial();
+		if ( m_StatTrackModel.m_pStudioHdr && m_StatTrackModel.m_unMdlCacheSerial != serial )
+		{
+			delete m_StatTrackModel.m_pStudioHdr;
+			m_StatTrackModel.m_pStudioHdr = new CStudioHdr( m_StatTrackModel.m_MDL.GetStudioHdr(), mdlcache );
+			m_StatTrackModel.m_unMdlCacheSerial = serial;
+		}
 
 		// Get the StatTrak model's studio header from the MDL cache
 		CStudioHdr* pStatTrackStudioHdr = m_StatTrackModel.m_pStudioHdr;
@@ -1695,7 +1710,9 @@ bool CTFPlayerModelPanel::RenderStatTrack( CStudioHdr *pStudioHdr, matrix3x4_t *
 
 		// If we have a valid mesh, bonemerge it. If we have an invalid mesh we can't bonemerge because
 		// it'll crash trying to pull data from the missing header.
-		if ( pStatTrackStudioHdr != NULL && pStudioHdr != NULL )
+		if ( pStatTrackStudioHdr && pStatTrackStudioHdr->IsValid() &&
+			pStatTrackStudioHdr->numbones() > 0 && pStatTrackStudioHdr->numbones() <= MAXSTUDIOBONES &&
+			pStudioHdr && pStudioHdr->IsValid() && pWorldMatrix )
 		{
 			// The StatTrak model should bone-merge with the WEAPON (pStudioHdr), not the player model
 			// Parameters: (source header, output matrices, parent header, parent matrices, local transform)
@@ -1725,13 +1742,20 @@ bool CTFPlayerModelPanel::UpdateCosmeticParticles(
 	CEconItemView *pEconItem
 )
 {
+	if ( iSystem < 0 || iSystem >= ARRAYSIZE( m_aParticleSystems ) || !pEconItem ||
+		!pStudioHdr || !pStudioHdr->IsValid() || !pWorldMatrix )
+		return false;
+	const uint32 modelSerial = vgui::ivgui()->GetMdlCacheSerial();
 	if ( m_aParticleSystems[ iSystem ] && m_aParticleSystems[ iSystem ]->m_bIsUpdateToDate )
 		return false;
 
 	if ( m_aParticleSystems[ iSystem ] && m_aParticleSystems[ iSystem ]->m_bDataCached )
 	{
 		// TODO(mcoms): check attrib changes
-		const bool bChanged = m_aParticleSystems[iSystem]->m_iDataIdCached != pEconItem->GetID();
+		const auto *pCached = m_aParticleSystems[iSystem];
+		const bool bChanged = pCached->m_iDataIdCached != pEconItem->GetID() ||
+			pCached->m_hCachedMDL != mdlHandle || pCached->m_unCachedMDLSerial != modelSerial ||
+			pCached->m_iCachedTeam != GetTeam();
 		if (!bChanged)
 		{
 			m_aParticleSystems[iSystem]->UpdateControlPoints(
@@ -1865,6 +1889,9 @@ bool CTFPlayerModelPanel::UpdateCosmeticParticles(
 
 	m_aParticleSystems[iSystem]->m_bDataCached = true;
 	m_aParticleSystems[iSystem]->m_iDataIdCached = pEconItem->GetID();
+	m_aParticleSystems[iSystem]->m_hCachedMDL = mdlHandle;
+	m_aParticleSystems[iSystem]->m_unCachedMDLSerial = modelSerial;
+	m_aParticleSystems[iSystem]->m_iCachedTeam = GetTeam();
 	m_aParticleSystems[iSystem]->m_vecCachedAttachments = vecAttachments;
 	m_aParticleSystems[iSystem]->m_iCachedBone = iBone;
 	m_aParticleSystems[iSystem]->m_vecCachedOffset = vecParticleOffset;
@@ -1881,7 +1908,6 @@ void CTFPlayerModelPanel::UpdateEyeGlows(
 	matrix3x4_t *pWorldMatrix, 
 	bool bIsRightEye
 ) {
-	float flOffset = 0;
 	modelpanel_particle_system_t eyeSystem = bIsRightEye ? SYSTEM_EYEGLOW_RIGHT : SYSTEM_EYEGLOW_LEFT;
 	modelpanel_particle_system_t sparkSystem = bIsRightEye ? SYSTEM_EYESPARK_RIGHT : SYSTEM_EYESPARK_LEFT;
 	const char* pszAttach = bIsRightEye ? "eyeglow_R" : "eyeglow_L";
@@ -1926,17 +1952,12 @@ void CTFPlayerModelPanel::UpdateEyeGlows(
 	// Tick Update on position
 	if ( m_aParticleSystems[ eyeSystem ] || m_aParticleSystems[ sparkSystem ] )
 	{
-		// Figure out where our attach point is
-		matrix3x4_t matAttachToWorld;
-
 		CUtlVector< int > vecAttachments;
 		vecAttachments.AddToTail( iAttachment );
 
-		// Update control points which is updating the position of the particles
-		Vector vecForward;
-		MatrixGetColumn( matAttachToWorld, 0, vecForward );
-
-		Vector vecParticleOffset = vecForward * flOffset;
+		// Eye effects have no extra offset. Reading an uninitialized matrix
+		// and multiplying by zero can still feed NaNs into the particle system.
+		const Vector vecParticleOffset = vec3_origin;
 		if ( m_aParticleSystems[ eyeSystem ] )
 		{
 			m_aParticleSystems[ eyeSystem ]->UpdateControlPoints( pStudioHdr, pWorldMatrix, vecAttachments, 0, vecParticleOffset );

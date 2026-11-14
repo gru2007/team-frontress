@@ -45,8 +45,8 @@ static ConVar fr_eac_listen( "fr_eac_listen", "1", 0,
 	"Protect a listen server with the host's own EOS login." );
 static ConVar fr_eac_handshake_timeout( "fr_eac_handshake_timeout", "45", 0,
 	"Seconds a joining player has to start anti-cheat before removal.", true, 10.f, true, 120.f );
-static ConVar fr_eac_gameplay_data( "fr_eac_gameplay_data", "1", 0,
-	"Send gameplay data (movement, aim, shots, hits) to EAC's server-side detection. Needs the TrustedServer client policy; set 0 on community servers." );
+static ConVar fr_eac_gameplay_data( "fr_eac_gameplay_data", "0", 0,
+	"Opt in to EAC gameplay telemetry after enabling it for this EOS deployment. Client authentication and enforcement stay enabled independently." );
 static ConVar fr_eac_tick_interval( "fr_eac_tick_interval", "2", 0,
 	"Server ticks between player state samples sent to EAC.", true, 1.f, true, 66.f );
 static ConVar fr_eac_debug( "fr_eac_debug", "0", 0, "Log Easy Anti-Cheat message traffic." );

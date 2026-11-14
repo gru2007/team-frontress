@@ -66,6 +66,15 @@ func (g *GC) ServerConnected(s *session.Session) uint64 {
 
 	// Back to its match, if it had one.
 	if l := g.lobbies[srv.LobbyID]; l != nil && l.ServerID == srv.SteamID {
+		// A new process cannot resume the old process's match. Sending it
+		// a RUN lobby makes the SDK reject it and can trap it in reconnects.
+		// Legacy servers omit match_id, so retain their existing behavior.
+		rollingReconnect := s.MatchID != nil && *s.MatchID != 0 &&
+			l.State == lobbySetup && *s.MatchID == l.PreviousMatchID
+		if s.MatchID != nil && *s.MatchID != l.MatchID && !rollingReconnect {
+			g.endLobby(l, "the game server restarted without its match", l.State == lobbySetup)
+			return 0
+		}
 		l.serverLostAt = time.Time{}
 		g.sendConditions(srv, l)
 		g.so.Refresh(srv.SteamID)
@@ -158,13 +167,15 @@ func (g *GC) handleServerStatus(s *session.Session, m *wire.Msg) {
 
 	requesting := state == gcpb.ServerMatchmakingState_ServerMatchmakingState_ACTIVE_MATCH_REQUESTING_LATE_JOIN
 	active := requesting || state == gcpb.ServerMatchmakingState_ServerMatchmakingState_ACTIVE_MATCH
-	if !active || (msg.MatchGroup != nil && msg.GetMatchGroup() != l.Group) || !sameMap(l.Map, msg.GetMap()) {
+	if !active || msg.GetGameState() == gcpb.TF_GC_GameState_TF_GC_GAMESTATE_DISCONNECT ||
+		(msg.MatchGroup != nil && msg.GetMatchGroup() != l.Group) || !sameMap(l.Map, msg.GetMap()) {
 		srv.LateJoinSlots = 0
 		return
 	}
 	readyForLobby := msg.LobbyMmVersion != nil && msg.GetLobbyMmVersion() == l.MMVersion
-	if l.State == lobbySetup && l.PreviousMatchID != 0 &&
-		(!readyForLobby || msg.GetGameState() == gcpb.TF_GC_GameState_TF_GC_GAMESTATE_DISCONNECT) {
+	if (msg.LobbyMmVersion != nil && !readyForLobby) ||
+		(l.State == lobbySetup && l.PreviousMatchID != 0 && !readyForLobby) {
+		srv.LateJoinSlots = 0
 		return
 	}
 	// A heartbeat for an older roster cannot replenish seats we just assigned.
@@ -454,21 +465,33 @@ func (g *GC) handleChangeTeams(s *session.Session, m *wire.Msg) {
 		return
 	}
 	ok := false
-	if _, l := g.serverLobby(s, msg.GetLobbyId()); l != nil && l.MatchID == msg.GetMatchId() && l.War == nil {
+	if _, l := g.serverLobby(s, msg.GetLobbyId()); l != nil && l.MatchID == msg.GetMatchId() {
 		teams := make(map[*Member]mm.Team, len(msg.GetMember()))
 		for _, ch := range msg.GetMember() {
 			mem := l.member(ch.GetMemberId())
 			team := mm.Team(ch.GetNewTeam())
-			if mem == nil || (team != mm.Red && team != mm.Blu) {
+			if team != mm.Red && team != mm.Blu {
+				g.log.Warn("invalid server team change", "server", s.SteamID, "match", l.MatchID,
+					"steamid", ch.GetMemberId(), "team", ch.GetNewTeam())
 				g.reply(s, m, uint32(gcpb.ETFGCMsg_k_EMsgGC_ChangeMatchPlayerTeamsResponse), &gcpb.CMsgGCChangeMatchPlayerTeamsResponse{Success: proto.Bool(false)})
 				return
+			}
+			// An exit can remove a reservation while this reliable request is
+			// in flight. Acknowledge the obsolete entry without resurrecting
+			// it or rejecting changes for the players still in the match.
+			if mem == nil {
+				continue
 			}
 			teams[mem] = team
 		}
 		for mem, team := range teams {
 			mem.Team = team
 		}
-		g.lobbyChanged(l)
+		if len(teams) > 0 {
+			// The game server owns explicit team changes, including in war
+			// matches. Refusing a valid request makes the SDK server quit.
+			g.lobbyChanged(l)
+		}
 		ok = true
 	}
 	g.reply(s, m, uint32(gcpb.ETFGCMsg_k_EMsgGC_ChangeMatchPlayerTeamsResponse), &gcpb.CMsgGCChangeMatchPlayerTeamsResponse{

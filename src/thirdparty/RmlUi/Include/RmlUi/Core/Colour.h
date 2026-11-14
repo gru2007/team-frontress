@@ -118,7 +118,9 @@ public:
 		typename = typename std::enable_if_t<!IsPremultiplied::value && std::is_same<ColourType, byte>::value>>
 	inline Colour<ColourType, AlphaDefault, true> ToPremultiplied(float opacity) const
 	{
-		const float new_alpha = alpha * opacity;
+		// Overshooting easing curves can produce opacity outside [0, 1].
+		// Clamp before converting float channels to bytes (otherwise undefined).
+		const float new_alpha = alpha * (opacity > 0.f ? (opacity < 1.f ? opacity : 1.f) : 0.f);
 		return {
 			ColourType(red * (new_alpha / 255.f)),
 			ColourType(green * (new_alpha / 255.f)),

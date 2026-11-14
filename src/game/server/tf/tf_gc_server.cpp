@@ -302,13 +302,9 @@ int FrontressMatchBotFill()
 // Returns the current match's ID if:
 // - The msg's match ID is 0, and we now have a match ID
 //
-// Calls AbortInvalidMatchState if:
-// - The msg's match ID is not zero, and different from the current match
-// - Or they're both zero and we're in a match group that requires match IDs.
-//
-// NOTE We always wait for all pending messages before accepting new matches, so the above should hold unless something
-//      got badly confused.  Only matches with bServerCreated start without knowing their match ID, and should know it
-//      by time any message that needs it gets sent. (a previous message in queue should be requesting it)
+// Explicit IDs must survive retries and lobby replacement unchanged. The GC
+// acknowledges stale jobs without applying them to a different match. Only
+// speculative jobs with ID zero need the newly assigned current match ID.
 static uint64 ReliableMsgCheckUpdateMatchID( uint64 nMsgMatchID )
 {
 	// No match on this server: the message is about one it does not run (a
@@ -319,17 +315,13 @@ static uint64 ReliableMsgCheckUpdateMatchID( uint64 nMsgMatchID )
 		return nMsgMatchID;
 
 	uint64 nCurrentMatchID = pMatch->m_nMatchID;
-	Assert( !nMsgMatchID || nMsgMatchID == nCurrentMatchID );
+	if ( nMsgMatchID )
+		return nMsgMatchID;
 
 	// If we were queued for a match we didn't know the ID of yet, we can now glom it
 	if ( nCurrentMatchID && nMsgMatchID == 0 )
 	{
 		return nCurrentMatchID;
-	}
-	else if ( nCurrentMatchID != nMsgMatchID )
-	{
-		// Something is bad
-		GTFGCClientSystem()->AbortInvalidMatchState();
 	}
 	else if ( !nCurrentMatchID && !nMsgMatchID )
 	{
@@ -349,10 +341,23 @@ class ReliableMsgNewMatchForLobby
 {
 public:
 	void OnReply( Reply_t &msgReply )
-		{ GTFGCClientSystem()->NewMatchForLobbyResponse( msgReply.Body().success() ); }
+	{
+		const CMatchInfo *pMatch = GTFGCClientSystem()->GetMatch();
+		const auto &request = Msg().Body();
+		// Rolling matches may already have installed the successor when its
+		// reply arrives. A reply from any other lobby/match is obsolete.
+		if ( !pMatch || pMatch->m_nLobbyID != request.lobby_id() ||
+			( pMatch->m_nMatchID != request.current_match_id() && pMatch->m_nPreviousMatchID != request.current_match_id() ) )
+		{
+			MMLog( "Ignoring new-match reply for a match no longer running on this server\n" );
+			return;
+		}
+		GTFGCClientSystem()->NewMatchForLobbyResponse( msgReply.Body().success() );
+	}
 
 	void OnPrepare()
-		{ Assert( Msg().Body().current_match_id() == GTFGCClientSystem()->GetMatch()->m_nMatchID ); }
+		{ Assert( !GTFGCClientSystem()->GetMatch() || Msg().Body().current_match_id() == GTFGCClientSystem()->GetMatch()->m_nMatchID ||
+			Msg().Body().current_match_id() == GTFGCClientSystem()->GetMatch()->m_nPreviousMatchID ); }
 
 	const char *MsgName() { return "NewMatchForLobby"; }
 	void InitDebugString( CUtlString &dbgStr )
@@ -372,7 +377,15 @@ class ReliableMsgChangeMatchPlayerTeams
 {
 public:
 	void OnReply( Reply_t &msgReply )
-		{ GTFGCClientSystem()->ChangeMatchPlayerTeamsResponse( msgReply.Body().success() ); }
+	{
+		const CMatchInfo *pMatch = GTFGCClientSystem()->GetMatch();
+		if ( !pMatch || pMatch->m_nMatchID != Msg().Body().match_id() || pMatch->m_nLobbyID != Msg().Body().lobby_id() )
+		{
+			MMLog( "Ignoring team-change reply for a match no longer running on this server\n" );
+			return;
+		}
+		GTFGCClientSystem()->ChangeMatchPlayerTeamsResponse( msgReply.Body().success() );
+	}
 
 	// May have been queued for a pending match
 	void OnPrepare() { Msg().Body().set_match_id( ReliableMsgCheckUpdateMatchID( Msg().Body().match_id() ) ); }
@@ -440,6 +453,9 @@ public:
 	void OnPrepare() { Msg().Body().set_match_id( ReliableMsgCheckUpdateMatchID( Msg().Body().match_id() ) ); }
 	void OnReply( Reply_t &msgReply )
 	{
+		const CMatchInfo *pMatch = GTFGCClientSystem()->GetLiveMatch();
+		if ( !pMatch || pMatch->m_nMatchID != Msg().Body().match_id() )
+			return;
 		GTFGCClientSystem()->VoteKickPlayerRequestResponse( CSteamID( Msg().Body().voter_id() ),
 		                                                    CSteamID( Msg().Body().target_id() ),
 		                                                    Msg().Body().reason(),
@@ -465,6 +481,9 @@ public:
 	void OnPrepare() { Msg().Body().set_match_id( ReliableMsgCheckUpdateMatchID( Msg().Body().match_id() ) ); }
 	void OnReply( Reply_t &msgReply )
 	{
+		const CMatchInfo *pMatch = GTFGCClientSystem()->GetLiveMatch();
+		if ( !pMatch || pMatch->m_nMatchID != Msg().Body().match_id() )
+			return;
 		GTFGCClientSystem()->ProcessMatchVoteKickResponse( CSteamID( Msg().Body().initiator_steam_id() ),
 		                                                   CSteamID( Msg().Body().target_steam_id() ),
 		                                                   msgReply.Body().rip() );
@@ -2299,9 +2318,10 @@ void CTFGCServerSystem::ProcessMatchVoteKickResponse( CSteamID voterSteamID, CSt
 const MapDef_t* CTFGCServerSystem::GetNextMapVoteByIndex( int nIndex ) const
 {
 	const CTFGSLobby *pLobby = GetLobby();
-	if ( pLobby && nIndex < pLobby->Obj().next_maps_for_vote_size() )
+	if ( pLobby && nIndex >= 0 && nIndex < pLobby->Obj().next_maps_for_vote_size() )
 	{
-		return GetItemSchema()->GetMasterMapDefByIndex( pLobby->Obj().next_maps_for_vote( nIndex ) );
+		if ( const MapDef_t *pMap = GetItemSchema()->GetMasterMapDefByIndex( pLobby->Obj().next_maps_for_vote( nIndex ) ) )
+			return pMap;
 	}
 
 	Assert( false );
@@ -2318,7 +2338,7 @@ void CTFGCServerSystem::NewMatchForLobbyResponse( bool bSuccess )
 	if ( !m_bWaitingForNewMatchID )
 	{
 		MMLog( "!! Got a NewMatchForLobbyResponse when not expecting it\n" );
-		AbortInvalidMatchState();
+		return;
 	}
 
 	Assert( TFGameRules() );
@@ -2379,7 +2399,7 @@ bool CTFGCServerSystem::CanRequestNewMatchForLobby()
 
 	// Match description allow it?
 	const IMatchGroupDescription* pMatchDesc = GetMatchGroupDescription( m_pMatchInfo->m_eMatchGroup );
-	if ( !pMatchDesc->BCanServerRequestNewMatchForLobby() )
+	if ( !pMatchDesc || !pMatchDesc->BCanServerRequestNewMatchForLobby() )
 		{ return false; }
 
 	return true;
@@ -2388,9 +2408,10 @@ bool CTFGCServerSystem::CanRequestNewMatchForLobby()
 void CTFGCServerSystem::RequestNewMatchForLobby( const MapDef_t* pNewMap )
 {
 	// Wat r u doin
-	if ( !CanRequestNewMatchForLobby() )
+	if ( !pNewMap || !CanRequestNewMatchForLobby() )
 	{
-		AbortInvalidMatchState();
+		Warning( "Cannot request a new match without a valid map and current lobby\n" );
+		return;
 	}
 
 	m_flWaitingForNewMatchTime = Plat_FloatTime() + tf_mm_next_map_result_hold_time.GetFloat();

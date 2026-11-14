@@ -6,7 +6,8 @@
 // Transforms and gradients are resolved here on the CPU, so the game's
 // material system and the previewer's OpenGL draw exactly the same thing.
 // Not supported (and not used by our stylesheets): filters, box-shadow,
-// mask-image and clip masks.
+// mask-image and inverse clip masks. Rounded/transformed overflow masks use
+// conservative rectangular clipping on both backends.
 //
 //=============================================================================
 #pragma once
@@ -56,6 +57,8 @@ public:
 
 	void EnableScissorRegion( bool enable ) override;
 	void SetScissorRegion( Rml::Rectanglei region ) override;
+	void EnableClipMask( bool enable ) override;
+	void RenderToClipMask( Rml::ClipMaskOperation operation, Rml::CompiledGeometryHandle geometry, Rml::Vector2f translation ) override;
 
 	void SetTransform( const Rml::Matrix4f *transform ) override;
 
@@ -74,10 +77,13 @@ private:
 	};
 
 	void Emit( const Geometry &geometry, Rml::Vector2f translation, uintptr_t texture, const float *pU, const float *pV );
+	void ApplyScissor();
 
 	DrawBackend *m_pBackend;
 	bool m_bScissor = false;
 	Rml::Rectanglei m_Scissor;
+	bool m_bClipMask = false;
+	Rml::Rectanglei m_ClipMask;
 	bool m_bTransform = false;
 	Rml::Matrix4f m_Transform;
 	std::vector< DrawVertex > m_Scratch;

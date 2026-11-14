@@ -31,6 +31,7 @@
 #include <sys/stat.h>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <map>
@@ -612,6 +613,165 @@ std::string DefaultTF2()
 
 } // namespace
 
+// Exercise the real RmlUi layout, input and data bindings, without Steam.
+static bool VerifyUI( fui::Runtime &runtime )
+{
+	bool ok = true;
+	auto check = [&]( bool condition, const char *message ) {
+		if ( !condition ) { fprintf( stderr, "[verify-ui] FAIL: %s\n", message ); ok = false; }
+	};
+	auto lines = []( int count ) {
+		fui::Node result;
+		result.SetArray();
+		for ( int i = 0; i < count; ++i )
+		{
+			fui::Node line;
+			line["name"] = "Scroll test";
+			line["text"] = ( "Message " + std::to_string(i) ).c_str();
+			line["time"] = "12:00";
+			line["tag"] = "";
+			line["sys"] = false;
+			line["me"] = false;
+			line["pending"] = false;
+			result.Append( std::move(line) );
+		}
+		return result;
+	};
+	runtime.SetHud(false);
+	runtime.Navigate("home");
+	runtime.Set("social.tab", "global");
+	runtime.Set("social.view", lines(100));
+	runtime.Update();
+	auto *context = runtime.Context();
+	Rml::Element *chat = nullptr;
+	for ( int i = 0; i < context->GetNumDocuments(); ++i )
+		if ( auto *element = context->GetDocument(i)->GetElementById("chat-log") ) chat = element;
+	check(chat != nullptr, "main-menu chat exists");
+	if (chat)
+	{
+		check(chat->GetScrollHeight() > chat->GetClientHeight(), "chat has scrollable overflow");
+		check(chat->GetScrollTop() > 0, "chat starts at newest message");
+		context->SetDefaultScrollBehavior(Rml::ScrollBehavior::Instant, 1.f);
+		const auto pos = chat->GetAbsoluteOffset(Rml::BoxArea::Content);
+		const float before = chat->GetScrollTop();
+		context->ProcessMouseMove(int(pos.x + 30), int(pos.y + 30), 0);
+		context->ProcessMouseWheel(Rml::Vector2f(0, -3), 0);
+		runtime.Update();
+		check(chat->GetScrollTop() < before, "wheel scrolls chat upwards");
+		chat->SetScrollTop(0);
+		runtime.Set("social.view", lines(101));
+		runtime.Update();
+		check(chat->GetScrollTop() < 1, "new messages preserve reading position");
+		chat->SetScrollTop(chat->GetScrollHeight());
+		runtime.Set("social.view", lines(102));
+		runtime.Update();
+		check(chat->GetScrollTop() + chat->GetClientHeight() >= chat->GetScrollHeight() - 2, "chat follows new messages at bottom");
+	}
+	// Repeated structural changes, document removal and model rebinding.
+	{
+		fui::Node history;
+		history.SetArray();
+		for (int i = 0; i < 60; ++i)
+		{
+			auto &line = history.Append();
+			line["fade"] = false;
+			line["segs"].SetArray();
+			auto &segment = line["segs"].Append();
+			segment["t"] = ("HUD message " + std::to_string(i)).c_str();
+			segment["c"] = "";
+		}
+		runtime.Set("hud.chat.lines", std::move(history));
+		runtime.Set("hud.chat.open", fui::Node(true));
+		runtime.SetHud(true);
+		runtime.Update();
+		Rml::ElementList elements;
+		for (int i = 0; i < context->GetNumDocuments(); ++i)
+			context->GetDocument(i)->QuerySelectorAll(elements, "#chat .chat-lines");
+		check(!elements.empty(), "HUD chat exists");
+		if (!elements.empty())
+		{
+			auto *element = elements.front();
+			check(element->GetScrollHeight() > element->GetClientHeight(), "HUD history has scrollable overflow");
+			const float before = element->GetScrollTop();
+			const auto pos = element->GetAbsoluteOffset(Rml::BoxArea::Content);
+			context->ProcessMouseMove(int(pos.x + 20), int(pos.y + 20), 0);
+			context->ProcessMouseWheel(Rml::Vector2f(0, -3), 0);
+			runtime.Update();
+			if (element->GetScrollTop() >= before)
+				fprintf(stderr, "[verify-ui] HUD geometry: pos=(%.1f,%.1f), client=%.1f scroll=%.1f before=%.1f after=%.1f hover=%s\n",
+					pos.x, pos.y, element->GetClientHeight(), element->GetScrollHeight(), before, element->GetScrollTop(),
+					context->GetHoverElement() ? context->GetHoverElement()->GetAddress().c_str() : "none");
+			check(element->GetScrollTop() < before, "wheel scrolls HUD chat upwards");
+		}
+		runtime.SetHud(false);
+	}
+	{
+		auto *doc = context->CreateDocument();
+		doc->SetInnerRML("<div data-model=\"fr\"><div data-for=\"l : social.view\"><span>{{ l.text }}</span></div></div>");
+		auto *root = doc->GetChild(0);
+		// Detach a view before its first model update, while retaining the
+		// element as document transitions and structural views can do.
+		auto detached = root->RemoveChild(root->GetChild(0));
+		runtime.Update();
+		detached.reset();
+		doc->Close();
+		runtime.Update();
+	}
+	const char *screens[] = {"home", "play", "war", "quests", "locker", "career", "clan", "support"};
+	{
+		auto *doc = context->CreateDocument();
+		doc->SetInnerRML("<div data-model=\"fr\"><div data-for=\"l : social.view\"><span>{{ l.text }}</span></div></div>");
+		runtime.Set("social.view", lines(5));
+		runtime.Update();
+		auto *root = doc->GetChild(0);
+		root->RemoveChild(root->GetChild(0)).reset();
+		runtime.Set("social.view", lines(2));
+		runtime.Update();
+		check(root->GetNumChildren() == 3, "removed data-for row is rebuilt with the correct indices");
+		doc->Close();
+		runtime.Update();
+	}
+	{
+		runtime.Navigate("home");
+		runtime.Update();
+		Rml::ElementDocument *doc = nullptr;
+		for (int i = 0; i < context->GetNumDocuments(); ++i)
+			if (context->GetDocument(i)->GetElementById("chat-log")) doc = context->GetDocument(i);
+		if (!doc) return false;
+		doc->SetInnerRML("<div data-model=\"fr\"><button data-event-click=\"cmd('reload');set('ui.modal', 'invite')\">Reload</button></div>");
+		runtime.Update();
+		auto observer = doc->GetObserverPtr();
+		doc->GetChild(0)->GetChild(0)->DispatchEvent("click", {});
+		check(observer.get() != nullptr, "reload waits for event expression to finish");
+		check(runtime.Get("ui.modal")->AsString() == "invite", "event continues after queuing reload");
+		runtime.Update();
+		check(!observer, "queued reload closes old documents safely");
+	}
+	{
+		Rml::ElementDocument *doc = nullptr;
+		for (int i = 0; i < context->GetNumDocuments(); ++i)
+			if (context->GetDocument(i)->GetElementById("chat-log")) doc = context->GetDocument(i);
+		if (!doc) return false;
+		doc->SetInnerRML("<div data-model=\"fr\"><button data-event-click=\"set('ui.screen', 'play');set('ui.modal', 'invite')\">Navigate</button></div>");
+		runtime.Update();
+		auto observer = doc->GetObserverPtr();
+		doc->GetChild(0)->GetChild(0)->DispatchEvent("click", {});
+		check(observer.get() != nullptr, "screen binding waits for event expression to finish");
+		runtime.Update();
+		check(!observer, "screen binding navigates safely on update");
+	}
+	for (int i = 0; i < 160; ++i)
+	{
+		runtime.Navigate(screens[i % 8]);
+		runtime.Set("social.view", lines(i % 33));
+		runtime.Set("ui.modal", i % 2 ? "invite" : "");
+		runtime.Update();
+		if (i % 20 == 0) runtime.Reload();
+	}
+	fprintf(stderr, "[verify-ui] %s\n", ok ? "PASS" : "FAILED");
+	return ok;
+}
+
 int main( int argc, char **argv )
 {
 	std::string tf2 = getenv( "TC2_TF2_DIR" ) ? getenv( "TC2_TF2_DIR" ) : DefaultTF2();
@@ -620,6 +780,8 @@ int main( int argc, char **argv )
 	int width = 1920, height = 1080, shotFrames = 30;
 	bool bDebug = false;
 	bool bHud = false;
+	bool bVerify = false;
+	bool bVerifyExit = false;
 	std::string hudStyle = "frontress";
 	// --drag x0,y0,x1,y1: a scripted mouse drag (in pixels) early on, to try
 	// what dragging does in a screenshot.
@@ -641,6 +803,8 @@ int main( int argc, char **argv )
 		else if ( arg == "--frames" ) shotFrames = atoi( next().c_str() );
 		else if ( arg == "--debug" ) bDebug = true;
 		else if ( arg == "--hud" ) bHud = true;
+		else if ( arg == "--verify-ui" ) bVerify = true;
+		else if ( arg == "--verify-exit" ) bVerifyExit = true;
 		else if ( arg == "--drag" ) sscanf( next().c_str(), "%f,%f,%f,%f", &drag[ 0 ], &drag[ 1 ], &drag[ 2 ], &drag[ 3 ] );
 		else if ( arg == "--hud-style" ) { hudStyle = next(); bHud = true; }
 		else if ( arg == "--size" ) sscanf( next().c_str(), "%dx%d", &width, &height );
@@ -731,6 +895,31 @@ int main( int argc, char **argv )
 	runtime.SetHudDocument( "huds/" + hudStyle + "/hud.rml" );
 	if ( bHud )
 		runtime.SetHud( true );
+	if ( bVerify )
+	{
+		bool competingRejected = false;
+		{
+			fui::Runtime competing;
+			competingRejected = !competing.Init( &host, &backend, width, height );
+		}
+		bool ok = competingRejected && VerifyUI(runtime);
+		// fui_restart must leave the same Runtime usable, including its exit hook.
+		runtime.Shutdown();
+		if ( ok )
+			ok = runtime.Init( &host, &backend, width, height );
+		if ( ok )
+			runtime.Update();
+		if ( bVerifyExit )
+			std::exit( ok ? 0 : 1 );
+		runtime.Shutdown();
+		SDL_GL_DestroyContext(gl);
+		SDL_DestroyWindow(pWindow);
+		SDL_Quit();
+		return ok ? 0 : 1;
+	}
+	// Model an engine exit that bypasses local destructors/normal shutdown.
+	if ( bVerifyExit )
+		std::exit( 0 );
 
 	bool bRunning = true;
 	int frame = 0;

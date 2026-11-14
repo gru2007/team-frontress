@@ -522,9 +522,9 @@ void CTFStatsSummaryPanel::ShowMapInfo( bool bShowMapInfo, bool bIsMVM /*= false
 	{
 		m_pMainBackground->SetVisible( !bShowMapInfo );
 	}
-	m_pPlayerData->SetVisible( bIsMVM || !bShowMapInfo );
-	m_pNextTipButton->SetVisible( m_bInteractive && !bShowMapInfo );
-	m_pResetStatsButton->SetVisible( m_bInteractive && !bShowMapInfo );
+	if ( m_pPlayerData ) m_pPlayerData->SetVisible( bIsMVM || !bShowMapInfo );
+	if ( m_pNextTipButton ) m_pNextTipButton->SetVisible( m_bInteractive && !bShowMapInfo );
+	if ( m_pResetStatsButton ) m_pResetStatsButton->SetVisible( m_bInteractive && !bShowMapInfo );
 
 	if ( m_pMapInfoPanel )
 	{
@@ -542,6 +542,11 @@ void CTFStatsSummaryPanel::ShowMapInfo( bool bShowMapInfo, bool bIsMVM /*= false
 //-----------------------------------------------------------------------------
 void CTFStatsSummaryPanel::OnMapLoad( const char *pMapName )
 {
+	if ( !pMapName || !pMapName[0] )
+	{
+		ClearMapLabel();
+		return;
+	}
 	if ( g_bIsReplayRewinding || engine->IsLoadingDemo() || engine->IsPlayingDemo() || engine->IsSkippingPlayback() )
 		return;
 
@@ -670,9 +675,14 @@ void CTFStatsSummaryPanel::OnMapLoad( const char *pMapName )
 		if ( bIsMVM )
 		{
 			UpdateClassDetails( true );
-			m_pMapInfoPanel->SetDialogVariable( "map_leaderboard_title", "" );
-			m_pMapInfoPanel->SetDialogVariable( "title", "" );
-			m_pMapInfoPanel->SetDialogVariable( "authors", "" );
+			// Resource layouts may omit the map-info panel. Loading an MvM
+			// map must not dereference an absent optional child.
+			if ( m_pMapInfoPanel )
+			{
+				m_pMapInfoPanel->SetDialogVariable( "map_leaderboard_title", "" );
+				m_pMapInfoPanel->SetDialogVariable( "title", "" );
+				m_pMapInfoPanel->SetDialogVariable( "authors", "" );
+			}
 
 			FOR_EACH_VEC( m_vecLeaderboardEntries, i )
 			{

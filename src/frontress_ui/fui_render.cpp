@@ -49,6 +49,7 @@ void Renderer::BeginFrame( int width, int height )
 	m_nWidth = width;
 	m_nHeight = height;
 	m_bScissor = false;
+	m_bClipMask = false;
 	m_bTransform = false;
 	m_pBackend->SetScissor( false, 0, 0, width, height );
 }
@@ -169,14 +170,73 @@ void Renderer::ReleaseTexture( Rml::TextureHandle texture )
 void Renderer::EnableScissorRegion( bool enable )
 {
 	m_bScissor = enable;
-	m_pBackend->SetScissor( enable, m_Scissor.Left(), m_Scissor.Top(), m_Scissor.Width(), m_Scissor.Height() );
+	ApplyScissor();
 }
 
 void Renderer::SetScissorRegion( Rml::Rectanglei region )
 {
 	m_Scissor = region;
-	if ( m_bScissor )
-		m_pBackend->SetScissor( true, region.Left(), region.Top(), region.Width(), region.Height() );
+	ApplyScissor();
+}
+
+void Renderer::ApplyScissor()
+{
+	int left = 0, top = 0, right = m_nWidth, bottom = m_nHeight;
+	auto intersect = [&]( const Rml::Rectanglei &rect ) {
+		left = std::max( left, rect.Left() );
+		top = std::max( top, rect.Top() );
+		right = std::min( right, rect.Right() );
+		bottom = std::min( bottom, rect.Bottom() );
+	};
+	if ( m_bScissor ) intersect( m_Scissor );
+	if ( m_bClipMask ) intersect( m_ClipMask );
+	m_pBackend->SetScissor( m_bScissor || m_bClipMask, left, top, std::max( 0, right - left ), std::max( 0, bottom - top ) );
+}
+
+void Renderer::EnableClipMask( bool enable )
+{
+	m_bClipMask = enable;
+	m_ClipMask = Rml::Rectanglei::FromPositionSize( { 0, 0 }, { m_nWidth, m_nHeight } );
+	ApplyScissor();
+}
+
+void Renderer::RenderToClipMask( Rml::ClipMaskOperation operation, Rml::CompiledGeometryHandle handle, Rml::Vector2f translation )
+{
+	// RmlUi disables its normal scissor for transformed overflow containers.
+	// Keep their projected bounds clipped even on backends without stencil
+	// masks. Our UI uses Set/Intersect for rectangular and rounded panels.
+	if ( operation == Rml::ClipMaskOperation::SetInverse )
+		return;
+	const Geometry *geometry = reinterpret_cast< const Geometry * >( handle );
+	Rml::Vector2f minimum( (float)m_nWidth, (float)m_nHeight ), maximum( 0.f, 0.f );
+	if ( geometry )
+	{
+		for ( const auto &vertex : geometry->vertices )
+		{
+			Rml::Vector2f position = vertex.position + translation;
+			if ( m_bTransform )
+			{
+				const Rml::Vector4f point = m_Transform * Rml::Vector4f( position.x, position.y, 0.f, 1.f );
+				const float w = point.w != 0.f ? point.w : 1.f;
+				position = { point.x / w, point.y / w };
+			}
+			minimum.x = std::min( minimum.x, position.x );
+			minimum.y = std::min( minimum.y, position.y );
+			maximum.x = std::max( maximum.x, position.x );
+			maximum.y = std::max( maximum.y, position.y );
+		}
+	}
+	int left = (int)std::floor( minimum.x ), top = (int)std::floor( minimum.y );
+	int right = (int)std::ceil( maximum.x ), bottom = (int)std::ceil( maximum.y );
+	if ( operation == Rml::ClipMaskOperation::Intersect )
+	{
+		left = std::max( left, m_ClipMask.Left() );
+		top = std::max( top, m_ClipMask.Top() );
+		right = std::min( right, m_ClipMask.Right() );
+		bottom = std::min( bottom, m_ClipMask.Bottom() );
+	}
+	m_ClipMask = Rml::Rectanglei::FromPositionSize( { left, top }, { std::max( 0, right - left ), std::max( 0, bottom - top ) } );
+	ApplyScissor();
 }
 
 void Renderer::SetTransform( const Rml::Matrix4f *transform )

@@ -90,4 +90,6 @@ else
   "${SLR[@]}" ./tc2_linux64 -steam -gathermod -particles 1 "$@" "${IP_DEFAULT[@]}"
 fi
 
+game_exit_status=$?
 popd > /dev/null
+exit "$game_exit_status"

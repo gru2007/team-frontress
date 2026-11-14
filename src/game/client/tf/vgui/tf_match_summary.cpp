@@ -1220,9 +1220,11 @@ void CTFMatchSummary::FireGameEvent( IGameEvent *event )
 	}
 	else if ( FStrEq( type, "show_match_summary" ) )
 	{
+		if ( !TFGameRules() || !g_pClientMode || !g_pClientMode->GetViewportAnimationController() )
+			return;
 		SetVisible( true );
 
-		if ( m_pPlayerListRedParent->GetParent() )
+		if ( m_pPlayerListRedParent && m_pPlayerListRedParent->GetParent() )
 		{
 			int nRedBadgeOffset = m_pPlayerListRedParent->GetParent()->GetXPos();
 			FOR_EACH_VEC( m_pRedBadgePanels, i )
@@ -1231,7 +1233,7 @@ void CTFMatchSummary::FireGameEvent( IGameEvent *event )
 			}
 		}
 
-		if ( m_pPlayerListBlueParent->GetParent() )
+		if ( m_pPlayerListBlueParent && m_pPlayerListBlueParent->GetParent() )
 		{
 			int nBlueBadgeOffset = m_pPlayerListBlueParent->GetParent()->GetXPos();
 			FOR_EACH_VEC( m_pBlueBadgePanels, i )
@@ -1252,7 +1254,7 @@ void CTFMatchSummary::FireGameEvent( IGameEvent *event )
 	else if ( FStrEq( type, "hide_match_summary" ) || FStrEq( type, "teamplay_round_start" ) )
 	{
 		SetVisible( false );
-		const IMatchGroupDescription* pMatchDesc = GetMatchGroupDescription( TFGameRules()->GetCurrentMatchGroupWithEmulation() );
+		const IMatchGroupDescription* pMatchDesc = TFGameRules() ? GetMatchGroupDescription( TFGameRules()->GetCurrentMatchGroupWithEmulation() ) : NULL;
 		if ( pMatchDesc )
 		{
 			pMatchDesc->StopWinMusic( m_iWinningTeam, true );
@@ -1261,14 +1263,17 @@ void CTFMatchSummary::FireGameEvent( IGameEvent *event )
 	else if ( FStrEq( type, "casual_mvp_panel" ) )
 	{
 		int iPlayerIndex = event->GetInt("player");
-		m_bFoundMVP = iPlayerIndex != 0;
+		// The event can arrive after the MVP has disconnected, or before
+		// their entity has been created on a late-joining client.
+		m_bFoundMVP = g_PR && g_TF_PR && iPlayerIndex > 0 && iPlayerIndex <= MAX_PLAYERS && iPlayerIndex <= gpGlobals->maxClients;
 		if (!m_bFoundMVP)
 		{
 			return;
 		}
 		m_bLocalPlayerIsMVP = g_PR->IsLocalPlayer(iPlayerIndex);
 		m_iWinningTeam = event->GetInt("winning_team");
-		m_sMVPName.assign(g_PR->GetPlayerName(iPlayerIndex));
+		const char *pszMVPName = g_PR->GetPlayerName(iPlayerIndex);
+		m_sMVPName.assign(pszMVPName ? pszMVPName : "");
 		m_iMVPScore = event->GetInt("player_points");
 		auto Idx1 = StatToLocalizable.Find((TFStatType_t)event->GetInt("stat1"));
 		m_sMVPCustom1.assign(StatToLocalizable.IsValidIndex(Idx1) ? StatToLocalizable[Idx1] : "");
@@ -1290,6 +1295,8 @@ void CTFMatchSummary::FireGameEvent( IGameEvent *event )
 			{
 				C_TFPlayer* pPlayer = ToTFPlayer(UTIL_PlayerByIndex(iPlayerIndex));
 				int nClass = g_TF_PR->GetPlayerClass(iPlayerIndex);
+				if ( nClass < TF_FIRST_NORMAL_CLASS || nClass > TF_LAST_NORMAL_CLASS )
+					return;
 
 				m_pCharacterModelPanel->SetToPlayerClass(nClass);
 				m_pCharacterModelPanel->SetTeam(m_iWinningTeam);
@@ -1297,7 +1304,7 @@ void CTFMatchSummary::FireGameEvent( IGameEvent *event )
 				CEconItemView* pWeapon = NULL;
 				//int nItemSlot = (pPlayer->IsAlive() && pPlayer->GetActiveTFWeapon()) ? pPlayer->GetActiveTFWeapon()->GetAttributeContainer()->GetItem()->GetStaticData()->GetLoadoutSlot(nClass) : LOADOUT_POSITION_PRIMARY;
 				int nLoadoutSlot = g_iLegacyClassSelectWeaponSlots[nClass];	// We want to mirror the class select panel
-				CTFWeaponBase* pEnt = dynamic_cast<CTFWeaponBase*>(pPlayer->GetEntityForLoadoutSlot(nLoadoutSlot));
+				CTFWeaponBase* pEnt = pPlayer ? dynamic_cast<CTFWeaponBase*>(pPlayer->GetEntityForLoadoutSlot(nLoadoutSlot)) : NULL;
 				if (pEnt)
 				{
 					pWeapon = pEnt->GetAttributeContainer()->GetItem();
@@ -1321,7 +1328,7 @@ void CTFMatchSummary::FireGameEvent( IGameEvent *event )
 				}
 #endif
 
-				for (int wbl = pPlayer->GetNumWearables() - 1; wbl >= 0; wbl--)
+				for (int wbl = pPlayer ? pPlayer->GetNumWearables() - 1 : -1; wbl >= 0; wbl--)
 				{
 					C_TFWearable* pItem = dynamic_cast<C_TFWearable*>(pPlayer->GetWearable(wbl));
 					if (!pItem)
@@ -1430,7 +1437,7 @@ void CTFMatchSummary::OnTick()
 
 	C_TFPlayer *pLocalPlayer = C_TFPlayer::GetLocalTFPlayer();
 
-	if ( !IsVisible() || !pLocalPlayer )
+	if ( !IsVisible() || !pLocalPlayer || !TFGameRules() || !g_pClientMode || !g_pClientMode->GetViewportAnimationController() )
 		return;
 
 	const IMatchGroupDescription* pMatchDesc = GetMatchGroupDescription( TFGameRules()->GetCurrentMatchGroup() );
@@ -2078,7 +2085,7 @@ void CTFMatchSummary::LevelShutdown( void )
 //-----------------------------------------------------------------------------
 bool CTFMatchSummary::ShowPerformanceMedals( void )
 {
-	if ( m_bShortMode )
+	if ( m_bShortMode || !TFGameRules() )
 	{
 		return false;
 	}

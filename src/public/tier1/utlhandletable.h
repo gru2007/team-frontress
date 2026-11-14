@@ -241,20 +241,26 @@ int CUtlHandleTable<T, HandleBits>::GetIndexFromHandle( UtlHandle_t h ) const
 template< class T, int HandleBits >
 unsigned int CUtlHandleTable<T, HandleBits>::GetSerialNumber( UtlHandle_t handle )
 {
-	return ( ( HandleType_t* )&handle )->nSerial;
+	return (unsigned int)( ( handle >> HandleBits ) & ( ( (UtlHandle_t)1 << ( 31 - HandleBits ) ) - 1 ) );
 }
 
 template< class T, int HandleBits >
 unsigned int CUtlHandleTable<T, HandleBits>::GetListIndex( UtlHandle_t handle )
 {
-	return ( ( HandleType_t* )&handle )->nIndex;
+	return (unsigned int)( handle & ( ( (UtlHandle_t)1 << HandleBits ) - 1 ) );
 }
 
 template< class T, int HandleBits >
 UtlHandle_t CUtlHandleTable<T, HandleBits>::CreateHandle( unsigned int nSerial, unsigned int nIndex )
 {
-	HandleType_t h( nIndex, nSerial );
-	return *( UtlHandle_t* )&h;
+	Assert( nIndex < ( 1u << HandleBits ) );
+	Assert( nSerial < ( 1u << ( 31 - HandleBits ) ) );
+	// The bitfield struct occupies four bytes even when UtlHandle_t is
+	// eight bytes. Pack explicitly instead of reading past that object and
+	// exposing uninitialised stack bits in every new VGUI handle.
+	const UtlHandle_t indexMask = ( (UtlHandle_t)1 << HandleBits ) - 1;
+	const UtlHandle_t serialMask = ( (UtlHandle_t)1 << ( 31 - HandleBits ) ) - 1;
+	return ( ( (UtlHandle_t)nSerial & serialMask ) << HandleBits ) | ( (UtlHandle_t)nIndex & indexMask );
 }
 
 

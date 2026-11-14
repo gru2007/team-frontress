@@ -252,7 +252,25 @@ public:
 		if ( i == m_Textures.InvalidIndex() )
 			return;
 		Texture_t &slot = m_Textures[ i ];
-		if ( slot.pBits )
+		// Retaining every released font atlas/image keeps both its RGBA copy
+		// and GPU allocation alive until UI shutdown. Only keep a bounded idle
+		// pool for the small procedural textures reused by animated decorators.
+		const size_t maxCachedBytes = 16u * 1024 * 1024;
+		size_t cachedBytes = (size_t)slot.w * slot.h * 4;
+		bool cache = slot.pBits && m_FreeTextures.Count() < 64 && cachedBytes <= maxCachedBytes;
+		if ( cache )
+		{
+			FOR_EACH_VEC( m_FreeTextures, n )
+			{
+				cachedBytes += (size_t)m_FreeTextures[n].w * m_FreeTextures[n].h * 4;
+				if ( cachedBytes > maxCachedBytes )
+				{
+					cache = false;
+					break;
+				}
+			}
+		}
+		if ( cache )
 			m_FreeTextures.AddToTail( slot );
 		else
 			Free( slot );
@@ -966,6 +984,11 @@ private:
 };
 
 static CFuiSystem s_FuiSystem;
+
+void FrontressUIShutdown()
+{
+	s_FuiSystem.Shutdown();
+}
 
 fui::Runtime *FrontressUI()
 {

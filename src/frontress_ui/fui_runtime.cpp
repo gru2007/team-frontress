@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cctype>
 #include <cstring>
 #include <map>
@@ -20,6 +21,17 @@ namespace fui {
 
 static const char *const k_pszRoot = "resource/fui/";
 static const char *const k_pszModel = "fr";
+
+// An engine exit() can bypass Runtime's destructor. Close contexts while
+// RmlUi's global instancers and pools are still alive, and clear our pointers
+// so a later Runtime destructor is harmless.
+static Runtime *s_pRuntimeForExit = nullptr;
+static bool s_bExitHookRegistered = false;
+static void ShutdownRuntimeForExit()
+{
+	if ( s_pRuntimeForExit )
+		s_pRuntimeForExit->Shutdown();
+}
 
 //-----------------------------------------------------------------------------
 // RmlUi interfaces, routed to the host
@@ -309,7 +321,11 @@ struct Runtime::Impl {
 	Node fallbackStrings;	// english
 	std::map< std::string, int64_t > fileTimes;
 	bool debuggerReady = false;
+	bool transformsRegistered = false;
 	std::string nextScreen;
+	struct Command { std::string name; std::vector< std::string > args; };
+	std::vector< Command > commands;
+	std::vector< Rml::ObserverPtr< Rml::Element > > initializedChats;
 };
 
 //-----------------------------------------------------------------------------
@@ -323,6 +339,11 @@ bool Runtime::Init( Host *pHost, DrawBackend *pBackend, int width, int height )
 {
 	if ( m_pContext )
 		return true;
+	if ( s_pRuntimeForExit && s_pRuntimeForExit != this )
+	{
+		pHost->Log( 0, "A Frontress UI runtime is already active" );
+		return false;
+	}
 
 	m_pHost = pHost;
 	m_pImpl.reset( new Impl );
@@ -375,11 +396,24 @@ bool Runtime::Init( Host *pHost, DrawBackend *pBackend, int width, int height )
 		Shutdown();
 		return false;
 	}
+	if ( !s_bExitHookRegistered )
+	{
+		if ( std::atexit( ShutdownRuntimeForExit ) != 0 )
+		{
+			pHost->Log( 0, "Could not register UI exit cleanup" );
+			Shutdown();
+			return false;
+		}
+		s_bExitHookRegistered = true;
+	}
+	s_pRuntimeForExit = this;
 	return true;
 }
 
 void Runtime::Shutdown()
 {
+	if ( s_pRuntimeForExit == this )
+		s_pRuntimeForExit = nullptr;
 	if ( !m_pContext )
 		return;
 	CloseDocuments();
@@ -408,6 +442,16 @@ void Runtime::Update()
 {
 	if ( !m_pContext )
 		return;
+	// Rml callbacks must finish before commands can close documents or remove
+	// their model. A reload from inside cmd() would delete the running expression.
+	std::vector< Impl::Command > commands;
+	commands.swap( m_pImpl->commands );
+	for ( const auto &command : commands )
+	{
+		HandleEvent( command.name, command.args );
+		if ( !m_pContext )
+			return;
+	}
 	if ( m_bHotReload && m_pHost->Time() >= m_flNextFileCheck )
 	{
 		m_flNextFileCheck = m_pHost->Time() + 0.5;
@@ -419,7 +463,42 @@ void Runtime::Update()
 		screen.swap( m_pImpl->nextScreen );
 		Navigate( screen );
 	}
+	// Remember whether the reader was at the end before data-for adds new
+	// messages. Follow new lines only there; scrolling up must stay put.
+	struct ChatScroll {
+		Rml::ObserverPtr< Rml::Element > element;
+		bool follow;
+		Rml::String key;
+	};
+	std::vector< ChatScroll > chats;
+	for ( int i = 0; i < m_pContext->GetNumDocuments(); ++i )
+	{
+		Rml::ElementList elements;
+		m_pContext->GetDocument( i )->QuerySelectorAll( elements, "[scroll-bottom]" );
+		for ( Rml::Element *element : elements )
+			chats.push_back( { element->GetObserverPtr(),
+				std::find( m_pImpl->initializedChats.begin(), m_pImpl->initializedChats.end(), element ) == m_pImpl->initializedChats.end() ||
+				element->GetClientHeight() <= 0.f || element->GetScrollTop() + element->GetClientHeight() >= element->GetScrollHeight() - 2.f,
+				element->GetAttribute< Rml::String >( "scroll-key", "" ) } );
+	}
 	m_pContext->Update();
+	// A data-for/data-if update can instantiate a new chat subtree, so find
+	// the current elements again and initialize new histories at the end.
+	for ( int i = 0; i < m_pContext->GetNumDocuments(); ++i )
+	{
+		Rml::ElementList elements;
+		m_pContext->GetDocument( i )->QuerySelectorAll( elements, "[scroll-bottom]" );
+		for ( Rml::Element *element : elements )
+		{
+			auto previous = std::find_if( chats.begin(), chats.end(), [element]( const ChatScroll &chat ) { return chat.element.get() == element; } );
+			if ( previous == chats.end() || previous->follow || previous->key != element->GetAttribute< Rml::String >( "scroll-key", "" ) )
+				element->SetScrollTop( element->GetScrollHeight() );
+			if ( std::find( m_pImpl->initializedChats.begin(), m_pImpl->initializedChats.end(), element ) == m_pImpl->initializedChats.end() )
+				m_pImpl->initializedChats.push_back( element->GetObserverPtr() );
+		}
+	}
+	auto &initialized = m_pImpl->initializedChats;
+	initialized.erase( std::remove_if( initialized.begin(), initialized.end(), []( const auto &element ) { return !element; } ), initialized.end() );
 }
 
 void Runtime::Render()
@@ -456,7 +535,10 @@ bool Runtime::Set( const std::string &path, Node &&value )
 			m_pHost->Log( 1, ( "State '" + top + "' is not in schema.json; documents cannot see it" ).c_str() );
 	}
 	if ( path == "ui.screen" )
-		Navigate( m_State.FindPath( path, false )->AsString() );
+	{
+		if ( m_pImpl )
+			m_pImpl->nextScreen = m_State.FindPath( path, false )->AsString();
+	}
 	return true;
 }
 
@@ -560,73 +642,77 @@ void Runtime::BindModel()
 		std::vector< std::string > rest;
 		for ( size_t i = 1; i < args.size(); ++i )
 			rest.push_back( VariantToString( args[ i ] ) );
-		HandleEvent( VariantToString( args[ 0 ] ), rest );
+		m_pImpl->commands.push_back( { VariantToString( args[ 0 ] ), std::move( rest ) } );
 	} );
 
 	// {{ 'fui_play' | t }}, {{ 'fui_q_kills' | t(q.target) }}: %1, %2... are
 	// the arguments; a number gets thousands separators, a "#token" is
 	// translated too.
-	constructor.RegisterTransformFunc( "t", [ this ]( const Rml::VariantList &args ) -> Rml::Variant {
-		if ( args.empty() )
-			return Rml::Variant();
-		std::string token = VariantToString( args[ 0 ] );
-		if ( !token.empty() && token[ 0 ] == '#' )
-			token.erase( 0, 1 );
-		std::string text = Translate( token );
-		for ( size_t i = 1; i < args.size() && i < 10; ++i )
-		{
-			std::string value;
-			const Rml::Variant::Type type = args[ i ].GetType();
-			if ( type == Rml::Variant::INT || type == Rml::Variant::INT64 || type == Rml::Variant::FLOAT || type == Rml::Variant::DOUBLE )
-				value = FormatThousands( (long long)std::llround( args[ i ].Get< double >() ) );
-			else
+	if ( !m_pImpl->transformsRegistered )
+	{
+		constructor.RegisterTransformFunc( "t", [ this ]( const Rml::VariantList &args ) -> Rml::Variant {
+			if ( args.empty() )
+				return Rml::Variant();
+			std::string token = VariantToString( args[ 0 ] );
+			if ( !token.empty() && token[ 0 ] == '#' )
+				token.erase( 0, 1 );
+			std::string text = Translate( token );
+			for ( size_t i = 1; i < args.size() && i < 10; ++i )
 			{
-				value = VariantToString( args[ i ] );
-				if ( value.size() > 1 && value[ 0 ] == '#' )
-					value = Translate( value.substr( 1 ) );
+				std::string value;
+				const Rml::Variant::Type type = args[ i ].GetType();
+				if ( type == Rml::Variant::INT || type == Rml::Variant::INT64 || type == Rml::Variant::FLOAT || type == Rml::Variant::DOUBLE )
+					value = FormatThousands( (long long)std::llround( args[ i ].Get< double >() ) );
+				else
+				{
+					value = VariantToString( args[ i ] );
+					if ( value.size() > 1 && value[ 0 ] == '#' )
+						value = Translate( value.substr( 1 ) );
+				}
+				const std::string mark = "%" + std::to_string( i );
+				for ( size_t at = text.find( mark ); at != std::string::npos; at = text.find( mark, at + value.size() ) )
+					text.replace( at, mark.size(), value );
 			}
-			const std::string mark = "%" + std::to_string( i );
-			for ( size_t at = text.find( mark ); at != std::string::npos; at = text.find( mark, at + value.size() ) )
-				text.replace( at, mark.size(), value );
-		}
-		return Rml::Variant( text );
-	} );
-	// {{ queue.seconds | clock }} -> 1:05
-	constructor.RegisterTransformFunc( "clock", []( const Rml::VariantList &args ) -> Rml::Variant {
-		const int seconds = args.empty() ? 0 : std::max( 0, args[ 0 ].Get< int >() );
-		char buf[ 32 ];
-		if ( seconds >= 3600 )
-			snprintf( buf, sizeof( buf ), "%d:%02d:%02d", seconds / 3600, ( seconds / 60 ) % 60, seconds % 60 );
-		else
-			snprintf( buf, sizeof( buf ), "%d:%02d", seconds / 60, seconds % 60 );
-		return Rml::Variant( Rml::String( buf ) );
-	} );
-	// {{ player.xp | thousands }} -> 12 450
-	constructor.RegisterTransformFunc( "thousands", []( const Rml::VariantList &args ) -> Rml::Variant {
-		return Rml::Variant( FormatThousands( args.empty() ? 0 : (long long)args[ 0 ].Get< double >() ) );
-	} );
-	// {{ quests.daily_left | duration }} -> 7 h 12 m / 12 m / 45 s
-	constructor.RegisterTransformFunc( "duration", [ this ]( const Rml::VariantList &args ) -> Rml::Variant {
-		const long long seconds = args.empty() ? 0 : std::max< long long >( 0, (long long)args[ 0 ].Get< double >() );
-		char buf[ 64 ];
-		if ( seconds >= 86400 )
-			snprintf( buf, sizeof( buf ), "%lld %s %lld %s", seconds / 86400, Translate( "fui_unit_d" ).c_str(), ( seconds / 3600 ) % 24, Translate( "fui_unit_h" ).c_str() );
-		else if ( seconds >= 3600 )
-			snprintf( buf, sizeof( buf ), "%lld %s %lld %s", seconds / 3600, Translate( "fui_unit_h" ).c_str(), ( seconds / 60 ) % 60, Translate( "fui_unit_m" ).c_str() );
-		else
-			snprintf( buf, sizeof( buf ), "%lld %s", std::max< long long >( 1, seconds / 60 ), Translate( "fui_unit_m" ).c_str() );
-		return Rml::Variant( Rml::String( buf ) );
-	} );
-	// {{ 0.42 | percent }} -> 42%
-	constructor.RegisterTransformFunc( "percent", []( const Rml::VariantList &args ) -> Rml::Variant {
-		const double f = args.empty() ? 0.0 : args[ 0 ].Get< double >();
-		return Rml::Variant( std::to_string( (int)std::lround( f * 100.0 ) ) + "%" );
-	} );
-	// {{ rating.delta | signed }} -> +12
-	constructor.RegisterTransformFunc( "signed", []( const Rml::VariantList &args ) -> Rml::Variant {
-		const int n = args.empty() ? 0 : (int)std::lround( args[ 0 ].Get< double >() );
-		return Rml::Variant( ( n > 0 ? "+" : "" ) + std::to_string( n ) );
-	} );
+			return Rml::Variant( text );
+		} );
+		// {{ queue.seconds | clock }} -> 1:05
+		constructor.RegisterTransformFunc( "clock", []( const Rml::VariantList &args ) -> Rml::Variant {
+			const int seconds = args.empty() ? 0 : std::max( 0, args[ 0 ].Get< int >() );
+			char buf[ 32 ];
+			if ( seconds >= 3600 )
+				snprintf( buf, sizeof( buf ), "%d:%02d:%02d", seconds / 3600, ( seconds / 60 ) % 60, seconds % 60 );
+			else
+				snprintf( buf, sizeof( buf ), "%d:%02d", seconds / 60, seconds % 60 );
+			return Rml::Variant( Rml::String( buf ) );
+		} );
+		// {{ player.xp | thousands }} -> 12 450
+		constructor.RegisterTransformFunc( "thousands", []( const Rml::VariantList &args ) -> Rml::Variant {
+			return Rml::Variant( FormatThousands( args.empty() ? 0 : (long long)args[ 0 ].Get< double >() ) );
+		} );
+		// {{ quests.daily_left | duration }} -> 7 h 12 m / 12 m / 45 s
+		constructor.RegisterTransformFunc( "duration", [ this ]( const Rml::VariantList &args ) -> Rml::Variant {
+			const long long seconds = args.empty() ? 0 : std::max< long long >( 0, (long long)args[ 0 ].Get< double >() );
+			char buf[ 64 ];
+			if ( seconds >= 86400 )
+				snprintf( buf, sizeof( buf ), "%lld %s %lld %s", seconds / 86400, Translate( "fui_unit_d" ).c_str(), ( seconds / 3600 ) % 24, Translate( "fui_unit_h" ).c_str() );
+			else if ( seconds >= 3600 )
+				snprintf( buf, sizeof( buf ), "%lld %s %lld %s", seconds / 3600, Translate( "fui_unit_h" ).c_str(), ( seconds / 60 ) % 60, Translate( "fui_unit_m" ).c_str() );
+			else
+				snprintf( buf, sizeof( buf ), "%lld %s", std::max< long long >( 1, seconds / 60 ), Translate( "fui_unit_m" ).c_str() );
+			return Rml::Variant( Rml::String( buf ) );
+		} );
+		// {{ 0.42 | percent }} -> 42%
+		constructor.RegisterTransformFunc( "percent", []( const Rml::VariantList &args ) -> Rml::Variant {
+			const double f = args.empty() ? 0.0 : args[ 0 ].Get< double >();
+			return Rml::Variant( std::to_string( (int)std::lround( f * 100.0 ) ) + "%" );
+		} );
+		// {{ rating.delta | signed }} -> +12
+		constructor.RegisterTransformFunc( "signed", []( const Rml::VariantList &args ) -> Rml::Variant {
+			const int n = args.empty() ? 0 : (int)std::lround( args[ 0 ].Get< double >() );
+			return Rml::Variant( ( n > 0 ? "+" : "" ) + std::to_string( n ) );
+		} );
+		m_pImpl->transformsRegistered = true;
+	}
 
 	m_pImpl->model = constructor.GetModelHandle();
 }

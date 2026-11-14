@@ -1122,10 +1122,11 @@ CStudioHdr *C_BaseAnimating::OnNewModel()
 
 	Assert( hdr->GetNumPoseParameters() <= ARRAYSIZE( m_flPoseParameter ) );
 
-	m_iv_flPoseParameter.SetMaxCount( hdr->GetNumPoseParameters() );
+	const int nPoseParameters = MIN( hdr->GetNumPoseParameters(), ARRAYSIZE( m_flPoseParameter ) );
+	m_iv_flPoseParameter.SetMaxCount( nPoseParameters );
 	
 	int i;
-	for ( i = 0; i < hdr->GetNumPoseParameters() ; i++ )
+	for ( i = 0; i < nPoseParameters ; i++ )
 	{
 		const mstudioposeparamdesc_t &Pose = hdr->pPoseParameter( i );
 		m_iv_flPoseParameter.SetLooping( Pose.loop != 0.0f, i );
@@ -1389,7 +1390,7 @@ float C_BaseAnimating::GetPoseParameter( int iPoseParameter )
 	if ( pStudioHdr == NULL )
 		return 0.0f;
 
-	if ( pStudioHdr->GetNumPoseParameters() < iPoseParameter )
+	if ( iPoseParameter >= pStudioHdr->GetNumPoseParameters() || iPoseParameter >= ARRAYSIZE( m_flPoseParameter ) )
 		return 0.0f;
 
 	if ( iPoseParameter < 0 )
@@ -1406,7 +1407,7 @@ void C_BaseAnimating::GetPoseParameters( CStudioHdr *pStudioHdr, float poseParam
 
 	// interpolate pose parameters
 	int i;
-	for( i=0; i < pStudioHdr->GetNumPoseParameters(); i++)
+	for( i=0; i < MIN( pStudioHdr->GetNumPoseParameters(), ARRAYSIZE( m_flPoseParameter ) ); i++)
 	{
 		poseParameter[i] = m_flPoseParameter[i];
 	}
@@ -5909,7 +5910,7 @@ float C_BaseAnimating::SetPoseParameter( CStudioHdr *pStudioHdr, int iParameter,
 		return flValue;
 	}
 
-	if (iParameter >= 0)
+	if ( iParameter >= 0 && iParameter < ARRAYSIZE( m_flPoseParameter ) && iParameter < pStudioHdr->GetNumPoseParameters() )
 	{
 		float flNewValue;
 		flValue = Studio_SetPoseParameter( pStudioHdr, iParameter, flValue, flNewValue );

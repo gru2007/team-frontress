@@ -249,6 +249,9 @@ protected:
 		bool				m_bIsUpdateToDate;
 		bool				m_bDataCached; // kind of a hack for cosmetics in TF
 		uint64				m_iDataIdCached;
+		MDLHandle_t			m_hCachedMDL;
+		uint32				m_unCachedMDLSerial;
+		int					m_iCachedTeam;
 		CUtlVector< int >	m_vecCachedAttachments;
 		int					m_iCachedBone;
 		Vector				m_vecCachedOffset;

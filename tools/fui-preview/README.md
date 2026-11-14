@@ -56,3 +56,15 @@ frames, and some engines ignore it); `fui_cmd <name> [args]` runs any UI
 command and `fui_dev_cam <n>` puts a spectator camera over the middle point.
 `cfg/fui_dev_steam_fight.cfg`, `fui_dev_steam_menu.cfg` and `fui_dev_steam_war.cfg` are the ones that made
 `docs/steam/`.
+
+## Reliability checks
+
+`--verify-ui --shot /tmp/fui-check.png` runs chat wheel/follow checks, detached
+and removed data-for views, commands which reload/navigate from event handlers,
+and repeated screen/model transitions. It returns a nonzero status on failure.
+
+`--verify-exit --shot /tmp/fui-exit.png` calls `exit()` with a live runtime to
+exercise cleanup before RmlUi's global destructors. Combine it with `--verify-ui`
+to test that exit after the structural-view stress pass and Shutdown/Init.
+The suite also rejects a competing runtime before it can replace global RmlUi interfaces. Run these under
+AddressSanitizer/UndefinedBehaviorSanitizer for lifetime and bounds diagnostics.

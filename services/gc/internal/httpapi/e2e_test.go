@@ -22,6 +22,7 @@ import (
 	"github.com/gru2007/team-frontress/services/gc/internal/gcpb"
 	"github.com/gru2007/team-frontress/services/gc/internal/history"
 	"github.com/gru2007/team-frontress/services/gc/internal/httpapi"
+	"github.com/gru2007/team-frontress/services/gc/internal/session"
 	"github.com/gru2007/team-frontress/services/gc/internal/socache"
 	"github.com/gru2007/team-frontress/services/gc/internal/state"
 	"github.com/gru2007/team-frontress/services/gc/internal/steamauth"
@@ -661,4 +662,133 @@ func TestSetupTimesOutAndRequeues(t *testing.T) {
 	a.until("being queued again or rematched", func() bool {
 		return len(a.party().GetMatchmakingQueues()) == 1 || (a.lobby() != nil && a.lobby().GetLobbyId() != first)
 	})
+}
+
+func TestSendRejectsGapWithoutLosingRetry(t *testing.T) {
+	_, base, stop := startGC(t, nil)
+	defer stop()
+	p := newPeer(t, base, alice)
+	p.client()
+	data, err := wire.Encode(msg(gcpb.ETFGCMsg_k_EMsgGCParty_QueueForMatch), &gcpb.CMsgPartyQueueForMatch{
+		MatchGroup: gcpb.ETFMatchGroup_k_eTFMatchGroup_Casual_12v12.Enum(),
+	}, wire.NoJob)
+	if err != nil {
+		t.Fatal(err)
+	}
+	post := func(seqs []uint64, want int) {
+		t.Helper()
+		var batch []byte
+		for _, seq := range seqs {
+			batch = wire.AppendFrame(batch, wire.Frame{Seq: seq, Data: data})
+		}
+		req, _ := http.NewRequest("POST", base+"/gc/v1/send", bytes.NewReader(batch))
+		req.Header.Set("X-GC-Session", p.session)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != want {
+			t.Fatalf("batch %v: HTTP %d, want %d", seqs, resp.StatusCode, want)
+		}
+	}
+	post([]uint64{1, 3}, http.StatusBadRequest)
+	post([]uint64{2}, http.StatusBadRequest) // frame 1 was not partially committed
+	post([]uint64{1, 2, 3}, http.StatusNoContent)
+	post([]uint64{1, 2, 3}, http.StatusNoContent)
+	post([]uint64{4}, http.StatusNoContent)
+}
+
+func TestRecvDrainsLargeBacklogInBoundedBatches(t *testing.T) {
+	g, base, stop := startGC(t, nil)
+	defer stop()
+	p := newPeer(t, base, alice)
+	// Isolate the transport from periodic party/cache publications.
+	s := g.Sessions().Open(session.Client, alice, nil)
+	p.session = s.ID
+	for i := 0; i < 9; i++ {
+		if !s.Push(1, bytes.Repeat([]byte{byte(i)}, wire.MaxMessage)) {
+			t.Fatal("push failed")
+		}
+	}
+	var last uint64
+	polls := 0
+	for received := 0; received < 9; polls++ {
+		req, _ := http.NewRequest("GET", base+"/gc/v1/recv?ack="+strconv.FormatUint(last, 10), nil)
+		req.Header.Set("X-GC-Session", p.session)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil || resp.StatusCode != http.StatusOK {
+			t.Fatalf("recv: %v HTTP %d", err, resp.StatusCode)
+		}
+		if len(body) > 4<<20 {
+			t.Fatalf("unbounded batch: %d bytes", len(body))
+		}
+		frames, err := wire.ParseBatch(body)
+		if err != nil || len(frames) == 0 {
+			t.Fatalf("empty/bad backlog batch: %v", err)
+		}
+		for _, f := range frames {
+			if f.Seq != last+1 || len(f.Data) != wire.MaxMessage || f.Data[0] != byte(received) {
+				t.Fatal("backlog lost or reordered")
+			}
+			last = f.Seq
+			received++
+		}
+	}
+	if polls != 3 {
+		t.Fatalf("backlog drained in %d polls, want 3", polls)
+	}
+}
+
+func TestConcurrentBatchRetriesPreserveCommandOrder(t *testing.T) {
+	_, base, stop := startGC(t, nil)
+	defer stop()
+	p := newPeer(t, base, alice)
+	p.client()
+	p.until("initial party", func() bool { return p.party() != nil })
+	group := gcpb.ETFMatchGroup_k_eTFMatchGroup_Casual_12v12
+	queue, err := wire.Encode(msg(gcpb.ETFGCMsg_k_EMsgGCParty_QueueForMatch), &gcpb.CMsgPartyQueueForMatch{MatchGroup: &group}, wire.NoJob)
+	if err != nil {
+		t.Fatal(err)
+	}
+	remove, err := wire.Encode(msg(gcpb.ETFGCMsg_k_EMsgGCParty_RemoveFromQueue), &gcpb.CMsgPartyRemoveFromQueue{MatchGroup: &group}, wire.NoJob)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	for _, count := range []int{16, 64, 32, 64, 48, 64} {
+		var batch []byte
+		for seq := 1; seq <= count; seq++ {
+			data := queue
+			if seq%2 == 0 {
+				data = remove
+			}
+			batch = wire.AppendFrame(batch, wire.Frame{Seq: uint64(seq), Data: data})
+		}
+		wg.Add(1)
+		go func(batch []byte) {
+			defer wg.Done()
+			req, _ := http.NewRequest("POST", base+"/gc/v1/send", bytes.NewReader(batch))
+			req.Header.Set("X-GC-Session", p.session)
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusNoContent {
+				t.Errorf("retry returned HTTP %d", resp.StatusCode)
+			}
+		}(batch)
+	}
+	wg.Wait()
+	p.pump(100 * time.Millisecond)
+	if len(p.party().GetMatchmakingQueues()) != 0 {
+		t.Fatal("retries reordered queue/remove commands")
+	}
 }

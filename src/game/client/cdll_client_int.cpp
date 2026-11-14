@@ -63,6 +63,9 @@
 #include "tier0/icommandline.h"
 #include "gamerules_register.h"
 #include "vgui_controls/AnimationController.h"
+#ifdef TF_CLIENT_DLL
+#include "tf/frontress/fui_host.h"
+#endif
 #include "bitmap/tgawriter.h"
 #include "c_world.h"
 #include "perfvisualbenchmark.h"	
@@ -1357,6 +1360,10 @@ void CHLClient::PostInit()
 //-----------------------------------------------------------------------------
 void CHLClient::Shutdown( void )
 {
+#ifdef TF_CLIENT_DLL
+	// RmlUi callbacks and textures still need the client/VGUI/material systems.
+	FrontressUIShutdown();
+#endif
     if (g_pAchievementsAndStatsInterface)
     {
         g_pAchievementsAndStatsInterface->ReleasePanel();

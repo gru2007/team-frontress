@@ -62,3 +62,20 @@ func TestSweepExpiresSilentPeers(t *testing.T) {
 		t.Fatal("silent session survived")
 	}
 }
+
+func TestAcceptRejectsGapsAtomically(t *testing.T) {
+	for _, seqs := range [][]uint64{{2}, {1, 3}, {1, 3, 2}, {1, 2, 4}} {
+		s := NewManager(time.Minute, nil).Open(Client, 1, nil)
+		var batch []wire.Frame
+		for _, seq := range seqs {
+			batch = append(batch, wire.Frame{Seq: seq})
+		}
+		if fresh, err := s.Accept(batch, time.Now()); err != ErrSequence || len(fresh) != 0 {
+			t.Fatalf("gap %v was accepted: %v, %v", seqs, fresh, err)
+		}
+		fresh, err := s.Accept([]wire.Frame{{Seq: 1}, {Seq: 2}, {Seq: 3}}, time.Now())
+		if err != nil || len(fresh) != 3 {
+			t.Fatalf("retry lost frames: %v, %v", fresh, err)
+		}
+	}
+}

@@ -58,6 +58,7 @@ if [ -z "${FRONTRESS_EOS_SERVER_CLIENT_ID:-}" ] || [ -z "${FRONTRESS_EOS_SERVER_
 fi
 
 ./tc2.sh -console -dedicated -nosteamclient -gatherdedi "${VAC_DEFAULT[@]}" "${STEAM_ACCOUNT[@]}" "$@" "${PURE_DEFAULT[@]}"
+server_exit_status=$?
 
 mv tc2/gameinfo_client.txt tc2/gameinfo.txt
 
@@ -69,3 +70,4 @@ if [ -t 0 ]; then
 fi
 
 popd > /dev/null
+exit "$server_exit_status"

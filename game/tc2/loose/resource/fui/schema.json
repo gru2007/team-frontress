@@ -43,7 +43,8 @@
 	"modes": [],
 	// The region picker (src/game/client/tf/frontress/fui_servers.cpp): pick is
 	// tf_mm_region ("auto" or a region id); list { id, name, ms (best ping to a
-	// server there, -1 if none), ok (reached within max_ms), measured, on }.
+	// server there, even above max_ms; -1 if unknown), ok (reached within
+	// max_ms), measured, on }.
 	// none_ok: every server was measured and none answers within max_ms.
 	"region": { "pick": "auto", "max_ms": 200, "list": [], "none_ok": false },
 	// No server suits the party within the ping limit, so it searches on the
