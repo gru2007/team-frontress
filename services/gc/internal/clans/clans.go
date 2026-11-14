@@ -267,24 +267,25 @@ var (
 )
 
 type event struct {
-	Type   string    `json:"t"`
-	At     time.Time `json:"at"`
-	Clan   string    `json:"clan"`
-	By     uint64    `json:"by,string,omitempty"`
-	Who    uint64    `json:"who,string,omitempty"`
-	Name   string    `json:"name,omitempty"`
-	Tag    string    `json:"tag,omitempty"`
-	Motto  string    `json:"motto,omitempty"`
-	Emblem string    `json:"emblem,omitempty"`
-	Color  string    `json:"color,omitempty"`
-	Open   *bool     `json:"open,omitempty"`
-	Role   Role      `json:"role,omitempty"`
-	Order  *string   `json:"order,omitempty"`
-	XP     int       `json:"xp,omitempty"`
-	Sector string    `json:"sector,omitempty"`
-	Won    bool      `json:"won,omitempty"`
-	War    bool      `json:"war,omitempty"`
-	With   bool      `json:"with,omitempty"` // played beside a clanmate
+	Moderation *ModerationAction `json:"moderation,omitempty"`
+	Type       string            `json:"t"`
+	At         time.Time         `json:"at"`
+	Clan       string            `json:"clan"`
+	By         uint64            `json:"by,string,omitempty"`
+	Who        uint64            `json:"who,string,omitempty"`
+	Name       string            `json:"name,omitempty"`
+	Tag        string            `json:"tag,omitempty"`
+	Motto      string            `json:"motto,omitempty"`
+	Emblem     string            `json:"emblem,omitempty"`
+	Color      string            `json:"color,omitempty"`
+	Open       *bool             `json:"open,omitempty"`
+	Role       Role              `json:"role,omitempty"`
+	Order      *string           `json:"order,omitempty"`
+	XP         int               `json:"xp,omitempty"`
+	Sector     string            `json:"sector,omitempty"`
+	Won        bool              `json:"won,omitempty"`
+	War        bool              `json:"war,omitempty"`
+	With       bool              `json:"with,omitempty"` // played beside a clanmate
 	// Founder is the founder's name, on a create.
 	Founder string `json:"founder,omitempty"`
 }
@@ -305,28 +306,60 @@ const (
 
 // Store is every clan.
 type Store struct {
-	mu    sync.Mutex
-	clans map[string]*Clan
-	of    map[uint64]string // member -> clan
-	f     *os.File
-	now   func() time.Time
+	mu           sync.Mutex
+	clans        map[string]*Clan
+	of           map[uint64]string // member -> clan
+	f            *os.File
+	now          func() time.Time
+	moderation   []ModerationAction
+	creationBans map[uint64]ModerationAction
+	bannedClans  map[string]ModerationAction
 }
 
 // Open opens a store. An empty path keeps everything in memory.
 func Open(path string) (*Store, error) {
-	s := &Store{clans: map[string]*Clan{}, of: map[uint64]string{}, now: time.Now}
+	s := &Store{clans: map[string]*Clan{}, of: map[uint64]string{}, now: time.Now,
+		creationBans: map[uint64]ModerationAction{}, bannedClans: map[string]ModerationAction{}}
 	if path == "" {
 		return s, nil
 	}
 	if err := s.replay(path); err != nil {
 		return nil, err
 	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0o600)
 	if err != nil {
+		return nil, fmt.Errorf("clans: %w", err)
+	}
+	if err := f.Chmod(0o600); err != nil {
+		f.Close()
+		return nil, fmt.Errorf("clans: %w", err)
+	}
+	// A crash can leave an incomplete last line. Keep it separated from
+	// the next event so an acknowledged moderation action remains replayable.
+	if err := separateTail(f); err != nil {
+		f.Close()
 		return nil, fmt.Errorf("clans: %w", err)
 	}
 	s.f = f
 	return s, nil
+}
+
+func separateTail(f *os.File) error {
+	info, err := f.Stat()
+	if err != nil || info.Size() == 0 {
+		return err
+	}
+	var tail [1]byte
+	if _, err := f.ReadAt(tail[:], info.Size()-1); err != nil {
+		return err
+	}
+	if tail[0] != '\n' {
+		if _, err := f.Write([]byte{'\n'}); err != nil {
+			return err
+		}
+		return f.Sync()
+	}
+	return nil
 }
 
 // UseClock replaces the clock. Tests only.
@@ -393,6 +426,10 @@ func (s *Store) write(ev event) {
 // apply folds one event into the state. It trusts the event: the methods
 // below check everything before they write one.
 func (s *Store) apply(ev event) {
+	if ev.Moderation != nil {
+		s.applyModeration(*ev.Moderation)
+		return
+	}
 	c := s.clans[ev.Clan]
 	if c == nil && ev.Type != evCreate {
 		return
@@ -709,6 +746,14 @@ func (s *Store) Create(founder uint64, founderName string, set Settings) (*Clan,
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if _, banned := s.creationBans[founder]; banned {
+		return nil, ErrCreationBanned
+	}
+	for _, ban := range s.bannedClans {
+		if strings.EqualFold(ban.Name, name) || strings.EqualFold(ban.Tag, tag) {
+			return nil, ErrIdentityBanned
+		}
+	}
 	if s.of[founder] != "" {
 		return nil, ErrInClan
 	}
@@ -718,7 +763,7 @@ func (s *Store) Create(founder uint64, founderName string, set Settings) (*Clan,
 		}
 	}
 	id := newID()
-	for s.clans[id] != nil {
+	for s.clans[id] != nil || s.bannedClans[id].Clan != "" {
 		id = newID()
 	}
 	open := set.Open

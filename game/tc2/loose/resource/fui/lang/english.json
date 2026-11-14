@@ -453,6 +453,8 @@
 	"fui_err_no_channel": "That channel isn't available right now.",
 	"fui_err_no_clans": "Clans aren't available right now.",
 	"fui_err_already_in_clan": "You're already in a clan.",
+	"fui_err_clan_creation_banned": "A moderator has restricted you from creating clans.",
+	"fui_err_clan_identity_banned": "This clan name or tag has been banned by a moderator.",
 	"fui_err_not_in_clan": "You're not in a clan.",
 	"fui_err_no_such_clan": "That clan is gone.",
 	"fui_err_bad_name": "Name: 3 to 24 letters and digits.",

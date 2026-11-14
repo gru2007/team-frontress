@@ -153,7 +153,7 @@ func (g *GC) sendClan(id uint64) {
 	if g.clans == nil || !g.isOnline(id) {
 		return
 	}
-	doc := map[string]any{"clan": nil}
+	doc := map[string]any{"clan": nil, "creation_banned": g.clans.CreationBanned(id)}
 	if c := g.clans.Of(id); c != nil {
 		doc["clan"] = g.clanDoc(c, id)
 	}

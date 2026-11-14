@@ -161,6 +161,16 @@ func (g *GC) hello(id uint64, op socialOp) {
 	if op.Lang != "" && len(op.Lang) <= 12 {
 		p.Lang = op.Lang
 	}
+	g.sendChatHistory(id)
+	g.sendPresence(id)
+	g.sendClan(id)
+	g.sendSupportSummary(id)
+	g.sendFaction(id)
+	g.sendReportFeedback(id)
+	g.sendQuests(id)
+}
+
+func (g *GC) sendChatHistory(id uint64) {
 	var lines []ChatLine
 	lines = append(lines, g.chat["global"]...)
 	if c := g.clanKey(id); c != "" {
@@ -171,12 +181,6 @@ func (g *GC) hello(id uint64, op socialOp) {
 	}
 	sort.Slice(lines, func(i, j int) bool { return lines[i].ID < lines[j].ID })
 	g.emit(id, "chat", map[string]any{"reset": true, "lines": append([]ChatLine{}, lines...)})
-	g.sendPresence(id)
-	g.sendClan(id)
-	g.sendSupportSummary(id)
-	g.sendFaction(id)
-	g.sendReportFeedback(id)
-	g.sendQuests(id)
 }
 
 // --- chat --------------------------------------------------------------------

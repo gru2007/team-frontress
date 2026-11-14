@@ -453,6 +453,8 @@
 	"fui_err_no_channel": "Этот канал сейчас недоступен.",
 	"fui_err_no_clans": "Кланы сейчас недоступны.",
 	"fui_err_already_in_clan": "Вы уже в клане.",
+	"fui_err_clan_creation_banned": "Модератор запретил вам создавать кланы.",
+	"fui_err_clan_identity_banned": "Это название или тег клана заблокированы модератором.",
 	"fui_err_not_in_clan": "Вы не в клане.",
 	"fui_err_no_such_clan": "Такого клана больше нет.",
 	"fui_err_bad_name": "Название: от 3 до 24 букв и цифр.",

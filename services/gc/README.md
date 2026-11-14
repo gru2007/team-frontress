@@ -214,6 +214,9 @@ nothing of its own: it reads the public API and, with `admin_key`
 | `POST /admin/v1/matches/{match_id}/end` | `{"reason": "..."}`: ends a running match the way a missed deadline does; the archive records the reason, parties are not requeued |
 | `GET/POST /admin/v1/anticheat[/{steamid}]` | matchmaking bans, lifting them, Steam game bans |
 | `GET/POST /admin/v1/reports[/{steamid}]` | the report queue and its cases |
+| `GET /admin/v1/clans` | active clans with rosters, banned identities, clan creation restrictions, recent decisions and muted players (private) |
+| `POST /admin/v1/clans/{clan_id}` | `{"action":"ban"\|"delete"\|"unban","reason":"...","restrict_members":false}`; ban deletes and reserves the name/tag; delete removes without reserving; optionally forbid every current member from creating clans |
+| `POST /admin/v1/players/{steamid}/moderation` | `{"action":"restrict_creation"\|"allow_creation"\|"mute"\|"unmute"\|"clear_chat","reason":"..."}`; restrictions last until lifted; clear_chat removes retained menu messages |
 | `GET /admin/v1/payments`, `POST /admin/v1/payments/operations` | donations, Steam transactions, refunds and cancellations |
 
 | `GET/PUT /admin/v1/settings` | the configuration the panel manages; `{"revision": N, "note": "...", "sections": {...}}` replaces whole sections, validates the result and applies it at once (409 when somebody saved since revision N) |
@@ -285,6 +288,37 @@ then 16, scored against the other team's average) and its rule that every
 match ends on its own deadlines.
 
 ## Player reports and group controls
+
+### Clans and menu chat
+
+The portal's **Clans and users** moderation page lists clans with their current
+rosters and provides player restrictions, chat mutes, removal of retained menu
+messages, and links to existing matchmaking/Steam bans. All mutations require
+the admin key, an authenticated actor SteamID and a reason. No action issues a
+Steam game ban implicitly.
+
+Deleting a clan removes its membership, invitations, progress, banner and chat
+channel and refreshes connected clients. Its tag and system announcements are
+also removed from retained menu chat. A **ban and delete** additionally reserves
+the name and tag (case insensitive). The optional member restriction applies to
+the roster at the moment of deletion, including offline members; invitees are
+excluded. Restricted players can join other clans. Individual restrictions can
+also be set and lifted without deleting a clan.
+
+Clan deletions, reserved identities, member restrictions and appeals are atomic
+events in `clans.jsonl` (0600), committed before success is returned. Back up this
+file along with the other GC data. The private audit retains the original name,
+tag, motto, roster, actor, timestamp and reason; the API returns the latest 200
+decisions. With no clan storage path, restrictions are in memory and the portal
+shows a warning. Unbanning a clan only releases its identity: it neither restores
+the deleted clan nor lifts individual player restrictions.
+
+Mutes use the existing persistent chat settings and settings history. Chat
+removal resets online clients and records the actor and reason in the journal;
+private evidence in the journal remains intact. These controls apply to GC menu
+chat (global, clan and party). Mutations take effect immediately.
+
+### Player reports
 
 The pause menu offers player reports with the four native reasons. The GC
 accepts `CMsgGC_ReportPlayer` and sends confirmation after saving the report.
