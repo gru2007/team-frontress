@@ -162,9 +162,6 @@
 				<div class="set-tile" sfx="" data-event-click="cmd('hud_style', 'minimal')">
 					<div class="set-title">#fui_set_classic_hud</div><div class="dim tiny">#fui_set_classic_hud_d</div>
 				</div>
-				<div class="set-tile" sfx="" data-event-click="cmd('classic_menu')">
-					<div class="set-title">#fui_set_classic_menu</div><div class="dim tiny">#fui_set_classic_menu_d</div>
-				</div>
 
 				<div class="set-tile" sfx="" data-event-click="cmd('classic', 'options')">
 					<div class="set-title">#fui_set_options</div><div class="dim tiny">#fui_set_options_d</div>
@@ -190,11 +187,11 @@
 				<div class="set-tile" sfx="" data-event-click="cmd('open_site', 'profile')">
 					<div class="set-title">#fui_site</div><div class="dim tiny">#fui_site_d</div>
 				</div>
+				<div class="set-tile" sfx="" data-event-click="cmd('toggle_menu_3d')">
+					<div class="set-title">#fui_set_menu_3d</div>
+					<div class="dim tiny">{{ (settings.menu_3d ? 'fui_menu_3d_on' : 'fui_menu_3d_off') | t }}</div>
+				</div>
 
-			</div>
-			<div class="set-tile" sfx="" data-event-click="cmd('toggle_menu_3d')">
-				<div class="set-title">#fui_set_menu_3d</div>
-				<div class="dim tiny">{{ (settings.menu_3d ? 'fui_menu_3d_on' : 'fui_menu_3d_off') | t }}</div>
 			</div>
 			<div class="panel-title hud-title">#fui_set_hud <span class="sub">#fui_set_hud_d</span></div>
 			<div class="row hud-styles">
