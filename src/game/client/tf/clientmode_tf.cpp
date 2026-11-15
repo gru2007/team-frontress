@@ -585,6 +585,7 @@ void ClientModeTFNormal::Init()
 	engine->SetRestrictServerCommands( true );
 
 	BaseClass::Init();
+	g_pVGuiLocalize->AddFile( "resource/frontress_ui_%language%.txt", "GAME", true );
 
 	m_bPendingRichPresenceUpdate = true;
 

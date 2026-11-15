@@ -20,7 +20,7 @@
 	"fui_war_choose_hint": "Choose a faction. You can change it only in the next campaign.",
 	"fui_war_choose_red": "Enlist with RED",
 	"fui_war_choose_blu": "Enlist with BLU",
-	"fui_war_faction_locked": "Your faction for this campaign:",
+	"fui_war_faction_locked": "Your side — change it here between matches:",
 	"fui_war_campaign_winner": "Campaign winner:",
 	"fui_war_next_campaign": "The next campaign begins 24 hours after victory",
 	"fui_tab_home": "Home",
@@ -92,7 +92,7 @@
 	"fui_region_auto": "Auto",
 	"fui_ms": "ms",
 	"fui_region_unreachable": "no answer",
-	"fui_region_hint": "Your game pings our servers: you are only matched on a server it reaches. Auto picks the region you ping best.",
+	"fui_region_hint": "Choose a region to keep searching there. Auto can expand the search after waiting.",
 	"fui_region_none_ok": "None of our servers answers your game within %1 ms. A search will still find a match, on the best server there is; expect a high ping. A closer region or a VPN may help.",
 	"fui_reach_title": "Playing on the best server there is",
 	"fui_reach_self": "No server answers you within %1 ms.",
@@ -882,5 +882,14 @@
 	"fui_mapvote_title": "Next map",
 	"fui_mapvote_chosen": "Next map chosen",
 	"fui_mapvote_pick": "Click a map",
-	"fui_mapvote_voted": "Your vote is in"
+	"fui_mapvote_voted": "Your vote is in",
+	"fui_set_fov": "Field of view",
+	"fui_set_classic_hud": "Use the classic TF2 HUD",
+	"fui_set_classic_hud_d": "Keep the original HUD, chat and class meters.",
+	"fui_on": "On",
+	"fui_off": "Off",
+	"fui_set_classic_menu": "Classic interface",
+	"fui_set_classic_menu_d": "Return to Frontress from Advanced options → Frontress interface.",
+	"fui_loadout_saved": "Loadout saved",
+	"fui_loadout_when": "Applies at resupply or your next spawn. In Arena: next round."
 }

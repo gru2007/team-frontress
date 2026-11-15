@@ -61,8 +61,8 @@
 		<div id="campaign" class="glass">
 			<div class="dim tiny upper">#fui_war_title · #fui_war_day {{ war.day }}<span data-if="war.days > 0"> #fui_war_of {{ war.days }}</span></div>
 			<h1 class="shadow">{{ war.name }}</h1>
-			<p class="small" data-if="war.winner == '' && player.war_side == ''">#fui_war_choose_hint</p>
-			<div class="row faction-actions" data-if="war.winner == '' && player.war_side == ''">
+			<p class="small" data-if="war.winner == ''">#fui_war_choose_hint</p>
+			<div class="row faction-actions" data-if="war.winner == ''">
 				<div class="button red grow" sfx="" data-event-click="cmd('war_side', 'red')">#fui_war_choose_red</div>
 				<div class="button blu grow" sfx="" data-event-click="cmd('war_side', 'blu')">#fui_war_choose_blu</div>
 			</div>

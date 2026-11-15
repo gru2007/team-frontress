@@ -1,0 +1,182 @@
+[
+  {
+    "map": "arena_lumberyard",
+    "bytes": 1081178,
+    "areas": 1133,
+    "bsp_bytes": 22953100,
+    "teams": {
+      "2": {
+        "spawn_areas": 1,
+        "reachable_areas": 1064,
+        "objective_reachable": true
+      },
+      "3": {
+        "spawn_areas": 1,
+        "reachable_areas": 1064,
+        "objective_reachable": true
+      }
+    }
+  },
+  {
+    "map": "arena_ravine",
+    "bytes": 837814,
+    "areas": 978,
+    "bsp_bytes": 24793072,
+    "teams": {
+      "2": {
+        "spawn_areas": 3,
+        "reachable_areas": 965,
+        "objective_reachable": true
+      },
+      "3": {
+        "spawn_areas": 1,
+        "reachable_areas": 965,
+        "objective_reachable": true
+      }
+    }
+  },
+  {
+    "map": "arena_badlands",
+    "bytes": 1533694,
+    "areas": 1335,
+    "bsp_bytes": 42140260,
+    "teams": {
+      "2": {
+        "spawn_areas": 2,
+        "reachable_areas": 1328,
+        "objective_reachable": true
+      },
+      "3": {
+        "spawn_areas": 2,
+        "reachable_areas": 1328,
+        "objective_reachable": true
+      }
+    }
+  },
+  {
+    "map": "arena_granary",
+    "bytes": 145439,
+    "areas": 421,
+    "bsp_bytes": 27281556,
+    "teams": {
+      "2": {
+        "spawn_areas": 1,
+        "reachable_areas": 415,
+        "objective_reachable": true
+      },
+      "3": {
+        "spawn_areas": 3,
+        "reachable_areas": 415,
+        "objective_reachable": true
+      }
+    }
+  },
+  {
+    "map": "arena_well",
+    "bytes": 504245,
+    "areas": 737,
+    "bsp_bytes": 18921132,
+    "teams": {
+      "2": {
+        "spawn_areas": 2,
+        "reachable_areas": 736,
+        "objective_reachable": true
+      },
+      "3": {
+        "spawn_areas": 1,
+        "reachable_areas": 736,
+        "objective_reachable": true
+      }
+    }
+  },
+  {
+    "map": "arena_watchtower",
+    "bytes": 5607316,
+    "areas": 1855,
+    "bsp_bytes": 16738664,
+    "teams": {
+      "2": {
+        "spawn_areas": 7,
+        "reachable_areas": 1829,
+        "objective_reachable": true
+      },
+      "3": {
+        "spawn_areas": 7,
+        "reachable_areas": 1829,
+        "objective_reachable": true
+      }
+    }
+  },
+  {
+    "map": "arena_sawmill",
+    "bytes": 3620785,
+    "areas": 2269,
+    "bsp_bytes": 26684696,
+    "teams": {
+      "2": {
+        "spawn_areas": 3,
+        "reachable_areas": 2223,
+        "objective_reachable": true
+      },
+      "3": {
+        "spawn_areas": 3,
+        "reachable_areas": 2223,
+        "objective_reachable": true
+      }
+    }
+  },
+  {
+    "map": "arena_nucleus",
+    "bytes": 2104908,
+    "areas": 1620,
+    "bsp_bytes": 29487244,
+    "teams": {
+      "2": {
+        "spawn_areas": 1,
+        "reachable_areas": 1570,
+        "objective_reachable": true
+      },
+      "3": {
+        "spawn_areas": 1,
+        "reachable_areas": 1570,
+        "objective_reachable": true
+      }
+    }
+  },
+  {
+    "map": "arena_offblast_final",
+    "bytes": 386601,
+    "areas": 834,
+    "bsp_bytes": 36719028,
+    "teams": {
+      "2": {
+        "spawn_areas": 7,
+        "reachable_areas": 821,
+        "objective_reachable": true
+      },
+      "3": {
+        "spawn_areas": 7,
+        "reachable_areas": 821,
+        "objective_reachable": true
+      }
+    }
+  },
+  {
+    "map": "arena_byre",
+    "bytes": 219141,
+    "areas": 476,
+    "bsp_bytes": 16843394,
+    "teams": {
+      "2": {
+        "spawn_areas": 1,
+        "reachable_areas": 474,
+        "objective_reachable": true
+      },
+      "3": {
+        "spawn_areas": 1,
+        "reachable_areas": 474,
+        "objective_reachable": true
+      }
+    }
+  }
+]

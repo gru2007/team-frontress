@@ -1354,7 +1354,14 @@ void RichText::RecalculateLineBreaks()
 			wchAfter = m_TextStream[i+1];
 
 		float flabcA;
+	#if defined( OSX )
+		// The bundled Mac surface can fatally fail to kern a fallback glyph
+		// (for example a Cyrillic capture-point name). RichText's paint path
+		// already uses GetCharacterWidth; use the same safe metrics here.
+		w = surface()->GetCharacterWidth( font, ch );
+	#else
 		surface()->GetKernedCharWidth( font, ch, wchBefore, wchAfter, w, flabcA );
+	#endif
 		flLineWidthSoFar += w;
 	
 		// See if we've exceeded the width we have available, with 

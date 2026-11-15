@@ -435,33 +435,36 @@ bool CVoteController::SetupVote( int iEntIndex )
 	if( !pVoteCaller )
 		return false;
 
-	int nIssueCount = 0;
-
 	CVoteController *pVoteControllers[] =
 	{
 		g_voteControllerGlobal,
 		pVoteCaller->GetTeamVoteController(),
 	};
-
-	// Passing an nIssueCount of 0 triggers a "Voting disabled on server" message in the setup UI
+	CUtlVector< CBaseIssue * > issues;
+	int nMsgSize = 1; // the count byte is part of the message limit too
 	if ( IsVoteSystemEnabled() )
 	{
-		for ( int j = 0; j < ARRAYSIZE( pVoteControllers ); j++ ) 
+		// Enabled actions get the limited wire space first. The count must
+		// describe the entries actually written, not the uncapped source list.
+		for ( int enabled = 1; enabled >= 0; --enabled )
 		{
-			if ( !pVoteControllers[ j ] )
+			if ( !enabled && sv_vote_ui_hide_disabled_issues.GetBool() )
 				continue;
-
-			auto &potentialIssues = pVoteControllers[ j ]->m_potentialIssues;
-			for( int iIndex = 0; iIndex < potentialIssues.Count(); ++iIndex )
+			for ( int j = 0; j < ARRAYSIZE( pVoteControllers ); ++j )
 			{
-				// Hide disabled issues?
-				CBaseIssue *pCurrentIssue = potentialIssues[iIndex];
-				if ( pCurrentIssue )
+				if ( !pVoteControllers[j] )
+					continue;
+				const auto &potentialIssues = pVoteControllers[j]->m_potentialIssues;
+				for ( int i = 0; i < potentialIssues.Count(); ++i )
 				{
-					if ( !pCurrentIssue->IsEnabled() && sv_vote_ui_hide_disabled_issues.GetBool() )
+					CBaseIssue *issue = potentialIssues[i];
+					if ( !issue || issue->IsEnabled() != ( enabled != 0 ) )
 						continue;
-
-					nIssueCount++;
+					const int bytes = V_strlen( issue->GetTypeString() ) + V_strlen( issue->GetTypeStringLocalized() ) + 3;
+					if ( nMsgSize + bytes > MAX_USER_MSG_DATA )
+						continue;
+					nMsgSize += bytes;
+					issues.AddToTail( issue );
 				}
 			}
 		}
@@ -470,38 +473,12 @@ bool CVoteController::SetupVote( int iEntIndex )
 	CSingleUserRecipientFilter filter( pVoteCaller );
 	filter.MakeReliable();
 	UserMessageBegin( filter, "VoteSetup" );
-	WRITE_BYTE( nIssueCount );
-	int nMsgSize = 0;
-
-	for ( int j = 0; j < ARRAYSIZE( pVoteControllers ); j++ ) 
+	WRITE_BYTE( issues.Count() );
+	FOR_EACH_VEC( issues, i )
 	{
-		if ( !pVoteControllers[ j ] )
-			continue;
-
-		auto &potentialIssues = pVoteControllers[ j ]->m_potentialIssues;
-
-		for( int iIndex = 0; iIndex < potentialIssues.Count(); ++iIndex )
-		{
-			CBaseIssue *pCurrentIssue = potentialIssues[iIndex];
-			if ( pCurrentIssue )
-			{
-				// Don't send/display disabled issues when set
-				if ( !pCurrentIssue->IsEnabled() && sv_vote_ui_hide_disabled_issues.GetBool() )
-					continue;
-
-				// Don't exceed MAX_USER_MSG_DATA (hack)
-				nMsgSize += ( V_strlen( pCurrentIssue->GetTypeString() ) + 1 );
-				nMsgSize += ( V_strlen( pCurrentIssue->GetTypeStringLocalized() ) + 1 );
-				++nMsgSize;
-				Assert( nMsgSize <= MAX_USER_MSG_DATA );
-				if ( nMsgSize > MAX_USER_MSG_DATA )
-					continue;
-
-				WRITE_STRING( pCurrentIssue->GetTypeString() );
-				WRITE_STRING( pCurrentIssue->GetTypeStringLocalized() );
-				WRITE_BYTE( pCurrentIssue->IsEnabled() );
-			}
-		}
+		WRITE_STRING( issues[i]->GetTypeString() );
+		WRITE_STRING( issues[i]->GetTypeStringLocalized() );
+		WRITE_BYTE( issues[i]->IsEnabled() );
 	}
 
 	MessageEnd();

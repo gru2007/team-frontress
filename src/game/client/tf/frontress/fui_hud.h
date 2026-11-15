@@ -45,6 +45,7 @@ const char *FuiHudDocument();
 
 // Each frame in a match while the HUD layer is up.
 void FuiHudUpdate( fui::Runtime &runtime, bool bShown );
+void FuiHudReset();
 
 // Whether this stock HUD element is drawn by our HUD instead (CHud::Think).
 bool FrontressHudReplaces( CHudElement *pElement );

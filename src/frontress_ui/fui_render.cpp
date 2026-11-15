@@ -120,6 +120,15 @@ Rml::TextureHandle Renderer::LoadTexture( Rml::Vector2i &dimensions, const Rml::
 		}
 		int w = 0, h = 0;
 		const uintptr_t id = m_pBackend->LoadNamedTexture( source, w, h );
+		if ( !id )
+		{
+			Rml::Log::Message( Rml::Log::LT_WARNING, "Game image not found: %s", source.c_str() );
+			// Handle zero means untextured geometry to the renderer. A failed
+			// image must stay transparent instead of flashing a white quad.
+			const uint8_t clear[ 4 ] = { 0, 0, 0, 0 };
+			dimensions = Rml::Vector2i( 1, 1 );
+			return (Rml::TextureHandle)m_pBackend->CreateTexture( clear, 1, 1, false );
+		}
 		dimensions = Rml::Vector2i( w, h );
 		return (Rml::TextureHandle)id;
 	}

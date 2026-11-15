@@ -389,6 +389,8 @@ public:
 	void DrawBackgroundBox( int xpos, int ypos, int nBoxWidth, int nBoxHeight, bool bCutCorner );
 	bool PaintTeamBaseIcon( int index, float flXPos, float flYPos, float flIconSize );
 
+	int GetCurrentControlPoint() const { return m_iCurrentCP; }
+
 	bool IsFakingCapture( int index = -1, bool *bMult = NULL, float *flFakeTime = NULL ) 
 	{ 
 		if ( m_bFakingCapture && m_flFakeCaptureTime < gpGlobals->curtime )

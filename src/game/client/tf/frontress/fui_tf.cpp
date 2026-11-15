@@ -1106,6 +1106,9 @@ void CFuiTF::Impl::RefreshSettings()
 	static ConVarRef fui_menu_3d( "fui_menu_3d" );
 	settings[ "menu_3d" ] = Node( fui_menu_3d.IsValid() && fui_menu_3d.GetBool() );
 	settings[ "hud_style" ] = Node( fui_hud_style.IsValid() ? fui_hud_style.GetString() : "auto" );
+	static ConVarRef desiredFov( "fov_desired" ), vsync( "mat_vsync" );
+	settings[ "fov" ] = Node( desiredFov.IsValid() ? desiredFov.GetInt() : 90 );
+	settings[ "vsync" ] = Node( vsync.IsValid() && vsync.GetBool() );
 	Node &huds = settings[ "huds" ];
 	huds.SetArray();
 	huds.Append( Node( "auto" ) );
@@ -2012,6 +2015,8 @@ void CFuiTF::OnCommand( const std::string &name, const std::vector< std::string 
 			}
 			ui.Set( "ui.pick", Node( index ) );
 			d.RefreshLocker();
+			if ( engine->IsInGame() )
+				d.Toast( "equip", ui.Translate( "fui_loadout_saved" ), ui.Translate( "fui_loadout_when" ), "" );
 		}
 	}
 	else if ( name == "invite" )
@@ -2022,10 +2027,34 @@ void CFuiTF::OnCommand( const std::string &name, const std::vector< std::string 
 		d.OpenClassic( "options" );
 	else if ( name == "classic" )
 		d.OpenClassic( arg );
+	else if ( name == "classic_menu" )
+	{
+		ui.Set( "ui.modal", Node( "" ) );
+		engine->ClientCmd_Unrestricted( "fui_menu 0\ngameui_activate\nhost_writeconfig\n" );
+	}
 	else if ( name == "open_settings" )
 	{
 		d.RefreshSettings();
 		ui.Set( "ui.modal", Node( "settings" ) );
+	}
+	else if ( name == "set_fov" )
+	{
+		static ConVarRef desiredFov( "fov_desired" );
+		if ( desiredFov.IsValid() )
+		{
+			desiredFov.SetValue( clamp( atoi( arg.c_str() ), 75, MAX_FOV ) );
+			ui.Set( "settings.fov", Node( desiredFov.GetInt() ) );
+		}
+	}
+	else if ( name == "toggle_vsync" )
+	{
+		static ConVarRef vsync( "mat_vsync" );
+		if ( vsync.IsValid() )
+		{
+			vsync.SetValue( !vsync.GetBool() );
+			ui.Set( "settings.vsync", Node( vsync.GetBool() ) );
+			engine->ClientCmd_Unrestricted( "mat_savechanges\n" );
+		}
 	}
 	else if ( name == "toggle_menu_3d" )
 	{

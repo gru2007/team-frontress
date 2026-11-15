@@ -883,7 +883,7 @@ void CHudControlPointIcons::FireGameEvent( IGameEvent *event )
 	else if ( FStrEq( "controlpoint_endtouch", eventname ) )
 	{
 		int iPlayer = event->GetInt( "player" );
-		if ( pPlayer && iPlayer == pPlayer->entindex() )
+		if ( pPlayer && iPlayer == pPlayer->entindex() && m_iCurrentCP == event->GetInt( "area" ) )
 		{
 			m_iCurrentCP = -1;
 			UpdateProgressBarFor( m_iCurrentCP );

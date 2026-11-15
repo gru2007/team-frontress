@@ -221,6 +221,16 @@ Action< CTFBot > *CTFBotScenarioMonitor::DesiredScenarioAndClassAction( CTFBot *
 		return new CTFBotFetchFlag;
 	}
 
+	// Arena is elimination until its control point opens, then a race to
+	// capture. Generic class camping actions can otherwise sit in spawn for
+	// the whole round. Medics still support their team.
+	if ( TFGameRules()->IsInArenaMode() )
+	{
+		if ( me->IsPlayerClass( TF_CLASS_MEDIC ) && !TheTFBots().IsMeleeOnly() )
+			return new CTFBotMedicHeal;
+		return new CTFBotCapturePoint;
+	}
+
 	if ( me->IsPlayerClass( TF_CLASS_SPY ) )
 	{
 		return new CTFBotSpyInfiltrate;

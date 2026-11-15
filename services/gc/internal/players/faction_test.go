@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestFactionLockedAndDurablePerCampaign(t *testing.T) {
+func TestFactionChangesAreDurableWithinCampaign(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "players.jsonl")
 	s, err := Open(path)
 	if err != nil {
@@ -14,8 +14,8 @@ func TestFactionLockedAndDurablePerCampaign(t *testing.T) {
 	if err = s.ChooseWarSide(1, "war-1", "RED"); err != nil {
 		t.Fatal(err)
 	}
-	if err = s.ChooseWarSide(1, "war-1", "BLU"); err == nil {
-		t.Fatal("changed faction during campaign")
+	if err = s.ChooseWarSide(1, "war-1", "BLU"); err != nil {
+		t.Fatal("could not change faction between matches", err)
 	}
 	s.Close()
 	s, err = Open(path)
@@ -23,7 +23,7 @@ func TestFactionLockedAndDurablePerCampaign(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	if r := s.Get(1); r.WarSide != "RED" || r.WarCampaign != "war-1" {
+	if r := s.Get(1); r.WarSide != "BLU" || r.WarCampaign != "war-1" {
 		t.Fatal("lost faction", r)
 	}
 	if err = s.ChooseWarSide(1, "war-2", "BLU"); err != nil {

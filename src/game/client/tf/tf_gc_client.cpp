@@ -724,7 +724,17 @@ void CTFGCClientSystem::WebapiInventoryThink()
 		if ( !engine->IsInGame() )
 			return;
 
-		if ( state.m_flNextPartTime == 0.0f || gpGlobals->curtime < state.m_flNextPartTime )
+		if ( state.m_flNextPartTime == 0.0f )
+		{
+			if ( Plat_FloatTime() >= state.m_flRequestDeadline )
+			{
+				Warning( "[inventory] Server equipment acknowledgement timed out; resending loadout.\n" );
+				state.m_eState = kWebapiInventoryState_InventoryReceived;
+				state.Backoff();
+			}
+			return;
+		}
+		if ( gpGlobals->curtime < state.m_flNextPartTime )
 			return;
 
 		// hex-encode the auth token for sending across the wire
@@ -750,6 +760,7 @@ void CTFGCClientSystem::WebapiInventoryThink()
 			engine->ServerCmdKeyValues(kv);
 
 			state.m_flNextPartTime = 0.0f;
+			state.m_flRequestDeadline = Plat_FloatTime() + k_flInventoryTicketTimeout;
 
 			if ( i == TF_LAST_NORMAL_CLASS - 1 )
 			{
@@ -807,6 +818,8 @@ CON_COMMAND_F(mod_inventory_acknowledge, "Acknowledge reception of SDK inventory
 
 void CTFGCClientSystem::AcknowledgeInventoryReceive()
 {
+	if ( m_WebapiInventory.m_eState != kWebapiInventoryState_ServerAuthTokenReceived || m_WebapiInventory.m_flNextPartTime != 0.0f )
+		return;
 	m_WebapiInventory.m_flNextPartTime = gpGlobals->curtime + TICK_INTERVAL;
 }
 

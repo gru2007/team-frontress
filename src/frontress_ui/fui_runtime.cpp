@@ -417,6 +417,7 @@ void Runtime::Shutdown()
 	if ( !m_pContext )
 		return;
 	CloseDocuments();
+	m_bHud = false;
 	m_pContext = nullptr;
 	Rml::Shutdown();
 	m_pImpl.reset();

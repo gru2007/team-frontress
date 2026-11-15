@@ -306,7 +306,10 @@ body#shell { pointer-events: none; }
 .quit-modal p { margin: 12dp 0 6dp 0; }
 
 /* ---------------------------------------------------------------- settings */
-.settings-modal { width: 900dp; padding: 28dp 30dp; }
+.settings-modal { width: 900dp; max-height: 92vh; overflow-y: auto; padding: 28dp 30dp; }
+.settings-modal input[type="range"] { width: 360dp; height: 24dp; margin-left: 24dp; }
+.settings-modal input[type="range"] slidertrack { height: 6dp; margin-top: 9dp; background-color: #ffffff33; }
+.settings-modal input[type="range"] sliderbar { width: 18dp; height: 24dp; background-color: #ffc93c; border-radius: 5dp; }
 .set-grid { display: flex; flex-direction: row; flex-wrap: wrap; gap: 12dp; margin: 18dp 0 22dp 0; }
 .set-tile, .hud-style {
 	box-sizing: border-box;

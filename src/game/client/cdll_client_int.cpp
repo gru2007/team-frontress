@@ -1796,13 +1796,32 @@ void CHLClient::View_Fade( ScreenFade_t *pSF )
 //-----------------------------------------------------------------------------
 // Purpose: Per level init
 //-----------------------------------------------------------------------------
+static void PrecacheLoadedNetworkParticles()
+{
+	if ( !g_pStringTableParticleEffectNames || !g_pParticleSystemMgr )
+		return;
+	// String-table callbacks can arrive before the BSP's manifest is loaded.
+	// ReloadParticleEffects also replaces the definitions cached by callbacks.
+	// Rebuild their material cache after loading the current map's effects.
+	for ( int i = 0; i < g_pStringTableParticleEffectNames->GetNumStrings(); ++i )
+	{
+		const char *name = g_pStringTableParticleEffectNames->GetString( i );
+		if ( name && name[0] && g_pParticleSystemMgr->FindParticleSystem( name ) )
+			g_pParticleSystemMgr->PrecacheParticleSystem( name );
+	}
+	RequestCacheUsedMaterials();
+}
+
 void CHLClient::LevelInitPreEntity( char const* pMapName )
 {
 	ReloadParticleEffects();
 
 	// HACK: Bogus, but the logic is too complicated in the engine
 	if (g_bLevelInitialized)
+	{
+		PrecacheLoadedNetworkParticles();
 		return;
+	}
 	g_bLevelInitialized = true;
 
 	INetChannelInfo *pNetChan = engine->GetNetChannelInfo();
@@ -1818,6 +1837,7 @@ void CHLClient::LevelInitPreEntity( char const* pMapName )
 	// Tell mode manager that map is changing
 	modemanager->LevelInit( pMapName );
 	ParticleMgr()->LevelInit();
+	PrecacheLoadedNetworkParticles();
 
 	hudlcd->SetGlobalStat( "(mapname)", pMapName );
 
@@ -2085,7 +2105,10 @@ void OnMaterialStringTableChanged( void *object, INetworkStringTable *stringTabl
 //-----------------------------------------------------------------------------
 void OnParticleSystemStringTableChanged( void *object, INetworkStringTable *stringTable, int stringNumber, const char *newString, void const *newData )
 {
-	// Make sure this puppy is precached
+	// A map effect received before its manifest is loaded is retried by
+	// PrecacheLoadedNetworkParticles, rather than cached as an unknown effect.
+	if ( !newString || !newString[0] || !g_pParticleSystemMgr->FindParticleSystem( newString ) )
+		return;
 	g_pParticleSystemMgr->PrecacheParticleSystem( newString );
 	RequestCacheUsedMaterials();
 }

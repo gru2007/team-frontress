@@ -16092,6 +16092,11 @@ void CTFPlayer::ForceRegenerateAndRespawn( void )
 void CTFPlayer::ForceRespawn( void )
 {
 	VPROF_BUDGET( "CTFPlayer::ForceRespawn", VPROF_BUDGETGROUP_PLAYER );
+	// Arena has one life per round. Team changes, class reselection and
+	// regeneration must not bypass elimination; RoundRespawn runs in PREROUND.
+	if ( TFGameRules() && TFGameRules()->IsInArenaMode() &&
+		 TFGameRules()->State_Get() == GR_STATE_STALEMATE && !TFGameRules()->IsInWaitingForPlayers() )
+		return;
 
 	CTF_GameStats.Event_PlayerForceRespawn( this );
 

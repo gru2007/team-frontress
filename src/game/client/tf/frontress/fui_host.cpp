@@ -28,6 +28,7 @@
 #include "filesystem.h"
 #include "ienginevgui.h"
 #include "materialsystem/imaterial.h"
+#include "materialsystem/imaterialvar.h"
 #include "materialsystem/imaterialsystem.h"
 #include "materialsystem/imesh.h"
 #include "materialsystem/itexture.h"
@@ -181,13 +182,26 @@ public:
 				pTexture = materials->FindTexture( strName, TEXTURE_GROUP_VGUI, false );
 			}
 			if ( !pTexture || pTexture->IsError() )
+			{
+				// VGUI icons may name a VMT alias, not a VTF (notably the
+				// scoreboard's dead-class icons). Resolve its base texture.
+				IMaterial *pSource = materials->FindMaterial( strName, TEXTURE_GROUP_VGUI, false );
+				if ( pSource && !pSource->IsErrorMaterial() )
+				{
+					bool found = false;
+					IMaterialVar *pBase = pSource->FindVar( "$basetexture", &found, false );
+					if ( found && pBase && pBase->IsTexture() )
+						pTexture = pBase->GetTextureValue();
+				}
+			}
+			if ( !pTexture || pTexture->IsError() )
 				return 0;
 
 			char szMaterial[ MAX_PATH + 16 ];
 			V_snprintf( szMaterial, sizeof( szMaterial ), "_fui/named/%s", strName.Get() );
 			w = pTexture->GetActualWidth();
 			h = pTexture->GetActualHeight();
-			Texture_t texture = { NULL, MakeMaterial( szMaterial, strName ), NULL, 0, 0, false, { 0, 0, 1, 1 } };
+			Texture_t texture = { NULL, MakeMaterial( szMaterial, pTexture->GetName() ), NULL, 0, 0, false, { 0, 0, 1, 1 } };
 			const uintptr_t id = m_nNextID++;
 			m_Textures.Insert( id, texture );
 			return id;
@@ -492,7 +506,7 @@ class CFuiPanel : public vgui::Panel
 
 public:
 	CFuiPanel( vgui::VPANEL parent, fui::Runtime *pRuntime, CFuiMaterialBackend *pBackend )
-		: BaseClass( NULL, "FrontressUI" ), m_pRuntime( pRuntime ), m_pBackend( pBackend )
+		: BaseClass( NULL, "FrontressUI" ), m_pRuntime( pRuntime ), m_pBackend( pBackend ), m_bEscapeClosedChat( false )
 	{
 		SetParent( parent );
 		SetPaintBackgroundEnabled( false );
@@ -554,7 +568,10 @@ public:
 	{
 		// Typing a chat line in the HUD: Esc puts it away.
 		if ( code == KEY_ESCAPE && FuiHudCloseChat() )
+		{
+			m_bEscapeClosedChat = true;
 			return;
+		}
 		// Team select: 1 BLU, 2 RED, 3 auto, 4 spectate, as the stock menu
 		// lays them out; Esc closes once you are on a team.
 		if ( s_bTeamSelect )
@@ -596,8 +613,20 @@ public:
 		Ctx()->ProcessKeyUp( FuiKey( code ), FuiModifiers() );
 	}
 
+	virtual void OnKeyCodeTyped( vgui::KeyCode code ) OVERRIDE
+	{
+		if ( code == KEY_ESCAPE && ( m_bEscapeClosedChat || FuiHudCloseChat() ) )
+		{
+			m_bEscapeClosedChat = false;
+			return;
+		}
+		BaseClass::OnKeyCodeTyped( code );
+	}
+
 	virtual void OnKeyTyped( wchar_t unichar ) OVERRIDE
 	{
+		if ( ( FuiModifiers() & Rml::Input::KM_CTRL ) && !( FuiModifiers() & Rml::Input::KM_ALT ) )
+			return;
 		if ( unichar >= 32 )
 			Ctx()->ProcessTextInput( (Rml::Character)unichar );
 	}
@@ -607,6 +636,7 @@ private:
 
 	fui::Runtime *m_pRuntime;
 	CFuiMaterialBackend *m_pBackend;
+	bool m_bEscapeClosedChat;
 };
 
 //-----------------------------------------------------------------------------
@@ -674,14 +704,18 @@ void FrontressUIYield()
 static bool FuiYielding( vgui::VPANEL self )
 {
 	const vgui::VPANEL modal = vgui::input()->GetAppModalSurface();
-	bool bYield = modal && modal != self;
+	bool bYield = ( modal && modal != self ) || Plat_FloatTime() < s_flWatchUntil;
 	for ( int i = 0; i < vgui::surface()->GetPopupCount(); ++i )
 	{
 		const vgui::VPANEL popup = vgui::surface()->GetPopup( i );
 		if ( popup == self || !FuiInteractivePopup( popup ) )
 			continue;
-		// The console may also be opened by its key binding.
-		if ( !V_stricmp( vgui::ipanel()->GetName( popup ), "GameConsole" ) )
+		// Reused dialogs need no new popup handle and can open after the
+		// command's one-frame delay. Keep yielding for their whole lifetime.
+		const char *name = vgui::ipanel()->GetName( popup );
+		if ( V_stristr( name, "OptionsDialog" ) || V_stristr( name, "ServerBrowser" ) ||
+			V_stristr( name, "CreateMultiplayerGame" ) || V_stristr( name, "MutePlayerDialog" ) ||
+			V_stristr( name, "AchievementsDialog" ) || !V_stricmp( name, "GameConsole" ) )
 			bYield = true;
 		if ( Plat_FloatTime() < s_flWatchUntil )
 		{
@@ -736,6 +770,7 @@ public:
 
 	virtual void Update( float frametime ) OVERRIDE
 	{
+		RunScheduled();
 		if ( !fui_menu.GetBool() )
 		{
 			if ( m_pPanel )
@@ -817,8 +852,6 @@ public:
 	// then quit if -fui_autoshot_quit. For documentation and checking work.
 	void AutoShot( Mode_t eMode )
 	{
-		RunScheduled();
-
 		// -fui_autoexec <cfg>: run a script once the first match is up (HUD
 		// screenshots in a real fight, see tools/fui-preview/README.md).
 		static bool s_bExecDone = false;
@@ -919,6 +952,9 @@ public:
 
 	virtual void Shutdown() OVERRIDE
 	{
+		FuiHudReset();
+		m_eMode = k_eHidden;
+		s_bClassSelect = s_bTeamSelect = s_bTeamPicked = false;
 		// Closing RmlUi documents rebuilds the hover chain and can call
 		// CFuiGameHost::SetCursor. Detach the host before deleting its panel,
 		// so runtime shutdown (and fui_menu restarts) cannot use a freed panel.

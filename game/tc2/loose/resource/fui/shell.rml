@@ -151,7 +151,21 @@
 				<h2 class="shadow grow">#fui_settings</h2>
 				<div class="icon-button" sfx="" data-event-click="set('ui.modal', '')">#fui_close</div>
 			</div>
+			<div class="row">
+				<span class="grow">#fui_set_fov {{ settings.fov }}</span>
+				<input id="fov-range" type="range" min="75" max="110" step="1" data-value="settings.fov" data-event-change="cmd('set_fov', ev.value)"/>
+			</div>
 			<div class="set-grid">
+				<div class="set-tile" sfx="" data-event-click="cmd('toggle_vsync')">
+					<div class="set-title">VSync: {{ settings.vsync ? ('fui_on' | t) : ('fui_off' | t) }}</div>
+				</div>
+				<div class="set-tile" sfx="" data-event-click="cmd('hud_style', 'minimal')">
+					<div class="set-title">#fui_set_classic_hud</div><div class="dim tiny">#fui_set_classic_hud_d</div>
+				</div>
+				<div class="set-tile" sfx="" data-event-click="cmd('classic_menu')">
+					<div class="set-title">#fui_set_classic_menu</div><div class="dim tiny">#fui_set_classic_menu_d</div>
+				</div>
+
 				<div class="set-tile" sfx="" data-event-click="cmd('classic', 'options')">
 					<div class="set-title">#fui_set_options</div><div class="dim tiny">#fui_set_options_d</div>
 				</div>

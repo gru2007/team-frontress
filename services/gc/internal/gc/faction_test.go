@@ -110,3 +110,47 @@ func TestOneFactionQueuePlaysCasualAfterPatience(t *testing.T) {
 		t.Fatalf("one-faction queue did not play a casual match: ok=%v battle=%v formed=%+v", ok, b, f)
 	}
 }
+
+func TestChooseFactionBetweenMatchesOnly(t *testing.T) {
+	theater, err := war.LoadTheater("../../theater.example.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	log, past, err := war.OpenLog(filepath.Join(t.TempDir(), "war.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer log.Close()
+	engine, err := war.NewEngine(theater, log, past)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, err := New(Deps{War: engine})
+	if err != nil {
+		t.Fatal(err)
+	}
+	party := g.newParty(1)
+	g.chooseFaction(1, "red")
+	g.chooseFaction(1, "blu")
+	if g.warSide(1) != war.SideBLU {
+		t.Fatal("idle player could not change faction")
+	}
+	party.Queues[7] = g.now()
+	g.chooseFaction(1, "red")
+	if g.warSide(1) != war.SideBLU {
+		t.Fatal("queued player changed faction")
+	}
+	clear(party.Queues)
+	lobby := &Lobby{ID: 100, MatchID: 200, State: lobbyRun}
+	lobby.addMember(1, mm.Blu, party.ID, g.now())
+	g.lobbies[lobby.ID] = lobby
+	g.chooseFaction(1, "red")
+	if g.warSide(1) != war.SideBLU {
+		t.Fatal("matched player changed faction")
+	}
+	delete(g.lobbies, lobby.ID)
+	g.chooseFaction(1, "red")
+	if g.warSide(1) != war.SideRED {
+		t.Fatal("player could not change faction after match")
+	}
+}

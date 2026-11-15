@@ -17,6 +17,19 @@
 
 class CTFPlayer;
 
+// Finish a casual managed match through its normal result/next-map flow.
+class CNextMatchIssue : public CBaseIssue
+{
+public:
+	CNextMatchIssue( CVoteController *pController ) : CBaseIssue( "NextMatch", pController ) {}
+	virtual void ExecuteCommand() OVERRIDE;
+	virtual bool IsEnabled() OVERRIDE;
+	virtual bool RequestCallVote( int iEntIndex, const char *pszDetails, vote_create_failed_t &nFailCode, int &nTime ) OVERRIDE;
+	virtual const char *GetDisplayString() OVERRIDE { return "#Frontress_Vote_NextMatch"; }
+	virtual const char *GetVotePassedString() OVERRIDE { return "#Frontress_Vote_NextMatchPassed"; }
+	virtual void ListIssueDetails( CBasePlayer *pPlayer ) OVERRIDE { ListStandardNoArgCommand( pPlayer, GetTypeString() ); }
+};
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------

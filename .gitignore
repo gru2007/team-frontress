@@ -590,6 +590,7 @@ enc_temp_folder
 
 notes.txt
 *.nav
+!/game/tc2/loose/maps/arena_*.nav
 *.bsp
 
 /game/tc2/custom/*.vpk

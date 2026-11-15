@@ -1139,6 +1139,9 @@ void CTFPlayerInventory::SaveLocalLoadout( bool bReset, bool bDefaultToGC )
 	pLoadoutKV->SaveToFile(g_pFullFileSystem, LOCAL_LOADOUT_FILE, "MOD");
 
 	pLoadoutKV->deleteThis();
+
+	// Local equips have no Valve GC round trip to notify the server.
+	TFInventoryManager()->QueueGCInventoryChangeNotification();
 }
 
 

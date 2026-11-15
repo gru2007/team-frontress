@@ -44,8 +44,9 @@
 				<div class="koth-clock blu-side" data-if="hud.mode == 'koth'">{{ hud.koth_blu | clock }}</div>
 				<div class="arena-count blu-side" data-if="hud.arena_blu >= 0">{{ 'fui_hud_alive' | t(hud.arena_blu) }}</div>
 				<div class="cp" data-for="p, i : hud.points" data-class-capping="p.capping != ''" data-class-locked="p.locked"
-					data-class-red="p.owner == 'red'" data-class-blu="p.owner == 'blu'">
-					<div class="cp-disc"><span>{{ i + 1 }}</span></div>
+					data-class-red="p.owner == 'red'" data-class-blu="p.owner == 'blu'" data-class-local="p.local">
+					<div class="cp-disc"><span>{{ p.index }}</span></div>
+					<div class="cp-here" data-if="p.local">▼</div>
 					<div class="cp-cap" data-if="p.capping != ''">
 						<div class="cp-fill" data-class-red="p.capping == 'red'" data-class-blu="p.capping == 'blu'" data-style-width="(p.frac * 100) + '%'"></div>
 					</div>
@@ -408,7 +409,7 @@
 							data-event-click="cmd('scores_pick', p.id)">
 							<img class="p-avatar" data-if="p.avatar != ''" data-attr-src="p.avatar"/>
 							<div class="p-avatar none" data-if="p.avatar == ''"></div>
-							<img class="p-cls" data-if="p.cls != ''" data-attr-src="'tex:hud/leaderboard_class_' + p.cls + (p.alive ? '' : '_d')"/>
+							<img class="p-cls" data-class-dead="!p.alive" data-if="p.cls != ''" data-attr-src="p.class_icon"/>
 							<div class="p-cls none" data-if="p.cls == ''"></div>
 							<span class="c-name grow p-name">{{ p.name }}</span>
 							<span class="p-tag nemesis" data-if="p.rivalry == 'nemesis'">#fui_scores_nemesis</span>
@@ -438,7 +439,7 @@
 							data-event-click="cmd('scores_pick', p.id)">
 							<img class="p-avatar" data-if="p.avatar != ''" data-attr-src="p.avatar"/>
 							<div class="p-avatar none" data-if="p.avatar == ''"></div>
-							<img class="p-cls" data-if="p.cls != ''" data-attr-src="'tex:hud/leaderboard_class_' + p.cls + (p.alive ? '' : '_d')"/>
+							<img class="p-cls" data-class-dead="!p.alive" data-if="p.cls != ''" data-attr-src="p.class_icon"/>
 							<div class="p-cls none" data-if="p.cls == ''"></div>
 							<span class="c-name grow p-name">{{ p.name }}</span>
 							<span class="p-tag nemesis" data-if="p.rivalry == 'nemesis'">#fui_scores_nemesis</span>

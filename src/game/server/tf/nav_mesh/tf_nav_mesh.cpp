@@ -1503,6 +1503,26 @@ void CTFNavMesh::ComputeIncursionDistances( void )
 		}
 	}
 
+	// Arena maps commonly have team spawns without func_respawnroom volumes.
+	// They still need flow distances so bots can leave spawn and seek enemies.
+	if ( TFGameRules()->IsInArenaMode() )
+	{
+		for ( int i = 0; i < ITFTeamSpawnAutoList::AutoList().Count(); ++i )
+		{
+			CTFTeamSpawn *spawn = static_cast< CTFTeamSpawn * >( ITFTeamSpawnAutoList::AutoList()[i] );
+			const int team = spawn->GetTeamNumber();
+			if ( spawn->IsDisabled() || !spawn->IsTriggered( NULL ) ||
+				( team != TF_TEAM_RED && team != TF_TEAM_BLUE ) ||
+				( team == TF_TEAM_RED ? isRedComputed : isBlueComputed ) )
+				continue;
+			CTFNavArea *area = static_cast< CTFNavArea * >( GetNearestNavArea( spawn ) );
+			if ( !area )
+				continue;
+			ComputeIncursionDistances( area, team );
+			( team == TF_TEAM_RED ? isRedComputed : isBlueComputed ) = true;
+		}
+	}
+
 	if ( !isRedComputed )
 	{
 		Warning( "Can't compute incursion distances from the Red spawn room(s). Bots will perform poorly. This is caused by either a missing func_respawnroom, or missing info_player_teamspawn entities within the func_respawnroom.\n" );
@@ -1513,7 +1533,7 @@ void CTFNavMesh::ComputeIncursionDistances( void )
 		Warning( "Can't compute incursion distances from the Blue spawn room(s). Bots will perform poorly. This is caused by either a missing func_respawnroom, or missing info_player_teamspawn entities within the func_respawnroom.\n" );
 	}
 
-	if ( !TFGameRules()->IsMannVsMachineMode() )
+	if ( !isRedComputed && isBlueComputed && !TFGameRules()->IsMannVsMachineMode() )
 	{
 		// In Raid mode, the Red (bot) team has no spawn room.
 		// So, we'll assume the Red incursion distance is the inverse of the Blue incursion distance for now.
@@ -1788,6 +1808,23 @@ void CTFNavMesh::DecorateMesh( void )
 
 				TheNavMesh->ForAllAreasOverlappingExtent( collectAndLabel, extent );
 			}
+		}
+	}
+
+	// Arena has no protected respawn rooms on many maps. Use its actual
+	// spawn areas as navigation anchors without marking them enemy-blocked.
+	if ( TFGameRules()->IsInArenaMode() )
+	{
+		for ( int i = 0; i < ITFTeamSpawnAutoList::AutoList().Count(); ++i )
+		{
+			CTFTeamSpawn *spawn = static_cast< CTFTeamSpawn * >( ITFTeamSpawnAutoList::AutoList()[i] );
+			if ( spawn->IsDisabled() || !spawn->IsTriggered( NULL ) )
+				continue;
+			CUtlVector< CTFNavArea * > *anchors = spawn->GetTeamNumber() == TF_TEAM_RED ? &m_redSpawnRoomAreaVector :
+				spawn->GetTeamNumber() == TF_TEAM_BLUE ? &m_blueSpawnRoomAreaVector : NULL;
+			CTFNavArea *area = static_cast< CTFNavArea * >( GetNearestNavArea( spawn ) );
+			if ( anchors && area && !anchors->HasElement( area ) )
+				anchors->AddToTail( area );
 		}
 	}
 

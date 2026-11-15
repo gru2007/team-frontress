@@ -38,6 +38,7 @@
 #include "tf_weapon_bonesaw.h"
 #include "tf_weapon_slap.h"
 #include "tf_controls.h"
+#include "frontress/fui_hud.h"
 
 #include <vgui_controls/ImagePanel.h>
 
@@ -502,11 +503,14 @@ bool CHudItemEffectMeter::ShouldDraw( void )
 		bShouldDraw = false;
 	}
 
-	if ( IsVisible() != bShouldDraw )
+	// FUI reads ShouldDraw to select its meters. Keep that gameplay answer,
+	// but do not reopen/re-layout the hidden VGUI meter on every HUD update.
+	const bool bPanelVisible = bShouldDraw && !FrontressHudReplaces( this );
+	if ( IsVisible() != bPanelVisible )
 	{
-		SetVisible( bShouldDraw );
+		SetVisible( bPanelVisible );
 
-		if ( bShouldDraw )
+		if ( bPanelVisible )
 		{
 			// if we're going to be visible, redo our layout
 			InvalidateLayout( false, true );

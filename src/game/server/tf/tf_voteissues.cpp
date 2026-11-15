@@ -34,6 +34,37 @@ extern ConVar sv_vote_quorum_ratio;
 extern ConVar tf_mm_strict;
 extern ConVar tf_weapon_criticals;
 
+bool CNextMatchIssue::IsEnabled()
+{
+	CMatchInfo *pMatch = GTFGCClientSystem()->GetLiveMatch();
+	return pMatch && pMatch->BAssignedByFrontressGC() && TFGameRules() &&
+		TFGameRules()->IsMatchTypeCasual() && !TFGameRules()->IsInPreMatch() &&
+		!TFGameRules()->IsGameOver() && TFGameRules()->State_Get() != GR_STATE_TEAM_WIN;
+}
+
+bool CNextMatchIssue::RequestCallVote( int iEntIndex, const char *pszDetails, vote_create_failed_t &nFailCode, int &nTime )
+{
+	if ( !CBaseIssue::RequestCallVote( iEntIndex, pszDetails, nFailCode, nTime ) )
+		return false;
+	if ( !IsEnabled() )
+	{
+		nFailCode = VOTE_FAILED_ISSUE_DISABLED;
+		return false;
+	}
+	return !pszDetails[0];
+}
+
+void CNextMatchIssue::ExecuteCommand()
+{
+	if ( !IsEnabled() )
+		return;
+	// Use TEAM_WIN rather than ChangeLevel: it flushes stats/results before
+	// the GC retires the lobby. No faction is awarded a victory by this vote.
+	static ConVarRef maxRounds( "mp_maxrounds" );
+	maxRounds.SetValue( TFGameRules()->GetRoundsPlayed() + 1 );
+	TFGameRules()->SetWinningTeam( TEAM_UNASSIGNED, WINREASON_STALEMATE, true, false, true );
+}
+
 static bool VotableMap( const char *pszMapName )
 {
 	char szCanonName[64] = { 0 };
@@ -769,6 +800,11 @@ bool CChangeLevelIssue::CanTeamCallVote( int iTeam ) const
 //-----------------------------------------------------------------------------
 bool CChangeLevelIssue::IsEnabled( void )
 {
+	// Managed matches use NextMatch so results reach the coordinator before
+	// the lobby/map is replaced. A raw ChangeLevel loses that transaction.
+	if ( CMatchInfo *pMatch = GTFGCClientSystem()->GetLiveMatch() )
+		if ( pMatch->BAssignedByFrontressGC() )
+			return false;
 	if ( TFGameRules() )
 	{
 		if ( TFGameRules()->IsMannVsMachineMode() )
@@ -957,6 +993,9 @@ bool CNextLevelIssue::CanTeamCallVote( int iTeam ) const
 //-----------------------------------------------------------------------------
 bool CNextLevelIssue::IsEnabled( void )
 {
+	if ( CMatchInfo *pMatch = GTFGCClientSystem()->GetLiveMatch() )
+		if ( pMatch->BAssignedByFrontressGC() )
+			return false;
 	if ( TFGameRules() )
 	{
 		if ( TFGameRules()->IsMannVsMachineMode() )

@@ -30,6 +30,24 @@ ConVar tf_bot_auto_vacate( "tf_bot_auto_vacate", "0", FCVAR_NONE, "If nonzero, b
 ConVar tf_bot_offline_practice( "tf_bot_offline_practice", "0", FCVAR_NONE, "Tells the server that it is in offline practice mode." );
 ConVar tf_bot_melee_only( "tf_bot_melee_only", "0", FCVAR_GAMEDLL, "If nonzero, TFBots will only use melee weapons" );
 
+CON_COMMAND_F( frontress_bot_nav_report, "Report navigation coverage and bot positions for an offline map test.", FCVAR_GAMEDLL | FCVAR_CHEAT )
+{
+	Msg( "NAV_REPORT map=%s areas=%u red_spawn=%d blu_spawn=%d state=%d waiting=%d rounds=%d\n",
+		STRING( gpGlobals->mapname ), TheNavMesh->GetNavAreaCount(),
+		TheTFNavMesh()->GetSpawnRoomAreas( TF_TEAM_RED )->Count(),
+		TheTFNavMesh()->GetSpawnRoomAreas( TF_TEAM_BLUE )->Count(),
+		TFGameRules()->State_Get(), TFGameRules()->IsInWaitingForPlayers(), TFGameRules()->GetRoundsPlayed() );
+	for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+	{
+		CTFPlayer *pPlayer = ToTFPlayer( UTIL_PlayerByIndex( i ) );
+		if ( !pPlayer )
+			continue;
+		const Vector &pos = pPlayer->GetAbsOrigin();
+		Msg( "NAV_PLAYER id=%d team=%d alive=%d bot=%d pos=%.1f,%.1f,%.1f fov=%d\n", pPlayer->GetUserID(),
+			pPlayer->GetTeamNumber(), pPlayer->IsAlive(), pPlayer->IsBot(), pos.x, pos.y, pos.z, pPlayer->GetDefaultFOV() );
+	}
+}
+
 extern const char *GetRandomBotName( void );
 extern void CreateBotName( int iTeam, int iClassIndex, CTFBot::DifficultyType skill, char* pBuffer, int iBufferSize );
 
@@ -418,6 +436,11 @@ void CTFBotManager::MaintainBotQuota()
 		// If bot_quota_mode is 'match', we want the number of bots to be bot_quota * total humans
 		desiredBotCount = (int)MAX( 0, tf_bot_quota.GetFloat() * nNonTFBotsOnGameTeams );
 	}
+
+	// No navigation means stationary filler, not playable opponents. The
+	// shipped Arena rotation has meshes; custom maps must supply one too.
+	if ( TheNavMesh->GetNavAreaCount() == 0 )
+		desiredBotCount = 0;
 
 	// wait for a player to join, if necessary
 	if ( tf_bot_join_after_player.GetBool() )

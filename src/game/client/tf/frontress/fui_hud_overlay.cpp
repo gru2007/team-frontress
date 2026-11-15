@@ -45,6 +45,7 @@
 #include "vgui/ILocalize.h"
 #include "vgui_controls/Label.h"
 #include "voice_status.h"
+#include "inputsystem/iinputsystem.h"
 
 #include <cmath>
 #include <deque>
@@ -163,6 +164,7 @@ void WritePlayerRow( int i, int iLocalTeam, C_TFPlayer *pLocal, Node &row )
 		cls = ClassName( iClass );
 	}
 	row[ "cls" ] = Node( cls );
+	row[ "class_icon" ] = Node( cls.empty() ? "" : "tex:hud/leaderboard_class_" + ( cls == "demoman" ? std::string( "demo" ) : cls ) );
 
 	// Who dominates whom, against you.
 	std::string rivalry;
@@ -681,6 +683,7 @@ struct ChatLine_t
 	double flAt;
 };
 std::deque< ChatLine_t > s_Chat;
+ButtonCode_t s_ChatOpeningKey = BUTTON_CODE_INVALID;
 int s_iChatMode = 0;			// 0: closed, else MM_SAY / MM_SAY_TEAM / MM_SAY_PARTY
 bool s_bChatFocus = false;		// the text field still has to take the keyboard
 const size_t k_nChatKeep = 60;
@@ -843,6 +846,8 @@ bool FuiHudStartChat( int iMode )
 {
 	if ( !FrontressUI() || !FrontressHudReplaces( "chat" ) || enginevgui->IsGameUIVisible() )
 		return false;
+	const char *binding = engine->Key_LookupBinding( iMode == MM_SAY_TEAM ? "messagemode2" : "messagemode" );
+	s_ChatOpeningKey = binding && g_pInputSystem ? g_pInputSystem->StringToButtonCode( binding ) : BUTTON_CODE_INVALID;
 	s_iChatMode = iMode;
 	s_bChatFocus = true;
 	if ( fui::Runtime *pRuntime = FrontressUI() )
@@ -1056,7 +1061,7 @@ void FuiHudOverlayUpdate( fui::Runtime &runtime, Node &hud )
 	WriteMapVote( hud[ "mapvote" ] );
 
 	// The chat field takes the keyboard once it is on screen.
-	if ( s_bChatFocus && runtime.FocusHud( "say" ) )
+	if ( s_bChatFocus && ( s_ChatOpeningKey == BUTTON_CODE_INVALID || !g_pInputSystem || !g_pInputSystem->IsButtonDown( s_ChatOpeningKey ) ) && runtime.FocusHud( "say" ) )
 		s_bChatFocus = false;
 }
 
@@ -1091,6 +1096,7 @@ void FuiHudOverlayReset()
 	s_bSpectator = false;
 	s_iChatMode = 0;
 	s_bChatFocus = false;
+	s_ChatOpeningKey = BUTTON_CODE_INVALID;
 	s_RoundEnd.Clear();
 	s_Killer.Clear();
 	s_Chat.clear();

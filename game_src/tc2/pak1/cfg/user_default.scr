@@ -34,6 +34,14 @@ VERSION 1.0
 
 DESCRIPTION INFO_OPTIONS
 {
+	"fui_menu"
+	{
+		"#Frontress_Interface"
+		"#Frontress_InterfaceHint"
+		{ BOOL }
+		{ "1" }
+	}
+
 	"category1"
 	{
 		"#TF_OptionCategory_Communication"

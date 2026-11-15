@@ -27,6 +27,7 @@
 #include "filesystem.h"
 #include "GameEventListener.h"
 #include "hud.h"
+#include "hud_controlpointicons.h"
 #include "teamplay_round_timer.h"
 #include "tf_gamerules.h"
 #include "tf_weapon_medigun.h"
@@ -655,11 +656,15 @@ void WriteObjective( Node &hud )
 	// Control points, in the map's order.
 	Node &points = hud[ "points" ];
 	points.SetArray();
+	CHudControlPointIcons *pPointHud = GET_HUDELEMENT( CHudControlPointIcons );
+	const int iLocalPoint = pPointHud ? pPointHud->GetCurrentControlPoint() : -1;
 	for ( int i = 0; pObjectives && i < pObjectives->GetNumControlPoints(); ++i )
 	{
 		if ( !pObjectives->IsCPVisible( i ) )
 			continue;
 		Node &p = points.Append();
+		p[ "local" ] = Node( i == iLocalPoint );
+		p[ "index" ] = Node( i + 1 );
 		const int iCapper = pObjectives->GetCappingTeam( i );
 		p[ "owner" ] = Node( frontress::DisplayTeam( pObjectives->GetOwningTeam( i ) ) == TF_TEAM_RED ? "red" : frontress::DisplayTeam( pObjectives->GetOwningTeam( i ) ) == TF_TEAM_BLUE ? "blu" : "neutral" );
 		p[ "capping" ] = Node( frontress::DisplayTeam( iCapper ) == TF_TEAM_RED ? "red" : frontress::DisplayTeam( iCapper ) == TF_TEAM_BLUE ? "blu" : "" );
@@ -707,18 +712,25 @@ void WriteObjective( Node &hud )
 // The HUD document's <body data-replaces="...">, read from its file (and read
 // again when it changes, for fui_hot_reload).
 //-----------------------------------------------------------------------------
-static void ReadReplaces()
+static void ReadReplaces( bool reset = false )
 {
 	static CUtlString s_strPath;
 	static long s_nTime = -1;
 	static float s_flNextCheck = 0.f;
+	if ( reset )
+	{
+		s_strPath.Clear();
+		s_flNextCheck = 0.f;
+		return;
+	}
+
 	const char *pszDoc = FuiHudDocument();
-	if ( s_Replaces.Count() && !V_strcmp( s_strPath, pszDoc ) && Plat_FloatTime() < s_flNextCheck )
+	if ( !s_strPath.IsEmpty() && !V_strcmp( s_strPath, pszDoc ) && Plat_FloatTime() < s_flNextCheck )
 		return;
 	s_flNextCheck = (float)Plat_FloatTime() + 2.f;
 	CFmtStr path( "resource/fui/%s", pszDoc );
 	const long nTime = g_pFullFileSystem->GetFileTime( path, "GAME" );
-	if ( s_Replaces.Count() && !V_strcmp( s_strPath, pszDoc ) && nTime == s_nTime )
+	if ( !s_strPath.IsEmpty() && !V_strcmp( s_strPath, pszDoc ) && nTime == s_nTime )
 		return;
 	s_strPath = pszDoc;
 	s_nTime = nTime;
@@ -773,15 +785,22 @@ const char *FuiHudDocument()
 	return s_strPath.Get();
 }
 
+void FuiHudReset()
+{
+	s_Replaces.PurgeAndDeleteElements();
+	ReadReplaces( true );
+	s_flNextRefresh = 0.f;
+	s_KillFeed.Clear();
+	FuiHudOverlayReset();
+}
+
 void FuiHudUpdate( fui::Runtime &runtime, bool bShown )
 {
 	s_KillFeed.Listen();
 	C_TFPlayer *pPlayer = C_TFPlayer::GetLocalTFPlayer();
 	if ( !engine->IsInGame() || !pPlayer || engine->IsLevelMainMenuBackground() )
 	{
-		s_Replaces.PurgeAndDeleteElements();
-		s_KillFeed.Clear();
-		FuiHudOverlayReset();
+		FuiHudReset();
 		return;
 	}
 
@@ -790,6 +809,8 @@ void FuiHudUpdate( fui::Runtime &runtime, bool bShown )
 	// class select too, before the HUD itself is ever shown.
 	ReadReplaces();
 	FuiHudOverlayHideStock();
+	if ( !V_strcmp( FuiHudDocument(), "huds/minimal/hud.rml" ) )
+		return; // Classic HUD reads its own state; avoid rebuilding an unused scoreboard.
 
 	if ( !bShown || Plat_FloatTime() < s_flNextRefresh )
 		return;

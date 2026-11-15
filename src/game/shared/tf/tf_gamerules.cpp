@@ -9621,7 +9621,7 @@ void CTFGameRules::Think()
 				{
 					bool bVotePeriodExpired = false;
 					// Judgment time has arrived.  Force a result below
-					if ( nTimePassed == tf_mm_next_map_vote_time.GetInt() )
+					if ( nTimePassed >= tf_mm_next_map_vote_time.GetInt() )
 					{
 						bVotePeriodExpired = true;
 					}
@@ -14025,6 +14025,7 @@ void CTFGameRules::CreateStandardEntities()
 	// Vote Issue classes are handled/cleaned-up by g_voteControllers
 	NewTeamIssue< CKickIssue >();
 	NewGlobalIssue< CRestartGameIssue >();
+	NewGlobalIssue< CNextMatchIssue >();
 	NewGlobalIssue< CChangeLevelIssue >();
 	NewGlobalIssue< CNextLevelIssue >();
 	NewGlobalIssue< CExtendLevelIssue >();

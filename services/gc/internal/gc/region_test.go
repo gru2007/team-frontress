@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gru2007/team-frontress/services/gc/internal/config"
+	"github.com/gru2007/team-frontress/services/gc/internal/mm"
 	"github.com/gru2007/team-frontress/services/gc/internal/session"
 )
 
@@ -77,5 +78,45 @@ func TestMatchesStayInTheirRegion(t *testing.T) {
 	g.matchmake()
 	if l := lobbyOf(5); l != lobbyOf(6) || l.Region != "" {
 		t.Fatal("parties that waited out their region were not matched together")
+	}
+}
+
+// A deliberate selection is a constraint, including late joins into an
+// unpinned lobby. Auto is still allowed to widen its search.
+func TestExplicitRegionSurvivesWaitAndUnavailableServers(t *testing.T) {
+	grp := config.MatchGroupConfig{MatchGroup: 7, Enabled: true, MinPlayers: 2, IdealPlayers: 2, MaxPlayers: 4}
+	g, err := New(Deps{Config: config.Config{MatchGroups: []config.MatchGroupConfig{grp},
+		Regions: []config.RegionConfig{{ID: "eu"}, {ID: "na"}}, RegionWaitSecs: 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := g.sessions.Open(session.Server, 100, nil)
+	s.Connect, s.Region = "127.0.0.1:27015", "na"
+	g.ServerConnected(s)
+	g.servers[100].Ready = true
+	for _, id := range []uint64{1, 2} {
+		g.player(id).Online = true
+		g.player(id).RegionPref = "eu"
+		g.newParty(id).Queues[grp.MatchGroup] = g.now().Add(-time.Hour)
+	}
+	g.matchmake()
+	if g.lobbyOf(1) != nil || g.lobbyOf(2) != nil {
+		t.Fatal("explicit EU selection escaped to NA")
+	}
+	entry := mm.Entry{PartyID: g.player(1).PartyID, QueuedAt: g.now().Add(-time.Hour)}
+	if g.lobbyTakes(&Lobby{ServerID: 100}, entry) {
+		t.Fatal("an unpinned NA lobby accepted an EU player")
+	}
+	pinned := grp
+	pinned.Region = "na"
+	if pools := g.regionPools(pinned, []mm.Entry{entry}); len(pools) != 1 || len(pools[0].entries) != 0 {
+		t.Fatal("region-pinned group bypassed explicit preference")
+	}
+	for _, id := range []uint64{1, 2} {
+		g.player(id).RegionPref = ""
+	}
+	g.matchmake()
+	if g.lobbyOf(1) == nil || g.lobbyOf(1) != g.lobbyOf(2) {
+		t.Fatal("Auto did not allow worldwide matching")
 	}
 }
